@@ -268,12 +268,12 @@ Create/re-auth reuse the existing `POST /settings/ai/connections` and `PUT /sett
 
 **Files:** `packages/frontend/src/api/ai-settings.ts`, `src/common/const/vue-query.ts`, `src/composable/data-queries/use-cli-ai-availability.ts`, `src/pages/settings/subpages/ai/presets.ts`, `presets.spec.ts`, `src/pages/settings/subpages/ai/composables/use-cli-sign-in.ts` + `.spec.ts`
 
-- [ ] API functions for the five endpoints; `cliAuthSessionId` on create/update/test bodies.
-- [ ] Cache key `aiCliAvailability`; query hook enabled when `config.isSelfHost` (any signed-in user; the endpoint decides admin access and answers with a reason, so no `useIsAdmin` check here). Presets stay hidden unless `available: true`; the reasons are not rendered (Decision 18).
-- [ ] Presets `claudeCode` and `codex` with `authKind: 'subscription'`, `signInLabelKey`, `keyRequired: false`; `getVisiblePresets({ availability })` hides them unless available and marks them disabled when the CLI is missing.
-- [ ] `use-cli-sign-in.ts`: state machine (`idle → starting → awaiting-user → verifying → succeeded | failed | expired`), 2 s polling while awaiting/verifying, stops on unmount, the pre-opened tab handling, `submitCode`, `cancel`, `reset`.
-- [ ] Vitest: preset visibility matrix (cloud, self-host non-admin, admin available, admin with a missing CLI); `findPresetForConnection` for the new providers; the composable transitions, poll stop on terminal states and unmount, cancel on reset.
-- [ ] Gate: `npm run test:unit -- --run src/pages/settings/subpages/ai/presets.spec.ts src/pages/settings/subpages/ai/composables/use-cli-sign-in.spec.ts`.
+- [x] API functions for the five endpoints; `cliAuthSessionId` on create/update/test bodies (the bodies already carry it from the shared types, so the create/update/test API functions pass it through unchanged).
+- [x] Cache key `aiCliAvailability`; query hook enabled when `config.isSelfHost` (any signed-in user; the endpoint decides admin access and answers with a reason, so no `useIsAdmin` check here). Presets stay hidden unless `available: true`; the reasons are not rendered (Decision 18).
+- [x] Presets `claudeCode` and `codex` with `authKind: 'subscription'`, `signInLabelKey`, `keyRequired: false`; `getVisiblePresets({ availability })` hides them unless available and marks them disabled when the CLI is missing.
+- [x] `use-cli-sign-in.ts`: state machine (`idle → starting → awaiting-user → verifying → succeeded | failed | expired`), 2 s polling while awaiting/verifying, stops on unmount, the pre-opened tab handling, `submitCode`, `cancel`, `reset`.
+- [x] Vitest: preset visibility matrix (cloud, self-host non-admin, admin available, admin with a missing CLI); `findPresetForConnection` for the new providers; the composable transitions, poll stop on terminal states and unmount, cancel on reset.
+- [x] Gate: `npm run test:unit -- --run src/pages/settings/subpages/ai/presets.spec.ts src/pages/settings/subpages/ai/composables/use-cli-sign-in.spec.ts` (2 files, 48 tests passed; frontend typecheck and lint clean).
 
 ### Task 10: Frontend sign-in UI, connection status and model card
 
