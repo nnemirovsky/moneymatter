@@ -1524,14 +1524,17 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
       const { buffer } = await exportArchive();
       const { files, manifest } = helpers.parseBackupArchive({ buffer });
 
-      manifest.formatVersion = 2;
+      manifest.formatVersion = BACKUP_FORMAT_VERSION + 1;
       writeArchiveJson({ files, path: 'manifest.json', value: manifest });
       const base64 = await helpers.repackBackup({ files });
 
       const restore = await helpers.restoreBackup({ fileContent: base64 });
       expect(restore.statusCode).toBe(422);
       expect(restore.message).toBe(
-        t({ key: 'backup.restore.errors.formatVersionTooNew', variables: { version: 2, max: BACKUP_FORMAT_VERSION } }),
+        t({
+          key: 'backup.restore.errors.formatVersionTooNew',
+          variables: { version: BACKUP_FORMAT_VERSION + 1, max: BACKUP_FORMAT_VERSION },
+        }),
       );
     });
 
@@ -1540,7 +1543,7 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
       const { buffer } = await exportArchive();
       const { files, manifest } = helpers.parseBackupArchive({ buffer });
 
-      manifest.formatVersion = 2;
+      manifest.formatVersion = BACKUP_FORMAT_VERSION + 1;
       writeArchiveJson({ files, path: 'manifest.json', value: manifest });
       const base64 = await helpers.repackBackup({ files });
 
@@ -1548,7 +1551,7 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
         fileContent: base64,
         headers: { 'Accept-Language': 'uk' },
       });
-      const variables = { version: 2, max: BACKUP_FORMAT_VERSION };
+      const variables = { version: BACKUP_FORMAT_VERSION + 1, max: BACKUP_FORMAT_VERSION };
       expect(restore.statusCode).toBe(422);
       expect(restore.message).toBe(t({ key: 'backup.restore.errors.formatVersionTooNew', variables, locale: 'uk' }));
       expect(restore.message).not.toBe(
