@@ -279,13 +279,14 @@ Create/re-auth reuse the existing `POST /settings/ai/connections` and `PUT /sett
 
 **Files:** `components/ai-connection-dialog.vue`, new `components/cli-sign-in-panel.vue`, `components/ai-connection-row.vue`, `components/shared/model-selector-card.vue`, `components/shared/credential-status.vue`, `components/shared/feature-model-options.ts` (+ spec), frontend i18n chunks `en`/`uk` (via `i18n-editor`)
 
-- [ ] Dialog: for subscription presets hide base URL and API key; render `cli-sign-in-panel` (Claude: button → tab → code `InputField` with placeholder → submit; Codex: button → large copyable user code + "Open sign-in page" link + the device-code settings hint; both: status line, retry, cancel); the model field gets `CLI_AI_MODELS` suggestions with the default prefilled; Save/Test send `cliAuthSessionId`; Save is disabled until `succeeded`; personal-use `Callout`.
-- [ ] Edit mode of a CLI connection: name/model editable, "Sign in again" runs the panel and saves with `cliAuthSessionId`.
-- [ ] Row: subscription badge, `credentialExpiresAt` (warning within 14 days), invalid status with "Sign in again"; the delete confirm (`ResponsiveAlertDialog`, `destructive`) adds the Claude revoke hint.
-- [ ] Model card: `billing === 'subscription'` shows "Included in your subscription" in place of the price; the key-source badge reads "Subscription".
-- [ ] Container queries for layout, `Button` variants and color tokens per `frontend-rules`; no raw `<button>`.
-- [ ] Vitest: billing label formatting in `feature-model-options.spec.ts` (or a new pure helper with its own spec); `npm run lint` passes the i18n key check.
-- [ ] Gate: `npm run test:unit -- --run src/pages/settings/subpages/ai/`; `npm run typecheck`; `npm run lint`.
+- [x] Dialog: for subscription presets hide base URL and API key; render `cli-sign-in-panel` (Claude: button → tab → code `InputField` with placeholder → submit; Codex: button → large copyable user code + "Open sign-in page" link + the device-code settings hint; both: status line, retry, cancel); the model field gets `CLI_AI_MODELS` suggestions with the default prefilled; Save/Test send `cliAuthSessionId`; Save is disabled until `succeeded`; personal-use `Callout`.
+- [x] Edit mode of a CLI connection: name/model editable, "Sign in again" runs the panel and saves with `cliAuthSessionId`.
+- [x] Row: subscription badge, `credentialExpiresAt` (warning within 14 days), invalid status with "Sign in again"; the delete confirm (`ResponsiveAlertDialog`, `destructive`) adds the Claude revoke hint.
+- [x] Model card: `billing === 'subscription'` shows "Included in your subscription" in place of the price; the key-source badge reads "Subscription".
+- [x] Container queries for layout, `Button` variants and color tokens per `frontend-rules`; no raw `<button>`.
+- [x] Vitest: billing label formatting in `feature-model-options.spec.ts` (or a new pure helper with its own spec); `npm run lint` passes the i18n key check.
+- [x] Gate: `npm run test:unit -- --run src/pages/settings/subpages/ai/`; `npm run typecheck`; `npm run lint`.
+- Gate result: `npm run test:unit -- --run src/pages/settings/subpages/ai/` passes (6 files, 82 tests: new `cli-sign-in-panel.spec.ts` 6, `credential-expiry.spec.ts` 8, `resolveCostDisplay` cases in `feature-model-options.spec.ts`, `getDefaultCliModel` in `presets.spec.ts`); `npm run typecheck` clean; `npm run lint` clean apart from the existing `no-underscore-dangle` warnings, i18n key check OK; `npx oxfmt --check packages/frontend/src` clean. Beyond the plan text: `ApiKeySourceBadge` takes an `isSubscription` prop for the "Subscription" badge; the cost line goes through the pure `resolveCostDisplay` helper; `credential-expiry.ts` holds the 14-day warning rule; a disabled preset (CLI missing) stays in the picker with its reason in the label; a duplicate of a CLI connection needs its own sign-in (the key is never lent); the row's "Sign in again" opens the edit dialog, where the panel runs (a popup-safe sign-in needs a click inside the panel).
 
 ### Task 11: Verify acceptance criteria
 
