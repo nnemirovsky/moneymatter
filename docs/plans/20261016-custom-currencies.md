@@ -336,11 +336,34 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 
 - Modify: `services/bank-data-providers/**`, `services/{budgets,budget-plans,subscriptions,loans,vehicles,import-export,demo,transaction-automations,tag-reminders,data-export}/**`, `common/loans/projection.ts`, `parse-amount.ts`, `round-currency.ts`, the related serializers
 
-- [ ] same audit as Task 5 for these paths, keeping `toCents`/`fromCents` only where an external API really speaks in minor units, with a comment saying so
-- [ ] subscription-candidate detection, tag-reminder thresholds and loan events read decimals after the migration
-- [ ] import executors (CSV, text-source, OFX, YNAB, Wallet, MS Money, bank providers) write decimals correctly
-- [ ] record the after count of the Task 5 search in this plan, with each remaining hit explained
-- [ ] gate: the full backend e2e suite, run serially through `test-runner`, except the Task 1 e2e cases (storage and rounding), which stay `it.todo` until Task 7
+- [x] same audit as Task 5 for these paths, keeping `toCents`/`fromCents` only where an external API really speaks in minor units, with a comment saying so
+  - before count (same paths, `grep -rEI`, tests included): 673 lines in 124 files; 431 outside `*.e2e.ts` / `*.unit.ts`. The paths are the Task 6 list plus the loans and tag-reminders serializers
+  - bugs found and fixed (a number or a cents value reached a decimal column or filter):
+    - `connect-selected-accounts.ts`: `Accounts.create` got provider cents as `initialBalance` / `currentBalance` / `creditLimit`; now `Money.fromCents` of the provider's minor units
+    - `auto-link-transfers.ts` and `walutomat/cross-provider-linking.ts`: the `amount` equality filter used `toCents()`; now `toMoneyColumnValue`
+    - `suggest-historical-matches.ts`: the same-currency `amount` rule filtered the DECIMAL column with cents; now decimal bounds (the in-memory tolerance math stays on integer cents)
+    - `budget-plans/activity/get-plan-activity.ts` and `get-plan-cash.ts`: raw SUMs and balances arrive as decimal strings; converted to the plan's integer-cents domain at the query boundary
+    - `demo`: `apply-demo-template` bulk-created transactions from template cents, and `seed-investments` funding transactions from `amountCents`; both now build `Money`
+    - `venture` and `portfolio` link snapshots (`metaData.originalTransactionState.amount` / `refAmount`) stored cents and `unlink-tx-from-event` read `refAmount` back as cents; they are decimals now (see the JSON item below)
+  - kept on cents on purpose, each commented or documented: the provider boundary (`ProviderAccount`, `ProviderTransaction`, `ProviderBalance` are integer minor units; Monobank speaks them natively, the others convert on the way in; `types.ts` says so), Monobank's `externalData.balance`, the `balanceReconciliation` audit snapshot in `Accounts.externalData`, the CSV `parseAmount` (cents) and `roundCurrency` (2 decimals) whose docs now say they round to 2 decimals whatever the currency
+  - after count: 665 lines in 122 files; 423 outside tests. Remaining non-test hits by group:
+    - in-memory integer-cents arithmetic over `Money` getters, no storage involved: `budgets/**` stats, `budget-plans/**` fold / goals / suggested lines (`assignmentCents`, `toGoalSpec`, `Money.fromCents` on writes), `loans/**` replay / recompute / projection (`common/loans/projection.ts`), `vehicles/**` anchor, `subscriptions` matching engine and historical matches, `transaction-automations` condition context, duplicate detection in the importers and Walutomat linking
+    - provider minor units (above): `bank-data-providers/**`, `connect-selected-accounts`, `list-external-accounts`, the importers' `asCents` / `parseAmount` rows
+    - the demo template: `demo-config`, `template/**` and the seeders keep integer cents and build `Money.fromCents` at the model boundary
+    - `literal(` SQL fragments without money, `* 1000` / `/ 100` time and percent arithmetic, `INSERT INTO` / `UPDATE "` raw SQL whose money operands are DECIMAL columns (`apply-demo-template`)
+- [x] subscription-candidate detection, tag-reminder thresholds and loan events read decimals after the migration
+  - `detect-candidates.ts` groups on decimal amounts (the CV and bucket math only compares ratios) and stores `averageAmount` as `Money`; it used to write integer cents into the decimal column
+  - tag reminders: `settings.amountThreshold` is the API decimal end to end, so the serializer passes settings through; `check-reminders` sums `Money` and compares against `Money.fromDecimal(threshold)`; the notification message now carries the decimal actual amount (it printed cents). Shared type comments updated
+  - loan events: `update-loan.service` writes decimals under the unchanged `fromCents` / `toCents` keys, `loans.serializer` renames them to `from` / `to`; `LoanEvent` docs say the values are decimals and the key names are historical
+  - ⚠️ found by the audit: the money migration missed the cents stored in `VentureEventLinks.metaData.originalTransactionState` and `PortfolioTransfers.metaData.originalTransactionState` (`amount`, `refAmount`). `MoneyJsonFieldSpec` gained an optional `path`, both fields are in `MONEY_JSON_FIELDS`, so the migration (up and down), the backup v1 converter and `check:money-migration` handle them; the snapshot writers store decimals and `unlink-tx-from-event` reads `Money.fromDecimal`. `check:money-migration`: 485 checks passed (up, down, up again)
+- [x] import executors (CSV, text-source, OFX, YNAB, Wallet, MS Money, bank providers) write decimals correctly
+  - every executor builds `Money` (`Money.fromCents` for the CSV cents rows, `Money.fromDecimal` for the rest) before it reaches a model, so they were already correct; the e2e suites for all of them pass. Rounding stays 2 decimals until Task 7
+  - e2e fixes: the CSV and Wallet "row fails at the database layer" cases overflowed BIGINT; they now use 1e18, which overflows `DECIMAL(36,18)`. `demo.e2e.ts` reads raw DECIMAL strings with `Big`
+- [x] record the after count of the Task 5 search in this plan, with each remaining hit explained
+  - see the first item
+- [x] gate: the full backend e2e suite, run serially through `test-runner`, except the Task 1 e2e cases (storage and rounding), which stay `it.todo` until Task 7
+  - result: full suite, 290 suites: 287 passed, 2 skipped, 1 failed (the new `venture/linking/unlink-tx-from-event.e2e.ts`, whose fixture amount did not satisfy the venture event's sum check; fixed and re-run alone: 2/2). Tests: 3657 passed, 56 skipped, 7 todo. Backend typecheck, lint (exit 0), oxfmt and the unit suite (184 suites, 2513 tests) are clean
+  - new e2e: `venture/linking/unlink-tx-from-event.e2e.ts` (unlink restores the transaction from the decimal snapshot; unknown link is rejected). Unit: nested-path case in `convert-v1-money.unit.ts`
 
 ### Task 7: Per-currency rounding on write paths
 
