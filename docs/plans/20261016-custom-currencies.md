@@ -154,7 +154,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - **Base-currency change:**
   - **Where custom codes may be used in this iteration:** accounts and their transactions, splits, transfers, refunds, subscriptions and budgets. Portfolios, investment transactions, ventures, vehicles and loans keep ISO-only validation, so their ref fields (`LoanDetails.refOriginalPrincipal` and others, the investment `ref*` fields) never meet a missing custom rate. A follow-up can lift this.
   - A custom currency cannot become the base. A user who holds custom currencies can still change base:
-    - **Custom rates are never rewritten on a base change.** A user's rate for a custom code stays in its original quote currency (e.g. USDT → USD). Every lookup, during the rebuild and afterwards, crosses via that quote into the current base, using the market rate for the transaction's own date.
+    - **Custom rates are never rewritten on a base change.** A user's rate for a custom code stays in its original quote currency (e.g. USDT → USD). Every lookup, during the rebuild and afterwards, crosses via that quote into the current base, using the normal ISO resolution of that quote into the base for the transaction's own date (`getExchangeRate`, so a manual ISO rate the user set for that pair wins, otherwise the market rate).
     - In phase 2 the custom rate itself is the undated `UserExchangeRates` row. Phase 3 makes it dated and source-aware, without changing the crossing rule;
     - `rebuildTransactions` resolves custom legs this way, so transactions converted during the rebuild and those entered afterwards use the same path. ISO user rates keep today's documented rule: they stay as they are and apply again if the user switches back;
     - a missing custom rate yields `null` plus the flag instead of throwing and aborting the change.
@@ -166,7 +166,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
   - **For custom codes:**
     - `getRates`, `updateRates` and `resolveCustomRate` become date-aware, taking the latest rate on or before the date.
     - They no longer depend on `liveRateUpdate` or on the quote being the base.
-    - A cross-rate can use the user's custom → stored-quote rate together with market rates for the rest.
+    - A cross-rate can use the user's custom → stored-quote rate together with the normal ISO resolution (manual ISO rate if set, otherwise market) for the rest.
   - **ISO codes keep today's documented semantics:** a user's manual rate applies to every date, and the latest row wins regardless of the transaction date.
   - `buildDailyPairRateResolver` and `revalue-balance-history` use per-day user rates.
 - **Rate precision:** rates from custom sources are kept at full precision (at least 12 significant digits) and are not passed through `formatRate`'s 5-decimal truncation. Only the resulting money amount is rounded.
@@ -393,7 +393,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
   - plus the balance hooks, `Balances` updates, stats, budgets, exports and serializers
 - [ ] `calculateRefAmount`: for custom codes, catch `ExchangeRateUnavailableError` and store `null` plus `refAmountMissing`; ISO codes keep throwing
 - [ ] every reader on the list handles `null` (excluded from sums, or with an explicit "incomplete" marker in stats)
-- [ ] custom-code conversions bypass `computeCrossRate`/`crossRateCache` and resolve as: the user's custom rate in its stored quote currency, times the market rate from that quote to the target currency on the transaction's date (this is the single path Task 14 and Task 16 build on)
+- [ ] custom-code conversions bypass `computeCrossRate`/`crossRateCache` and resolve as: the user's custom rate in its stored quote currency, times the normal ISO resolution from that quote to the target currency (`getExchangeRate`, so a manual ISO rate into the base wins, otherwise market) on the transaction's date (this is the single path Task 14 and Task 16 build on)
 - [ ] e2e:
   - an 8-decimal BTC round trip and a 6-decimal USDT round trip
   - a USDT→USD transfer with both amounts given
@@ -408,10 +408,12 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - Create: `services/currencies/change-base-currency.custom.e2e.ts`
 
 - [ ] `rebuildTransactions` and the per-day balance sweep resolve custom legs through the user's rate source, crossing via the source's quote currency into the new base
-- [ ] custom legs resolve through the user's undated custom rate in its original quote, crossed into the new base with the market rate for the transaction's date (the Task 13 resolver path, not separate base-change code)
+- [ ] custom legs resolve through the user's undated custom rate in its original quote, crossed into the new base with the normal ISO resolution of quote → new base for the transaction's date (the Task 13 resolver path, not separate base-change code)
 - [ ] no user rate row is rewritten by a base change, custom or ISO
 - [ ] a missing custom rate gives `null` plus `refAmountMissing` and never aborts the base change
-- [ ] e2e: change base while holding a custom-currency account (with a rate, and without one); ISO-only base change is unchanged; a mixed case (custom holding plus an ISO manual rate such as USD → EUR) keeps the ISO rate row unchanged
+- [ ] e2e: change base while holding a custom-currency account (with a rate, and without one); ISO-only base change is unchanged; a mixed case (custom holding plus an ISO manual rate such as USD → EUR) keeps the ISO rate row unchanged; in the mixed case, a USDT transaction (USDT → USD custom rate 1, manual ISO USD → EUR 0.95, base EUR) is valued with 0.95, the same as a USD transaction
+- [ ] `revalueBalanceHistory` and the `revalueAccountsInCurrencies` trigger resolve custom-currency accounts through the same crossing (undated custom rate in its quote × ISO resolution of quote → base, per day), instead of returning `skipped`
+- [ ] e2e: after a base change, a custom-currency account's balance history is expressed in the new base
 - [ ] gate: the full base-change e2e suite passes
 
 ### Task 15: Frontend custom currency management and display
@@ -438,12 +440,13 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - Create/Modify: unit and e2e tests
 
 - [ ] migration: `UserExchangeRates.effectiveDate` (date, part of the key; existing rows get their `createdAt` date) and `source`
+- [ ] backup restore: before archive schema analysis, archives without `effectiveDate` (v1, and v2 exported before this migration) get it filled from each rate row's saved date using the migration's rule; e2e restores such an archive with non-empty user rates
 - [ ] `getRates` and `updateRates` take and write `effectiveDate`; an edit changes only that date's row
 - [ ] for **custom codes**, `resolveCustomRate` takes the latest rate on or before the date, ignores `liveRateUpdate` and the quote-is-base condition, and crosses via the stored quote currency
 - [ ] for **ISO codes**, behaviour stays date-independent as documented ("a custom rate applies to every date"): the ISO rate UI path writes no `effectiveDate` semantics of its own, and lookups keep using the latest row regardless of the transaction date
 - [ ] e2e: an ISO manual rate set today still applies to a transaction back-dated before it
 - [ ] keep custom-source rates at full precision (not through `formatRate`); round only the resulting amount
-- [ ] the dated resolver keeps the crossing rule: the custom rate effective on the transaction's date (in its stored quote) times the market rate from that quote to the current base on the same date; base change therefore needs no extra code here and never rewrites rate rows
+- [ ] the dated resolver keeps the crossing rule: the custom rate effective on the transaction's date (in its stored quote) times the normal ISO resolution from that quote to the current base on the same date; base change therefore needs no extra code here and never rewrites rate rows
 - [ ] e2e: USDT → USD manual rate 1 effective Jan 1 and no later row; USD → EUR market 0.8 on Jan 1 and 0.9 on Jan 2; after a base change to EUR, a 10-USDT transaction on Jan 2 is 9 EUR, both when rebuilt and when newly entered
 - [ ] e2e: change base while holding a custom currency with a backfilled multi-date rate history; each historical refAmount matches the per-date conversion
 - [ ] `buildDailyPairRateResolver` and `revalue-balance-history` use per-day user rates
