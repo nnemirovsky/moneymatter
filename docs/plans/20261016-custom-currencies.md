@@ -236,11 +236,14 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 **Files:**
 
 - Modify: `packages/backend/src/common/lib/currency-precision.ts`, `packages/backend/src/models/currencies.model.ts`
+- Create: `packages/backend/src/common/lib/currency-decimals-cache.ts` (the cache and its invalidation, separate from the helpers so the model hooks do not import a module that imports the model)
+- Modify: `packages/backend/src/common/types/money.ts` (`roundHalfEven`)
 
-- [ ] implement `getCurrencyDecimals` from `Currencies.digits`, with a cache keyed by `userId + code` and an invalidation hook (the per-user override arrives in Task 12)
-- [ ] implement `roundToCurrency` with both modes (`Big.roundHalfUp` and `Big.roundHalfEven`)
-- [ ] check the seeded `digits` against ISO minor units (JPY 0, KWD 3, BHD 3); record a data fix for Task 3's migration if any are wrong
-- [ ] gate: the Task 1 unit tests pass
+- [x] implement `getCurrencyDecimals` from `Currencies.digits` (looked up through `Currencies.findOne`, unknown code → `NotFoundError`, misses are not cached), with a cache keyed by `userId + code` and an invalidation hook (`invalidateCurrencyDecimalsCache`, called from `Currencies` `AfterSave`/`AfterDestroy`/bulk hooks; the per-user override arrives in Task 12)
+- [x] implement `roundToCurrency` with both modes (`Big.roundHalfUp` and `Big.roundHalfEven`; `Money.roundHalfEven(dp)` added next to `Money.round`)
+- [x] check the seeded `digits` against ISO minor units (JPY 0, KWD 3, BHD 3); record a data fix for Task 3's migration if any are wrong
+  - result: the seed comes from `currency-codes@2.1.0` data; all 179 rows match ISO 4217 minor units (0: BIF CLP DJF GNF ISK JPY KMF KRW PYG RWF UGX UYI VND VUV XAF XOF XPF; 3: BHD IQD JOD KWD LYD OMR TND; 4: CLF UYW; the rest 2, the X-codes 0). No data fix is needed in Task 3's migration
+- [x] gate: the Task 1 unit tests pass (11 original cases plus 5 cache cases; `Money.roundHalfEven` has 2 unit tests; full backend unit suite green)
 
 ### Task 3: Shared money-column list and the storage migration
 
