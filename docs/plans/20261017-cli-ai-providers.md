@@ -156,13 +156,15 @@ Create/re-auth reuse the existing `POST /settings/ai/connections` and `PUT /sett
 
 **Files:** `self-hosting/backend/Dockerfile`, `docker/dev/backend/Dockerfile`, `packages/backend/package.json`, `package-lock.json`, `packages/backend/src/services/ai/cli/pty-smoke.unit.ts`
 
-- [ ] Add `node-pty@1.1.0` (exact) to backend dependencies; `npm install` from the root.
-- [ ] Production stage: `apk add --no-cache libgcc libstdc++ ripgrep` (Claude Code's documented Alpine needs) before `npm ci`, so `node-pty` compiles while `python3 make g++` are still present; then `npm install -g @anthropic-ai/claude-code@2.1.292 @openai/codex@0.160.1 && npm cache clean --force`; `ENV USE_BUILTIN_RIPGREP=0`. Pass version `ARG`s so bumps are one-line.
-- [ ] Confirm npm picked the `linux-*-musl` Claude binary on Alpine; if not, install `@anthropic-ai/claude-code-linux-x64-musl`/`-arm64-musl` at the same version for the build platform (`TARGETARCH`).
-- [ ] Add `RUN claude --version && codex --version` as a build-time check; record the image size delta in this plan.
-- [ ] Dev image: the same global install (Debian, glibc).
-- [ ] Write `pty-smoke.unit.ts`: spawn `node -e "process.stdout.write('ok')"` through `node-pty` and read `ok`.
-- [ ] Gate: `npm run test:unit -- --testPathPattern='pty-smoke'`; `docker build -f self-hosting/backend/Dockerfile .` for the build platform succeeds and `docker run --rm --entrypoint sh <img> -c 'claude --version; codex --version; node -e "require(\"node-pty\")"'` prints both versions.
+- [x] Add `node-pty@1.1.0` (exact) to backend dependencies; `npm install` from the root.
+- [x] Production stage: `apk add --no-cache libgcc libstdc++ ripgrep` (Claude Code's documented Alpine needs) before `npm ci`, so `node-pty` compiles while `python3 make g++` are still present; then `npm install -g @anthropic-ai/claude-code@2.1.292 @openai/codex@0.160.1 && npm cache clean --force`; `ENV USE_BUILTIN_RIPGREP=0`. Pass version `ARG`s so bumps are one-line.
+- [x] Confirm npm picked the `linux-*-musl` Claude binary on Alpine (confirmed on arm64: `claude-code-linux-arm64-musl`, no fallback needed); if not, install `@anthropic-ai/claude-code-linux-x64-musl`/`-arm64-musl` at the same version for the build platform (`TARGETARCH`).
+- [x] Add `RUN claude --version && codex --version` as a build-time check; record the image size delta in this plan. Image size delta (arm64, Alpine): 1.29 GB -> 1.94 GB (+650 MB; Claude Code ~232 MB, Codex ~383 MB under `/usr/local/lib/node_modules`).
+- [x] Dev image: the same global install (Debian, glibc).
+- [x] Write `pty-smoke.unit.ts`: spawn `node -e "process.stdout.write('ok')"` through `node-pty` and read `ok`.
+- [x] Gate: `npm run test:unit -- --testPathPattern='pty-smoke'`; `docker build -f self-hosting/backend/Dockerfile .` for the build platform succeeds and `docker run --rm --entrypoint sh <img> -c 'claude --version; codex --version; node -e "require(\"node-pty\")"'` prints both versions.
+- Gate result: `pty-smoke` passes (1 test); typecheck and lint clean; `docker build -f self-hosting/backend/Dockerfile .` (linux/arm64) succeeds; the container prints `2.1.292 (Claude Code)`, `codex-cli 0.160.1` and loads `node-pty` (also spawns a PTY as user `nodejs`). Dev-image install snippet verified on `node:24.21.0`.
+- Note: on a dev machine the local `npm install` (npm 11.19) skips install scripts, so `node_modules/node-pty/prebuilds/<platform>/spawn-helper` lacks the exec bit and `pty.spawn` fails with `posix_spawnp failed`; run `chmod +x node_modules/node-pty/prebuilds/*/spawn-helper` once. The Docker build is unaffected.
 
 ### Task 2: Shared types, provider enum and access gate
 
