@@ -58,6 +58,8 @@ export interface MoneyJsonFieldSpec {
   column: string;
   /** `object`: the column is one JSON object. `array`: the column is an array of JSON objects. */
   shape: 'object' | 'array';
+  /** For `object` only: object keys leading from the column to the object that holds the amounts. Empty means the column itself. */
+  path?: readonly string[];
   /** Keys of the object (or of each array element) that hold an amount. */
   keys: readonly string[];
 }
@@ -76,5 +78,20 @@ export const MONEY_JSON_FIELDS: readonly MoneyJsonFieldSpec[] = [
     column: 'events',
     shape: 'array',
     keys: ['fromCents', 'toCents'],
+  },
+  // The state a linked transaction had before linking, kept so unlinking can restore it.
+  {
+    table: 'VentureEventLinks',
+    column: 'metaData',
+    shape: 'object',
+    path: ['originalTransactionState'],
+    keys: ['amount', 'refAmount'],
+  },
+  {
+    table: 'PortfolioTransfers',
+    column: 'metaData',
+    shape: 'object',
+    path: ['originalTransactionState'],
+    keys: ['amount', 'refAmount'],
   },
 ];
