@@ -78,7 +78,13 @@ function understateCentralDirSize({
  * shape guards. Each file's SHA-256 is computed into the manifest so it passes the
  * integrity gate and reaches the post-checksum shape checks.
  */
-async function buildArchiveFromFiles({ files }: { files: Record<string, string> }): Promise<Buffer> {
+async function buildArchiveFromFiles({
+  files,
+  formatVersion = 1,
+}: {
+  files: Record<string, string>;
+  formatVersion?: number;
+}): Promise<Buffer> {
   const manifestFiles: Record<string, { sha256: string }> = {};
   const zip = new JSZip();
   for (const [path, content] of Object.entries(files)) {
@@ -86,7 +92,7 @@ async function buildArchiveFromFiles({ files }: { files: Record<string, string> 
     manifestFiles[path] = { sha256: sha256Hex({ buffer }) };
     zip.file(path, buffer);
   }
-  zip.file('manifest.json', JSON.stringify({ formatVersion: 1, files: manifestFiles }));
+  zip.file('manifest.json', JSON.stringify({ formatVersion, files: manifestFiles }));
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
 
@@ -166,5 +172,32 @@ describe('loadBackupArchive uncompressed-size budget', () => {
     });
 
     expect(archive.manifest.formatVersion).toBe(1);
+  });
+});
+
+describe('loadBackupArchive money format', () => {
+  const rows = JSON.stringify([{ id: 'a', amount: 1550, refAmount: null }]);
+
+  it('converts the cents of a format version 1 archive to decimals', async () => {
+    const buffer = await buildArchiveFromFiles({ files: { 'data/transactions.json': rows }, formatVersion: 1 });
+
+    const archive = await loadBackupArchive({ fileContent: buffer.toString('base64') });
+
+    expect(archive.data.get('transactions')).toEqual([{ id: 'a', amount: '15.5', refAmount: null }]);
+  });
+
+  it('keeps the money of a format version 2 archive as it is', async () => {
+    const decimalRows = JSON.stringify([{ id: 'a', amount: '15.500000000000000000', refAmount: null }]);
+    const buffer = await buildArchiveFromFiles({ files: { 'data/transactions.json': decimalRows }, formatVersion: 2 });
+
+    const archive = await loadBackupArchive({ fileContent: buffer.toString('base64') });
+
+    expect(archive.data.get('transactions')).toEqual([{ id: 'a', amount: '15.500000000000000000', refAmount: null }]);
+  });
+
+  it('rejects a version newer than this app writes', async () => {
+    const buffer = await buildArchiveFromFiles({ files: { 'data/transactions.json': rows }, formatVersion: 3 });
+
+    await expect(loadBackupArchive({ fileContent: buffer.toString('base64') })).rejects.toThrow(/newer than/);
   });
 });
