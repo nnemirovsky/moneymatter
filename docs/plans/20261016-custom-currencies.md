@@ -216,20 +216,25 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 ### Task 1: Precision helper stubs and failing tests
 
 **Files:**
+
 - Create: `packages/backend/src/common/lib/currency-precision.ts` (stubs)
 - Create: `packages/backend/src/common/lib/currency-precision.unit.ts`
 - Create: `packages/backend/src/controllers/transactions.controller/currency-precision.e2e.ts`
 
-- [ ] create stubs for `getCurrencyDecimals({ userId, code })` (always returns 2) and `roundToCurrency({ money, userId, currencyCode, mode })` (always rounds to 2, half-up), so the tests compile and fail on assertions
-- [ ] unit tests: USD 2, JPY 0, KWD 3; an unknown code → error; half-up versus half-even at an exact tie
-- [ ] e2e **storage** cases (pass at Task 7, `it.todo` until then, because the transitional `roundOnWrite: 2` from Task 3 still rounds to 2 decimals): KWD transaction `1.234` reads back `1.234`; a KWD balance after several transactions equals the exact sum
-- [ ] e2e **rounding** cases (pass at Task 7): JPY `1500.6` → `1501`; for a user whose base is KWD, a JPY transaction's `refAmount` is rounded half-even to 3 decimals
-- [ ] regression guards that already pass today and must keep passing: USD 2 decimals, the half-up side of the tie case, USD `12.176673309` → `12.18`
-- [ ] run the tests and confirm that every case exercising new behaviour fails on an assertion (JPY 0, KWD 3, the unknown-code error, the half-even tie, the KWD storage cases, JPY `1500.6`, the KWD-base refAmount) and not on setup or a missing module, while the regression guards pass
+- [x] create stubs for `getCurrencyDecimals({ userId, code })` (always returns 2) and `roundToCurrency({ money, userId, currencyCode, mode })` (always rounds to 2, half-up), so the tests compile and fail on assertions (both are `async`, since the real versions read `Currencies.digits`)
+- [x] unit tests (mock `Currencies.findOne`; 11 cases): USD 2, JPY 0, KWD 3; an unknown code → error; half-up versus half-even at an exact tie
+- [x] e2e **storage** cases (pass at Task 7, skipped until then, because the transitional `roundOnWrite: 2` from Task 3 still rounds to 2 decimals): KWD transaction `1.234` reads back `1.234`; a KWD balance after several transactions equals the exact sum
+  - ⚠️ marked with `it.skip` (through the `itPerCurrencyRounding` alias) instead of `it.todo`: jest's `it.todo` takes no body, and the verified bodies must survive until Task 7. Every "stay `it.todo`" in Tasks 5-7 means "stay skipped", and Task 7 flips the alias to `it`.
+- [x] e2e **rounding** cases (pass at Task 7, skipped until then): JPY `1500.6` → `1501`; for a user whose base is KWD, a JPY transaction's `refAmount` is rounded half-even to 3 decimals
+  - ⚠️ KWD is not a supported base-currency change target, so this case provisions a second user whose base is KWD from the start (`provisionSecondUserWithBaseCurrency`) and uses a manual JPY → KWD rate of 0.0005 so that 5 JPY and 15 JPY convert to exact ties (expected 0.002 and 0.008)
+- [x] regression guards that already pass today and must keep passing: USD 2 decimals, the half-up side of the tie case, USD `12.176673309` → `12.18`
+- [x] run the tests and confirm that every case exercising new behaviour fails on an assertion (JPY 0, KWD 3, the unknown-code error, the half-even tie, the KWD storage cases, JPY `1500.6`, the KWD-base refAmount) and not on setup or a missing module, while the regression guards pass
+  - result: unit 11 cases, 8 fail on assertions (JPY 0, KWD 3, unknown code in both helpers, `1.2345` → `1.235` KWD, JPY `1500.6`, half-even tie at USD and at KWD/JPY decimals) and 3 pass (USD 2, USD `12.176673309` → `12.18`, half-up tie); e2e 6 cases, 4 fail on assertions (KWD `1.23` vs `1.234`, balance `3.13` vs `3.128`, JPY `1500.6` vs `1501`, refAmount `0` vs `0.002`) and 2 USD guards pass
 
 ### Task 2: Currency precision helpers
 
 **Files:**
+
 - Modify: `packages/backend/src/common/lib/currency-precision.ts`, `packages/backend/src/models/currencies.model.ts`
 
 - [ ] implement `getCurrencyDecimals` from `Currencies.digits`, with a cache keyed by `userId + code` and an invalidation hook (the per-user override arrives in Task 12)
@@ -240,6 +245,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 ### Task 3: Shared money-column list and the storage migration
 
 **Files:**
+
 - Create: `packages/backend/src/common/lib/money-columns.ts`
 - Create: `packages/backend/src/migrations/20261016000000-money-columns-to-decimal.ts`
 - Create: `packages/backend/scripts/check-money-migration.ts`
@@ -256,6 +262,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 ### Task 4: Backup format v2 with v1 conversion
 
 **Files:**
+
 - Modify: `packages/shared/src/types/backup.ts`, `packages/backend/src/services/backup/restore/**`, `services/backup/dump-tables.service.ts`
 - Create: a v1 fixture archive and `services/backup/restore/restore-v1-archive.e2e.ts`
 
@@ -268,6 +275,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 ### Task 5: Audit raw cents handling, part 1
 
 **Files (from the `rg` distribution):**
+
 - Modify: `services/transactions/**`, `controllers/transactions.controller/**`, `services/accounts/**`, `services/balances/**` (including `revalue-balance-history.service.ts`), `models/balances.model.ts`, `models/transactions.model.ts` (hooks), `services/stats/**`, `serializers/**`, `services/calculate-ref-amount*` (Redis cache key and value), transaction linking, `services/currencies/change-base-currency.service.ts`
 
 - [ ] list every hit of `rg -n 'fromCents|toCents|Cents\b|::bigint|::int|\* ?100|/ ?100|literal\(|INSERT INTO|UPDATE "' ` in these paths, and record the before count in this plan
@@ -280,6 +288,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 ### Task 6: Audit raw cents handling, part 2
 
 **Files (from the `rg` distribution):**
+
 - Modify: `services/bank-data-providers/**`, `services/{budgets,budget-plans,subscriptions,loans,vehicles,import-export,demo,transaction-automations,tag-reminders,data-export}/**`, `common/loans/projection.ts`, `parse-amount.ts`, `round-currency.ts`, the related serializers
 
 - [ ] same audit as Task 5 for these paths, keeping `toCents`/`fromCents` only where an external API really speaks in minor units, with a comment saying so
@@ -291,6 +300,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 ### Task 7: Per-currency rounding on write paths
 
 **Files:**
+
 - Modify: transaction create and update, transfers, splits, refund linking, `calculate-ref-amount*`, balance updates, `common/lib/zod/custom-types.ts` (`boundedDecimalAmount`)
 
 - [ ] round every user-provided money write half-up to its currency's decimals, listing each path: transactions (`amount`, `commissionRate`, `cashbackAmount`, `originalAmount`), splits, accounts (`initialBalance`, `creditLimit`), balance adjustment (`targetBalance`), budgets (`limitAmount`), budget assignments and line goals, subscriptions (`expectedAmount`), transaction templates, vehicles (`purchasePrice` and values), loan details, and every import executor; then remove the transitional `roundOnWrite: 2` from Task 3
@@ -299,12 +309,13 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - [ ] make split-sum validation compare rounded values
 - [ ] make `boundedDecimalAmount` precision-aware, so a 3-decimal base currency accepts 3 decimals in budget plans
 - [ ] tests: transfers between a 0-decimal and a 3-decimal account, plus the Task 1 rounding cases
-- [ ] remove the `it.todo` marks from the Task 1 e2e cases (storage and rounding), and add the KWD 3-decimal v2 backup round trip to the Task 4 e2e
+- [ ] remove the skip (`itPerCurrencyRounding`) from the Task 1 e2e cases (storage and rounding), and add the KWD 3-decimal v2 backup round trip to the Task 4 e2e
 - [ ] gate: the backend unit and e2e tests pass, including every Task 1 case
 
 ### Task 8: Frontend formatting and inputs by currency decimals
 
 **Files:**
+
 - Modify: `packages/frontend/src/js/helpers/formatters.ts`, `packages/frontend/src/composable/formatters.ts`, the 6 component-level formatters, amount input components (locate them with ast-grep)
 - Create/Modify: matching vitest files
 
@@ -318,6 +329,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 ### Task 9: Schema for custom currencies, wider codes and nullable ref amounts
 
 **Files:**
+
 - Create: `packages/backend/src/migrations/20261016010000-custom-currencies.ts`
 - Modify: `currencies.model.ts`, `users-currencies.model.ts`, `transactions.model.ts`, `transaction-splits.model.ts`, `accounts.model.ts`, every model with a `STRING(3)` currency column, the shared types
 
@@ -336,6 +348,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 ### Task 10: Keep custom codes out of global readers
 
 **Files:**
+
 - Modify: `currencies.model.ts` (`getAllCurrencies`), the currencies controller and route, `services/exchange-rates/providers/registry.ts`, `providers/fawaz-currency-api/**`, `providers/api-layer/**`, `initialize-historical-rates.service.ts`
 - Create: `services/currencies/custom-currency-isolation.e2e.ts`, plus unit tests for the registry coverage set
 
@@ -347,6 +360,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 ### Task 11: Currency-code validation from the database
 
 **Files:**
+
 - Modify: `common/lib/zod/custom-types.ts`, controllers that call `currencyCode()`, `csv-import/extract-unique-values/validate-currency.ts`, `ofx-import/mapping.ts`, `ynab-import/parse-ynab.service.ts`, `bank-data-providers/simplefin/simplefin.provider.ts`, `statement-parser/extraction-prompt.ts`
 - Create/Modify: the matching unit and e2e tests
 
@@ -359,6 +373,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 ### Task 12: Custom currency CRUD with per-user decimals
 
 **Files:**
+
 - Create: `packages/backend/src/controllers/currencies/custom-currencies.ts`, `services/currencies/custom-currencies.service.ts`, `services/currencies/custom-currencies.e2e.ts`
 - Modify: the currencies routes and serializers, `common/lib/currency-precision.ts` (override lookup and cache invalidation)
 
@@ -376,6 +391,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 ### Task 13: Transactions in custom currencies with an explicit missing-rate state
 
 **Files:**
+
 - Modify: `services/calculate-ref-amount*`, `services/user-exchange-rate/get-exchange-rate.service.ts`, and every `refAmount` reader enumerated in the first step
 - Create: `services/currencies/custom-currency-transactions.e2e.ts`
 
@@ -404,6 +420,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 ### Task 14: Base-currency change with custom holdings
 
 **Files:**
+
 - Modify: `services/currencies/change-base-currency.service.ts`, `base-currency-change-drain.ts`, `services/user-exchange-rate/*`
 - Create: `services/currencies/change-base-currency.custom.e2e.ts`
 
@@ -419,6 +436,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 ### Task 15: Frontend custom currency management and display
 
 **Files:**
+
 - Modify: the settings currencies page (under `packages/frontend/src/pages/settings`), currency pickers, `formatters.ts` / `composable/formatters.ts`, the transaction list (missing-rate badge)
 - Create: the custom-currency dialog component, vitest specs, a Playwright spec under `packages/frontend/e2e`
 
@@ -435,6 +453,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 ### Task 16: Dated, user-scoped rate resolution
 
 **Files:**
+
 - Create: `packages/backend/src/migrations/20261016020000-currency-rate-sources.ts` (the `effectiveDate` and `source` columns go here)
 - Modify: `models/user-exchange-rates.model.ts`, `services/user-exchange-rate/{get-user-exchange-rates,update-exchange-rates,get-exchange-rate}.service.ts`, `services/exchange-rates/build-daily-pair-rate-resolver.ts`, `services/balances/revalue-balance-history.service.ts`
 - Create/Modify: unit and e2e tests
@@ -460,6 +479,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 ### Task 17: Rate-source configuration model and endpoint
 
 **Files:**
+
 - Modify: `20261016020000-currency-rate-sources.ts` (`UsersCurrencies.rateSource` and `rateSourceConfig`), `users-currencies.model.ts`, shared types
 - Create: `packages/backend/src/controllers/currencies/rate-source.ts`, `services/currencies/rate-sources/index.ts`, `rate-source.e2e.ts`
 
@@ -471,6 +491,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 ### Task 18: Manual and peg resolvers
 
 **Files:**
+
 - Create: `packages/backend/src/services/currencies/rate-sources/manual.ts`, `peg.ts`, unit tests
 - Modify: the resolver from Task 16
 
@@ -482,6 +503,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 ### Task 19: Recompute base-currency amounts for custom currencies
 
 **Files:**
+
 - Create: `packages/backend/src/services/currencies/recompute-custom-ref-amounts.service.ts`, unit tests, `recompute-custom-ref-amounts.e2e.ts`
 - Modify: the rate-source endpoint, the manual-rate endpoints, the backfill completion hooks
 
@@ -498,6 +520,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 ### Task 20: CoinGecko rate source
 
 **Files:**
+
 - Create: `packages/backend/src/services/currencies/rate-sources/coingecko.ts`, unit tests, e2e with mocked HTTP (following the existing provider test mocking pattern)
 - Modify: cron registration (`crons/`), `services/investments/data-providers/coingecko-provider.ts` (reuse its client; extract it if needed)
 
@@ -510,6 +533,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 ### Task 21: Generic HTTP/JSON rate source
 
 **Files:**
+
 - Create: `packages/backend/src/services/currencies/rate-sources/http.ts`, unit tests, e2e with a local mock server run under `useSelfHost()`
 - Modify: the rate-source controller (the test endpoint)
 
@@ -523,6 +547,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 ### Task 22: Frontend rate-source editor
 
 **Files:**
+
 - Modify: the custom-currency dialog or settings page from Task 15
 - Create: rate-source form components, vitest specs, a Playwright spec
 
@@ -550,13 +575,15 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 
 ## Post-Completion
 
-*Items requiring manual work or external systems; no checkboxes.*
+_Items requiring manual work or external systems; no checkboxes._
 
 **Deployment on the ritchie trial instance:**
+
 - Build images from this branch (`self-hosting/docker-compose.build.yml`) on ritchie, and back up the trial database before migrating.
 - Configure USDT/USDC (peg to USD), BTC/ETH (CoinGecko) and the other ledger currencies.
 
 **Ledger import (separate script, outside this repo):**
+
 - Import from the `bt` export, with the user-approved category, payee and account-group mapping:
   - account-currency amounts 1:1, with `originalAmount`/`originalCurrencyCode` for cross-currency rows;
   - transfers paired by description and timestamp, with fees as their own rows;
@@ -564,5 +591,6 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - Check the derived balances against the Sheets Balances sheet.
 
 **Upstream:**
+
 - Open a discussion or feature request with letehaha before any PR, and sign the CLA (`CLA.md`).
 - Offer one PR per phase, in order. Phase 1 is useful on its own (JPY/KWD correctness).
