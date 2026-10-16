@@ -115,6 +115,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
   - It returns the user's `UsersCurrencies.decimalsOverride` when one exists (phase 2), and otherwise `Currencies.digits`.
   - The cache is keyed by `userId + code` and invalidated whenever a currency or override changes.
   - Phase 1 ships the user-aware signature, so phase 2 only adds the override lookup.
+- **Transition:** moving to DECIMAL removes the implicit 2-decimal half-up rounding the cents setter applies today. A transitional `roundOnWrite: 2` setter option keeps it until Task 7 rounds every write path per currency.
 - **Rounding:** `roundToCurrency({ money, userId, currencyCode, mode })`. `mode` is `'half-up'` for amounts the user or an import provides, which matches `toCents()` today. It is `'half-even'` for converted values (`refAmount`, `refCommissionRate`, balance revaluation), which matches `calculate-ref-amount.utils.ts` today. Computed values are rounded once, at write time.
 - **Audit:**
   - Every raw read of a migrated value switches from `Money.fromCents` to `Money.fromDecimal`, and every raw write or SQL expression loses its ×100, /100 or `::bigint`.
@@ -151,6 +152,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
   - Every reader that assumes `refAmount` is a `Money` handles `null`: balance hooks, `Balances` updates, stats sums, budgets and exports. The full caller list is enumerated in Task 13.
 - **Cross-rates:** conversions involving a custom code never go through `computeCrossRate`/`crossRateCache` (that cache is keyed only by date and code). They resolve through the user's own rate source.
 - **Base-currency change:**
+  - **Where custom codes may be used in this iteration:** accounts and their transactions, splits, transfers, refunds, subscriptions and budgets. Portfolios, investment transactions, ventures, vehicles and loans keep ISO-only validation, so their ref fields (`LoanDetails.refOriginalPrincipal` and others, the investment `ref*` fields) never meet a missing custom rate. A follow-up can lift this.
   - A custom currency cannot become the base. A user who holds custom currencies can still change base:
     - `rebuildTransactions` resolves custom legs through the user's rate for the custom code, crossing via that rate's quote currency into the new base. In phase 2 that is the undated `UserExchangeRates` row (custom → old base) times the market rate from the old base to the new base. Phase 3 replaces it with the dated, source-aware resolver;
     - stored user rates **whose base code is a custom currency** and whose quote is the old base are converted to the new base. ISO user rates keep today's documented rule: they stay as they are and apply again if the user switches back;
@@ -239,12 +241,13 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - Create: `packages/backend/src/common/lib/money-columns.ts`
 - Create: `packages/backend/src/migrations/20261016000000-money-columns-to-decimal.ts`
 - Create: `packages/backend/scripts/check-money-migration.ts`
-- Modify: the 13 models with `storage: 'cents'`, `subscription-candidates.model.ts`
+- Modify: `packages/backend/src/common/types/money-column.ts` (transitional `roundOnWrite`), the 13 models with `storage: 'cents'`, `subscription-candidates.model.ts`
 
 - [ ] `money-columns.ts`: the 33 `@MoneyField` columns, `SubscriptionCandidates.averageAmount`, and the JSON paths (tag-reminder `settings.amountThreshold`, the `LoanDetails.events` money fields, budget-plan goal amounts if stored in cents)
 - [ ] migration `up`: drop `real_transactions`; `ALTER ... TYPE DECIMAL(36,18) USING col::numeric / 100` for every column; rewrite the JSON paths ÷100; apply any `digits` data fix; recreate the view with its `deletedAt` filter
 - [ ] migration `down`: the reverse with `round(col * 100)::bigint` and ×100 JSON rewrites, plus a header noting that `down` is lossy past 2 decimals
 - [ ] switch the 33 `@MoneyField` declarations to `storage: 'decimal', precision: 36, scale: 18`, and `averageAmount` to a decimal money field
+- [ ] keep today's write behaviour during the transition: add a `roundOnWrite: 2` option to `@MoneyField`'s decimal setter (half-up, like `toCents()`), set it on every migrated field; Task 7 removes it once every write path rounds per currency
 - [ ] `check-money-migration.ts`: seed rows (including views and JSON), run up, down and up, assert the values; record its output in this plan
 - [ ] gate: typecheck, plus a passing migration check
 
@@ -281,14 +284,15 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - [ ] subscription-candidate detection, tag-reminder thresholds and loan events read decimals after the migration
 - [ ] import executors (CSV, text-source, OFX, YNAB, Wallet, MS Money, bank providers) write decimals correctly
 - [ ] record the after count of the Task 5 search in this plan, with each remaining hit explained
-- [ ] gate: the full backend e2e suite, run serially through `test-runner` (the Task 1 storage cases are part of it and already pass since Task 5)
+- [ ] gate: the full backend e2e suite, run serially through `test-runner`, except the Task 1 rounding cases, which are marked `it.todo` until Task 7 (the storage cases are part of the suite and already pass since Task 5)
 
 ### Task 7: Per-currency rounding on write paths
 
 **Files:**
 - Modify: transaction create and update, transfers, splits, refund linking, `calculate-ref-amount*`, balance updates, `common/lib/zod/custom-types.ts` (`boundedDecimalAmount`)
 
-- [ ] round user-provided amounts (`amount`, `commissionRate`, `cashbackAmount`, `originalAmount`, splits) half-up to their currency's decimals
+- [ ] round every user-provided money write half-up to its currency's decimals, listing each path: transactions (`amount`, `commissionRate`, `cashbackAmount`, `originalAmount`), splits, accounts (`initialBalance`, `creditLimit`), balance adjustment (`targetBalance`), budgets (`limitAmount`), budget assignments and line goals, subscriptions (`expectedAmount`), transaction templates, vehicles (`purchasePrice` and values), loan details, and every import executor; then remove the transitional `roundOnWrite: 2` from Task 3
+- [ ] test: a USD account created with `initialBalance: 100.555` stores `100.56`, as today; a KWD account stores `100.555`
 - [ ] round converted values (`refAmount`, `refCommissionRate`, balance revaluation) half-even to the base currency
 - [ ] make split-sum validation compare rounded values
 - [ ] make `boundedDecimalAmount` precision-aware, so a 3-decimal base currency accepts 3 decimals in budget plans
@@ -361,7 +365,8 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - [ ] native amounts on an account are rounded with the **account owner's** definition (pass the owner's `userId`, not the author's); reference amounts use the author's base, as today
 - [ ] backup: export the user's referenced custom definitions (`services/backup/registry.ts`, `dump-tables.service.ts`); restore creates or reuses the global rows before `UsersCurrencies` and accounts (`restore/restore-tables.ts`)
 - [ ] e2e: Alice (SAT, 8 decimals) shares an account with Bob (SAT, 0 decimals); Bob's 1.25 SAT entry is stored as 1.25. A backup of a user with a USDT account restores on a fresh instance with the currency, overrides and account intact
-- [ ] block making a custom currency the base currency
+- [ ] block making a custom currency the base currency, and keep ISO-only validation for portfolios, investment transactions, ventures, vehicles and loans (e2e: creating a USDT loan or portfolio → 422)
+- [ ] account and transaction payloads carry the account currency's effective metadata **as defined by the account owner** (`decimals`, `symbol`, `isCustom`), so a collaborator's UI can format by the account rather than by its own currency list
 - [ ] e2e: happy path, empty state, duplicate code for the same user, another user's code invisible, delete or decimals change while in use → 409, and two users defining SAT with 0 and 8 decimals each storing their own precision
 - [ ] gate: these tests pass
 
@@ -371,7 +376,18 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - Modify: `services/calculate-ref-amount*`, `services/user-exchange-rate/get-exchange-rate.service.ts`, and every `refAmount` reader enumerated in the first step
 - Create: `services/currencies/custom-currency-transactions.e2e.ts`
 
-- [ ] enumerate every caller of `calculateRefAmount` and every reader that sums or copies `refAmount`/`refCommissionRate`/`refCurrentBalance` (balance hooks, `Balances` updates, stats, budgets, exports, serializers); record the list in this plan
+- [ ] enumerate every caller of `calculateRefAmount` reachable with a custom code, and every reader that sums or copies the nullable ref fields; record the list in this plan. Starting set from `rg -l calculateRefAmount`:
+  - `accounts.service.ts`
+  - `accounts/{measure-spot-ref-balance,remeasure-ref-balances,restamp-ref-initial-balance}.ts`
+  - `transactions/{create-transaction,update-transaction}.ts`
+  - `transactions/splits/manage-splits.ts`
+  - `transactions/planned-matching/merge-into-planned.ts`
+  - `common/transaction-linking.ts`
+  - `subscriptions/{convert-subscription-amount,suggest-historical-matches,matching-engine}.ts`
+  - `budget-plans/get-scheduled.ts`
+  - `import-export/core/resolve/create-accounts-if-needed.ts`
+  - the transfer and refund recommendation controllers
+  - plus the balance hooks, `Balances` updates, stats, budgets, exports and serializers
 - [ ] `calculateRefAmount`: for custom codes, catch `ExchangeRateUnavailableError` and store `null` plus `refAmountMissing`; ISO codes keep throwing
 - [ ] every reader on the list handles `null` (excluded from sums, or with an explicit "incomplete" marker in stats)
 - [ ] custom-code conversions bypass `computeCrossRate`/`crossRateCache`
@@ -402,7 +418,8 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - Create: the custom-currency dialog component, vitest specs, a Playwright spec under `packages/frontend/e2e`
 
 - [ ] add an "Add custom currency" dialog (code, name, decimals, symbol) and edit/delete actions with the in-use rules
-- [ ] formatters: custom codes use decimal style with the user's decimals plus symbol or code, never `Intl` currency style
+- [ ] formatters: custom codes use decimal style plus symbol or code, never `Intl` currency style; amounts on an account are formatted and input-limited from the **account's** currency metadata (Task 12), not the viewer's own currency list, so a collaborator sees the owner's decimals; a code the viewer has no definition for (auto-connected through sharing) still renders as custom
+- [ ] vitest/Playwright: a collaborator whose SAT definition differs from the owner's sees and enters the owner's decimals
 - [ ] currency pickers list the user's custom currencies; amount inputs follow their decimals; transactions with `refAmountMissing` show a badge
 - [ ] add the i18n keys for `en` and `uk` through the `i18n-editor` subagent
 - [ ] vitest for formatters; Playwright: create USDT, create a USDT account, add a transaction, see `12.345678 USDT` and the missing-rate badge
@@ -423,6 +440,8 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - [ ] for **ISO codes**, behaviour stays date-independent as documented ("a custom rate applies to every date"): the ISO rate UI path writes no `effectiveDate` semantics of its own, and lookups keep using the latest row regardless of the transaction date
 - [ ] e2e: an ISO manual rate set today still applies to a transaction back-dated before it
 - [ ] keep custom-source rates at full precision (not through `formatRate`); round only the resulting amount
+- [ ] move Task 14's base-change mechanism onto the dated resolver: `rebuildTransactions` resolves each custom leg for the transaction's own date; stored custom-base rate rows are converted **row by row**, each with the old→new market rate for that row's own date; CoinGecko and HTTP sources re-fetch against the new base instead of converting
+- [ ] e2e: change base while holding a custom currency with a backfilled multi-date rate history; each historical refAmount matches the per-date conversion
 - [ ] `buildDailyPairRateResolver` and `revalue-balance-history` use per-day user rates
 - [ ] tests:
   - a back-dated transaction uses the rate effective on its date
@@ -461,6 +480,8 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 
 - [ ] expand the affected set first: starting from the changed currency and dates, follow the user's reverse peg and quote dependencies (a currency pegged to, or quoted via, a changed one) until no new currency is added, carrying the affected dates along
 - [ ] service: for one user, the expanded set of custom currencies and the dates whose effective rate changed, recompute `refAmount`, `refCommissionRate`, split ref amounts, account ref balances and `refAmountMissing`, then schedule the balance-history rebuild
+- [ ] every trigger (source change, manual-rate edit, backfill completion, daily-sync fill) clears the user's ref-amount cache through the Task 5 prefix helper after commit, including entries for dependent currencies; the recompute itself calls `calculateRefAmount` with `bypassCache: true`
+- [ ] e2e: after correcting a rate, a new transaction with the same amount, pair and date as an earlier one gets the corrected rate
 - [ ] trigger it on source change, backfill completion and manual-rate edits for past dates; the daily sync only fills `refAmountMissing` rows on the newly added date; never for ISO currencies
 - [ ] unit test: adding a rate for a new date selects no previously valued transaction
 - [ ] e2e: USDC pegged to USDT with a dated manual USDT/USD rate of 1; a 10-USDC transaction; correcting that historical USDT rate to 2 recomputes the USDC transaction to 20
