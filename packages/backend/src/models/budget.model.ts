@@ -43,7 +43,7 @@ export default class Budgets extends Model {
   @Column({ defaultValue: false, type: DataType.BOOLEAN })
   autoInclude!: boolean;
 
-  @MoneyField({ storage: 'cents', allowNull: true })
+  @MoneyField({ storage: 'decimal', precision: 36, scale: 18, roundOnWrite: 2, allowNull: true })
   declare limitAmount: Money;
 
   @ForeignKey(() => Users)
