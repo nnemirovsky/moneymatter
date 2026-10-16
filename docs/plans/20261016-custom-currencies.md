@@ -254,13 +254,21 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - Create: `packages/backend/scripts/check-money-migration.ts`
 - Modify: `packages/backend/src/common/types/money-column.ts` (transitional `roundOnWrite`), the 13 models with `storage: 'cents'`, `subscription-candidates.model.ts`
 
-- [ ] `money-columns.ts`: the 33 `@MoneyField` columns, `SubscriptionCandidates.averageAmount`, and the JSON paths (tag-reminder `settings.amountThreshold`, the `LoanDetails.events` money fields, budget-plan goal amounts if stored in cents)
-- [ ] migration `up`: drop `real_transactions`; `ALTER ... TYPE DECIMAL(36,18) USING col::numeric / 100` for every column; rewrite the JSON paths ÷100; apply any `digits` data fix; recreate the view with its `deletedAt` filter
-- [ ] migration `down`: the reverse with `round(col * 100)::bigint` and ×100 JSON rewrites, plus a header noting that `down` is lossy past 2 decimals
-- [ ] switch the 33 `@MoneyField` declarations to `storage: 'decimal', precision: 36, scale: 18`, and `averageAmount` to a decimal money field
-- [ ] keep today's write behaviour during the transition: add a `roundOnWrite: 2` option to `@MoneyField`'s decimal setter (half-up, like `toCents()`), set it on every migrated field; Task 7 removes it once every write path rounds per currency
-- [ ] `check-money-migration.ts`: seed rows (including views and JSON), run up, down and up, assert the values; record its output in this plan
-- [ ] gate: typecheck, plus a passing migration check
+- [x] `money-columns.ts`: the 33 `@MoneyField` columns, `SubscriptionCandidates.averageAmount`, and the JSON paths (tag-reminder `settings.amountThreshold`, the `LoanDetails.events` money fields, budget-plan goal amounts if stored in cents)
+  - result: `MONEY_COLUMNS` has 34 entries (33 `@MoneyField` + `averageAmount`), checked against the migrated schema (every BIGINT money column in `information_schema`). `MONEY_JSON_FIELDS` has 2 entries: `TagReminders.settings.amountThreshold` (object) and `LoanDetails.events[].fromCents/toCents` (array; the keys keep their names, the values become decimals). Budget-plan goals are not JSON (`BudgetLineGoals.amount` is a column), and subscription matching rules and automation conditions already store decimals, so they are not listed. `Users.totalBalance` (INTEGER) is a legacy field outside this list.
+  - a unit test (`money-columns.unit.ts`) checks that every listed column is declared as a DECIMAL(36,18) money field and that no model keeps a BIGINT money field
+- [x] migration `up`: drop `real_transactions`; `ALTER ... TYPE DECIMAL(36,18) USING col::numeric / 100` for every column; rewrite the JSON paths ÷100; apply any `digits` data fix; recreate the view with its `deletedAt` filter
+- [x] migration `down`: the reverse with `round(col * 100)::bigint` and ×100 JSON rewrites, plus a header noting that `down` is lossy past 2 decimals
+- [x] switch the 33 `@MoneyField` declarations to `storage: 'decimal', precision: 36, scale: 18`, and `averageAmount` to a decimal money field
+- [x] keep today's write behaviour during the transition: add a `roundOnWrite: 2` option to `@MoneyField`'s decimal setter (half-up, like `toCents()`), set it on every migrated field; Task 7 removes it once every write path rounds per currency
+- [x] `check-money-migration.ts`: seed rows (including views and JSON), run up, down and up, assert the values; record its output in this plan
+  - run with `npm run check:money-migration` against `docker run --rm -d --name mm-migcheck -e POSTGRES_PASSWORD=test -p 55432:5432 postgres:16`. It applies the 151 earlier migrations, seeds 32 rows in 15 tables (34 money columns, `real_transactions` with a planned and a soft-deleted row, tag-reminder settings, loan events), then asserts after `seed`, `up`, `down` and `up-again`: column types, every value (`/100` on up, exact restore on down, NULLs kept), the view definition and its row filter, the JSON fields. It also asserts the documented loss (`1.235` goes down as `124`, `-1.235` as `-124`) and that `0.00040641` is stored exactly.
+  - output: `Seeded 32 rows into 15 tables (34 money columns).` then `465 checks passed, 0 failed.` A mutation check (changing `/ 100` to `/ 10`) makes it fail, so the assertions bite.
+  - foreign keys on the seeded tables are dropped in the throwaway database first, because the seed fills only the columns each row needs and the migration's JSON `UPDATE`s re-validate the keys of rewritten rows
+- [x] gate: typecheck, plus a passing migration check
+  - result: backend typecheck, lint (exit 0) and the migration check pass; the full backend unit suite is green (182 suites, 2481 tests), so no unit test started failing because of the storage switch
+  - ➕ known breakage for Tasks 5-6 (e2e only, not run in this task): every test that reads money through `raw: true` or SQL aggregates now sees decimal strings instead of cents numbers, e.g. `common/types/money-column.e2e.ts` (the "plain cents via raw: true" cases) and any e2e asserting cents; `transactions.model.ts` filter helpers still pass `toCents()` into `Op.between`/`Op.gte` on `amount`/`refAmount` (lines near 1056-1074); `balances.model.ts` literal updates (`amount + ${toCents()}`); `subscriptions/detect-candidates.ts` still writes `averageAmount` in cents (the serializer already reads the decimal); `models/index.ts` documents the INT8 parser as being for cents columns
+  - ➕ `Money` write behaviour is unchanged for now: all 34 fields carry `roundOnWrite: 2`
 
 ### Task 4: Backup format v2 with v1 conversion
 
