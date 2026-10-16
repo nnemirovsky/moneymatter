@@ -170,13 +170,14 @@ Create/re-auth reuse the existing `POST /settings/ai/connections` and `PUT /sett
 
 **Files:** `packages/shared/src/types/ai/settings.ts`, `packages/backend/src/models/user-settings.model.ts`, `packages/backend/src/services/ai/cli/cli-access.ts`, `packages/backend/src/middlewares/self-host-only.ts`, every exhaustive switch `tsc` flags (`ai-client-factory.ts`, `list-connection-models.ts`, `connection-validation.ts`, frontend `presets.ts`), `cli-access.unit.ts`, `settings.ts` type tests
 
-- [ ] Add the enum values, `AICliProvider`, `AI_CLI_PROVIDERS`, narrowed `AINativeProvider`, `CLI_AI_MODELS`, `CliAuthSessionInfo`, `CliAiAvailability`, the `cliAuthSessionId` request fields, `credentialExpiresAt`, `billing`.
-- [ ] Add a `credentialExpiresAt` optional field to `ZodAiConnectionSchema`.
-- [ ] Write `cli-access.ts`: `getCliAiAccess({ userId })` → `{ allowed, reason }` (loads the username, uses `isSelfHost()` + `isAdminUsername`), `assertCliAiAllowed({ userId })` throwing `NotAllowedError` with i18n key `ai.cliProvidersNotAllowed`.
-- [ ] Write `selfHostOnly` middleware (404 off self-host, mirror of `cloudOnly`).
-- [ ] Temporary `throw new Error('not wired')` arms where `tsc` demands, replaced in Tasks 4 and 7.
-- [ ] Unit tests: `cli-access.unit.ts` (cloud → `not-self-host`, self-host non-admin → `not-admin`, empty `ADMIN_USERS` → `admin-not-configured`, admin → allowed); an `Expect<Equals<…>>` assertion that `AINativeProvider` excludes the CLI providers.
-- [ ] Gate: `npm run typecheck`; `npm run test:unit -- --testPathPattern='cli-access'`.
+- [x] Add the enum values, `AICliProvider`, `AI_CLI_PROVIDERS`, narrowed `AINativeProvider`, `CLI_AI_MODELS`, `CliAuthSessionInfo`, `CliAiAvailability`, the `cliAuthSessionId` request fields, `credentialExpiresAt`, `billing`.
+- [x] Add a `credentialExpiresAt` optional field to `ZodAiConnectionSchema`.
+- [x] Write `cli-access.ts`: `getCliAiAccess({ userId })` → `{ allowed, reason }` (loads the username, uses `isSelfHost()` + `isAdminUsername`), `assertCliAiAllowed({ userId })` throwing `NotAllowedError` with i18n key `ai.cliProvidersNotAllowed`.
+- [x] Write `selfHostOnly` middleware (404 off self-host, mirror of `cloudOnly`).
+- [x] Temporary `throw new Error('not wired')` arms where `tsc` demands, replaced in Tasks 4 and 7.
+- [x] Unit tests: `cli-access.unit.ts` (cloud → `not-self-host`, self-host non-admin → `not-admin`, empty `ADMIN_USERS` → `admin-not-configured`, admin → allowed); an `Expect<Equals<…>>` assertion that `AINativeProvider` excludes the CLI providers.
+- [x] Gate: `npm run typecheck`; `npm run test:unit -- --testPathPattern='cli-access'`.
+- Gate result: `npm run typecheck` (backend and frontend) clean; `test:unit -- --testPathPattern='cli-access'` passes (9 tests); `services/ai/`, `resolve-feature-model` and `user-settings` unit suites also pass (212 tests); oxfmt clean on changed files. Temporary `not wired` arms: `ai-model-resolver.ts` (`toProviderModelSpec`), `connection-validation.ts` (`validateConnection`), `list-connection-models.ts` (`fetchModelIds`). `billing` is already derived in `resolve-feature-model-display.ts` (`subscription` for CLI providers) and `toConnectionInfo` returns `credentialExpiresAt`.
 
 ### Task 3: CLI runtime foundation
 

@@ -1,4 +1,4 @@
-import { AIFeatureStatus, AI_FEATURE, AI_PROVIDER } from '@bt/shared/types';
+import { AIFeatureStatus, AI_CLI_PROVIDERS, AI_FEATURE, AI_PROVIDER } from '@bt/shared/types';
 import type { StoredAiSettings } from '@models/user-settings.model';
 
 import { getModelProfile } from '../ai/model-catalog';
@@ -64,6 +64,7 @@ export async function resolveFeatureStatus({
         modelId,
         ...(await describeModel(connection)),
         usingUserKey: true,
+        billing: AI_CLI_PROVIDERS.some((provider) => provider === connection.provider) ? 'subscription' : 'per-token',
         connectionId: connection.id,
         connectionName: connection.name,
         serverModelName,
@@ -80,6 +81,7 @@ export async function resolveFeatureStatus({
         modelId: buildConnectionModelId(step.model),
         ...(await describeModel(step.model)),
         usingUserKey: false,
+        billing: 'per-token',
         serverModelName,
       };
 
@@ -93,6 +95,7 @@ export async function resolveFeatureStatus({
         pricing: null,
         capabilities: null,
         usingUserKey: false,
+        billing: 'per-token',
         serverModelName,
       };
   }

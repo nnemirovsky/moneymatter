@@ -111,6 +111,7 @@ describe('resolveFeatureStatus', () => {
       pricing: mockSonnetProfile.pricing,
       capabilities: mockSonnetProfile.capabilities,
       usingUserKey: true,
+      billing: 'per-token',
       connectionId: CLAUDE.id,
       connectionName: CLAUDE.name,
       serverModelName: null,
@@ -159,6 +160,7 @@ describe('resolveFeatureStatus', () => {
       pricing: null,
       capabilities: null,
       usingUserKey: false,
+      billing: 'per-token',
       serverModelName: SERVER_MODEL.model,
     });
   });
@@ -199,6 +201,7 @@ describe('resolveFeatureStatus', () => {
       pricing: null,
       capabilities: null,
       usingUserKey: false,
+      billing: 'per-token',
       serverModelName: null,
     });
   });
