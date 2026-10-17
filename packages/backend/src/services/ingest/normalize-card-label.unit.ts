@@ -1,6 +1,5 @@
+import { normalizeCardLabel } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
-
-import { normalizeCardLabel } from './normalize-card-label';
 
 describe('normalizeCardLabel', () => {
   it.each([

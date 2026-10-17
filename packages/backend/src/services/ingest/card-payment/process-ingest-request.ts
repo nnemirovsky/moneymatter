@@ -1,8 +1,9 @@
-import type {
-  CardPaymentParkReason,
-  CardPaymentRejectionReason,
-  IngestRequestStatus,
-  RecordId,
+import {
+  type CardPaymentParkReason,
+  type CardPaymentRejectionReason,
+  type IngestRequestStatus,
+  type RecordId,
+  normalizeCardLabel,
 } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import CardAccountMappings from '@models/card-account-mappings.model';
@@ -11,7 +12,6 @@ import IngestRequests from '@models/ingest-requests.model';
 import { withTransaction } from '@services/common/with-transaction';
 import { Op } from 'sequelize';
 
-import { normalizeCardLabel } from '../normalize-card-label';
 import { buildLoggedSummary } from './build-logged-summary';
 import { cardPaymentTimings } from './constants';
 import { formatSummary } from './format-summary';

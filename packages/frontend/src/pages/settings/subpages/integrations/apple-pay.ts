@@ -1,9 +1,9 @@
-import { normalizeCardLabel } from '@bt/shared/lib/normalize-card-label';
 import {
   ACCOUNT_STATUSES,
   type AccountModel,
   type CardPaymentRequestDto,
   isDedicatedFlowAccountCategory,
+  normalizeCardLabel,
 } from '@bt/shared/types';
 
 const LABEL_ROOT = 'settings.integrations.applePay';

@@ -4,7 +4,7 @@ import {
   SETUP_CODE_MAX_LENGTH,
   SETUP_CODE_PREFIX,
   SetupCodeError,
-} from '@bt/shared/lib/card-payment-setup-code';
+} from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
 
 const URL_VALUE = 'https://money.example.com/api/v1/ingest/card-payment';

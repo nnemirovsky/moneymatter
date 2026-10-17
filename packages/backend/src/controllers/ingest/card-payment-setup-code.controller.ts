@@ -1,5 +1,4 @@
-import { isHttpUrl } from '@bt/shared/lib/card-payment-setup-code';
-import type { CreateCardPaymentSetupCodeResponse } from '@bt/shared/types';
+import { isHttpUrl, type CreateCardPaymentSetupCodeResponse } from '@bt/shared/types';
 import { createController } from '@controllers/helpers/controller-factory';
 import { createCardPaymentSetupCode } from '@services/ingest';
 import { INGEST_TOKEN_NAME_MAX_LENGTH } from '@services/ingest-tokens';

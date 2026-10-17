@@ -1,5 +1,4 @@
-import { decodeSetupCode, type CardPaymentSetupCodePayload } from '@bt/shared/lib/card-payment-setup-code';
-import { API_ERROR_CODES } from '@bt/shared/types';
+import { API_ERROR_CODES, decodeSetupCode, type CardPaymentSetupCodePayload } from '@bt/shared/types';
 import { beforeEach, describe, expect, it } from '@jest/globals';
 import Users from '@models/users.model';
 import { RateLimitService } from '@services/common/rate-limit.service';

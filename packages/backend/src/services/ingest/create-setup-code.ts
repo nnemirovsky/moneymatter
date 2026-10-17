@@ -1,5 +1,4 @@
-import { encodeSetupCode, SetupCodeError } from '@bt/shared/lib/card-payment-setup-code';
-import type { CreateCardPaymentSetupCodeResponse } from '@bt/shared/types';
+import { encodeSetupCode, SetupCodeError, type CreateCardPaymentSetupCodeResponse } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { ValidationError } from '@js/errors';
 import { withTransaction } from '@services/common/with-transaction';

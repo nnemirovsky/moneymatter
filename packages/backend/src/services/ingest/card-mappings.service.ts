@@ -1,4 +1,9 @@
-import { ACCOUNT_STATUSES, type CardMappingDto, isDedicatedFlowAccountCategory } from '@bt/shared/types';
+import {
+  ACCOUNT_STATUSES,
+  type CardMappingDto,
+  isDedicatedFlowAccountCategory,
+  normalizeCardLabel,
+} from '@bt/shared/types';
 import type { RecordId } from '@bt/shared/types';
 import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
 import { t } from '@i18n/index';
@@ -7,8 +12,6 @@ import Accounts from '@models/accounts.model';
 import CardAccountMappings from '@models/card-account-mappings.model';
 import { withTransaction } from '@services/common/with-transaction';
 import { Op, UniqueConstraintError } from 'sequelize';
-
-import { normalizeCardLabel } from './normalize-card-label';
 
 export const CARD_LABEL_MAX_LENGTH = 100;
 

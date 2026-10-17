@@ -6,6 +6,7 @@ import {
   type IngestRequestReason,
   type UnconfirmedCardPaymentDto,
   type UnlinkedCardDto,
+  normalizeCardLabel,
 } from '@bt/shared/types';
 import CardAccountMappings from '@models/card-account-mappings.model';
 import IngestRequests from '@models/ingest-requests.model';
@@ -13,7 +14,6 @@ import { findTransactions } from '@models/transactions-query';
 import { subDays } from 'date-fns';
 import { Op, literal } from 'sequelize';
 
-import { normalizeCardLabel } from '../normalize-card-label';
 import { cardPaymentTimings } from './constants';
 import { readPayloadTime } from './parse-payload';
 import { isWaitingRequest } from './process-ingest-request';

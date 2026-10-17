@@ -1,4 +1,7 @@
-import type { RecordId } from './record-id';
+import type { RecordId } from '../record-id';
+
+export * from './card-payment-setup-code';
+export * from './normalize-card-label';
 
 /** Scopes an ingest token can carry. A scope names the one thing the token may do. */
 export const INGEST_SCOPES = {

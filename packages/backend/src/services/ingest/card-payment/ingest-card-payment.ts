@@ -1,10 +1,14 @@
-import type { CardPaymentDryRunResponse, CardPaymentRejectionReason, RecordId } from '@bt/shared/types';
+import {
+  type CardPaymentDryRunResponse,
+  type CardPaymentRejectionReason,
+  type RecordId,
+  normalizeCardLabel,
+} from '@bt/shared/types';
 import { t } from '@i18n/index';
 import Accounts from '@models/accounts.model';
 import CardAccountMappings from '@models/card-account-mappings.model';
 import { getUsernameById } from '@models/users.model';
 
-import { normalizeCardLabel } from '../normalize-card-label';
 import { cleanText } from './clean-text';
 import { computeFingerprint } from './fingerprint';
 import { formatSummary } from './format-summary';

@@ -1,6 +1,6 @@
+import { normalizeCardLabel } from '@bt/shared/types';
 import { createHash } from 'node:crypto';
 
-import { normalizeCardLabel } from '../normalize-card-label';
 import { cleanText } from './clean-text';
 import { amountInputToText } from './parse-amount';
 
