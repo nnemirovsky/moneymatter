@@ -490,6 +490,22 @@
     "accountArchived": "An archived account cannot be linked to a card.",
     "accountNotSupported": "Loan and vehicle accounts cannot be linked to a card."
   },
+  "ingest": {
+    "summary": {
+      "logged": "Logged {{amount}} at {{merchant}} → {{category}}",
+      "alreadyLogged": "Already logged {{amount}} at {{merchant}} → {{category}}",
+      "noted": "Noted {{amount}} at {{merchant}} → {{category}}; the bank sync will confirm it",
+      "categorizing": "categorizing…",
+      "uncategorized": "Uncategorized",
+      "unknownCard": "Not logged yet: link the card \"{{card}}\" in MoneyMatter → Settings → Integrations → Apple Pay",
+      "rateUnavailable": "Not logged yet: no {{from}}→{{to}} rate for {{date}}",
+      "processingFailed": "Not logged yet: MoneyMatter could not process it; retry it in Settings → Integrations → Apple Pay",
+      "dryRunCard": "Connected as {{username}}. Card \"{{card}}\" → {{account}}",
+      "dryRunCardNotLinked": "Connected as {{username}}. Card \"{{card}}\" is not linked yet",
+      "dryRunCards_one": "Connected as {{username}}. {{count}} card linked.",
+      "dryRunCards_other": "Connected as {{username}}. {{count}} cards linked."
+    }
+  },
   "defaultCategories": {
     "main": {
       "food": "Food & Drinks",

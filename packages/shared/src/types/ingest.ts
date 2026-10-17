@@ -78,3 +78,28 @@ export interface SetAccessHeadersPayload {
   clientId: string | null;
   clientSecret: string | null;
 }
+
+/**
+ * Why a card-payment request was refused as unusable. It is stored as the reason of a `rejected`
+ * request, so the owner sees what the shortcut sent.
+ */
+export const CARD_PAYMENT_REJECTION_REASONS = [
+  'invalidBody',
+  'invalidIdempotencyKey',
+  'invalidSource',
+  'invalidAmount',
+  'zeroAmount',
+  'negativeAmount',
+  'invalidCurrency',
+  'currencyConflict',
+  'blankMerchant',
+  'merchantTooLong',
+  'blankCard',
+  'cardTooLong',
+  'nameTooLong',
+  'invalidTime',
+  'timeInFuture',
+  'timeTooOld',
+] as const;
+
+export type CardPaymentRejectionReason = (typeof CARD_PAYMENT_REJECTION_REASONS)[number];

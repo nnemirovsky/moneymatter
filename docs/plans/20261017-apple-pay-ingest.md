@@ -413,9 +413,10 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
 
 **Files:**
 
-- Create: `packages/backend/src/services/ingest/card-payment/{parse-amount,resolve-currency,parse-payload,fingerprint,format-summary}.ts` with a `.unit.ts` each
+- Create: `packages/backend/src/services/ingest/card-payment/{parse-amount,resolve-currency,parse-payload,fingerprint,format-summary}.ts` with a `.unit.ts` each, plus `clean-text.ts` (+ `.unit.ts`), the text cleaner they share
+- Modify: `packages/shared/src/types/ingest.ts` (`CARD_PAYMENT_REJECTION_REASONS`), `packages/backend/src/i18n/locales/{en,uk}.json` (`ingest.summary.*`)
 
-- [ ] failing unit tests:
+- [x] failing unit tests:
   - `parseAmount`:
     - `47`, `"47"`, `"47.00"`, `"47,00"`, `"1,234.56"`, `"1.234,56"`, `"1 234,56"` (NBSP and narrow NBSP), `"₾47.00"`, `"47.00 GEL"`, `"GEL 47"`, `"-47"` (`negative`), `"0"`/`"0.00"` (`zero`), `""` and `"abc"` (`invalid`);
     - an ambiguous `"1,234"` reads as thousands only with exactly 3 digits after the separator and no other separator; otherwise decimal; this rule is documented in the code
@@ -423,8 +424,8 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
   - `parsePayload({ body, receivedAt })`: field limits, the time window measured from `receivedAt` (5 min ahead, 30 days back, default `receivedAt`; a time 40 days before now passes when `receivedAt` is 35 days ago and the time 5 days before it), the `source` pattern, the `idempotencyKey` rule (a 64-char hex passes; 7 chars, 129 chars, a space or `₾` fail), unknown keys ignored
   - `fingerprint`: stable over key order, whitespace, `time` and `name`; changes with amount, currency, merchant or card
   - `formatSummary`: every summary in Technical Details, using the currency's decimals and the user's locale
-- [ ] implement them as pure functions; currency decimals come in as a parameter, so the units need no DB
-- [ ] gate: `npm run test:unit -- --testPathPattern='ingest/card-payment'`
+- [x] implement them as pure functions; currency decimals come in as a parameter, so the units need no DB. `parsePayload` returns the amount parse (decimal string, code and symbol found in the text, explicit `currency`); `resolveCurrency` runs after the card mapping, once the account currency is known. Summaries are `ingest.summary.*` i18n keys (en + uk), formatted with `Intl.NumberFormat` in the user's locale
+- [x] gate (passed: 6 suites, 219 tests; typecheck, lint and oxfmt clean): `npm run test:unit -- --testPathPattern='ingest/card-payment'`
 
 ### Task 5: Ingest endpoint: auth, validation, rate limits, idempotency, parking and dry run
 

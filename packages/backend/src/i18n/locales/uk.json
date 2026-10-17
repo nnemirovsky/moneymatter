@@ -492,6 +492,24 @@
     "accountArchived": "Заархівований рахунок не можна прив'язати до картки.",
     "accountNotSupported": "Кредитні рахунки та рахунки транспортних засобів не можна прив'язати до картки."
   },
+  "ingest": {
+    "summary": {
+      "logged": "Записано {{amount}}: {{merchant}} → {{category}}",
+      "alreadyLogged": "Уже записано {{amount}}: {{merchant}} → {{category}}",
+      "noted": "Враховано {{amount}}: {{merchant}} → {{category}}; банк підтвердить платіж під час синхронізації",
+      "categorizing": "визначаємо категорію…",
+      "uncategorized": "Без категорії",
+      "unknownCard": "Ще не записано: прив'яжіть картку «{{card}}» у MoneyMatter → Налаштування → Інтеграції → Apple Pay",
+      "rateUnavailable": "Ще не записано: немає курсу {{from}}→{{to}} на {{date}}",
+      "processingFailed": "Ще не записано: MoneyMatter не зміг обробити платіж; повторіть його в Налаштування → Інтеграції → Apple Pay",
+      "dryRunCard": "Підключено як {{username}}. Картка «{{card}}» → {{account}}",
+      "dryRunCardNotLinked": "Підключено як {{username}}. Картку «{{card}}» ще не прив'язано",
+      "dryRunCards_one": "Підключено як {{username}}. Прив'язано {{count}} картку.",
+      "dryRunCards_few": "Підключено як {{username}}. Прив'язано {{count}} картки.",
+      "dryRunCards_many": "Підключено як {{username}}. Прив'язано {{count}} карток.",
+      "dryRunCards_other": "Підключено як {{username}}. Прив'язано {{count}} карток."
+    }
+  },
   "defaultCategories": {
     "main": {
       "food": "Їжа та напої",
