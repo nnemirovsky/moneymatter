@@ -86,7 +86,12 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
   - Why: a default account files a payment on the wrong account, possibly in the wrong currency, and silently corrupts a balance. A plain rejection loses the payment, because the automation never fires again for it. In practice the trigger only fires for cards the user ticked, so this case is the first payment with a new card or a renamed card.
 - **Pending: a planned row on bank-connected accounts, a normal row on manual accounts. No "Review" tag, no new `isPending` column.**
   - A connected account refuses manual rows anyway. A planned row is the existing "the bank will confirm this" state: every provider already merges a booked row into it (`matchPlanned`), which settles it in place, keeps the category and payee, and creates no duplicate.
-  - Task 9 widens that match for card-payment plans, so a hold that settles at a different amount (tips, FX) still merges, but only when the bank's merchant matches the plan's merchant or payee. Without merchant affinity the first unrelated same-account expense in range would consume the plan.
+  - Task 9 widens that match for card-payment plans, so a hold that settles at a different amount (tips, FX) still merges, but only when the bank's merchant text shares the plan's merchant tokens. Without merchant affinity the first unrelated same-account expense in range would consume the plan.
+  - **Affinity is a token rule, applied automatically, not a suggestion the user confirms.** Bank descriptors differ from Wallet names ("HEART OF BATUMI CAFE BATUMI GE", "SQ \*HEART OF BATU" vs "Cafe Heart of Batumi"), so exact equality almost never holds. The rule compares normalized tokens of the plan's names (Wallet merchant, payee name and its aliases) with the bank's merchant text, or its note when the provider sends no merchant (Monobank card purchases have an empty `counterName` and put the merchant in `description`). It tolerates reordering, extra city/country tokens, processor prefixes and truncation.
+    - Why not a confirm step: a tolerance merge is needed for every tipped or foreign-currency payment on a connected account, and asking each time defeats "without typing anything". The amount band, the time window and the single account already confine the candidates, and the token rule only has to rule out a different shop.
+    - Why not Fuse (`fuzzyFindBestMatch`): it searches the long bank string as the pattern inside a short name and scores reordered or padded descriptors poorly; the token rule is deterministic and unit-testable with real descriptors.
+    - A successful card-payment merge records the bank text as an alias of the plan's payee (`ensureAliasExists`, skipped when the text is ignored or already resolves to another payee), so the next payment at that merchant matches by alias as well.
+    - What no rule catches (a descriptor in another script, a renamed merchant) is surfaced, not left behind: card-payment plans still unsettled after `PLANNED_MATCH_WINDOW_DAYS` are listed in Settings → Apple Pay as **Not confirmed by the bank**, where the user deletes the plan (the booked row already exists) or keeps it.
   - Planned rows normally get no automations and no AI (see Context). Card-payment plans are the exception, so a connected account categorizes like a manual one:
     - user automations run at ingest on a planned row whose `externalData` carries `cardPayment` (user-authored plans stay excluded);
     - the merge keeps `cardPayment` and `applyAutomations` in the merged `externalData` and, when the merged row still has the default category and null `categorizationMeta`, queues AI after commit.
@@ -212,20 +217,26 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
   1. **Record** (tx 1, committed at once): `INSERT … ON CONFLICT ("userId", "idempotencyKey") DO NOTHING` with status `received`, the fingerprint and the body.
   2. **Process** (tx 2, `processIngestRequest`, shared with retry):
      1. Lock the row (`findOne` with `lock: UPDATE`) and re-read it. `logged` with the same fingerprint → replay (200, `duplicate: true`); `logged` with a different fingerprint → 409; `dismissed` → 409; `received`, `parked` or `rejected` → go on. A concurrent duplicate waits on this lock, then sees `logged` and replays.
-     2. Repeat window: take `pg_advisory_xact_lock` on `(userId, fingerprint)`, then look for a `logged` request of the user with the same fingerprint whose `createdAt` is within 120 s of this row's. If found, mark this row `logged` with its `transactionId` and `duplicateOfId`, and replay.
-     3. Parse: amount and currency, time, merchant, card. A failure records `rejected` with the reason and returns.
+     2. Repeat window: take `pg_advisory_xact_lock` on `(userId, fingerprint)`, then look for an **original** `logged` request of the user (`duplicateOfId IS NULL`) with the same fingerprint whose `createdAt` is within 120 s of this row's. If found, mark this row `logged` with its `transactionId` and `duplicateOfId` (the original's id), and replay. A suppressed duplicate never anchors a window, so repeats cannot stretch it past the original payment.
+     3. Parse with `parsePayload({ body, receivedAt: row.createdAt })`: amount and currency, time, merchant, card. The time window (5 min ahead, 30 days back) and the default time are measured from `receivedAt`, never from now, so a retry weeks later keeps the payment's own time and passes the same checks it passed at receipt. A failure records `rejected` with the reason and returns.
      4. Resolve the mapping, or record `parked`/`unknownCard` and return.
      5. Load the account and its currency. If the payment currency differs, convert with `calculateRefAmount` (amount owner = account owner) and set `originalAmount`/`originalCurrencyCode`; with no rate, record `parked`/`rateUnavailable` and return.
      6. Resolve the payee with promotion threshold 1.
      7. Pick the history category.
      8. `createTransaction` with expense, `paymentType: mobilePayment`, `rawMerchantName` (only if no payee was found), `payeeId`, `categoryId` (history or default), `applyAutomations: true`, `isPlanned` = account is connected, `externalReference`, and `externalData.cardPayment = { source, card, name, merchant, rawAmount, requestId }`.
      9. Record `logged` with the transaction id and summary.
-  3. **Fail-safe** (tx 3, only when tx 2 threw): record the row `parked` with `rateUnavailable` for an `ExchangeRateUnavailableError` (including the base-currency `refAmount` inside `createTransaction`) or `processingFailed` for anything else (also sent to Sentry), and answer 202 parked. The row stays retryable.
+  3. **Fail-safe** (tx 3, only when tx 2 threw): lock the row and re-read it, because tx 2's rollback released the lock and a concurrent pass (the same key resent, or a Settings retry) may have logged it meanwhile. Only when the status is still what this pass started from (`received`, `parked` or `rejected`) record it `parked` with `rateUnavailable` for an `ExchangeRateUnavailableError` (including the base-currency `refAmount` inside `createTransaction`) or `processingFailed` for anything else (also sent to Sentry), and answer 202 parked; the row stays retryable. If it is already `logged` or `dismissed`, leave it and answer that outcome (a replay or 409).
+  4. **Interrupted rows:** a process that dies between tx 1 and the end of tx 2 or 3 leaves the row `received`. A `received` row older than 1 minute counts as waiting: the waiting list shows it (reason `interrupted`), and retry accepts it under the same row lock as a parked one. A younger `received` row is still in flight and is not offered for retry.
   - The controller maps the returned outcome to the HTTP status after commit: `logged` 200, `parked` 202, `rejected` 422, conflict 409.
 - **After commit:** if the row is non-planned and its `categorizationMeta` is null, `queueCategorizationJob`. Only when it is in the default category, poll the row (250 ms steps, 8 s budget). Build the summary.
 - **Settlement:**
-  - `findPlannedMatch` keeps its exact pass. A second pass runs only on plans with `externalData.cardPayment` and only for an incoming row with a merchant: the same account, type and currency, the amount within ±25 %, the time within 3 days, **and merchant affinity**: the incoming `rawMerchantName` normalized (`normalizePayeeName`) equals the plan's normalized `cardPayment.merchant`, or it resolves through `resolveNormalizedName` (exact name or alias, read-only) to the plan's `payeeId`. Closest amount first, then closest time.
-  - `mergeIntoPlanned` takes the bank amount when it differs and re-derives `refAmount`; the payment-currency `originalAmount` stays. For a card-payment plan it keeps `cardPayment` and `applyAutomations` in the merged `externalData`, and when the merged row still has the default category and null `categorizationMeta` it queues AI after commit (scope `anyCategory`, trigger `sync`) if an AI client resolves for the owner. Automations ran at ingest; the merge keeps their category like any plan's.
+  - `findPlannedMatch` keeps its exact pass. A second pass runs only on plans with `externalData.cardPayment` and only for an incoming row with merchant text (`rawMerchantName`, else the note): the same account, type and currency, the amount within ±25 %, the time within `PLANNED_MATCH_WINDOW_DAYS` (7, as the exact pass), **and merchant affinity** (`hasMerchantAffinity`):
+    - tokens: `normalizePayeeName`, split on spaces, drop tokens under 3 characters and pure digits;
+    - a plan token matches an incoming token when they are equal or, both being at least 4 characters, one is a prefix of the other (descriptor truncation);
+    - affinity holds when, for any of the plan's names (Wallet merchant, payee name, each payee alias), at least half of its tokens match, or when the full incoming text resolves through `resolveNormalizedName` to the plan's `payeeId` (a learned alias).
+    - SQL selects the tolerance candidates (amount band, window, `cardPayment`); the affinity check runs in code on those few rows, ordered by amount distance, then time distance, and the first that passes is locked (`FOR UPDATE SKIP LOCKED` by id).
+  - `mergeIntoPlanned` takes the bank amount when it differs and re-derives `refAmount`; the payment-currency `originalAmount` stays. On a card-payment merge with a payee, the bank text becomes an alias of that payee (`ensureAliasExists`) unless it is an ignored name or already resolves to a payee.
+  - Card-payment plans older than `PLANNED_MATCH_WINDOW_DAYS` are listed by `GET /user/settings/card-payments/unconfirmed` (Task 8) so they are never left behind silently. For a card-payment plan it keeps `cardPayment` and `applyAutomations` in the merged `externalData`, and when the merged row still has the default category and null `categorizationMeta` it queues AI after commit (scope `anyCategory`, trigger `sync`) if an AI client resolves for the owner. Automations ran at ingest; the merge keeps their category like any plan's.
   - Known limit (EnableBanking): a PDNG payload with the plan's exact amount merges into the plan; if the booking later arrives at a different amount with a new `entry_reference`, the provider's exact-amount pending upgrade misses it and a second row appears. The same two rows appear today without the ingest; Task 9 pins this behavior with a test and the docs name it.
 - **Setup code:**
   - `v1.` + base64 of the JSON `{"v":1,"url":"…","token":"…","cfAccessId":"…","cfAccessSecret":"…"}`, with the CF fields present only when set. At most 2 KB, so the QR code stays scannable.
@@ -260,7 +271,7 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
   - `merchant`: 1–200 chars after trim.
   - `card`: 1–100 chars.
   - `name`: optional, ≤ 200 chars.
-  - `time`: optional ISO 8601 with an offset. It defaults to the receive time, may be at most 5 minutes ahead and at most 30 days back.
+  - `time`: optional ISO 8601 with an offset. It defaults to the receive time (the request row's `createdAt`), may be at most 5 minutes ahead of it and at most 30 days before it. Retries measure against the same receive time.
   - `idempotencyKey`: required, `^[\x21-\x7E]{8,128}$` (printable ASCII without spaces; the bundled shortcut sends a 64-character SHA-256 hex).
   - `source`: optional `^[a-z0-9-]{1,32}$`, default `card-payment`.
   - `dryRun`: optional boolean. With `dryRun: true` every other field is optional (the shortcut run by hand has no transaction input); without `card` the summary is `Connected as <username>. <n> cards linked.`
@@ -289,7 +300,8 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
 - **Settings API** (session auth):
   - `GET|POST /user/settings/ingest-tokens`, `DELETE /user/settings/ingest-tokens/:id`.
   - `GET|POST /user/settings/card-mappings`, `PATCH|DELETE /user/settings/card-mappings/:id`.
-  - `GET /user/settings/card-payments/requests?status=parked|recent`, `POST /user/settings/card-payments/requests/:id/retry`, `DELETE /user/settings/card-payments/requests/:id` (dismiss).
+  - `GET /user/settings/card-payments/requests?status=parked|recent` (`parked` includes `received` rows older than 1 minute), `POST /user/settings/card-payments/requests/:id/retry`, `DELETE /user/settings/card-payments/requests/:id` (dismiss).
+  - `GET /user/settings/card-payments/unconfirmed`: card-payment plans older than `PLANNED_MATCH_WINDOW_DAYS` (the UI deletes one through the existing transaction delete endpoint).
   - `GET|PUT /user/settings/card-payments/access-headers` (write-only secret; GET returns `{ configured, clientIdHint }`).
   - `POST /user/settings/card-payments/setup-code`.
 - **Guard classification:**
@@ -302,7 +314,7 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
     - request `DELETE`.
 - **Migration:** one file, `migrations/20261017020000-card-payment-ingest.ts`: `IngestTokens`, `CardAccountMappings`, `IngestRequests`, `IngestSettings`.
 - **Controllers:** all five live in `controllers/ingest/` (`ingest-tokens`, `card-mappings`, `card-payment-requests`, `card-payment-setup-code`, `card-payment`), like `controllers/mcp/` and `controllers/backup/`.
-- **Retention:** a daily cron, `ingest-requests-cleanup`, deletes `logged`/`rejected`/`dismissed` rows older than 90 days. `parked` rows stay until they are resolved or dismissed.
+- **Retention:** a daily cron, `ingest-requests-cleanup`, deletes `logged`/`rejected`/`dismissed` rows older than 90 days. `parked` and `received` rows stay until they are resolved or dismissed.
 - **Account becomes connected later:** new payments to it go in as planned rows automatically. Rows logged while it was manual stay as they are. Matching them against the bank's history is the bank-sync plan's job (see Post-Completion).
 
 ## What Goes Where
@@ -406,7 +418,7 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
     - `47`, `"47"`, `"47.00"`, `"47,00"`, `"1,234.56"`, `"1.234,56"`, `"1 234,56"` (NBSP and narrow NBSP), `"₾47.00"`, `"47.00 GEL"`, `"GEL 47"`, `"-47"` (`negative`), `"0"`/`"0.00"` (`zero`), `""` and `"abc"` (`invalid`);
     - an ambiguous `"1,234"` reads as thousands only with exactly 3 digits after the separator and no other separator; otherwise decimal; this rule is documented in the code
   - `resolveCurrency`: explicit wins; a code in the text; a unique symbol among the user's currencies; an ambiguous `$` with two dollar currencies falls back to the account currency; a code vs symbol conflict is an error
-  - `parsePayload`: field limits, the time window (5 min ahead, 30 days back, default now), the `source` pattern, the `idempotencyKey` rule (a 64-char hex passes; 7 chars, 129 chars, a space or `₾` fail), unknown keys ignored
+  - `parsePayload({ body, receivedAt })`: field limits, the time window measured from `receivedAt` (5 min ahead, 30 days back, default `receivedAt`; a time 40 days before now passes when `receivedAt` is 35 days ago and the time 5 days before it), the `source` pattern, the `idempotencyKey` rule (a 64-char hex passes; 7 chars, 129 chars, a space or `₾` fail), unknown keys ignored
   - `fingerprint`: stable over key order, whitespace, `time` and `name`; changes with amount, currency, merchant or card
   - `formatSummary`: every summary in Technical Details, using the currency's decimals and the user's locale
 - [ ] implement them as pure functions; currency decimals come in as a parameter, so the units need no DB
@@ -428,6 +440,7 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
   - unknown card → 202 `parked`/`unknownCard`, nothing is in `GET /transactions`, and the request is listed as parked (Task 8's list; until then asserted through the replay of the same key);
   - the same key and body twice → one transaction, the second answer has `duplicate: true`; the same key with another amount → 409;
   - two requests with different keys and the same card, amount and merchant 5 s apart → one transaction, the second answer has `duplicate: true` ("Already logged …"); with the window shortened for the case (a constant overridable in tests, like the 8 s AI budget) and the second request sent after it → two transactions;
+  - with the window shortened to W, three requests for the same payment at 0, 0.75 W and 1.5 W → the second is a duplicate, the third is a new transaction (a duplicate does not anchor the window);
   - two concurrent requests with the same key → one transaction (`Promise.all`);
   - zero amount, blank merchant, negative amount → 422, and the request row persists as `rejected` (the same key replayed reads it back);
   - a body just over 8 KB → 413;
@@ -520,12 +533,17 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
   - two concurrent retries of one parked request (`Promise.all`) → one 200 `logged`, one 409, and exactly one transaction;
   - two parked requests for the same payment (different keys, same fingerprint, 5 s apart), retried after linking → one transaction, the second retry answers `duplicate: true`;
   - a `processingFailed` request is listed as parked and logs on retry;
+  - a parked request retried after the clock moves 35 days on (`jest.setSystemTime`, Date only) logs the payment with its original `time`; one sent without `time` gets its receive time, not the retry time;
+  - a `received` row left by an interrupted pass (a test hook that throws inside tx 2 and tx 3) is not listed while younger than 1 minute; after the clock moves 2 minutes it is listed with reason `interrupted`, and retry logs it;
+  - a tx 3 that loses the race: a pass whose tx 2 throws while a concurrent retry logs the row (test hook that pauses tx 3) leaves the row `logged`, and a later retry is a 409 with one transaction;
+  - `GET /user/settings/card-payments/unconfirmed` is empty for a fresh plan and lists a card-payment plan once the clock passes `PLANNED_MATCH_WINDOW_DAYS`; a user-made plan is never listed;
   - dismiss → status `dismissed`, then a second dismiss is a 404;
   - `GET ?status=recent` returns the last 50 of every status, newest first, with summary, card, merchant, amount text and time;
   - `GET /user/settings/card-mappings/unlinked` returns the distinct parked card labels with counts;
-  - the cleanup cron deletes `logged`/`rejected`/`dismissed` rows older than 90 days and keeps `parked` rows
-- [ ] routes `GET /user/settings/card-payments/requests`, `POST …/requests/:id/retry` (guarded), `DELETE …/requests/:id` (exempt); `GET /user/settings/card-mappings/unlinked`
-- [ ] retry runs `processIngestRequest` (tx 2, with tx 3 on a throw) on the stored payload under the request's user, never a client-sent body: inside `withTransaction` it locks the row (`findOne` with `lock: UPDATE`) and re-checks `status === 'parked'` before processing, so a concurrent retry waits, then sees `logged` and gets a 409
+  - the cleanup cron deletes `logged`/`rejected`/`dismissed` rows older than 90 days and keeps `parked` and `received` rows
+- [ ] routes `GET /user/settings/card-payments/requests`, `POST …/requests/:id/retry` (guarded), `DELETE …/requests/:id` (exempt); `GET /user/settings/card-mappings/unlinked`; `GET /user/settings/card-payments/unconfirmed`
+- [ ] retry runs `processIngestRequest` (tx 2, with tx 3 on a throw) on the stored payload under the request's user, never a client-sent body: inside `withTransaction` it locks the row (`findOne` with `lock: UPDATE`) and re-checks that the status is `parked`, or `received` with `createdAt` older than 1 minute, before processing, so a concurrent retry waits, then sees `logged` and gets a 409
+- [ ] test hooks for the interrupted and racing cases: an env-gated (`NODE_ENV=test`) fault injector in `processIngestRequest`, set through a test-only header the way other e2e fault hooks in the repo do; if no such pattern exists, ⚠️ ask before adding one
 - [ ] gate: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='(ingest/card-payment/requests|crons/ingest-requests-cleanup|routes/base-currency-guard-coverage).e2e'`
 
 ### Task 9: Bank-sync settlement of card-payment plans
@@ -536,10 +554,14 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
 - Create: `packages/backend/src/services/transactions/planned-matching/card-payment-tolerance.ts` + `.unit.ts`
 - Create: `packages/backend/src/services/transactions/planned-matching/merge-card-payment.e2e.ts`
 
-- [ ] failing unit tests for `isWithinCardPaymentTolerance({ planned, incoming })`: ±25 % of the plan amount, 3-day window, the same currency; boundary cases; and `hasMerchantAffinity({ planMerchant, incomingMerchant })` on normalized names (equal, case and whitespace differences, different names, a missing incoming merchant)
+- [ ] failing unit tests for `isWithinCardPaymentTolerance({ planned, incoming })`: ±25 % of the plan amount, `PLANNED_MATCH_WINDOW_DAYS` window, the same currency; boundary cases
+- [ ] failing unit tests for `hasMerchantAffinity({ planNames, incomingText })` with real-shaped descriptors: "Cafe Heart of Batumi" vs "HEART OF BATUMI CAFE BATUMI GE" (match), vs "SQ \*HEART OF BATU" (match, truncation), vs "CAFE HEART BATUMI" (match), vs "SPAR BATUMI" (no match), vs "" (no match); a single-token name "Spar" vs "SPAR MARKET 0123 BATUMI" (match); Cyrillic "Сільпо" vs "Сільпо" (match); short and numeric tokens ignored
 - [ ] failing e2e through a provider mock (Monobank or EnableBanking, whichever helper syncs a single booked row most directly):
   - an exact amount merges as today;
   - a 47.00 plan and a 52.00 booking from the same merchant (tip) merge, the row's amount becomes 52.00, `refAmount` is re-derived, `originalAmount` stays, the payee and category stay;
+  - a 52.00 booking whose descriptor differs from the Wallet name ("HEART OF BATUMI CAFE BATUMI GE" for "Cafe Heart of Batumi") merges, and the descriptor becomes an alias of the plan's payee;
+  - a cross-currency plan (USD 12.50 → 33.71 GEL) and a 34.02 GEL booking 4 days later merge;
+  - Monobank: a card purchase with an empty `counterName` and the merchant in `description` merges by the note;
   - a 52.00 booking whose merchant is an alias of the plan's payee merges too;
   - one 47.00 plan, then a 52.00 booking from another merchant, then a 47.00 booking: the 47.00 merges, the 52.00 becomes a new row;
   - a 47.00 plan and a 70.00 booking do not merge (two rows);
@@ -547,8 +569,8 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
   - of two card-payment plans, the closer amount wins;
   - automations and AI after a merge: a connected-account card payment whose user rule sets a category keeps it through the merge; one with no category and AI configured gets a categorization job after the merge, and the merged row's `externalData` still has `cardPayment`;
   - EnableBanking PDNG 47.00 merges into the plan, then BOOK 52.00 with a changed `entry_reference` → two rows (the documented limit; the test pins it so a later fix is a visible change)
-- [ ] `findPlannedMatch`: keep the exact query, then, only when the incoming row has a merchant, the tolerance query restricted to `externalData ? 'cardPayment'`, filtered by merchant affinity (normalized `cardPayment.merchant` equals the normalized incoming merchant, or the incoming merchant resolves through `resolveNormalizedName` to the plan's `payeeId`), ordered by amount distance, then time distance; same lock and `SKIP LOCKED`; `tryMergeIntoPlanned` passes `rawMerchantName` down
-- [ ] `mergeIntoPlanned`: an optional `amount` override applied with the planned → real transition on the same instance; `refAmount` comes from the merged amount; for a card-payment plan, keep `cardPayment` and `applyAutomations` in the merged `externalData` and, when the row still has the default category and null `categorizationMeta`, queue AI after commit (`queueCategorizationAfterCommit`, the `enqueueLogoResolutionAfterCommit` pattern) if an AI client resolves for the owner
+- [ ] `findPlannedMatch`: keep the exact query, then, only when the incoming row has merchant text (`rawMerchantName`, else `note`), the tolerance query restricted to `externalData ? 'cardPayment'` with the plans' payee names and aliases loaded, ordered by amount distance, then time distance; `hasMerchantAffinity` in code picks the first passing candidate, which is then locked by id with `FOR UPDATE SKIP LOCKED` (a skipped lock moves on to the next candidate); `tryMergeIntoPlanned` passes `rawMerchantName` and `note` down
+- [ ] `mergeIntoPlanned`: an optional `amount` override applied with the planned → real transition on the same instance; `refAmount` comes from the merged amount; on a card-payment merge with a payee, `ensureAliasExists` for the bank text unless `isPayeeNameIgnored` or `resolveNormalizedName` already resolves it; for a card-payment plan, keep `cardPayment` and `applyAutomations` in the merged `externalData` and, when the row still has the default category and null `categorizationMeta`, queue AI after commit (`queueCategorizationAfterCommit`, the `enqueueLogoResolutionAfterCommit` pattern) if an AI client resolves for the owner
 - [ ] gate: `npm run test:unit -- --testPathPattern='card-payment-tolerance'`; `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='transactions/planned-matching/(merge-card-payment|merge-on-sync|merge-on-import).e2e'`
 
 ### Task 10: Setup code
@@ -641,7 +663,8 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
   - `buildIngestUrl()` returns `${API_HTTP || window.location.origin}/api/v1/ingest/card-payment`;
   - card links: add (account picker limited to owned, active, non-loan/vehicle accounts), rename, re-point, delete;
   - unlinked cards show counts and a **Link** action that pre-fills the label and, after saving, offers **Log N waiting payments** (it calls retry per request);
-  - waiting payments: retry and dismiss;
+  - waiting payments: retry and dismiss (interrupted rows included);
+  - **Not confirmed by the bank:** lists unconfirmed card-payment plans with date, merchant and amount; **Delete** removes the plan through the existing transaction delete endpoint after a confirmation; hidden when empty;
   - setup:
     - the access-header fields render only when `config.isSelfHost`;
     - the secret field is write-only (a placeholder when configured, **Remove** clears it);
@@ -670,7 +693,7 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
   - **One-tap setup:** Settings → Integrations → Apple Pay; link your cards; generate the setup code; **Add Shortcut** and paste the code at import (or scan the QR on another phone and copy it); then the three automation steps with exact iOS labels (Shortcuts → Automation → **+** → **Transaction** → choose cards → **Run Immediately** → **Next** → pick "MoneyMatter: log card payment").
   - **Manual guide (fallback):** every action in order with its exact name: Dictionary of Amount, Merchant, Card or Pass, Name from Shortcut Input; Format Date (ISO 8601); Text `<card>|<merchant>|<amount>|<time to the minute>` and **Generate Hash** (SHA-256) for the idempotency key; Get Contents of URL with **Method** POST, **Headers** `Authorization: Bearer <token>` (plus `CF-Access-Client-Id`/`CF-Access-Client-Secret` behind Cloudflare Access), **Request Body** JSON with each key mapped to its variable; Get Dictionary Value `response` → `summary`; Show Notification.
   - **Test request:** a `curl` with `dryRun: true`, then a real one, and the expected responses.
-  - **What happens to a payment:** card links, waiting payments and why, categories in order, foreign currencies, bank-connected accounts (planned until the bank confirms; a different settled amount merges only when the bank's merchant matches; the EnableBanking pending-amount limit), repeats (a second identical payment on the same card at the same merchant within two minutes reads as a repeat: add it by hand).
+  - **What happens to a payment:** card links, waiting payments and why, categories in order, foreign currencies, bank-connected accounts (planned until the bank confirms; a different settled amount merges only when the bank's merchant text shares the merchant's words; plans the bank never confirms within 7 days appear under **Not confirmed by the bank**; the EnableBanking pending-amount limit), repeats (a second identical payment on the same card at the same merchant within two minutes reads as a repeat: add it by hand).
   - **Troubleshooting:** a 401 (token), a 403 from Cloudflare (service token or policy), an empty amount from iOS, a renamed card.
   - **iCloud link:** say plainly that a shareable link cannot be generated by the app; the maintainer makes it once.
   - screenshots per the skill (the integrations pages with the docs test user), both themes
