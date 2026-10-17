@@ -676,10 +676,15 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - Create: `packages/backend/src/services/currencies/rate-sources/manual.ts`, `peg.ts`, unit tests
 - Modify: the resolver from Task 16
 
-- [ ] manual: dated rates through the extended user-rate endpoints
-- [ ] peg: `factor × rate(pegCurrency, date)` computed when asked; reject peg cycles
-- [ ] unit tests for both resolvers; e2e: USDT pegged to USD gives `refAmount = amount`; a back-dated manual rate applies to a transaction on its date
-- [ ] gate: these tests pass
+- [x] manual: dated rates through the extended user-rate endpoints
+  - result: the endpoints were extended in Task 16; `rate-sources/manual.ts` now owns the dated stored-rate reads (`findStoredPairRate` for an exact pair, `findStoredCustomRate` for a walk step: latest `effectiveDate` on or before the day, last written wins on a tie), moved out of `resolve-custom-pair-rate.ts` so manual and the synced sources (which store rows the same way) share them
+- [x] peg: `factor × rate(pegCurrency, date)` computed when asked; reject peg cycles
+  - result: `rate-sources/peg.ts` `findPeg({ userId, code })` returns `none`, `invalid` or `peg`, parsing the saved config defensively with `pegRateSourceConfigSchema` (a backup restores it verbatim). A peg is a step of the one walk in `resolve-custom-pair-rate.ts` (`priceInIsoCurrency`), so there is no second resolver: the step multiplies the factor and moves to the peg currency, which may itself be custom (USDC pegged to USDT, then USDT's dated rate) or ISO (the ISO leg resolves for the same day). The walk's single `visited` set makes a cycle of any length (A to B to A, a restored self-peg) unavailable: `ExchangeRateUnavailableError`, which the callers turn into `null` plus `refAmountMissing` for custom codes and a 404 on the pair endpoint; an unreadable peg config is unavailable too. Factors chain in Big, so 0.1 times 0.2 is exactly 0.02
+  - saved-time cycle detection is unchanged (self-pegs only, Task 17)
+- [x] unit tests for both resolvers; e2e: USDT pegged to USD gives `refAmount = amount`; a back-dated manual rate applies to a transaction on its date
+  - result: `resolve-custom-pair-rate.unit.ts` (pegs: factor, ISO crossing, inverse direction, stale rows ignored, peg onto a custom currency's dated rate, chained factors, two- and three-currency cycles, restored self-peg, 6 unreadable configs, a manual currency unaffected) and `peg.unit.ts` (config parsing); the manual lookups keep their existing resolver unit coverage. e2e `rate-sources/peg-rate-source.e2e.ts` (7): a peg to the base gives `refAmount = amount`; a peg to USD crosses the market rate of the day; the factor and its inverse; a peg beats rows stored before it; switching back to manual restores them; USDC pegged to USDT follows USDT's dated manual rates; a peg cycle answers 404 and flags the transaction `refAmountMissing`. The back-dated manual rate case is `dated-user-exchange-rates.e2e.ts` (Task 16)
+- [x] gate: these tests pass
+  - result: e2e (one batched run, 5 suites, 85 tests): peg-rate-source, rate-source, dated-user-exchange-rates, custom-currency-transactions, change-base-currency.custom; backend unit suite (195 suites), typecheck, lint (warnings only), oxfmt
 
 ### Task 19: Recompute base-currency amounts for custom currencies
 
