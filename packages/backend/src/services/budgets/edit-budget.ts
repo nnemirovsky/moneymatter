@@ -6,6 +6,7 @@ import BudgetCategories from '@models/budget-categories.model';
 import Budgets from '@models/budget.model';
 import Categories from '@models/categories.model';
 import { withTransaction } from '@services/common/with-transaction';
+import { roundToBaseCurrency } from '@services/currencies/round-to-base-currency';
 
 import { authorizeBudgetAccess } from './authorize-budget-access';
 import { expandCategoryIds } from './utils/expand-category-ids';
@@ -37,7 +38,10 @@ export const editBudget = withTransaction(async ({ id, userId, categoryIds, ...p
     message: t({ key: 'budgets.budgetNotFound' }),
   });
 
-  await budget.update(params);
+  // A budget is denominated in the owner's base currency.
+  const [limitAmount] = await roundToBaseCurrency({ userId: ownerUserId, values: [params.limitAmount] });
+
+  await budget.update(limitAmount === undefined ? params : { ...params, limitAmount });
 
   // Update categories if provided and budget is category-based
   if (categoryIds !== undefined && budget.type === BUDGET_TYPES.category) {

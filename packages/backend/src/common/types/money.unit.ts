@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { Money } from './money';
+import { Money, centsToApiDecimal, moneyToApiDecimal, moneyToApiDecimalOrNull } from './money';
 
 describe('Money value object', () => {
   // ==========================================================================
@@ -196,6 +196,18 @@ describe('Money value object', () => {
       const m = Money.fromDecimal(10.125);
       expect(m.round().toNumber()).toBe(10.13);
     });
+
+    it('roundHalfEven rounds a tie to the even neighbour', () => {
+      expect(Money.fromDecimal('10.125').roundHalfEven().toNumber()).toBe(10.12);
+      expect(Money.fromDecimal('10.135').roundHalfEven().toNumber()).toBe(10.14);
+      expect(Money.fromDecimal('-10.125').roundHalfEven().toNumber()).toBe(-10.12);
+    });
+
+    it('roundHalfEven rounds a non-tie to the nearest value', () => {
+      expect(Money.fromDecimal('10.1251').roundHalfEven().toNumber()).toBe(10.13);
+      expect(Money.fromDecimal('2.5').roundHalfEven(0).toNumber()).toBe(2);
+      expect(Money.fromDecimal('3.5').roundHalfEven(0).toNumber()).toBe(4);
+    });
   });
 
   describe('immutability', () => {
@@ -380,5 +392,24 @@ describe('Money value object', () => {
       expect(result.toNumber()).toBe(15.5);
       expect(result.toCents()).toBe(1550);
     });
+  });
+});
+
+describe('API decimal helpers', () => {
+  it('moneyToApiDecimal reads a Money and the exact string of a raw DECIMAL column alike', () => {
+    expect(moneyToApiDecimal(Money.fromDecimal('25.5'))).toBe(25.5);
+    expect(moneyToApiDecimal('25.500000000000000000')).toBe(25.5);
+    expect(moneyToApiDecimal('-0.000406410000000000')).toBe(-0.00040641);
+  });
+
+  it('moneyToApiDecimalOrNull passes null and undefined through', () => {
+    expect(moneyToApiDecimalOrNull(null)).toBeNull();
+    expect(moneyToApiDecimalOrNull(undefined)).toBeNull();
+    expect(moneyToApiDecimalOrNull('1.250000000000000000')).toBe(1.25);
+  });
+
+  it('centsToApiDecimal rejects a decimal string instead of misreading it as cents', () => {
+    expect(() => centsToApiDecimal('25.500000000000000000' as unknown as number)).toThrow();
+    expect(centsToApiDecimal(2550)).toBe(25.5);
   });
 });

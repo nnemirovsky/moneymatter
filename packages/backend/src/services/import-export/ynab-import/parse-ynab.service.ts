@@ -16,7 +16,7 @@ import {
   type YnabParseWarning,
 } from '@bt/shared/types';
 import { ValidationError } from '@js/errors';
-import { roundCurrency } from '@services/import-export/core/round-currency';
+import { removeFloatDrift } from '@services/import-export/core/remove-float-drift';
 import { parse } from 'csv-parse/sync';
 
 import { detectYnabDecimalSeparator, parseYnabAmount } from './parse-amount';
@@ -172,7 +172,7 @@ export function parseYnabRegister({ fileContent }: { fileContent: string }): Yna
     // would import a wrong-amount transaction the user has no way to spot.
     if (outflowUnparseable || inflowUnparseable) return;
 
-    const signedAmount = roundCurrency({ n: (inflowParsed ?? 0) - (outflowParsed ?? 0) });
+    const signedAmount = removeFloatDrift({ n: (inflowParsed ?? 0) - (outflowParsed ?? 0) });
 
     const payeeName = (record['Payee'] ?? '').trim();
     const categoryGroupRaw = (record['Category Group'] ?? '').trim();
@@ -287,7 +287,7 @@ function pairTransfers({ rows, warnings }: { rows: ClassifiedRow[]; warnings: Yn
         other.date === leg.date &&
         other.accountName === leg.transferCounterpart &&
         leg.accountName === other.transferCounterpart &&
-        roundCurrency({ n: other.signedAmount + leg.signedAmount }) === 0,
+        removeFloatDrift({ n: other.signedAmount + leg.signedAmount }) === 0,
     );
 
     if (!match) {
@@ -380,7 +380,7 @@ function collectAccounts({
   for (const row of rows) {
     const existing = byName.get(row.accountName) ?? { startingBalance: 0, transactionCount: 0 };
     if (row.isStartingBalance) {
-      existing.startingBalance = roundCurrency({ n: existing.startingBalance + row.signedAmount });
+      existing.startingBalance = removeFloatDrift({ n: existing.startingBalance + row.signedAmount });
     } else {
       existing.transactionCount += 1;
     }

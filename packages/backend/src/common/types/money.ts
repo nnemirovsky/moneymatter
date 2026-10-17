@@ -34,7 +34,7 @@ export class Money {
   // ==========================================================================
 
   /**
-   * Create Money from a database INTEGER cents value.
+   * Create Money from an integer cents value (the cents-domain numbers some services sum in memory).
    * Divides by 100 to get the actual decimal value.
    *
    * @example
@@ -128,6 +128,14 @@ export class Money {
     return new Money(this.value.round(dp, Big.roundHalfUp));
   }
 
+  /**
+   * Round to `dp` decimal places using ROUND_HALF_EVEN (banker's rounding).
+   * Used for converted amounts, where ties must not accumulate a bias.
+   */
+  roundHalfEven(dp = 2): Money {
+    return new Money(this.value.round(dp, Big.roundHalfEven));
+  }
+
   // ==========================================================================
   // Comparison
   // ==========================================================================
@@ -169,7 +177,8 @@ export class Money {
   // ==========================================================================
 
   /**
-   * Convert to integer cents for INTEGER DB columns.
+   * Convert to integer cents for in-memory cents-domain sums. Money columns are DECIMAL: write the
+   * `Money` itself (or `toMoneyColumnValue` in raw SQL), never cents.
    * Multiplies by 100 and rounds.
    *
    * @example
@@ -227,10 +236,25 @@ export class Money {
 }
 
 /**
- * Convert a Money or raw cents integer (from `raw: true` queries) to an API-friendly decimal number.
- * Handles both Money instances (via getter) and raw DB integers (from raw queries).
+ * Convert a Money, or the exact decimal string a `raw: true` query returns for a DECIMAL money
+ * column, to an API-friendly decimal number.
  *
- * Use in serializers when preparing money fields for API responses.
+ * Use in serializers for model money fields, which are `Money` on hydrated rows and strings on raw rows.
+ */
+export function moneyToApiDecimal(val: Money | string): Decimal {
+  return Money.fromDecimal(val).toNumber();
+}
+
+/** Nullable-field variant of `moneyToApiDecimal`: null/undefined pass through as null. */
+export function moneyToApiDecimalOrNull(val: Money | string | null | undefined): Decimal | null {
+  return val == null ? null : moneyToApiDecimal(val);
+}
+
+/**
+ * Convert a Money or an integer cents number (the cents-domain sums that stats services compute in memory)
+ * to an API-friendly decimal number.
+ *
+ * Only for in-memory cents-domain numbers. For model or raw-row money fields use `moneyToApiDecimal`.
  */
 export function centsToApiDecimal(val: Money | number): Decimal {
   if (Money.isMoney(val)) return val.toNumber();

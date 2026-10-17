@@ -2,6 +2,7 @@ import {
   AI_FEATURE,
   AI_PROVIDER,
   API_ERROR_CODES,
+  BACKUP_FORMAT_VERSION,
   BANK_PROVIDER_TYPE,
   DEACTIVATION_REASON,
   ImportSource,
@@ -1515,7 +1516,7 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
       const { buffer } = await exportArchive();
       const { files, manifest } = helpers.parseBackupArchive({ buffer });
 
-      manifest.formatVersion = 2;
+      manifest.formatVersion = BACKUP_FORMAT_VERSION + 1;
       writeArchiveJson({ files, path: 'manifest.json', value: manifest });
       const base64 = await helpers.repackBackup({ files });
 

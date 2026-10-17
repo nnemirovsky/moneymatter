@@ -43,7 +43,7 @@ export default class BudgetPlans
   @Column({ type: DataType.STRING(50), allowNull: false })
   type!: BudgetPlanTypeKey;
 
-  /** Base currency at creation; assigned amounts are cents in it. */
+  /** Base currency at creation; assigned amounts are in it. */
   @Column({ type: DataType.STRING(3), allowNull: false })
   currencyCode!: string;
 
@@ -77,7 +77,7 @@ export default class BudgetPlans
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   zeroSum!: boolean;
 
-  @MoneyField({ storage: 'cents', allowNull: true })
+  @MoneyField({ storage: 'decimal', precision: 36, scale: 18, allowNull: true })
   declare expectedIncome: Money | null;
 
   declare createdAt: Date;
