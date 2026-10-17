@@ -2,8 +2,15 @@ import { ACCOUNT_TYPES, type TransactionLocation } from '@bt/shared/types';
 import { roundTransactionMoney } from '@common/lib/round-transaction-money';
 import { Money } from '@common/types/money';
 import Transactions from '@models/transactions.model';
+import { getUserDefaultCategory } from '@models/users.model';
+import { queueCategorizationAfterCommit } from '@services/ai-categorization';
 import { calculateRefAmountOrNull } from '@services/calculate-ref-amount.service';
+import { normalizePayeeName } from '@services/payees/normalize-name';
+import { ensureAliasExists, isPayeeNameIgnored, resolveNormalizedName } from '@services/payees/payee-namespace';
 import { resolvePayeeForIncomingRow } from '@services/payees/resolve-payee-for-incoming-row';
+
+import { hasMerchantAffinity } from './card-payment-tolerance';
+import { loadPlanNames } from './find-planned-match';
 
 export interface IncomingTransactionData {
   time: Date;
@@ -34,17 +41,54 @@ const joinNotes = ({
 };
 
 /**
- * Write the bank's data into a locked planned row, in place. The instance carries the row
- * lock and firing its hooks is what applies the planned → real balance transition, so the
- * write must stay on this instance rather than going through any id-based helper.
+ * The bank's wording of a merchant becomes an alias of the plan's payee, so the next payment
+ * there is recognized by name. Only wording that is about the plan's merchant is learned: an
+ * exact-amount booking from an unrelated shop also settles a plan, and its text must not become
+ * an alias. Text the user ignores, and text that already names a payee, is left alone.
  */
-export const mergeIntoPlanned = async ({
+const learnBankMerchantAlias = async ({
   planned,
   incoming,
 }: {
   planned: Transactions;
   incoming: IncomingTransactionData;
+}): Promise<void> => {
+  const rawName = (incoming.rawMerchantName?.trim() || incoming.note?.trim()) ?? '';
+  const normalizedName = normalizePayeeName({ raw: rawName });
+  if (!planned.payeeId || !normalizedName) return;
+
+  const planNames = (await loadPlanNames({ plans: [planned] })).get(planned.id) ?? [];
+  if (!hasMerchantAffinity({ planNames, incomingText: rawName })) return;
+  if (await isPayeeNameIgnored({ userId: planned.userId, normalizedName })) return;
+  if (await resolveNormalizedName({ userId: planned.userId, normalized: normalizedName })) return;
+
+  await ensureAliasExists({ payeeId: planned.payeeId, rawName, normalizedName });
+};
+
+/**
+ * Write the bank's data into a locked planned row, in place. The instance carries the row
+ * lock and firing its hooks is what applies the planned → real balance transition, so the
+ * write must stay on this instance rather than going through any id-based helper.
+ *
+ * `amount` is the bank's figure when it differs from the plan's (a card-payment plan settling
+ * with a tip or at a converted price); it is written together with the transition so the balance
+ * moves by what the bank booked, and `refAmount` follows it.
+ *
+ * A card-payment plan (`externalData.cardPayment`) keeps that marker and `applyAutomations`, learns
+ * the bank's merchant wording as a payee alias, and, when nothing categorized it, goes to the AI
+ * queue after commit, since a merged row never reaches the post-sync listeners.
+ */
+export const mergeIntoPlanned = async ({
+  planned,
+  incoming,
+  amount: bankAmount,
+}: {
+  planned: Transactions;
+  incoming: IncomingTransactionData;
+  amount?: Money;
 }): Promise<Transactions> => {
+  const amount = bankAmount ?? planned.amount;
+  const cardPayment = planned.externalData?.cardPayment;
   const originalSource = planned.originalCurrencyCode ? planned : incoming;
 
   const {
@@ -65,10 +109,10 @@ export const mergeIntoPlanned = async ({
   const isRefCurrency = planned.refCurrencyCode === planned.currencyCode;
 
   const refAmount = isRefCurrency
-    ? planned.amount
+    ? amount
     : await calculateRefAmountOrNull({
         userId: planned.userId,
-        amount: planned.amount,
+        amount,
         baseCode: planned.currencyCode,
         quoteCode: planned.refCurrencyCode,
         date: incoming.time,
@@ -99,6 +143,7 @@ export const mergeIntoPlanned = async ({
         }));
 
   await planned.update({
+    amount,
     refAmount,
     refCommissionRate,
     commissionRate,
@@ -114,11 +159,20 @@ export const mergeIntoPlanned = async ({
     originalCurrencyCode: originalSource.originalCurrencyCode ?? null,
     externalData: {
       ...incoming.externalData,
+      ...(cardPayment ? { cardPayment, applyAutomations: planned.externalData?.applyAutomations } : {}),
       plannedMerge: { mergedAt: new Date().toISOString() },
     },
     payeeId,
     isPlanned: false,
   });
+
+  if (cardPayment) {
+    await learnBankMerchantAlias({ planned, incoming });
+
+    if (!planned.categorizationMeta && planned.categoryId === (await getUserDefaultCategory({ id: planned.userId }))) {
+      await queueCategorizationAfterCommit({ userId: planned.userId, transactionIds: [planned.id] });
+    }
+  }
 
   return planned;
 };

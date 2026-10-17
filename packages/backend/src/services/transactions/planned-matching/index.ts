@@ -33,6 +33,8 @@ export const tryMergeIntoPlanned = async ({
     transactionType,
     currencyCode,
     time: incoming.time,
+    rawMerchantName: incoming.rawMerchantName,
+    note: incoming.note,
   });
 
   if (!planned) return null;
@@ -41,7 +43,9 @@ export const tryMergeIntoPlanned = async ({
     // The savepoint is what makes the fallback safe: the merge flips the plan to real partway
     // through, and without a scoped rollback a later throw would leave that flip in place while
     // the caller adds a second row for the same charge.
-    const merged = await runInSavepoint(() => mergeIntoPlanned({ planned, incoming }));
+    const merged = await runInSavepoint(() =>
+      mergeIntoPlanned({ planned, incoming, amount: planned.amount.equals(amount) ? undefined : amount }),
+    );
 
     logger.info('Merged an incoming transaction into a planned one', {
       transactionId: merged.id,
