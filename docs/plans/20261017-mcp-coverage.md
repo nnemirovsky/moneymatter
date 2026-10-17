@@ -12,14 +12,17 @@ This plan closes the gap:
 4. **Groundwork found during the audit.** MCP write tools skip four things the REST middleware does:
    - the base-currency lock (`checkBaseCurrencyLock`, 423 while a base-currency change runs);
    - the plan feature gates (`requireFeature`);
+   - the REST rate limiters on routes that fetch from shared or external resources (rate-source save and test);
    - checks that live only in some controllers;
    - nothing checks that a tool file is actually registered in `server.ts`.
 
+   MCP also gets one guard wrong in the other direction: `requireScope` rejects every read-only user, while REST lets them through on a few routes (`READ_ONLY_ROUTES`).
+
    Task 3 adds the missing guards and a registration drift test, and brings the `add-mcp-tool` skill up to date. The skill's template still omits `requireScope`, which every write tool calls.
 
-Every tool is a thin wrapper over the service its REST route already uses. When a controller holds logic that a tool needs, the plan moves that logic into a service and has both callers use it, so REST and MCP cannot drift.
+Every tool is a thin wrapper over the service its REST route already uses. Parity with REST is the rule: the same validation, rate limits, read-only and demo handling, base-currency lock and feature gates. When a controller holds logic that a tool needs (validation rules, or the settings, decimals, service and serializer orchestration behind a report), the plan moves that logic into a service and has both callers use it, so REST and MCP cannot drift. Nothing is copied.
 
-When this plan is done, the server has about 250 tools (about 260 with Apple Pay). The Verify task measures the size of the `tools/list` payload, because some MCP clients cap the tool count or the context it takes (Post-Completion).
+When this plan is done, the server has about 250 tools (about 260 with Apple Pay). **That count relies on clients loading tools lazily** (Claude Code does, through tool search), so only the tool names and the tools the model asks for enter its context. Task 28 measures the size of the `tools/list` payload and records it, because a client that loads every tool up front may cap the count or the context it takes (Post-Completion).
 
 ## Context (from discovery)
 
@@ -30,6 +33,7 @@ When this plan is done, the server has about 250 tools (about 260 with Apple Pay
 - **Auth and scopes:**
   - The `/mcp` route gate (`routes/mcp.route.ts`, `mcp-scope-gate.e2e.ts`) requires `finance:read` for every call.
   - Read tools (`^(get|list|search|preview)_`) call no scope helper. Write tools call `requireScope({ extra, scope: 'finance:write' })`. Tools that permanently delete call it with `'finance:delete'`.
+  - Two read-named tools sit on REST routes that carry `checkBaseCurrencyLock` (see below) and so call the lock check without a scope.
   - `profile:read` covers name, email and base currency; no new tool needs it.
   - `routes/mcp.route.ts` wraps the transport in `runWithBalanceRevalueBatch`, so tools need no batch of their own.
 - **The `add-mcp-tool` skill** (`.claude/skills/add-mcp-tool/SKILL.md`) gives this checklist for each tool:
@@ -60,19 +64,27 @@ When this plan is done, the server has about 250 tools (about 260 with Apple Pay
   - the prompt `prompts/financial-data-guide.ts`, which says the budget plan is "not available through these tools";
   - `packages/landing/src/components/mcp-section.astro`, which shows example tool names (unchanged).
 - **What MCP writes skip, compared to REST middleware** (from the controller survey):
-  - **`checkBaseCurrencyLock`** guards almost every REST write, through `isBaseCurrencyChangeLocked({ userId })` in `@services/currencies/base-currency-lock`. No MCP tool calls it.
+  - **`checkBaseCurrencyLock`** guards almost every REST write, through `isBaseCurrencyChangeLocked({ userId })` in `@services/currencies/base-currency-lock`. No MCP tool calls it. The lock follows the route, not the tool's name: two read-named tools sit on POST routes that carry it, `POST /transactions/transfer-recommendations/bulk-scan` (`list_transfer_suggestions`) and `POST /automations/preview` (`preview_transaction_automation`). REST refuses both with 423 during a base-currency change, so the tools do too.
   - **`requireFeature`** (`middlewares/entitlements.ts`): `budget_plan` on budget-plan writes, `attachments` on attachment delete, `fire_planner` when a settings patch carries `fire`. `services/mcp/auth.ts` loads `getEntitlementsByUserId` but keeps only `readOnly`.
-  - **`blockDemoUsers` and `enforceReadOnly`** are already covered by `requireScope`.
-  - **Rate limiters** are Express-only. MCP tools have none, as today.
+  - **`blockDemoUsers` and `enforceReadOnly`**: `requireScope` rejects every demo user and every read-only user, which is stricter than REST in one place. `enforceReadOnly` lets a read-only user through on `READ_ONLY_ROUTES` (`middlewares/entitlements.ts`), so onboarding and the inbox keep working:
+    - `POST /user/currencies/base` (the first base currency; the route also carries `checkBaseCurrencyLock`);
+    - `POST /notifications/read-all` and `POST /notifications/:id/read`;
+    - `PUT` and `PATCH /user/settings`;
+    - the rest of the set (data export, account delete, billing, auth, admin and test prefixes) has no tool.
+
+    None of those routes carries `blockDemoUsers`. MCP must allow exactly this set to read-only users, no more and no less: `requireScope` gets an `allowReadOnly` option (Task 3) that the tools on those routes pass (`mark_notifications_read`, `update_user_settings`, the first-base branch of `change_base_currency`). `dismiss_notification` and the other-base branch of `change_base_currency` stay blocked for read-only users, as their routes are. For demo users, `allowReadOnly` tools follow their routes (no `blockDemoUsers`, so demo is accepted); every other write tool keeps `requireScope`'s existing demo rejection, which this plan does not loosen.
+  - **Rate limiters.** `PUT /user/currencies/:code/rate-source` and `POST …/rate-source/test` are wrapped in `rateSourceSaveRateLimit` and `rateSourceTestRateLimit` (20 per minute per user, `middlewares/rate-limit.ts`). A save fetches from CoinGecko (one shared key for the instance) or from the user's URL and re-values every saved row of the currency; a test fetches the user's URL. MCP applies the same budgets through the same `RateLimitService` and the same key (Task 3 adds a per-user limiter both the middleware and the tools use, and applies it to the two Task 2 tools). The other limiters sit on routes with no tool (`attachmentUploadRateLimit` guards the byte upload; `create_attachment_upload_url` only issues the token URL).
 - **Controller-only logic a tool would otherwise copy:**
   - account update checks (`currentBalance` only on system accounts; no move into or out of the `vehicle` category);
   - refund recommendations, transfer recommendations, transfer bulk scan and dismissal (all inline in `controllers/transactions.controller/`);
   - the holding creation from a search result;
   - the rate-source save follow-ups (`backfillCoingeckoRates`, `fetchHttpRateAfterSave`);
   - the change-base supported-currency check;
+  - the exchange-rate pair rules of `PUT /user/currency/rates` (every pair needs its opposite in the same call, no pair with the same base and quote, `rate > 0`, `.strict()`), which only the controller's local zod schema enforces, and the opposite-pair rule of the delete route;
   - the budget-plan goal `superRefine`;
   - the import-batch delete fallback to a queued job;
-  - the loan view assembly (`projectLoan` + `countLoanPayments` + `serializeLoan`).
+  - the loan view assembly (`projectLoan` + `countLoanPayments` + `serializeLoan`);
+  - the settings + decimals + service + serializer orchestration of every stats report, tracker read and budget-plan read, which Tasks 13, 15 and 20 move into report services instead of copying into each tool.
 - **Planned transactions:**
   - The web app confirms a plan with `PUT /transactions/:id` `{ isPlanned: false }`, adding `time: now` when the plan is still in the future (`upcoming-section.vue`).
   - The service refuses it on bank-connected accounts (`plannedUnflipOnConnectedAccount`).
@@ -82,10 +94,10 @@ When this plan is done, the server has about 250 tools (about 260 with Apple Pay
 - **`dev` moved after this worktree was cut** (`90bf0925` to `17e13dd7`, the per-currency-precision merge):
   - Stats, tracker and budget-plan engines now take base or plan `decimals` (`getBaseCurrencyDecimals`), and their serializers take `{ …, decimals }`.
   - Five existing stats tools were updated there.
-  - New stats, tracker and plan tools must copy the decimals handling from the controllers on `dev`, which Task 3's merge brings in.
+  - New stats, tracker and plan tools get the decimals handling by calling the report services that Tasks 13, 15 and 20 extract from those controllers on `dev` (which Task 3's merge brings in), not by copying it.
 - **Bugs and gaps noticed, outside this plan's scope:**
   - `GET /transactions/:id/refunds` validates `query.transactionId` and ignores `:id`.
-  - `get_balance_history` omits `includeCreditLimit` in its combined branch (fixed in Task 15).
+  - `get_balance_history` omits `includeCreditLimit` in its combined branch (fixed in Task 15, test first).
 - **Branches and worktrees** (state on 2026-10-17):
 
   | Tools for                                      | Branch                       | Worktree                                                                                                            |
@@ -121,7 +133,9 @@ When this plan is done, the server has about 250 tools (about 260 with Apple Pay
   5. Final group on `feat/mcp-coverage`: Verify and Docs, merged into `dev`. It does not wait for Group D.
 
   The currency branches are upstream PR candidates, so `dev` is never merged into them. They get their tools first, and Task 3 adds the lock check to those tools on `feat/mcp-coverage`.
-- **Testing approach:** regular, code first and tests in the same task. Each tool is a thin wrapper, and the risk sits in argument mapping, scopes and guards, which the unit tests cover. Where a task moves controller logic into a service, the existing REST e2e suites of that route stay green without edits to their expectations. That is the proof the move kept behaviour.
+- **Testing approach:** regular, code first and tests in the same task, with two test-first exceptions. Each tool is a thin wrapper, and the risk sits in argument mapping, scopes and guards, which the unit tests cover.
+  - **Moves are proven by REST e2e, written first.** Where a task moves controller logic into a service, the existing REST e2e suites of that route stay green without edits to their expectations, and that is the proof the move kept behaviour. Before the move, check that an e2e case exercises each moved check. A check with none gets an e2e case first, run green against the unmoved code; the move then keeps it green. The tool unit tests mock the services, so they cannot see these checks.
+  - **Bug fixes are test-first.** A failing tool unit test that reproduces the bug comes before the fix (Task 15, `get_balance_history`).
 - **Gates name exactly which tests must pass:**
   - Unit: `cd packages/backend && npm run test:unit -- --testPathPattern='services/mcp/'`. It covers the drift suites and every new tool unit test.
   - e2e: one batched run per gate, `cd packages/backend && lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='...'`. It runs through `test-runner`, never in parallel, and never the full suite. Every pattern includes `services/mcp/(connected-apps|mcp-scope-gate)`.
@@ -129,8 +143,8 @@ When this plan is done, the server has about 250 tools (about 260 with Apple Pay
 - **One area per task, 4–8 tools.** Follow the `add-mcp-tool` skill for every tool, as updated in Task 3.
 - **Mirror the REST route** for each tool:
   - the same service;
-  - the same validation (reuse the controller's zod schema or fields where they are exported, or export them);
-  - the same lock and feature gate;
+  - the same validation, enforced on both paths: the rules live in a shared schema or in the service, never only in a controller (reuse the controller's zod schema or fields where they are exported, or move them);
+  - the same lock, feature gate, rate limit, and read-only and demo handling;
   - the same serializer, slimmed for MCP where the output is large.
 - Complete each task fully before the next. **Keep this plan current** when scope changes.
 - **Commits:** as the exec flow makes them, one per task; no pushes.
@@ -138,13 +152,13 @@ When this plan is done, the server has about 250 tools (about 260 with Apple Pay
 ## Testing Strategy
 
 - **Backend unit** (`npm run test:unit` in `packages/backend`): one `tools/<area>-tools.unit.ts` per task, built on Task 3's `captureTools`. For every new tool:
-  - its input schema accepts a valid input and rejects an invalid one (a wrong enum, a missing id, a mutually exclusive pair);
-  - a write tool throws without its scope, throws while the base-currency lock is set (unless exempt), and throws without the feature when it has a gate. In each case the service mock is not called;
+  - its input schema accepts a valid input and rejects an invalid one (a wrong enum, a missing id). Refinements (a mutually exclusive pair, an either-or) are enforced in the handler by a shared validator, so the test asserts that the **tool** rejects them, not the schema;
+  - a write tool throws without its scope, throws while the base-currency lock is set (unless exempt), and throws without the feature when it has a gate. A tool that wraps a rate-limited REST route throws when the limiter says no. A tool on a `READ_ONLY_ROUTES` route passes for a read-only user, and every other write tool throws for one. In each refusal the service mock is not called;
   - the handler calls the service with `userId` and the mapped arguments, and returns `jsonContent` of the result;
-  - a read tool works with no scope helper;
+  - a read tool works with no scope helper, except the lock-carrying reads, which throw while the lock is set;
   - conditional behaviour, such as `change_base_currency` with and without a base currency, or `ignore_payee_name` with `force`.
 - **Drift and registration** (unit, every gate): `server-card-drift`, `agent-skills-drift`, `tool-scopes-drift` (extended in Task 3), and `server-registration-drift` (new in Task 3).
-- **Backend e2e:** the MCP suites plus the REST suites of the routes each task wraps. These guard every service the task touches, and any logic it moves out of a controller.
+- **Backend e2e:** the MCP suites plus the REST suites of the routes each task wraps. These guard every service the task touches, and any logic it moves out of a controller. Moved checks that no e2e case covered get one before the move (see "Testing approach").
 - **No frontend changes.** The docs site build runs in Task 29.
 
 ## Progress Tracking
@@ -156,7 +170,7 @@ When this plan is done, the server has about 250 tools (about 260 with Apple Pay
 ## Solution Overview
 
 - **Tool shape.** Each tool is one file in `tools/`, following the skill's template, with three changes after Task 3:
-  - write tools call `requireScope`, then `await assertBaseCurrencyUnlocked({ userId })`, then (when gated) `await requireFeatureAccess({ userId, feature })`, before `trackMcpToolUsed`;
+  - write tools call `requireScope` (with `allowReadOnly` on the `READ_ONLY_ROUTES` tools), then `await assertBaseCurrencyUnlocked({ userId })`, then (when gated) `await requireFeatureAccess({ userId, feature })`, then (when their route is rate-limited) `await enforceUserRateLimit(…)`, before `trackMcpToolUsed`;
   - errors are thrown as `Error`s with the same i18n message the REST route returns;
   - output goes through the route's serializer, and lists through an MCP slim helper in `serializers.ts` when the REST payload carries UI-only fields.
 - **Consolidation.** Routes that differ only by an id or a filter share one tool:
@@ -167,7 +181,7 @@ When this plan is done, the server has about 250 tools (about 260 with Apple Pay
 
   This keeps the tool count near one per action, not one per route.
 - **Planned transactions** get `confirm_planned_transaction` and an `isPlanned` filter on `search_transactions`. `update_transaction` stays without `isPlanned`, so a plan is confirmed only through one tool with one clear contract.
-- **Guards.** Task 3 adds `assertBaseCurrencyUnlocked` and `requireFeatureAccess` to `tools/helpers.ts` and applies the lock check to every existing write tool. `tool-scopes-drift.unit.ts` then fails for any write tool without it, unless the tool is listed in `LOCK_EXEMPT_TOOLS` (whose REST route has no lock: `change_base_currency`, notification reads, settings patch and others).
+- **Guards.** Task 3 adds `assertBaseCurrencyUnlocked`, `requireFeatureAccess`, `enforceUserRateLimit` and `requireScope`'s `allowReadOnly` option to `tools/helpers.ts`, and applies the lock check to every existing write tool. The base-currency lock follows the REST route, not the scope: `tool-scopes-drift.unit.ts` fails for any write tool without it unless the tool is listed in `LOCK_EXEMPT_TOOLS` (whose REST route has no lock: the change branch of `change_base_currency`, notification reads, settings patch, `test_currency_rate_source` and others), and for any tool in `LOCK_GUARDED_READ_TOOLS` (read-named tools whose route carries the lock) that does not call it.
 - **Excluded routes** are listed with a reason under Technical Details. They do not get tools in this plan.
 
 ## Technical Details
@@ -177,13 +191,16 @@ When this plan is done, the server has about 250 tools (about 260 with Apple Pay
 - **Names:**
   - read tools start with `get_`, `list_`, `search_` or `preview_`, and nothing else does;
   - `delete_*` tools require `finance:delete`;
-  - other tools that permanently remove data (`bulk_delete_*`, `merge_duplicate_transactions`, `revoke_ingest_token`, `dismiss_card_payment_request` if it deletes) also require `finance:delete` and are added to `DESTRUCTIVE_TOOLS`.
+  - other tools that permanently remove data (`bulk_delete_*`, `revoke_ingest_token`, `dismiss_card_payment_request` if it deletes) also require `finance:delete` and are added to `DESTRUCTIVE_TOOLS`. A soft delete that a restore tool undoes is a `finance:write` tool: `remove_duplicate_transactions` and `merge_duplicate_transactions` (merged rows get `deletedAt` and `mergedIntoId`, and `restore_removed_transactions` clears both).
+- **Refined inputs:** the SDK's `inputSchema` is a plain shape of Zod fields, so a rule that spans fields (an either-or, a mutually exclusive pair, a `superRefine`) cannot sit in it. The tool exposes the shared schema's `.shape` as `inputSchema` and runs the full shared schema or validator (`schema.parse(args)`, or an `assert…Args` helper like `assertOriginalCurrencyArgs`) in its handler, so REST and MCP enforce one rule set. The unit test asserts the tool rejects, not the shape.
+- **Shared logic:** controller logic a tool needs (validation, orchestration) moves into a service or shared schema that the controller and the tool both call. The tool never re-implements it.
 - **Ids:**
   - `recordId()` from `@common/lib/zod/custom-types` for record ids;
   - money as decimal numbers (investment amounts as the decimal strings their REST schemas use);
   - dates as ISO strings converted with `new Date()` where the service wants a `Date`.
 - **Pagination caps:** reuse the REST limits (for example notifications 1–100, batches 1–100, budget category transactions 1–100). `get_transactions` caps `ids` at 100.
-- **Write guard order:** `getUserId` → `requireScope` → `assertBaseCurrencyUnlocked` (unless exempt) → `requireFeatureAccess` (when gated) → `trackMcpToolUsed` → service.
+- **Write guard order:** `getUserId` → `requireScope` (`allowReadOnly: true` only for a `READ_ONLY_ROUTES` tool) → `assertBaseCurrencyUnlocked` (unless exempt) → `requireFeatureAccess` (when gated) → `enforceUserRateLimit` (when the REST route is rate-limited) → `trackMcpToolUsed` → service.
+- **Lock-carrying reads:** a read-named tool whose REST route carries `checkBaseCurrencyLock` calls `getUserId` → `assertBaseCurrencyUnlocked` → `trackMcpToolUsed` → service, and is listed in `LOCK_GUARDED_READ_TOOLS`.
 - **The four metafiles** each tool touches (skill steps 2–5):
   - `services/mcp/server.ts` (import and `register…(server)` under the right comment group);
   - `server-card.json`;
@@ -201,9 +218,12 @@ When this plan is done, the server has about 250 tools (about 260 with Apple Pay
   - `isBaseCurrencyChangeLocked`; throws `t({ key: 'currencies.baseCurrencyChangeInProgress' })`;
   - fails closed with `t({ key: 'common.serviceTemporarilyUnavailable' })` when Redis throws, as the middleware does.
 - `requireFeatureAccess({ userId, feature })`: `getEntitlementsByUserId`; throws the same message as `requireFeature`'s 402 when the feature is missing.
-- `services/mcp/test-utils.ts`:
+- `requireScope({ extra, scope, allowReadOnly = false })`: with `allowReadOnly: true` it skips the read-only rejection and the demo rejection, and still checks the scope. Only the tools on `READ_ONLY_ROUTES` routes pass it.
+- `enforceUserRateLimit({ userId, limit })`: calls `RateLimitService.checkRateLimit` with `limit.key({ userId })`, `limit.windowSeconds` and `limit.maxAttempts`; throws `t({ key: 'middleware.tooManyRequests' })` when refused, and lets the call through when Redis is down, as the REST middleware does for these routes. The budgets are shared constants (`RATE_SOURCE_SAVE_LIMIT`, `RATE_SOURCE_TEST_LIMIT`, in `services/common/user-rate-limits.ts`) that `middlewares/rate-limit.ts` also reads, so the two paths cannot drift and share one counter per user.
+- `packages/backend/src/tests/helpers/mcp-tools.ts` (the project's helper directory; a new unit-only module, because the existing `tests/helpers/mcp.ts` imports `@root/app`, supertest and the auth pool, which a unit test must not load):
   - `captureTools({ register })` returns `[{ name, config, handler }]`;
   - `makeExtra({ userId, scopes, readOnly = false, role })` builds the `extra` that `getUserId` and `requireScope` read.
+  - Unit tests import it as `@tests/helpers/mcp-tools`.
 
 ### Route audit
 
@@ -611,7 +631,7 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 - Create: `packages/backend/src/services/mcp/tools/{list-custom-currencies,create-custom-currency,update-custom-currency,delete-custom-currency}.ts`, `packages/backend/src/services/mcp/tools/custom-currency-tools.unit.ts`
 - Modify: the four metafiles, `tool-scopes-drift.unit.ts` (no list change expected)
 
-- [ ] read first: the `add-mcp-tool` skill, `controllers/currencies/custom-currencies.ts`, `services/currencies/custom-currencies.service.ts` on this branch, and `tools/transaction-amount-inputs.unit.ts` for the capture pattern. `services/mcp/test-utils.ts` does not exist on this branch, so use a local capture helper in the test file.
+- [ ] read first: the `add-mcp-tool` skill, `controllers/currencies/custom-currencies.ts`, `services/currencies/custom-currencies.service.ts` on this branch, and `tools/transaction-amount-inputs.unit.ts` for the capture pattern. `tests/helpers/mcp-tools.ts` (Task 3) does not exist on this branch, so use a local capture helper in the test file.
 - [ ] `list_custom_currencies` (read): `listCustomCurrencies({ userId })`; code, name, symbol, decimals and logo as the REST list returns them.
 - [ ] `create_custom_currency` (`finance:write`):
   - `code`, `name`, `decimals` (int in the REST bounds), `symbol?`, using the controller's strict schema (export it if it is local);
@@ -643,27 +663,35 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 - Create:
   - `packages/backend/src/services/mcp/tools/{search-coingecko-coins,get-currency-rate-history,set-currency-rate-source,test-currency-rate-source,set-exchange-rates,delete-exchange-rates}.ts`;
   - `tools/rate-source-tools.unit.ts`;
-  - `packages/backend/src/services/currencies/rate-sources/save-rate-source.service.ts`.
-- Modify: `controllers/currencies/rate-source.ts` (calls the new service), `controllers/user.controller.ts` (the opposite-pair check for rate removal moves into `removeUserExchangeRates`), the four metafiles, `tool-scopes-drift.unit.ts` (`DESTRUCTIVE_TOOLS` unchanged: `delete_exchange_rates` is covered by its prefix)
+  - `packages/backend/src/services/currencies/rate-sources/save-rate-source.service.ts`;
+  - `packages/backend/src/services/user-exchange-rate/exchange-rate-pair-rules.ts` (the shared pair rules).
+- Modify: `controllers/currencies/rate-source.ts` (calls the new service), `controllers/currencies/edit-currency-exchange-rate.ts` and `controllers/user.controller.ts` (both rely on the shared rules; the opposite-pair check for rate removal leaves the controller), `services/user-exchange-rate/update-exchange-rates.service.ts` and `remove-exchange-rates.service.ts` (enforce the rules), `services/user-exchange-rate/update-exchange-rates.service.e2e.ts` (new removal case), the four metafiles, `tool-scopes-drift.unit.ts` (`DESTRUCTIVE_TOOLS` unchanged: `delete_exchange_rates` is covered by its prefix; `test_currency_rate_source` goes into `LOCK_EXEMPT_TOOLS` in Task 3, as its route has no lock)
 
-- [ ] read first: `controllers/currencies/rate-source.ts`, `controllers/currencies/rate-history.ts`, `controllers/currencies/edit-currency-exchange-rate.ts`, `removeUserCurrencyExchangeRate` in `controllers/user.controller.ts`, `services/currencies/rate-sources/index.ts` (the `updateRateSourceBodySchema` union)
+- [ ] read first: `controllers/currencies/rate-source.ts`, `controllers/currencies/rate-history.ts`, `controllers/currencies/edit-currency-exchange-rate.ts`, `removeUserCurrencyExchangeRate` in `controllers/user.controller.ts`, `services/currencies/rate-sources/index.ts` (the `updateRateSourceBodySchema` union), `middlewares/rate-limit.ts` (`rateSourceSaveRateLimit`, `rateSourceTestRateLimit`)
+- [ ] e2e first, before the move (test-first): `update-exchange-rates.service.e2e.ts` already covers the edit rules ("rejects an unknown code, an identical base/quote pair and a missing inverse pair") but no case sends a one-sided removal, because every delete call sends both directions. Add a REST case: `DELETE /user/currency/rates` with a single pair returns 422 with the opposite-pair message. Run it green against the unmoved controller.
+- [ ] `exchange-rate-pair-rules.ts`: move the rules out of the controllers into one module that the services call.
+  - edit: `baseCode !== quoteCode` and every pair has its opposite in the same call (`rate > 0` and the strict pair object stay in the body shape, which the controller and the tool's schema both declare);
+  - remove: every pair has its opposite;
+  - `editUserExchangeRates` and `removeUserExchangeRates` enforce them and throw `ValidationError` with the controllers' current messages;
+  - the controllers keep only the shape of the body, so REST status codes and messages are unchanged;
+  - the MCP tools get the rules by calling the services.
 - [ ] `save-rate-source.service.ts`:
   - `saveCurrencyRateSource({ userId, code, body })` runs `setCurrencyRateSource`, then the follow-ups the controller runs today: the CoinGecko backfill after commit, or the HTTP first fetch;
   - the controller calls it;
   - the REST behaviour is unchanged.
 - [ ] `search_coingecko_coins` (read): `query` (1–100) → `searchCoingeckoCoins`. A missing `COINGECKO_API_KEY` gives the REST "not available" message.
 - [ ] `get_currency_rate_history` (read): `code`, `limit` (1–100, default 30), `offset` → `listCurrencyRateHistory`.
-- [ ] `set_currency_rate_source` (`finance:write`): `code` plus the `updateRateSourceBodySchema` fields (`rateSource`, `config`, `logoUrl?` for CoinGecko). Calls `saveCurrencyRateSource`. Header values for the HTTP source are accepted but never echoed (the service already returns only `headerNames`).
-- [ ] `test_currency_rate_source` (`finance:write`, a preview that saves nothing): `code`, `config`, `date?` → `testHttpRateSource`. Returns `{ ok, … }` as REST does.
+- [ ] `set_currency_rate_source` (`finance:write`): `code` plus the `updateRateSourceBodySchema` fields (`rateSource`, `config`, `logoUrl?` for CoinGecko). Calls `saveCurrencyRateSource`. Header values for the HTTP source are accepted but never echoed (the service already returns only `headerNames`). Its REST route is rate-limited (20 per minute per user); Task 3 adds `enforceUserRateLimit` with `RATE_SOURCE_SAVE_LIMIT` to this tool, so an agent cannot repeat CoinGecko backfills, outbound fetches and full re-valuations without bound.
+- [ ] `test_currency_rate_source` (`finance:write`, a preview that saves nothing; its route has no lock, so it is lock-exempt): `code`, `config`, `date?` → `testHttpRateSource`. Returns `{ ok, … }` as REST does. Task 3 adds `enforceUserRateLimit` with `RATE_SOURCE_TEST_LIMIT` (it fetches a URL the user typed).
 - [ ] `set_exchange_rates` (`finance:write`):
-  - `pairs[]` of `{ baseCode, quoteCode, rate > 0, effectiveDate? }` → `editUserExchangeRates`;
+  - `pairs[]` of `{ baseCode, quoteCode, rate > 0, effectiveDate? }` (a strict pair object) → `editUserExchangeRates`, which enforces the shared pair rules, so a one-sided or same-code call is refused exactly as REST refuses it;
   - the description says each pair needs its opposite in the same call, and `effectiveDate` applies only to custom currencies.
-- [ ] `delete_exchange_rates` (`finance:delete`): `pairs[]` of `{ baseCode, quoteCode, effectiveDate? }`. No `effectiveDate` removes all of a pair's rates. Calls `removeUserExchangeRates`, which now enforces the opposite pair itself.
-- [ ] unit test `rate-source-tools.unit.ts`: the schema union (each source, an invalid config), the pair rules, scopes, service args, and that `set_currency_rate_source` calls `saveCurrencyRateSource`.
+- [ ] `delete_exchange_rates` (`finance:delete`): `pairs[]` of `{ baseCode, quoteCode, effectiveDate? }`. No `effectiveDate` removes all of a pair's rates. Calls `removeUserExchangeRates`, which enforces the opposite pair itself.
+- [ ] unit test `rate-source-tools.unit.ts`: the schema union (each source, an invalid config), scopes, service args, and that `set_currency_rate_source` calls `saveCurrencyRateSource`. The pair rules are covered at the service level: unit cases in `exchange-rate-pair-rules` (or the service's unit file) reject a one-sided pair and a same-code pair for edit, and a one-sided pair for remove; the tool's schema cases cover a non-positive rate and an unknown key. The rate-limit cases are added with the limiter in Task 3.
 - [ ] metafiles under the `// Currencies` group.
 - [ ] gate:
-  - unit: `npm run test:unit -- --testPathPattern='services/(mcp/|currencies/rate-sources/)'`;
-  - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/currencies/rate-sources/(rate-history|rate-source|http-rate-source|coingecko-rate-source)|services/user-exchange-rate/(dated-user-exchange-rates|update-exchange-rates)|services/mcp/(connected-apps|mcp-scope-gate)'`;
+  - unit: `npm run test:unit -- --testPathPattern='services/(mcp/|currencies/rate-sources/|user-exchange-rate/)'`;
+  - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/currencies/rate-sources/(rate-history|rate-source|http-rate-source|coingecko-rate-source)|services/user-exchange-rate/(dated-user-exchange-rates|update-exchange-rates)|services/mcp/(connected-apps|mcp-scope-gate)'` (the new removal case is in `update-exchange-rates`);
   - backend typecheck, lint, oxfmt.
 
 **Merge:** once Task 2 passes, merge `feat/currency-rate-sources` into `dev` in the main checkout: `git switch dev`, then `git merge feat/currency-rate-sources`.
@@ -681,31 +709,45 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 
 **Files:**
 
-- Create: `packages/backend/src/services/mcp/test-utils.ts`, `packages/backend/src/services/mcp/server-registration-drift.unit.ts`, `packages/backend/src/services/mcp/tools/write-guards.unit.ts`
-- Modify: `tools/helpers.ts`, `tools/helpers.unit.ts`, `tool-scopes-drift.unit.ts`, every existing write tool in `tools/`, `.claude/skills/add-mcp-tool/SKILL.md`
+- Create: `packages/backend/src/tests/helpers/mcp-tools.ts`, `packages/backend/src/services/common/user-rate-limits.ts`, `packages/backend/src/services/mcp/server-registration-drift.unit.ts`, `packages/backend/src/services/mcp/tools/write-guards.unit.ts`
+- Modify: `tools/helpers.ts`, `tools/helpers.unit.ts`, `tool-scopes-drift.unit.ts`, `middlewares/rate-limit.ts` (reads the shared limits), every existing write tool in `tools/`, `tools/preview-transaction-automation.ts`, `tools/set-currency-rate-source.ts`, `tools/test-currency-rate-source.ts`, `.claude/skills/add-mcp-tool/SKILL.md`
 
 - [ ] `git merge dev`. It brings Groups B and C and dev's decimals changes to five stats tools. Resolve per "Merge conflicts" if needed, then run the drift suites.
 - [ ] `assertBaseCurrencyUnlocked` and `requireFeatureAccess` in `tools/helpers.ts` (Technical Details, "Helpers added in Task 3"). Unit cases in `helpers.unit.ts` cover: lock set → throws; Redis error → throws the unavailable message; unlocked → passes; feature missing → throws; feature present → passes.
-- [ ] `services/mcp/test-utils.ts` with `captureTools` and `makeExtra`.
+- [ ] `requireScope` gets `allowReadOnly` (default false). Unit cases in `helpers.unit.ts`:
+  - default: read-only user throws, demo user throws (unchanged);
+  - `allowReadOnly: true`: a read-only user passes, a demo user passes, a missing scope still throws.
+- [ ] per-user rate limiter shared with REST:
+  - `services/common/user-rate-limits.ts` exports `RATE_SOURCE_SAVE_LIMIT` and `RATE_SOURCE_TEST_LIMIT` (`prefix`, `windowSeconds: 60`, `maxAttempts: 20`, key `${prefix}:user:${userId}`, the keys REST uses today);
+  - `middlewares/rate-limit.ts` builds `rateSourceSaveRateLimit` and `rateSourceTestRateLimit` from them, so the budgets are defined once;
+  - `enforceUserRateLimit({ userId, limit })` in `tools/helpers.ts` (Technical Details) wraps `RateLimitService.checkRateLimit`;
+  - apply it in `set_currency_rate_source` (save limit) and `test_currency_rate_source` (test limit), the Task 2 tools, right after the lock and feature checks;
+  - unit cases: the limiter refusing throws the `middleware.tooManyRequests` message and the service mock is not called; allowed → passes; Redis down → passes; both tools use their own limit; the middleware and the tools read the same constants.
+  - audit: no other route that gets a tool carries a limiter (`attachmentUploadRateLimit` guards the byte upload, not `create_attachment_upload_url`). Re-check with `grep -n RateLimit routes/*.ts` and record any new find here.
+- [ ] `tests/helpers/mcp-tools.ts` with `captureTools` and `makeExtra`. Import it in unit tests as `@tests/helpers/mcp-tools`.
 - [ ] call `await assertBaseCurrencyUnlocked({ userId })` right after `requireScope` in every existing write tool whose REST counterpart carries `checkBaseCurrencyLock`.
-  - Check each route in `routes/*.ts`. A tool whose route has no lock (for example `detect_subscription_candidates`, a GET in REST, and `create_attachment_upload_url` if its upload route has none) goes into `LOCK_EXEMPT_TOOLS`, with a comment naming the route.
+  - Check each route in `routes/*.ts`. A tool whose route has no lock (for example `test_currency_rate_source`, `detect_subscription_candidates`, a GET in REST, and `create_attachment_upload_url` if its upload route has none) goes into `LOCK_EXEMPT_TOOLS`, with a comment naming the route.
+- [ ] the lock-carrying reads: the lock follows the REST route, so call `assertBaseCurrencyUnlocked` in the existing `preview_transaction_automation` (`POST /automations/preview`) and list it in `LOCK_GUARDED_READ_TOOLS` with the route in a comment. Task 8 adds `list_transfer_suggestions` (`POST /transactions/transfer-recommendations/bulk-scan`) to the same list. Re-check `routes/*.ts` for any other `checkBaseCurrencyLock` on a route that a read-named tool wraps, and add it.
 - [ ] `tool-scopes-drift.unit.ts`:
   - new case "every tool that checks a scope also checks the base-currency lock, unless listed in `LOCK_EXEMPT_TOOLS`";
-  - a second case that every `LOCK_EXEMPT_TOOLS` entry exists;
+  - a case "every tool in `LOCK_GUARDED_READ_TOOLS` calls `assertBaseCurrencyUnlocked`". This case keys on the route mapping, not on `requireScope`, which read tools never call;
+  - a case that every `LOCK_EXEMPT_TOOLS` and `LOCK_GUARDED_READ_TOOLS` entry exists, and that no tool is in both;
+  - a case that every tool calling `allowReadOnly: true` is in a hand-kept `READ_ONLY_ROUTE_TOOLS` list (`mark_notifications_read`, `update_user_settings`, `change_base_currency`), each with the `READ_ONLY_ROUTES` entry in a comment, so the exemption cannot spread;
   - export nothing new.
 - [ ] `server-registration-drift.unit.ts`: every `export function register\w+` in `tools/*.ts` (and `venture-tools.ts` re-exports) is imported and called as `register…(server)` exactly once in `server.ts`, and `server.ts` calls nothing that is not exported.
-- [ ] `write-guards.unit.ts`: with `captureTools`, `archive_account`, `delete_tag` and `create_transaction` throw while the lock is set, and their service mocks are not called. Each also throws for a demo user and for a read-only user.
+- [ ] `write-guards.unit.ts`: with `captureTools`, `archive_account`, `delete_tag` and `create_transaction` throw while the lock is set, and their service mocks are not called. Each also throws for a demo user and for a read-only user. `preview_transaction_automation` throws while the lock is set.
 - [ ] update `.claude/skills/add-mcp-tool/SKILL.md`:
-  - the template with `requireScope`, `assertBaseCurrencyUnlocked` and `requireFeatureAccess`;
-  - the naming and scope rules (Technical Details, "Tool conventions");
-  - `DESTRUCTIVE_TOOLS` and `LOCK_EXEMPT_TOOLS`;
-  - "mirror the REST route: same service, validation, lock and feature gate; move controller-only logic into a service instead of copying it";
-  - the unit test pattern with `captureTools`;
+  - the template with `requireScope`, `assertBaseCurrencyUnlocked`, `requireFeatureAccess` and `enforceUserRateLimit`;
+  - the naming and scope rules (Technical Details, "Tool conventions"), including `allowReadOnly` for `READ_ONLY_ROUTES` tools;
+  - `DESTRUCTIVE_TOOLS`, `LOCK_EXEMPT_TOOLS`, `LOCK_GUARDED_READ_TOOLS` and `READ_ONLY_ROUTE_TOOLS`;
+  - "mirror the REST route: same service, validation, lock, feature gate, rate limit and read-only handling; move controller-only logic into a service or shared schema instead of copying it";
+  - refined inputs: expose the shared schema's `.shape` and enforce refinements in the handler (Technical Details, "Refined inputs");
+  - the unit test pattern with `captureTools` from `@tests/helpers/mcp-tools`;
   - the drift suites (four) and the gate pattern `services/mcp/`;
-  - replace "do not add e2e tests" with: the gate runs the MCP e2e suites plus the REST suites of the wrapped routes.
+  - replace "do not add e2e tests" with: the gate runs the MCP e2e suites plus the REST suites of the wrapped routes, and a check moved out of a controller gets an e2e case first.
 - [ ] gate:
   - unit: `npm run test:unit -- --testPathPattern='services/mcp/'`;
-  - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='routes/base-currency-guard-coverage|services/currencies/change-base-currency-status|services/mcp/(connected-apps|mcp-scope-gate)'`;
+  - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='routes/base-currency-guard-coverage|services/currencies/change-base-currency-status|services/currencies/rate-sources/rate-source|services/mcp/(connected-apps|mcp-scope-gate)'` (`rate-source` proves the shared limits still refuse with 429 on REST);
   - backend typecheck, lint, oxfmt.
 
 ### Task 4: Account tools
@@ -723,6 +765,7 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 - [ ] move the controller-only update checks into the service path, used by REST and MCP alike:
   - `currentBalance` only on system accounts;
   - no move into or out of the `vehicle` category.
+  - e2e coverage check: `accounts.controller.e2e.ts` already has both refusals ("rejects currentBalance changes on non-system account", "rejects moving a general account into the vehicle category"), so no new case is needed; keep them green through the move.
 - [ ] `get_account` (read): `accountId` → `getAccountById`, `attachAccountCurrencyMeta`, `serializeAccount`, slimmed, plus `transactionCount` from `getAccountTransactionCount`. Not found gives a clear error.
 - [ ] `create_account` (`finance:write`):
   - `name`, `currencyCode`, `accountCategory` (`ACCOUNT_CATEGORIES`, default `general`), `initialBalance`, `creditLimit` (≥ 0), logo fields (`logoFieldsShape`);
@@ -776,9 +819,10 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
   - `tools/{get-user-currencies,list-supported-currencies,get-exchange-rate,add-user-currencies,update-user-currency,delete-user-currency,change-base-currency,get-base-currency-change-status}.ts`;
   - `tools/currency-settings-tools.unit.ts`;
   - `services/currencies/start-base-currency-change.service.ts`.
-- Modify: `controllers/currencies/change-base-currency.controller.ts`, the four metafiles, `tool-scopes-drift.unit.ts` (`LOCK_EXEMPT_TOOLS`: `change_base_currency`)
+- Modify: `controllers/currencies/change-base-currency.controller.ts`, `services/currencies/change-base-currency.service.e2e.ts` (new unsupported-currency case), the four metafiles, `tool-scopes-drift.unit.ts` (`LOCK_EXEMPT_TOOLS`: `change_base_currency`, which is exempt only in its change branch; `READ_ONLY_ROUTE_TOOLS`: `change_base_currency`, for its first-base branch)
 
 - [ ] read first: `controllers/user.controller.ts` (the currency handlers), `controllers/currencies/add-user-currencies.ts`, `change-base-currency.controller.ts`, `change-base-currency-status.controller.ts`, `controllers/exchange-rates/{pair-rate,rates-for-date}.controller.ts`, `controllers/currencies.controller.ts`
+- [ ] e2e first, before the move (test-first): no e2e case asserts the `currencies.notSupportedForBaseCurrency` refusal (the existing "rejects a trivially-invalid change" case covers only a same-currency change). Add a REST case to `change-base-currency.service.e2e.ts`: `POST /user/currencies/change-base` with an ISO code the registry does not support for historical data returns 422 with that message and takes no lock. Pick the code from `exchangeRateProviderRegistry.getSupportedCurrenciesForHistoricalData()`. Run it green against the unmoved controller.
 - [ ] `start-base-currency-change.service.ts`: move the controller's `isCurrencySupportedForHistoricalData` check and `enqueueBaseCurrencyChange` behind one function. The controller calls it.
 - [ ] `get_user_currencies` (read): `getUserCurrencies`, `getUserBaseCurrency` and `getUserExchangeRates` in one result, with custom-currency metadata as the REST list returns it.
 - [ ] `list_supported_currencies` (read): `getAllSystemCurrencies()`.
@@ -789,11 +833,12 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 - [ ] `add_user_currencies` (`finance:write`): `currencies[]` of `{ currencyCode, exchangeRate?, liveRateUpdate? }`.
 - [ ] `update_user_currency` (`finance:write`): `currencyCode`, `exchangeRate?`, `liveRateUpdate?` → `editUserCurrency`.
 - [ ] `delete_user_currency` (`finance:delete`): `currencyCode` → `deleteUserCurrency`.
-- [ ] `change_base_currency` (`finance:write`, lock-exempt like REST): `newCurrencyCode` (ISO).
-  - A user without a base gets `setBaseUserCurrency`. Otherwise the new service runs and returns `{ jobId, state }`.
+- [ ] `change_base_currency` (`finance:write`): `newCurrencyCode` (ISO). The two branches follow two different REST routes, so their guards differ. Resolve the branch first (a read of the user's base currency), then guard:
+  - A user without a base (`POST /user/currencies/base`, which is in `READ_ONLY_ROUTES` and carries `checkBaseCurrencyLock`): `requireScope` with `allowReadOnly: true`, then `assertBaseCurrencyUnlocked`, then `setBaseUserCurrency`. A read-only user can set the first base, as REST allows for onboarding.
+  - Otherwise (`POST /user/currencies/change-base`, not in `READ_ONLY_ROUTES`, no lock because the enqueue owns its own NX lock): plain `requireScope` (a read-only user is refused), no lock check, then the new service, which returns `{ jobId, state }`.
   - The description warns that the change recalculates all history and blocks other edits until it finishes. It points to `get_base_currency_change_status`.
 - [ ] `get_base_currency_change_status` (read): `getBaseCurrencyChangeStatus`.
-- [ ] unit test `currency-settings-tools.unit.ts`: the `get_exchange_rate` modes, both `change_base_currency` branches, the lock exemption.
+- [ ] unit test `currency-settings-tools.unit.ts`: the `get_exchange_rate` modes, both `change_base_currency` branches, and per branch the guards: first base passes for a read-only user and throws while the lock is set; change-base throws for a read-only user and does not check the lock.
 - [ ] metafiles under `// Currencies`.
 - [ ] gate:
   - unit: `services/mcp/`;
@@ -852,9 +897,10 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
   - `tools/{get-refunds,get-refund-recommendations,get-transfer-recommendations,list-transfer-suggestions,dismiss-transfer-suggestion}.ts`, `tools/refund-transfer-tools.unit.ts`;
   - `services/tx-refunds/get-refund-recommendations.service.ts`;
   - `services/transactions/transactions-linking/{get-transfer-recommendations,bulk-scan-transfer-recommendations,dismiss-transfer-suggestion}.service.ts`.
-- Modify: `controllers/transactions.controller/refunds/get-refund-recommendations.ts`, `controllers/transactions.controller/transfer-linking/{get-transfer-recommendations,bulk-scan-transfer-recommendations,dismiss-transfer-suggestion}.ts` (they call the new services), the four metafiles
+- Modify: `controllers/transactions.controller/refunds/get-refund-recommendations.ts`, `controllers/transactions.controller/transfer-linking/{get-transfer-recommendations,bulk-scan-transfer-recommendations,dismiss-transfer-suggestion}.ts` (they call the new services), the four metafiles, `tool-scopes-drift.unit.ts` (`LOCK_GUARDED_READ_TOOLS`: `list_transfer_suggestions`, whose route `POST /transactions/transfer-recommendations/bulk-scan` carries `checkBaseCurrencyLock`)
 
 - [ ] read first: those four controllers, `transfer-linking/constants.ts`, `services/tx-refunds/*`, `@models/transfer-suggestion-dismissals.model`
+- [ ] e2e coverage check before the move: confirm each of the four routes has an e2e case for the logic that moves (windows, limits, scoring, sorting, the ownership check). The gate patterns below already name the refund-recommendation, transfer-recommendation, bulk-scan and dismiss suites; if a moved behaviour (for example the ownership check, or the dismissal filter on a scan) has no case, add one to those suites first and run it green against the unmoved controller.
 - [ ] move the inline logic of the four controllers into the four services unchanged: windows, limits, scoring, sorting, the ownership check. The controllers keep only validation and the response.
 - [ ] `get_refunds` (read): one tool with three modes.
   - `transactionId` → `getRefundsForTransactionById`;
@@ -862,9 +908,9 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
   - otherwise `page`, `limit`, `categoryId?`, `accountId?`, `transactionType?` → `getRefundTransactions`.
 - [ ] `get_refund_recommendations` (read): `transactionId`, or `transactionType` + `originAmount` + `accountId`, as REST refines.
 - [ ] `get_transfer_recommendations` (read): the same two input shapes.
-- [ ] `list_transfer_suggestions` (read): `from`, `to`, `limit` (≤ 50, default 20), `offset`, `includeOutOfWallet` → the bulk-scan service. While moving it, confirm it writes nothing; if it does, rename the tool to a write name and give it `finance:write`.
+- [ ] `list_transfer_suggestions` (read-named, lock-carrying): `from`, `to`, `limit` (≤ 50, default 20), `offset`, `includeOutOfWallet` → the bulk-scan service. Its REST route is a POST with `checkBaseCurrencyLock`, so the tool calls `getUserId` → `assertBaseCurrencyUnlocked` (no scope) and is listed in `LOCK_GUARDED_READ_TOOLS`. While moving the service, confirm it writes nothing; if it does, rename the tool to a write name and give it `finance:write`.
 - [ ] `dismiss_transfer_suggestion` (`finance:write`): `expenseTransactionId`, `incomeTransactionId`.
-- [ ] unit test `refund-transfer-tools.unit.ts`: the `get_refunds` modes, the recommendation input refinements, dismissal args.
+- [ ] unit test `refund-transfer-tools.unit.ts`: the `get_refunds` modes, the recommendation input refinements (enforced in the handler by the shared validator), dismissal args, and `list_transfer_suggestions` throwing while the lock is set.
 - [ ] metafiles under `// Transactions`.
 - [ ] gate:
   - unit: `services/mcp/`;
@@ -880,16 +926,16 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 **Files:**
 
 - Create: `tools/{get-reconciliation-history,list-stuck-pending-transactions,remove-duplicate-transactions,restore-removed-transactions,merge-duplicate-transactions,keep-pending-as-booked}.ts`, `tools/reconciliation-tools.unit.ts`
-- Modify: the four metafiles, `tool-scopes-drift.unit.ts` (`DESTRUCTIVE_TOOLS` gets `merge_duplicate_transactions` if a merge cannot be undone)
+- Modify: the four metafiles, `tool-scopes-drift.unit.ts` (no list change: `merge_duplicate_transactions` is `finance:write`, not destructive)
 
 - [ ] read first: `controllers/transactions.controller/reconciliation.ts`, `services/transactions/reconciliation/*`, `reconciliation.e2e.ts`
 - [ ] `get_reconciliation_history` (read): `getReconciliationHistory`.
 - [ ] `list_stuck_pending_transactions` (read): `getStuckPending`.
 - [ ] `remove_duplicate_transactions` (`finance:write`): `transactionIds` (REST bounds) → `removeTransactions`. The description says removed rows can be restored.
 - [ ] `restore_removed_transactions` (`finance:write`): `restoreTransactions`.
-- [ ] `merge_duplicate_transactions`: `transactionIds` (REST min and max), `survivorId` → `mergeTransactions`.
-  - Check in the service and history whether a merge can be undone. If not, use `finance:delete` and add it to `DESTRUCTIVE_TOOLS`; if it can, use `finance:write`.
-  - Record the decision here.
+- [ ] `merge_duplicate_transactions` (`finance:write`): `transactionIds` (REST min and max), `survivorId` → `mergeTransactions`.
+  - Decision: `finance:write`, not `DESTRUCTIVE_TOOLS`. `mergeTransactions` soft-deletes the merged rows (`deletedAt` and `mergedIntoId`) and `restoreTransactions` clears both, so `restore_removed_transactions` undoes a merge. This matches Technical Details, "Tool conventions".
+  - The description says merged rows are restorable, and that a restored row comes back without the budget, group and subscription links the merge moved to the survivor (`restoreTransactions` clears the two columns and moves no link back).
 - [ ] `keep_pending_as_booked` (`finance:write`): `transactionIds` → `keepAsBooked`.
 - [ ] unit test `reconciliation-tools.unit.ts`.
 - [ ] metafiles under a new `// Reconciliation` group.
@@ -992,11 +1038,12 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 
 **Files:**
 
-- Create: `tools/{get-budget,get-budget-transactions,get-tag-reminders,create-tag-reminder,update-tag-reminder,delete-tag-reminder}.ts`, `tools/tracker-reminder-tools.unit.ts`
-- Modify: the four metafiles
+- Create: `tools/{get-budget,get-budget-transactions,get-tag-reminders,create-tag-reminder,update-tag-reminder,delete-tag-reminder}.ts`, `tools/tracker-reminder-tools.unit.ts`, `services/budgets/budget-views.service.ts`
+- Modify: `controllers/budgets/{get-budgets,get-stats}.ts` (call the new service), the four metafiles
 
 - [ ] read first, on `dev` after Task 3's merge: `controllers/budgets/{get-budgets,get-stats,get-category-budget-transactions}.ts` (tracker stats in base minor units), `controllers/tag-reminders/*`, `serializers/tag-reminders.serializer.ts`
-- [ ] `get_budget` (read): `budgetId` → `getBudgetById` + `getBudgetStats`, with both serializers and the decimals handling the controllers use.
+- [ ] `budget-views.service.ts`: move the per-budget read orchestration out of the controllers (the settings and `getBaseCurrencyDecimals` reads, the service call, the serializer) into `getBudgetView({ userId, budgetId })` and `getBudgetStatsView({ userId, budgetId })`, returning the API payload. The controllers call them; the tool does not repeat the mapping. The REST e2e (`services/budgets/(stats|category-budgets|budget-crud)`) stays green without edits; check first that `GET /budgets/:id` and `GET /budgets/:id/stats` are exercised there, and add a case if one is not.
+- [ ] `get_budget` (read): `budgetId` → `getBudgetView` + `getBudgetStatsView`.
 - [ ] `get_budget_transactions` (read): `budgetId`, `from` (≥ 0), `limit` (1–100) → `getCategoryBudgetTransactions`. The description says it works for category trackers, and manual trackers use `search_transactions` with `budgetIds`.
 - [ ] `get_tag_reminders` (read): `tagId?`, `reminderId?` (needs `tagId`) → `getAllReminders`, `getRemindersForTag` or `getReminderById`, serialized.
 - [ ] `create_tag_reminder` (`finance:write`):
@@ -1020,18 +1067,18 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 **Files:**
 
 - Create: `tools/{get-notifications,mark-notifications-read,dismiss-notification,get-user-settings,update-user-settings}.ts`, `tools/notification-settings-tools.unit.ts`
-- Modify: the four metafiles, `tool-scopes-drift.unit.ts` (`LOCK_EXEMPT_TOOLS`: `mark_notifications_read`, `update_user_settings`)
+- Modify: the four metafiles, `tool-scopes-drift.unit.ts` (`LOCK_EXEMPT_TOOLS`: `mark_notifications_read`, `update_user_settings`; `READ_ONLY_ROUTE_TOOLS`: the same two)
 
 - [ ] read first: `controllers/notifications.controller.ts`, `controllers/user-settings/{get-settings,patch-settings}.ts`, `models/user-settings.model.ts` (`ZodSettingsPatchSchema`), `middlewares/entitlements.ts#requireFireSettingsAccess`
 - [ ] `get_notifications` (read): `notificationId?`, or `status?`, `type?`, `limit` (1–100), `offset`. The list result includes `unreadCount` (`getUnreadCount`).
-- [ ] `mark_notifications_read` (`finance:write`, lock-exempt like REST): `notificationId?`. Without an id it marks all (`markAllAsRead`).
-- [ ] `dismiss_notification` (`finance:write`): `notificationId`.
+- [ ] `mark_notifications_read` (`finance:write`, `allowReadOnly: true`, lock-exempt like REST): `notificationId?`. Without an id it marks all (`markAllAsRead`). Both REST routes (`POST /notifications/read-all`, `POST /notifications/:id/read`) are in `READ_ONLY_ROUTES`, so a read-only user keeps the inbox usable over MCP too.
+- [ ] `dismiss_notification` (`finance:write`): `notificationId`. `POST /notifications/:id/dismiss` is not in `READ_ONLY_ROUTES`, so a read-only user is refused, as in REST.
 - [ ] `get_user_settings` (read): `getUserSettings`, with the `ai` slice left out. That keeps AI configuration out of the client, matching the ai exclusion.
-- [ ] `update_user_settings` (`finance:write`, lock-exempt like REST):
+- [ ] `update_user_settings` (`finance:write`, `allowReadOnly: true`, lock-exempt like REST; `PUT` and `PATCH /user/settings` are in `READ_ONLY_ROUTES`):
   - a deep-merge patch validated with `ZodSettingsPatchSchema` minus `ai` → `patchUserSettings`;
   - a `fire` key needs `requireFeatureAccess` `fire_planner`;
   - it covers `PUT /settings` too: the patch replaces arrays whole, as REST does.
-- [ ] unit test `notification-settings-tools.unit.ts`: `ai` rejected and stripped, the `fire` gate, mark all versus one.
+- [ ] unit test `notification-settings-tools.unit.ts`: `ai` rejected and stripped, the `fire` gate, mark all versus one, and read-only handling: `mark_notifications_read` and `update_user_settings` pass for a read-only user, `dismiss_notification` throws for one.
 - [ ] metafiles under a new `// Notifications & settings` group.
 - [ ] gate:
   - unit: `services/mcp/`;
@@ -1046,11 +1093,13 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 
 **Files:**
 
-- Create: `tools/{get-total-balance,get-net-worth-history,get-net-worth-drivers,get-investment-contributions,get-venture-contributions,get-pivot-report,get-cumulative-stats,get-earliest-transaction-date}.ts`, `tools/stats-tools.unit.ts`
-- Modify: `tools/get-balance-history.ts` (`includeCreditLimit` from user settings in the combined branch), the four metafiles
+- Create: `tools/{get-total-balance,get-net-worth-history,get-net-worth-drivers,get-investment-contributions,get-venture-contributions,get-pivot-report,get-cumulative-stats,get-earliest-transaction-date}.ts`, `tools/stats-tools.unit.ts`, `services/stats/reports/*.report.ts` (one per report)
+- Modify: `controllers/stats.controller.ts` (every report handler calls its report function), `tools/get-balance-history.ts`, `tools/get-expenses-for-period.ts`, `tools/get-spending-by-categories.ts`, `tools/get-cash-flow.ts` (the existing stats tools switch to the same report functions), the four metafiles
 
 - [ ] read first, on `dev` after Task 3's merge: `controllers/stats.controller.ts` and `serializers/stats.serializer.ts`. Every report now takes base `decimals` from `getBaseCurrencyDecimals`, and the serializers take `{ …, decimals }`. Some reports read `includeCreditLimitInStats` from `getUserSettings`.
-- [ ] each tool copies its controller's argument mapping, decimals and serializer:
+- [ ] `services/stats/reports/`: one function per report, for example `getTotalBalanceReport({ userId, date })`, that holds what each handler repeats today: the `getUserSettings` read (`includeCreditLimitInStats`), `getBaseCurrencyDecimals`, the stats service call, and the serializer with `{ …, decimals }`. It returns the API payload. `controllers/stats.controller.ts` handlers keep only validation and call the function; the tools call the same function. Cover the eight new reports and the existing ones (`getCombinedBalanceHistoryReport`, the expenses, spending-by-category and cash-flow reports). REST behaviour is unchanged.
+  - e2e coverage check before the move: the gate patterns below name an e2e suite per report; `get_total_balance` has none of its own, so confirm `credit-limit-in-stats` exercises `/stats/total-balance` with and without the setting, and add a default-settings case there if it does not. Run any added case green against the unmoved controller.
+- [ ] each new tool maps its input and calls the report function (no controller logic in the tool):
   - `get_total_balance` (`date`);
   - `get_net_worth_history` (`from`, `to`, `granularity`);
   - `get_net_worth_drivers` (`from`, `to`, `granularity`, `portfolioIds?`);
@@ -1061,8 +1110,11 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
   - `get_earliest_transaction_date`.
 
   All are read tools. Arrays are taken as arrays, not the comma strings REST uses.
-- [ ] `get_balance_history`: pass `includeCreditLimit` from the user's settings in the combined branch, as `/stats/combined-balance-history` does.
-- [ ] unit test `stats-tools.unit.ts`: the enum schemas, decimals passed through, the credit-limit setting read.
+- [ ] `get_balance_history` bug fix, test first (the combined branch calls `getCombinedBalanceHistory` without `includeCreditLimit`, while `/stats/combined-balance-history` passes `settings.includeCreditLimitInStats`):
+  - write the `stats-tools.unit.ts` case first: the settings mock returns `includeCreditLimitInStats: true`, and the combined branch must call the report with that setting applied (the combined service receives `includeCreditLimit: true`);
+  - run it and confirm it fails on the current tool;
+  - then switch the tool to `getCombinedBalanceHistoryReport`, which reads the setting, and confirm the case passes.
+- [ ] unit test `stats-tools.unit.ts`: the enum schemas, decimals passed through, the credit-limit case above, and `includeCreditLimit` false when the setting is off.
 - [ ] metafiles under `// Analytics`.
 - [ ] gate:
   - unit: `services/mcp/`;
@@ -1182,10 +1234,11 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 
 **Files:**
 
-- Create: `tools/{list-budget-plans,get-budget-plan-suggestion-context,list-budget-plan-periods,get-budget-plan-period,get-budget-plan-scheduled,get-budget-plan-trends}.ts`, `tools/budget-plan-read-tools.unit.ts`
-- Modify: the four metafiles
+- Create: `tools/{list-budget-plans,get-budget-plan-suggestion-context,list-budget-plan-periods,get-budget-plan-period,get-budget-plan-scheduled,get-budget-plan-trends}.ts`, `tools/budget-plan-read-tools.unit.ts`, `services/budget-plans/read-views.service.ts`
+- Modify: the read handlers in `controllers/budget-plans/*` (they call the new service), the four metafiles
 
 - [ ] read first, on `dev` after Task 3's merge (plan figures in minor units at the plan currency's decimals): `routes/budget-plans.route.ts`, `controllers/budget-plans/*` (the read handlers), `services/budget-plans/{get-plan,list-periods,get-period-view,get-scheduled,get-trends,suggested-lines}.ts`
+- [ ] `read-views.service.ts`: move the read orchestration out of the controllers (the plan lookup, the plan-currency `decimals`, the service call, the serializer) into one function per read, for example `getPeriodViewPayload({ userId, planId, periodId })`. The controllers call them and the tools do not repeat the mapping. The REST e2e of the gate stays green without edits; check first that each read route is exercised by a suite in the gate (trends, scheduled, periods and the period view have their own suites), and add a case first for any that is not (for example `GET /budget-plans`, `GET /:planId` or `GET /suggestion-context`).
 - [ ] `list_budget_plans` (read): `planId?`, `includeDeleted?` → `listPlans` or `getPlan`.
 - [ ] `get_budget_plan_suggestion_context` (read): `accountIds?`.
 - [ ] `list_budget_plan_periods` (read): `planId`.
@@ -1264,13 +1317,14 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 - Modify: the goal controller (imports the moved schema), the four metafiles
 
 - [ ] read first: the goal and assignment handlers in `controllers/budget-plans/*`, `services/budget-plans/{line-goals,set-assignment}.ts`
-- [ ] move the goal body schema and its `superRefine` (which fields each frequency and behaviour allows) from the controller into `line-goal-schema.ts`. The controller and the tool use it, and REST validation is unchanged.
+- [ ] move the goal body schema and its `superRefine` (which fields each frequency and behaviour allows) from the controller into `line-goal-schema.ts`. The controller and the tool use it, and REST validation is unchanged (`line-goals.e2e.ts` already asserts the 422 for every rejected combination).
+  - The tool's `inputSchema` is the schema's `.shape` (a plain shape, as the skill requires); a raw shape cannot carry the `superRefine`. The handler runs the full schema (`lineGoalSchema.parse(args)`) before the service call, so the refinements are enforced exactly as in REST, and a refusal is an `Error` with the REST message.
 - [ ] all writes call `requireFeatureAccess` `budget_plan`.
 - [ ] `set_budget_plan_line_goal` (`finance:write`): `planId`, `lineId` + the moved schema's fields.
 - [ ] `delete_budget_plan_line_goal` (`finance:delete`).
 - [ ] `snooze_budget_plan_line_goal` (`finance:write`): `planId`, `lineId`, `periodId`.
 - [ ] `set_budget_plan_assignment` (`finance:write`): `planId`, `periodId`, `lineId`, `scope` (`BUDGET_ASSIGNMENT_SCOPES`), `amount?` and `carryPolicy?` (nullable).
-- [ ] unit test `budget-plan-goal-tools.unit.ts`: the moved refinements (one allowed and one refused combination per frequency).
+- [ ] unit test `budget-plan-goal-tools.unit.ts`: the moved refinements through the tool (one allowed and one refused combination per frequency; the handler rejects, the service mock is not called).
 - [ ] metafiles under `// Budget plans`.
 - [ ] gate:
   - unit: `services/mcp/`;
@@ -1313,6 +1367,7 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 - Modify: the batch delete controller (calls the new service), the four metafiles
 
 - [ ] read first: `routes/import-export/batches.route.ts` and its controllers, `services/import-export/{get-batches-history.service,delete-batch.service,delete-batch-queue}.ts`
+- [ ] e2e first, before the move (test-first): no e2e case covers the queued fallback (only `delete-batch.service.unit.ts` asserts `ImportBatchTooLargeError`; the sync cap is 1000 rows). Add a REST case to the batch-delete suite: `DELETE /import/batch/:batchId` on a batch above the cap returns the job reply (`jobId`), and `GET /import/batch-delete/status` then reports its progress. Build the batch through the cheapest HTTP path the suite already uses. If a batch above the cap cannot be built over HTTP in reasonable time, stop and ask the owner. Run the case green against the unmoved controller.
 - [ ] `delete-or-queue-batch.service.ts`: `deleteImportBatch`, falling back to `queueImportBatchDelete` on `ImportBatchTooLargeError`. It returns `{ deletedCount, deletedIds }` or `{ jobId }`, and the controller uses it.
 - [ ] `list_import_batches` (read): `limit` (1–100), `offset`.
 - [ ] `delete_import_batch` (`finance:delete`): `batchId`, `deleteLinkedTransfers?`. The description says it undoes an import and that large batches run as a job.
@@ -1396,10 +1451,16 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
   - every ➕ route in the matrix has its tool registered;
   - no route was added since this plan without a status (if one was, add a ➕ task or a ⛔ reason here).
 - [ ] the tool count in `server-card.json` equals the registered tools (`server-registration-drift`), and equals 103 + the new tools of the landed groups.
-- [ ] every write tool passes the lock rule or is in `LOCK_EXEMPT_TOOLS` with a matching REST route; every `delete_*` and `DESTRUCTIVE_TOOLS` tool requires `finance:delete`.
+- [ ] the guards match the REST routes, tool by tool:
+  - every write tool passes the lock rule or is in `LOCK_EXEMPT_TOOLS` with a matching REST route that has no `checkBaseCurrencyLock`;
+  - every non-GET route in `routes/*.ts` that carries `checkBaseCurrencyLock` and has a tool maps to a tool that calls the lock, including read-named ones (`LOCK_GUARDED_READ_TOOLS`: `preview_transaction_automation`, `list_transfer_suggestions`);
+  - every `READ_ONLY_ROUTES` entry that has a tool maps to a tool in `READ_ONLY_ROUTE_TOOLS`, and no other tool passes `allowReadOnly`;
+  - every rate-limited route that has a tool maps to a tool that calls `enforceUserRateLimit` (`grep -n RateLimit routes/*.ts`);
+  - every `delete_*` and `DESTRUCTIVE_TOOLS` tool requires `finance:delete`.
 - [ ] measure the `tools/list` size and record it here.
   - Use a one-off script under the scratchpad, not committed: `captureTools` over every register function, `z.toJSONSchema(z.object(shape))` per tool, plus name and description.
   - Record the tool count, total bytes, and the five largest tools.
+  - Write the figures under this task as a short note (the Overview's lazy-loading assumption for ~250 tools rests on them).
 - [ ] unit: `npm run test:unit -- --testPathPattern='services/mcp/'`.
 - [ ] e2e: one batched run of every gate pattern of Tasks 1–25 (and 26–27 if landed) as a single `--testPathPattern` alternation under `lockf -t 7200 /tmp/mm-e2e.lock`. This is not the full suite.
 - [ ] backend typecheck, lint, oxfmt.
@@ -1444,7 +1505,7 @@ _Items requiring manual work or external systems; no checkboxes._
 
 **Tool count decision:**
 
-- With about 250 tools, some MCP clients may truncate the list or spend much of their context on it. Task 28 records the measured `tools/list` size.
+- About 250 tools rely on clients loading tools lazily (Claude Code does, through tool search). A client that loads every tool up front may truncate the list or spend much of its context on it. Task 28 records the measured `tools/list` size.
 - If it is too large for the clients the owner uses, choose a follow-up:
   - scope-based or opt-in toolsets (for example a `?tools=core|full` query on `/mcp`);
   - folding the rarest tools into fewer consolidated tools.
