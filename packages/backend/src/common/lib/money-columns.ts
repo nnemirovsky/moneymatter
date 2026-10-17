@@ -1,7 +1,11 @@
 /**
  * Every column and JSON field that holds a transactional money amount as `DECIMAL(36,18)`.
- * The money-storage migration converts these from integer cents, and the backup v1 converter
- * divides them by 100, so both read this one list and cannot drift from each other.
+ * The backup v1 converter divides these by 100, the check script and the backup and restore
+ * code read them, and a unit test keeps them in step with the model declarations. Add a new
+ * money column here when its model declares it.
+ *
+ * The money-storage migration does not read this list: it has its own frozen snapshot in
+ * `migrations/utils/money-columns-20261016.ts`, so a column added here never reaches it.
  */
 
 export const MONEY_COLUMN_PRECISION = 36;
