@@ -45,6 +45,7 @@ When this plan is done, the server has about 250 tools (about 260 with Apple Pay
 
   Its drift gate is `npm run test:unit -- --testPathPattern='mcp/(server-card-drift|agent-skills-drift)'`, and it says not to add per-tool e2e tests.
   - **Gaps in the skill:** it omits `requireScope` and `tool-scopes-drift.unit.ts` (every non-read tool must call `requireScope`; `delete_*` tools and the hand-kept `DESTRUCTIVE_TOOLS` list must use `finance:delete`).
+
 - **Drift tests (`services/mcp/`):**
   - `server-card-drift.unit.ts`: tool names in `tools/*.ts` equal `server-card.json`; prompts; the version equals `server.json` and `server.ts`.
   - `agent-skills-drift.unit.ts`: the SKILL.md sha256.
@@ -73,7 +74,9 @@ When this plan is done, the server has about 250 tools (about 260 with Apple Pay
     - the rest of the set (data export, account delete, billing, auth, admin and test prefixes) has no tool.
 
     None of those routes carries `blockDemoUsers`. MCP must allow exactly this set to read-only users, no more and no less: `requireScope` gets an `allowReadOnly` option (Task 3) that the tools on those routes pass (`mark_notifications_read`, `update_user_settings`, the first-base branch of `change_base_currency`). `dismiss_notification` and the other-base branch of `change_base_currency` stay blocked for read-only users, as their routes are. For demo users, `allowReadOnly` tools follow their routes (no `blockDemoUsers`, so demo is accepted); every other write tool keeps `requireScope`'s existing demo rejection, which this plan does not loosen.
+
   - **Rate limiters.** `PUT /user/currencies/:code/rate-source` and `POST …/rate-source/test` are wrapped in `rateSourceSaveRateLimit` and `rateSourceTestRateLimit` (20 per minute per user, `middlewares/rate-limit.ts`). A save fetches from CoinGecko (one shared key for the instance) or from the user's URL and re-values every saved row of the currency; a test fetches the user's URL. The MCP tools apply the same budgets through the same `RateLimitService` and the same keys. Task 2 adds the shared per-user limiter and applies it in the two tools on their own branch, so the upstream-bound branches never ship them unlimited; Task 3 only audits the rest. The other limiters sit on routes with no tool (`attachmentUploadRateLimit` guards the byte upload; `create_attachment_upload_url` only issues the token URL).
+
 - **Controller-only logic a tool would otherwise copy:**
   - account update checks (`currentBalance` only on system accounts; no move into or out of the `vehicle` category);
   - refund recommendations, transfer recommendations, transfer bulk scan and dismissal (all inline in `controllers/transactions.controller/`);
@@ -100,18 +103,18 @@ When this plan is done, the server has about 250 tools (about 260 with Apple Pay
   - `get_balance_history` omits `includeCreditLimit` in its combined branch (fixed in Task 15, test first).
 - **Branches and worktrees** (state on 2026-10-17):
 
-  | Tools for                                      | Branch                       | Worktree                                                                                                            |
-  | ---------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-  | custom currencies (CRUD, decimals, logo)       | `feat/custom-currencies`     | `/Users/nemirovsky/Developer/moneymatter-currencies`                                                                |
-  | rate sources, rate history, dated manual rates | `feat/currency-rate-sources` | main checkout `/Users/nemirovsky/Developer/moneymatter`, after `git switch`                                         |
-  | Apple Pay ingest tokens, card mappings         | `feat/apple-pay-ingest`      | `/Users/nemirovsky/Developer/moneymatter-applepay`, only after the Apple Pay plan finishes (⏸)                       |
-  | everything else                                | `feat/mcp-coverage`          | `/Users/nemirovsky/Developer/moneymatter-mcp`                                                                       |
-
+  | Tools for                                      | Branch                       | Worktree                                                                                       |
+  | ---------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------- |
+  | custom currencies (CRUD, decimals, logo)       | `feat/custom-currencies`     | `/Users/nemirovsky/Developer/moneymatter-currencies`                                           |
+  | rate sources, rate history, dated manual rates | `feat/currency-rate-sources` | main checkout `/Users/nemirovsky/Developer/moneymatter`, after `git switch`                    |
+  | Apple Pay ingest tokens, card mappings         | `feat/apple-pay-ingest`      | `/Users/nemirovsky/Developer/moneymatter-applepay`, only after the Apple Pay plan finishes (⏸) |
+  | everything else                                | `feat/mcp-coverage`          | `/Users/nemirovsky/Developer/moneymatter-mcp`                                                  |
   - `feat/custom-currencies` is an ancestor of `feat/currency-rate-sources`, and both are fully merged into `dev`, with nothing ahead. Their MCP files equal `dev`'s.
   - `feat/apple-pay-ingest` is 5 commits ahead. It touches `services/mcp/auth.ts` (moves `hashToken` to `@common/lib/hash-token`). So far it has only `GET|POST /user/settings/ingest-tokens` and `DELETE /user/settings/ingest-tokens/:id`; revoke is a hard delete.
   - `moneymatter-currencies` has `fix/cloudflare-access-cookie` checked out with **uncommitted changes** (`setup-middleware.ts`, `tests/helpers/mcp.ts`).
   - The main checkout is on `dev`. Its tree was clean at the last check, but an earlier check today found staged work.
   - `dev` is checked out only in the main checkout, so every merge into `dev` runs there.
+
 - **Conventions (repo `CLAUDE.md`):**
   - Object params and kebab-case files.
   - e2e only through HTTP helpers, run through `test-runner` and never in parallel.
@@ -133,6 +136,7 @@ When this plan is done, the server has about 250 tools (about 260 with Apple Pay
   5. Final group on `feat/mcp-coverage`: Verify and Docs, merged into `dev`. It does not wait for Group D.
 
   The currency branches are upstream PR candidates, so `dev` is never merged into them. They get their tools first, and the tools ship with REST's guards from the start: Task 1 adds `assertBaseCurrencyUnlocked` and applies it to the custom-currency writes, and Task 2 adds the shared rate limiter and applies the lock and the limits to the rate-source and rate tools. Task 3 then covers every other existing write tool.
+
 - **Testing approach:** regular, code first and tests in the same task, with two test-first exceptions. Each tool is a thin wrapper, and the risk sits in argument mapping, scopes and guards, which the unit tests cover.
   - **Moves are proven by REST e2e, written first.** Where a task moves controller logic into a service, the existing REST e2e suites of that route stay green without edits to their expectations, and that is the proof the move kept behaviour. Before the move, check that an e2e case exercises each moved check. A check with none gets an e2e case first, run green against the unmoved code; the move then keeps it green. The tool unit tests mock the services, so they cannot see these checks.
   - **Bug fixes are test-first.** A failing tool unit test that reproduces the bug comes before the fix (Task 15, `get_balance_history`).
@@ -180,6 +184,7 @@ When this plan is done, the server has about 250 tools (about 260 with Apple Pay
   - `get_notifications` returns the list, one item and the unread count.
 
   This keeps the tool count near one per action, not one per route.
+
 - **Planned transactions** get `confirm_planned_transaction` and an `isPlanned` filter on `search_transactions`. `update_transaction` stays without `isPlanned`, so a plan is confirmed only through one tool with one clear contract.
 - **Guards.** `assertBaseCurrencyUnlocked` arrives in Task 1 and `enforceUserRateLimit` in Task 2 (each with the tools of that branch, which are upstream PR candidates); Task 3 adds `requireFeatureAccess` and `requireScope`'s `allowReadOnly` option to `tools/helpers.ts` and applies the lock check to every other existing write tool. The base-currency lock follows the REST route, not the scope: `tool-scopes-drift.unit.ts` fails for any write tool without it unless the tool is listed in `LOCK_EXEMPT_TOOLS` (whose REST route has no lock: the change branch of `change_base_currency`, notification reads, settings patch, `test_currency_rate_source` and others), and for any tool in `LOCK_GUARDED_READ_TOOLS` (read-named tools whose route carries the lock) that does not call it.
 - **Excluded routes** are listed with a reason under Technical Details. They do not get tools in this plan.
@@ -229,81 +234,82 @@ When this plan is done, the server has about 250 tools (about 260 with Apple Pay
 ### Route audit
 
 Legend:
+
 - ✅ covered by an existing tool;
-- ➕ T*n* gets a tool in Task *n* (E = extends an existing tool);
+- ➕ T*n* gets a tool in Task _n_ (E = extends an existing tool);
 - ⛔ excluded, with a reason key from "Excluded routes".
 
 Paths are relative to each mount; Apple Pay routes are in Group D.
 
 **`/accounts`** (9: ✅ 2, ➕ 6, ⛔ 1)
 
-| Route                          | Status | Tool / reason                         |
-| ------------------------------ | ------ | ------------------------------------- |
-| GET /                          | ✅     | `get_accounts`                        |
-| GET /:id                       | ➕ T4  | `get_account`                         |
-| GET /:id/transaction-count     | ➕ T4  | `get_account` (`transactionCount`)    |
-| POST /                         | ➕ T4  | `create_account`                      |
-| PUT /:id                       | ➕ T4  | `update_account` (status stays with `archive_account`) |
-| DELETE /:id                    | ➕ T4  | `delete_account`                      |
-| POST /:id/unlink               | ➕ T4  | `unlink_account_from_bank_connection` |
-| POST /:id/link                 | ⛔     | bank                                  |
-| POST /:id/balance-adjustment   | ✅     | `adjust_account_balance`              |
+| Route                        | Status | Tool / reason                                          |
+| ---------------------------- | ------ | ------------------------------------------------------ |
+| GET /                        | ✅     | `get_accounts`                                         |
+| GET /:id                     | ➕ T4  | `get_account`                                          |
+| GET /:id/transaction-count   | ➕ T4  | `get_account` (`transactionCount`)                     |
+| POST /                       | ➕ T4  | `create_account`                                       |
+| PUT /:id                     | ➕ T4  | `update_account` (status stays with `archive_account`) |
+| DELETE /:id                  | ➕ T4  | `delete_account`                                       |
+| POST /:id/unlink             | ➕ T4  | `unlink_account_from_bank_connection`                  |
+| POST /:id/link               | ⛔     | bank                                                   |
+| POST /:id/balance-adjustment | ✅     | `adjust_account_balance`                               |
 
 **`/account-group`** (`account-groups.ts`, 8: ➕ 8)
 
-| Route                                    | Status | Tool                          |
-| ---------------------------------------- | ------ | ----------------------------- |
-| POST /                                   | ➕ T5  | `create_account_group`        |
-| GET /                                    | ➕ T5  | `get_account_groups`          |
-| PUT /:groupId                            | ➕ T5  | `update_account_group`        |
-| DELETE /:groupId                         | ➕ T5  | `delete_account_group`        |
-| POST /:groupId/add-account/:accountId    | ➕ T5  | `add_account_to_group`        |
-| DELETE /:groupId/accounts                | ➕ T5  | `remove_accounts_from_group`  |
-| PUT /:groupId/move                       | ➕ T5  | `move_account_group`          |
-| GET /:groupId/accounts                   | ➕ T5  | `get_account_groups` (`groupId`) |
+| Route                                 | Status | Tool                             |
+| ------------------------------------- | ------ | -------------------------------- |
+| POST /                                | ➕ T5  | `create_account_group`           |
+| GET /                                 | ➕ T5  | `get_account_groups`             |
+| PUT /:groupId                         | ➕ T5  | `update_account_group`           |
+| DELETE /:groupId                      | ➕ T5  | `delete_account_group`           |
+| POST /:groupId/add-account/:accountId | ➕ T5  | `add_account_to_group`           |
+| DELETE /:groupId/accounts             | ➕ T5  | `remove_accounts_from_group`     |
+| PUT /:groupId/move                    | ➕ T5  | `move_account_group`             |
+| GET /:groupId/accounts                | ➕ T5  | `get_account_groups` (`groupId`) |
 
 **`/transactions`** (38: ✅ 13, ➕ 22, ⛔ 3)
 
-| Route                                        | Status | Tool / reason                                        |
-| -------------------------------------------- | ------ | ---------------------------------------------------- |
-| POST /:transactionId/attachments             | ✅     | `create_attachment_upload_url` (token URL)           |
-| GET /refund                                  | ➕ T8  | `get_refunds` (pair)                                 |
-| GET /refunds                                 | ➕ T8  | `get_refunds`                                        |
-| GET /refund-recommendations                  | ➕ T8  | `get_refund_recommendations`                         |
-| GET /planned-summary                         | ➕ T7  | `get_planned_summary`                                |
-| GET /summary                                 | ➕ T7  | `get_transactions_summary`                           |
-| GET /transfer-recommendations                | ➕ T8  | `get_transfer_recommendations`                       |
-| POST /transfer-recommendations/bulk-scan     | ➕ T8  | `list_transfer_suggestions`                          |
-| POST /transfer-recommendations/dismiss       | ➕ T8  | `dismiss_transfer_suggestion`                        |
-| POST /refund                                 | ✅     | `link_refund`                                        |
-| POST /match-invoice                          | ⛔     | file                                                 |
-| POST /match-invoice/candidates               | ⛔     | file (second step of the upload flow)                |
-| DELETE /refund                               | ✅     | `unlink_refund`                                      |
-| GET /reconciliation/history                  | ➕ T9  | `get_reconciliation_history`                         |
-| GET /reconciliation/stuck-pending            | ➕ T9  | `list_stuck_pending_transactions`                    |
-| POST /reconciliation/remove                  | ➕ T9  | `remove_duplicate_transactions`                      |
-| POST /reconciliation/merge                   | ➕ T9  | `merge_duplicate_transactions`                       |
-| POST /reconciliation/restore                 | ➕ T9  | `restore_removed_transactions`                       |
-| POST /reconciliation/keep-as-booked          | ➕ T9  | `keep_pending_as_booked`                             |
-| POST /reconciliation/stuck-pending/check     | ⛔     | bank                                                 |
-| DELETE /splits/:splitId                      | ✅     | `delete_split`                                       |
-| POST /:transactionId/link-to-portfolio       | ✅     | `link_transaction_to_portfolio`                      |
-| POST /:transactionId/unlink-from-portfolio   | ✅     | `unlink_transaction_from_portfolio`                  |
-| GET /:transactionId/portfolio-link           | ➕ T7  | `get_transaction_links`                              |
-| GET /:transactionId/venture-link             | ➕ T7  | `get_transaction_links`                              |
-| GET /:transactionId/attachments              | ➕ T7  | `list_transaction_attachments`                       |
-| GET /                                        | ✅     | `search_transactions` (E T7: `isPlanned`)            |
-| GET /by-ids                                  | ➕ T7  | `get_transactions`                                   |
-| GET /:id                                     | ➕ T7  | `get_transactions`                                   |
-| GET /:id/refunds                             | ➕ T8  | `get_refunds` (`transactionId`)                      |
-| GET /transfer/:transferId                    | ➕ T7  | `get_transactions` (`transferId`)                    |
-| POST /                                       | ✅     | `create_transaction`                                 |
-| PUT /unlink                                  | ✅     | `unlink_transfer`                                    |
-| PUT /link                                    | ✅     | `link_transfer` (one pair per call)                  |
-| PUT /bulk                                    | ✅     | `bulk_update_transactions`                           |
-| POST /bulk-delete                            | ➕ T7  | `bulk_delete_transactions`                           |
-| PUT /:id                                     | ✅     | `update_transaction`; `isPlanned: false` → `confirm_planned_transaction` (T7) |
-| DELETE /:id                                  | ✅     | `delete_transaction`                                 |
+| Route                                      | Status | Tool / reason                                                                 |
+| ------------------------------------------ | ------ | ----------------------------------------------------------------------------- |
+| POST /:transactionId/attachments           | ✅     | `create_attachment_upload_url` (token URL)                                    |
+| GET /refund                                | ➕ T8  | `get_refunds` (pair)                                                          |
+| GET /refunds                               | ➕ T8  | `get_refunds`                                                                 |
+| GET /refund-recommendations                | ➕ T8  | `get_refund_recommendations`                                                  |
+| GET /planned-summary                       | ➕ T7  | `get_planned_summary`                                                         |
+| GET /summary                               | ➕ T7  | `get_transactions_summary`                                                    |
+| GET /transfer-recommendations              | ➕ T8  | `get_transfer_recommendations`                                                |
+| POST /transfer-recommendations/bulk-scan   | ➕ T8  | `list_transfer_suggestions`                                                   |
+| POST /transfer-recommendations/dismiss     | ➕ T8  | `dismiss_transfer_suggestion`                                                 |
+| POST /refund                               | ✅     | `link_refund`                                                                 |
+| POST /match-invoice                        | ⛔     | file                                                                          |
+| POST /match-invoice/candidates             | ⛔     | file (second step of the upload flow)                                         |
+| DELETE /refund                             | ✅     | `unlink_refund`                                                               |
+| GET /reconciliation/history                | ➕ T9  | `get_reconciliation_history`                                                  |
+| GET /reconciliation/stuck-pending          | ➕ T9  | `list_stuck_pending_transactions`                                             |
+| POST /reconciliation/remove                | ➕ T9  | `remove_duplicate_transactions`                                               |
+| POST /reconciliation/merge                 | ➕ T9  | `merge_duplicate_transactions`                                                |
+| POST /reconciliation/restore               | ➕ T9  | `restore_removed_transactions`                                                |
+| POST /reconciliation/keep-as-booked        | ➕ T9  | `keep_pending_as_booked`                                                      |
+| POST /reconciliation/stuck-pending/check   | ⛔     | bank                                                                          |
+| DELETE /splits/:splitId                    | ✅     | `delete_split`                                                                |
+| POST /:transactionId/link-to-portfolio     | ✅     | `link_transaction_to_portfolio`                                               |
+| POST /:transactionId/unlink-from-portfolio | ✅     | `unlink_transaction_from_portfolio`                                           |
+| GET /:transactionId/portfolio-link         | ➕ T7  | `get_transaction_links`                                                       |
+| GET /:transactionId/venture-link           | ➕ T7  | `get_transaction_links`                                                       |
+| GET /:transactionId/attachments            | ➕ T7  | `list_transaction_attachments`                                                |
+| GET /                                      | ✅     | `search_transactions` (E T7: `isPlanned`)                                     |
+| GET /by-ids                                | ➕ T7  | `get_transactions`                                                            |
+| GET /:id                                   | ➕ T7  | `get_transactions`                                                            |
+| GET /:id/refunds                           | ➕ T8  | `get_refunds` (`transactionId`)                                               |
+| GET /transfer/:transferId                  | ➕ T7  | `get_transactions` (`transferId`)                                             |
+| POST /                                     | ✅     | `create_transaction`                                                          |
+| PUT /unlink                                | ✅     | `unlink_transfer`                                                             |
+| PUT /link                                  | ✅     | `link_transfer` (one pair per call)                                           |
+| PUT /bulk                                  | ✅     | `bulk_update_transactions`                                                    |
+| POST /bulk-delete                          | ➕ T7  | `bulk_delete_transactions`                                                    |
+| PUT /:id                                   | ✅     | `update_transaction`; `isPlanned: false` → `confirm_planned_transaction` (T7) |
+| DELETE /:id                                | ✅     | `delete_transaction`                                                          |
 
 **`/attachments`** (2: ➕ 1, ⛔ 1): GET /:id/file ⛔ file; DELETE /:id ➕ T7 `delete_attachment`.
 
@@ -311,80 +317,82 @@ Paths are relative to each mount; Apple Pay routes are in Group D.
 
 **`/tags`** (12: ✅ 6, ➕ 6)
 
-| Route                           | Status | Tool                                                       |
-| ------------------------------- | ------ | ---------------------------------------------------------- |
-| GET /                           | ✅     | `get_tags`                                                 |
-| GET /:id                        | ➕ T12 | `get_tags` (E: `tagId`)                                    |
-| POST /                          | ✅     | `create_tag`                                               |
-| PUT /:id                        | ✅     | `update_tag`                                               |
-| DELETE /:id                     | ✅     | `delete_tag`                                               |
-| POST /:id/transactions          | ✅     | `assign_tags_to_transaction`, `bulk_update_transactions`   |
-| DELETE /:id/transactions        | ✅     | `remove_tags_from_transaction`                             |
-| GET /:tagId/reminders           | ➕ T13 | `get_tag_reminders`                                        |
-| GET /:tagId/reminders/:id       | ➕ T13 | `get_tag_reminders`                                        |
-| POST /:tagId/reminders          | ➕ T13 | `create_tag_reminder`                                      |
-| PUT /:tagId/reminders/:id       | ➕ T13 | `update_tag_reminder`                                      |
-| DELETE /:tagId/reminders/:id    | ➕ T13 | `delete_tag_reminder`                                      |
+| Route                        | Status | Tool                                                     |
+| ---------------------------- | ------ | -------------------------------------------------------- |
+| GET /                        | ✅     | `get_tags`                                               |
+| GET /:id                     | ➕ T12 | `get_tags` (E: `tagId`)                                  |
+| POST /                       | ✅     | `create_tag`                                             |
+| PUT /:id                     | ✅     | `update_tag`                                             |
+| DELETE /:id                  | ✅     | `delete_tag`                                             |
+| POST /:id/transactions       | ✅     | `assign_tags_to_transaction`, `bulk_update_transactions` |
+| DELETE /:id/transactions     | ✅     | `remove_tags_from_transaction`                           |
+| GET /:tagId/reminders        | ➕ T13 | `get_tag_reminders`                                      |
+| GET /:tagId/reminders/:id    | ➕ T13 | `get_tag_reminders`                                      |
+| POST /:tagId/reminders       | ➕ T13 | `create_tag_reminder`                                    |
+| PUT /:tagId/reminders/:id    | ➕ T13 | `update_tag_reminder`                                    |
+| DELETE /:tagId/reminders/:id | ➕ T13 | `delete_tag_reminder`                                    |
 
 **`/tag-reminders`** (1: ➕ 1): GET / ➕ T13 `get_tag_reminders`.
 
 **`/payees`** (16: ✅ 7, ➕ 8, ⛔ 1)
 
-| Route                              | Status | Tool / reason                                         |
-| ---------------------------------- | ------ | ----------------------------------------------------- |
-| GET /                              | ✅     | `get_payees`                                          |
-| POST /                             | ✅     | `create_payee`                                        |
-| GET /lookup                        | ✅     | `get_payees` (same id and name list)                  |
-| PATCH /bulk-categorization-mode    | ➕ T11 | `set_payees_categorization_mode`                      |
-| POST /bulk-delete                  | ➕ T11 | `bulk_delete_payees`                                  |
-| GET /ignored-names                 | ➕ T11 | `get_ignored_payee_names`                             |
-| POST /ignored-names                | ➕ T11 | `ignore_payee_name`                                   |
-| DELETE /ignored-names/:id          | ➕ T11 | `unignore_payee_name`                                 |
-| GET /:id                           | ✅     | `get_payee`                                           |
-| PATCH /:id                         | ✅     | `update_payee` (E T11: mode, default tags, location, logo) |
-| DELETE /:id                        | ✅     | `delete_payee`                                        |
-| POST /:id/merge                    | ✅     | `merge_payees`                                        |
-| POST /:id/apply-tags               | ➕ T11 | `apply_payee_tags_to_transactions`                    |
-| POST /:id/aliases                  | ➕ T11 | `create_payee_alias`                                  |
-| DELETE /:id/aliases/:aliasId       | ➕ T11 | `delete_payee_alias`                                  |
-| POST /:id/reset-logo               | ⛔     | cosmetic                                              |
+| Route                           | Status | Tool / reason                                              |
+| ------------------------------- | ------ | ---------------------------------------------------------- |
+| GET /                           | ✅     | `get_payees`                                               |
+| POST /                          | ✅     | `create_payee`                                             |
+| GET /lookup                     | ✅     | `get_payees` (same id and name list)                       |
+| PATCH /bulk-categorization-mode | ➕ T11 | `set_payees_categorization_mode`                           |
+| POST /bulk-delete               | ➕ T11 | `bulk_delete_payees`                                       |
+| GET /ignored-names              | ➕ T11 | `get_ignored_payee_names`                                  |
+| POST /ignored-names             | ➕ T11 | `ignore_payee_name`                                        |
+| DELETE /ignored-names/:id       | ➕ T11 | `unignore_payee_name`                                      |
+| GET /:id                        | ✅     | `get_payee`                                                |
+| PATCH /:id                      | ✅     | `update_payee` (E T11: mode, default tags, location, logo) |
+| DELETE /:id                     | ✅     | `delete_payee`                                             |
+| POST /:id/merge                 | ✅     | `merge_payees`                                             |
+| POST /:id/apply-tags            | ➕ T11 | `apply_payee_tags_to_transactions`                         |
+| POST /:id/aliases               | ➕ T11 | `create_payee_alias`                                       |
+| DELETE /:id/aliases/:aliasId    | ➕ T11 | `delete_payee_alias`                                       |
+| POST /:id/reset-logo            | ⛔     | cosmetic                                                   |
 
 **`/budgets`** (trackers; 11: ✅ 8, ➕ 3)
+
 - ✅: GET / `get_budgets`; GET /:id/spending-stats `get_budget_spending_stats`; POST / `create_budget`; PUT /:id `update_budget`; PATCH /:id/archive `archive_budget`; DELETE /:id `delete_budget`; POST /:id/transactions `add_transactions_to_budget`; DELETE /:id/transactions `remove_transactions_from_budget`.
 - ➕ T13: GET /:id `get_budget`; GET /:id/stats `get_budget`; GET /:id/category-transactions `get_budget_transactions`.
 
 **`/budget-plans`** (26: ➕ 26)
 
-| Route                                                      | Status | Tool                                       |
-| ---------------------------------------------------------- | ------ | ------------------------------------------ |
-| GET /                                                      | ➕ T20 | `list_budget_plans`                        |
-| GET /suggestion-context                                    | ➕ T20 | `get_budget_plan_suggestion_context`       |
-| GET /:planId                                               | ➕ T20 | `list_budget_plans` (`planId`)             |
-| GET /:planId/trends                                        | ➕ T20 | `get_budget_plan_trends`                   |
-| GET /:planId/periods                                       | ➕ T20 | `list_budget_plan_periods`                 |
-| GET /:planId/periods/:periodId                             | ➕ T20 | `get_budget_plan_period`                   |
-| GET /:planId/periods/:periodId/scheduled                   | ➕ T20 | `get_budget_plan_scheduled`                |
-| POST /                                                     | ➕ T21 | `create_budget_plan`                       |
-| PATCH /:planId                                             | ➕ T21 | `update_budget_plan`                       |
-| DELETE /:planId                                            | ➕ T21 | `delete_budget_plan`                       |
-| POST /:planId/restore                                      | ➕ T21 | `restore_budget_plan`                      |
-| PUT /:planId/accounts                                      | ➕ T21 | `set_budget_plan_accounts`                 |
-| POST /:planId/groups                                       | ➕ T21 | `create_budget_plan_group`                 |
-| PATCH /:planId/groups/:groupId                             | ➕ T21 | `update_budget_plan_group`                 |
-| DELETE /:planId/groups/:groupId                            | ➕ T21 | `delete_budget_plan_group`                 |
-| PUT /:planId/layout                                        | ➕ T22 | `set_budget_plan_layout`                   |
-| POST /:planId/lines                                        | ➕ T22 | `create_budget_plan_line`                  |
-| POST /:planId/suggested-lines                              | ➕ T22 | `add_suggested_budget_plan_lines`          |
-| PATCH /:planId/lines/:lineId                               | ➕ T22 | `update_budget_plan_line`                  |
-| DELETE /:planId/lines/:lineId                              | ➕ T22 | `delete_budget_plan_line`                  |
-| POST /:planId/lines/:lineId/archive                        | ➕ T22 | `archive_budget_plan_line`                 |
-| POST /:planId/lines/:lineId/restore                        | ➕ T22 | `archive_budget_plan_line` (`archived: false`) |
-| PUT /:planId/lines/:lineId/goal                            | ➕ T23 | `set_budget_plan_line_goal`                |
-| DELETE /:planId/lines/:lineId/goal                         | ➕ T23 | `delete_budget_plan_line_goal`             |
-| POST /:planId/lines/:lineId/goal/snooze                    | ➕ T23 | `snooze_budget_plan_line_goal`             |
-| PUT /:planId/periods/:periodId/lines/:lineId/assignment    | ➕ T23 | `set_budget_plan_assignment`               |
+| Route                                                   | Status | Tool                                           |
+| ------------------------------------------------------- | ------ | ---------------------------------------------- |
+| GET /                                                   | ➕ T20 | `list_budget_plans`                            |
+| GET /suggestion-context                                 | ➕ T20 | `get_budget_plan_suggestion_context`           |
+| GET /:planId                                            | ➕ T20 | `list_budget_plans` (`planId`)                 |
+| GET /:planId/trends                                     | ➕ T20 | `get_budget_plan_trends`                       |
+| GET /:planId/periods                                    | ➕ T20 | `list_budget_plan_periods`                     |
+| GET /:planId/periods/:periodId                          | ➕ T20 | `get_budget_plan_period`                       |
+| GET /:planId/periods/:periodId/scheduled                | ➕ T20 | `get_budget_plan_scheduled`                    |
+| POST /                                                  | ➕ T21 | `create_budget_plan`                           |
+| PATCH /:planId                                          | ➕ T21 | `update_budget_plan`                           |
+| DELETE /:planId                                         | ➕ T21 | `delete_budget_plan`                           |
+| POST /:planId/restore                                   | ➕ T21 | `restore_budget_plan`                          |
+| PUT /:planId/accounts                                   | ➕ T21 | `set_budget_plan_accounts`                     |
+| POST /:planId/groups                                    | ➕ T21 | `create_budget_plan_group`                     |
+| PATCH /:planId/groups/:groupId                          | ➕ T21 | `update_budget_plan_group`                     |
+| DELETE /:planId/groups/:groupId                         | ➕ T21 | `delete_budget_plan_group`                     |
+| PUT /:planId/layout                                     | ➕ T22 | `set_budget_plan_layout`                       |
+| POST /:planId/lines                                     | ➕ T22 | `create_budget_plan_line`                      |
+| POST /:planId/suggested-lines                           | ➕ T22 | `add_suggested_budget_plan_lines`              |
+| PATCH /:planId/lines/:lineId                            | ➕ T22 | `update_budget_plan_line`                      |
+| DELETE /:planId/lines/:lineId                           | ➕ T22 | `delete_budget_plan_line`                      |
+| POST /:planId/lines/:lineId/archive                     | ➕ T22 | `archive_budget_plan_line`                     |
+| POST /:planId/lines/:lineId/restore                     | ➕ T22 | `archive_budget_plan_line` (`archived: false`) |
+| PUT /:planId/lines/:lineId/goal                         | ➕ T23 | `set_budget_plan_line_goal`                    |
+| DELETE /:planId/lines/:lineId/goal                      | ➕ T23 | `delete_budget_plan_line_goal`                 |
+| POST /:planId/lines/:lineId/goal/snooze                 | ➕ T23 | `snooze_budget_plan_line_goal`                 |
+| PUT /:planId/periods/:periodId/lines/:lineId/assignment | ➕ T23 | `set_budget_plan_assignment`                   |
 
 **`/subscriptions`** (22: ✅ 13, ➕ 8, ⛔ 1)
+
 - ✅:
   - GET / `get_subscriptions`; GET /summary `get_subscriptions_summary`; GET /upcoming `get_upcoming_subscription_payments`;
   - GET /detect-candidates `detect_subscription_candidates`; GET /candidates `list_subscription_candidates`; POST /candidates/:id/dismiss `dismiss_subscription_candidate`;
@@ -402,60 +410,64 @@ Paths are relative to each mount; Apple Pay routes are in Group D.
 - ⛔: POST /:id/reset-logo (cosmetic).
 
 **`/automations`** (7: ✅ 6, ➕ 1)
+
 - ✅: GET / `get_transaction_automations`; POST / `create_transaction_automation`; PUT /reorder `reorder_transaction_automations`; POST /preview `preview_transaction_automation`; PATCH /:id `update_transaction_automation`; DELETE /:id `delete_transaction_automation`.
 - ➕ T12: POST /:id/apply `apply_transaction_automation`.
 
 **`/transaction-groups`** (7: ✅ 6, ➕ 1)
+
 - ✅: GET / `get_transaction_groups`; POST / `create_transaction_group`; PUT /:id `update_transaction_group`; DELETE /:id `delete_transaction_group`; POST /:id/transactions `add_transactions_to_group`; DELETE /:id/transactions `remove_transactions_from_group`.
 - ➕ T12: GET /:id `get_transaction_groups` (E: `groupId`).
 
 **`/transaction-templates`** (4: ➕ 4): GET / `get_transaction_templates`, POST / `create_transaction_template`, PUT /:id `update_transaction_template`, DELETE /:id `delete_transaction_template` (all T12).
 
 **`/stats`** (13: ✅ 5, ➕ 8)
+
 - ✅: GET /balance-history `get_balance_history`; /combined-balance-history `get_balance_history` (E T15: `includeCreditLimit`); /expenses-amount-for-period `get_expenses_for_period`; /spendings-by-categories `get_spending_by_categories`; /cash-flow `get_cash_flow`.
 - ➕ T15: /total-balance `get_total_balance`; /net-worth-drivers `get_net_worth_drivers`; /net-worth-history `get_net_worth_history`; /investment-contributions `get_investment_contributions`; /venture-contributions `get_venture_contributions`; /pivot `get_pivot_report`; /cumulative `get_cumulative_stats`; /earliest-transaction-date `get_earliest_transaction_date`.
 
 **`/investments`** (35: ✅ 16, ➕ 11, ⛔ 8)
 
-| Route                                              | Status | Tool / reason                         |
-| -------------------------------------------------- | ------ | ------------------------------------- |
-| GET /portfolios                                    | ✅     | `get_portfolios`                      |
-| GET /portfolios/annualized-returns                 | ➕ T16 | `get_portfolios_overview`             |
-| GET /portfolios/summaries                          | ➕ T16 | `get_portfolios_overview`             |
-| GET /portfolios/:id                                | ➕ T16 | `get_portfolio`                       |
-| GET /portfolios/:id/balance                        | ✅     | `get_portfolio_balances`              |
-| GET /portfolios/:id/summary                        | ✅     | `get_portfolio_summary`               |
-| PUT /portfolios/:id/balance                        | ⛔     | internal (test and dev seeding only)  |
-| POST /portfolios/:id/cash-transaction              | ✅     | `create_portfolio_cash_transaction`   |
-| POST /portfolios/:id/transfer                      | ➕ T16 | `transfer_between_portfolios`         |
-| POST /portfolios/:id/exchange-currency             | ➕ T16 | `exchange_portfolio_currency`         |
-| POST /portfolios/:id/transfer/from-account         | ✅     | `transfer_account_to_portfolio`       |
-| POST /portfolios/:id/transfer/to-account           | ✅     | `transfer_portfolio_to_account`       |
-| GET /portfolios/:id/transfers                      | ✅     | `list_portfolio_transfers`            |
-| PATCH /portfolios/:id/transfers/:transferId/adjustment | ➕ T16 | `set_portfolio_transfer_adjustment` |
-| DELETE /portfolios/:id/transfers/:transferId       | ➕ T16 | `delete_portfolio_transfer`           |
-| PUT /portfolios/:id                                | ✅     | `update_portfolio`                    |
-| DELETE /portfolios/:id                             | ✅     | `delete_portfolio`                    |
-| POST /portfolios/:id/restore                       | ➕ T16 | `restore_portfolio`                   |
-| POST /portfolios                                   | ✅     | `create_portfolio`                    |
-| POST /sync/securities-prices                       | ⛔     | admin                                 |
-| GET /prices                                        | ➕ T17 | `get_security_prices`                 |
-| GET /securities                                    | ⛔     | redundant (`search_securities`)       |
-| GET /securities/search                             | ✅     | `search_securities`                   |
-| POST /securities/price-upload-info                 | ⛔     | admin                                 |
-| POST /securities/prices/bulk-upload                | ⛔     | admin                                 |
-| GET /portfolios/:portfolioId/holdings              | ✅     | `get_portfolio_holdings`              |
-| POST /holding                                      | ➕ T17 | `create_holding`                      |
-| DELETE /holding                                    | ➕ T17 | `delete_holding`                      |
-| GET /transactions                                  | ✅     | `get_investment_transactions`         |
-| POST /transaction                                  | ✅     | `create_investment_transaction`       |
-| DELETE /transaction/:transactionId                 | ✅     | `delete_investment_transaction`       |
-| PUT /transaction/:transactionId                    | ✅     | `update_investment_transaction`       |
-| POST /transactions-import/estimate-cost            | ⛔     | import                                |
-| POST /transactions-import/extract                  | ⛔     | import                                |
-| POST /transactions-import/execute                  | ⛔     | import                                |
+| Route                                                  | Status | Tool / reason                        |
+| ------------------------------------------------------ | ------ | ------------------------------------ |
+| GET /portfolios                                        | ✅     | `get_portfolios`                     |
+| GET /portfolios/annualized-returns                     | ➕ T16 | `get_portfolios_overview`            |
+| GET /portfolios/summaries                              | ➕ T16 | `get_portfolios_overview`            |
+| GET /portfolios/:id                                    | ➕ T16 | `get_portfolio`                      |
+| GET /portfolios/:id/balance                            | ✅     | `get_portfolio_balances`             |
+| GET /portfolios/:id/summary                            | ✅     | `get_portfolio_summary`              |
+| PUT /portfolios/:id/balance                            | ⛔     | internal (test and dev seeding only) |
+| POST /portfolios/:id/cash-transaction                  | ✅     | `create_portfolio_cash_transaction`  |
+| POST /portfolios/:id/transfer                          | ➕ T16 | `transfer_between_portfolios`        |
+| POST /portfolios/:id/exchange-currency                 | ➕ T16 | `exchange_portfolio_currency`        |
+| POST /portfolios/:id/transfer/from-account             | ✅     | `transfer_account_to_portfolio`      |
+| POST /portfolios/:id/transfer/to-account               | ✅     | `transfer_portfolio_to_account`      |
+| GET /portfolios/:id/transfers                          | ✅     | `list_portfolio_transfers`           |
+| PATCH /portfolios/:id/transfers/:transferId/adjustment | ➕ T16 | `set_portfolio_transfer_adjustment`  |
+| DELETE /portfolios/:id/transfers/:transferId           | ➕ T16 | `delete_portfolio_transfer`          |
+| PUT /portfolios/:id                                    | ✅     | `update_portfolio`                   |
+| DELETE /portfolios/:id                                 | ✅     | `delete_portfolio`                   |
+| POST /portfolios/:id/restore                           | ➕ T16 | `restore_portfolio`                  |
+| POST /portfolios                                       | ✅     | `create_portfolio`                   |
+| POST /sync/securities-prices                           | ⛔     | admin                                |
+| GET /prices                                            | ➕ T17 | `get_security_prices`                |
+| GET /securities                                        | ⛔     | redundant (`search_securities`)      |
+| GET /securities/search                                 | ✅     | `search_securities`                  |
+| POST /securities/price-upload-info                     | ⛔     | admin                                |
+| POST /securities/prices/bulk-upload                    | ⛔     | admin                                |
+| GET /portfolios/:portfolioId/holdings                  | ✅     | `get_portfolio_holdings`             |
+| POST /holding                                          | ➕ T17 | `create_holding`                     |
+| DELETE /holding                                        | ➕ T17 | `delete_holding`                     |
+| GET /transactions                                      | ✅     | `get_investment_transactions`        |
+| POST /transaction                                      | ✅     | `create_investment_transaction`      |
+| DELETE /transaction/:transactionId                     | ✅     | `delete_investment_transaction`      |
+| PUT /transaction/:transactionId                        | ✅     | `update_investment_transaction`      |
+| POST /transactions-import/estimate-cost                | ⛔     | import                               |
+| POST /transactions-import/extract                      | ⛔     | import                               |
+| POST /transactions-import/execute                      | ⛔     | import                               |
 
 **`/venture`** (19: ✅ 16, ➕ 3)
+
 - ✅ (`list_`, `get_`, `create_`, `update_`, `delete_` tools):
   - `/platforms` (5 routes);
   - `/deals` (6 routes, including `/deals/:id/metrics` → `get_venture_deal_metrics`);
@@ -466,6 +478,7 @@ Paths are relative to each mount; Apple Pay routes are in Group D.
   - DELETE /events/:id/links/:linkId `delete_venture_event_link`.
 
 **`/loans`** (9: ➕ 9, all T18)
+
 - GET / and GET /:id: `get_loans`;
 - GET /:id/balance-history: `get_loan_balance_history`;
 - POST /: `create_loan`;
@@ -478,65 +491,69 @@ Paths are relative to each mount; Apple Pay routes are in Group D.
 **`/vehicles`** (5: ➕ 5, all T19): GET / and GET /:id `get_vehicles`; POST / `create_vehicle`; PATCH /:id `update_vehicle`; DELETE /:id `delete_vehicle`.
 
 **`/notifications`** (7: ➕ 6, ⛔ 1)
+
 - ➕ T14: GET /, GET /unread-count and GET /:id `get_notifications`; POST /:id/read and POST /read-all `mark_notifications_read`; POST /:id/dismiss `dismiss_notification`.
 - ⛔: POST / (internal: background services create notifications; the route exists for tests).
 
 **`/user`** (58: ✅ 1, ➕ 22, ⛔ 35)
 
-| Route                                         | Status | Tool / reason                                    |
-| --------------------------------------------- | ------ | ------------------------------------------------ |
-| GET /                                         | ✅     | `get_user_profile`                               |
-| POST /feature-trials/:feature                 | ⛔     | account                                          |
+| Route                                         | Status | Tool / reason                                       |
+| --------------------------------------------- | ------ | --------------------------------------------------- |
+| GET /                                         | ✅     | `get_user_profile`                                  |
+| POST /feature-trials/:feature                 | ⛔     | account                                             |
 | PUT /update                                   | ⛔     | account (identity fields; no `profile:write` scope) |
-| DELETE /delete                                | ⛔     | account                                          |
-| POST /wipe-data                               | ⛔     | account                                          |
-| POST /data-export                             | ⛔     | file                                             |
-| POST /backup                                  | ⛔     | file                                             |
-| POST /backup/restore                          | ⛔     | file                                             |
-| GET /backup/restore/status                    | ⛔     | file                                             |
-| GET /backup/restore/status/:jobId             | ⛔     | file                                             |
-| GET /currencies                               | ➕ T6  | `get_user_currencies`                            |
-| GET /currencies/base                          | ➕ T6  | `get_user_currencies`                            |
-| GET /currencies/rates                         | ➕ T6  | `get_user_currencies`                            |
-| POST /currencies                              | ➕ T6  | `add_user_currencies`                            |
-| GET /currencies/custom                        | ➕ T1  | `list_custom_currencies`                         |
-| GET /currencies/coingecko/search              | ➕ T2  | `search_coingecko_coins`                         |
-| POST /currencies/custom                       | ➕ T1  | `create_custom_currency`                         |
-| PUT /currencies/custom/:code                  | ➕ T1  | `update_custom_currency`                         |
-| DELETE /currencies/custom/:code               | ➕ T1  | `delete_custom_currency`                         |
-| POST /currencies/base                         | ➕ T6  | `change_base_currency` (first base)              |
-| PUT /currencies/:code/rate-source             | ➕ T2  | `set_currency_rate_source`                       |
-| GET /currencies/:code/rate-history            | ➕ T2  | `get_currency_rate_history`                      |
-| POST /currencies/:code/rate-source/test       | ➕ T2  | `test_currency_rate_source`                      |
-| POST /currencies/change-base                  | ➕ T6  | `change_base_currency`                           |
-| GET /currencies/change-base/status            | ➕ T6  | `get_base_currency_change_status`                |
-| PUT /currency                                 | ➕ T6  | `update_user_currency`                           |
-| PUT /currency/rates                           | ➕ T2  | `set_exchange_rates`                             |
-| DELETE /currency                              | ➕ T6  | `delete_user_currency`                           |
-| DELETE /currency/rates                        | ➕ T2  | `delete_exchange_rates`                          |
-| GET /settings                                 | ➕ T14 | `get_user_settings`                              |
-| PUT /settings                                 | ➕ T14 | `update_user_settings` (patch semantics)         |
-| PATCH /settings                               | ➕ T14 | `update_user_settings`                           |
-| GET /settings/onboarding                      | ⛔     | ui                                               |
-| PUT /settings/onboarding                      | ⛔     | ui                                               |
-| /settings/ai/connections (7 routes)           | ⛔     | ai                                               |
-| GET /settings/ai/cli/availability             | ⛔     | ai                                               |
-| /settings/ai/cli/auth-sessions (4 routes)     | ⛔     | ai (also admin and self-host only; PTY sign-in)  |
-| /settings/ai/features (4 routes)              | ⛔     | ai                                               |
-| /settings/ai/custom-instructions (2 routes)   | ⛔     | ai                                               |
-| /ai/categorization/* (4 routes)               | ⛔     | ai                                               |
-| GET /settings/mcp/connected-apps              | ⛔     | auth (the OAuth grants themselves)               |
-| DELETE /settings/mcp/connected-apps/:clientId | ⛔     | auth                                             |
+| DELETE /delete                                | ⛔     | account                                             |
+| POST /wipe-data                               | ⛔     | account                                             |
+| POST /data-export                             | ⛔     | file                                                |
+| POST /backup                                  | ⛔     | file                                                |
+| POST /backup/restore                          | ⛔     | file                                                |
+| GET /backup/restore/status                    | ⛔     | file                                                |
+| GET /backup/restore/status/:jobId             | ⛔     | file                                                |
+| GET /currencies                               | ➕ T6  | `get_user_currencies`                               |
+| GET /currencies/base                          | ➕ T6  | `get_user_currencies`                               |
+| GET /currencies/rates                         | ➕ T6  | `get_user_currencies`                               |
+| POST /currencies                              | ➕ T6  | `add_user_currencies`                               |
+| GET /currencies/custom                        | ➕ T1  | `list_custom_currencies`                            |
+| GET /currencies/coingecko/search              | ➕ T2  | `search_coingecko_coins`                            |
+| POST /currencies/custom                       | ➕ T1  | `create_custom_currency`                            |
+| PUT /currencies/custom/:code                  | ➕ T1  | `update_custom_currency`                            |
+| DELETE /currencies/custom/:code               | ➕ T1  | `delete_custom_currency`                            |
+| POST /currencies/base                         | ➕ T6  | `change_base_currency` (first base)                 |
+| PUT /currencies/:code/rate-source             | ➕ T2  | `set_currency_rate_source`                          |
+| GET /currencies/:code/rate-history            | ➕ T2  | `get_currency_rate_history`                         |
+| POST /currencies/:code/rate-source/test       | ➕ T2  | `test_currency_rate_source`                         |
+| POST /currencies/change-base                  | ➕ T6  | `change_base_currency`                              |
+| GET /currencies/change-base/status            | ➕ T6  | `get_base_currency_change_status`                   |
+| PUT /currency                                 | ➕ T6  | `update_user_currency`                              |
+| PUT /currency/rates                           | ➕ T2  | `set_exchange_rates`                                |
+| DELETE /currency                              | ➕ T6  | `delete_user_currency`                              |
+| DELETE /currency/rates                        | ➕ T2  | `delete_exchange_rates`                             |
+| GET /settings                                 | ➕ T14 | `get_user_settings`                                 |
+| PUT /settings                                 | ➕ T14 | `update_user_settings` (patch semantics)            |
+| PATCH /settings                               | ➕ T14 | `update_user_settings`                              |
+| GET /settings/onboarding                      | ⛔     | ui                                                  |
+| PUT /settings/onboarding                      | ⛔     | ui                                                  |
+| /settings/ai/connections (7 routes)           | ⛔     | ai                                                  |
+| GET /settings/ai/cli/availability             | ⛔     | ai                                                  |
+| /settings/ai/cli/auth-sessions (4 routes)     | ⛔     | ai (also admin and self-host only; PTY sign-in)     |
+| /settings/ai/features (4 routes)              | ⛔     | ai                                                  |
+| /settings/ai/custom-instructions (2 routes)   | ⛔     | ai                                                  |
+| /ai/categorization/\* (4 routes)              | ⛔     | ai                                                  |
+| GET /settings/mcp/connected-apps              | ⛔     | auth (the OAuth grants themselves)                  |
+| DELETE /settings/mcp/connected-apps/:clientId | ⛔     | auth                                                |
 
 **Currencies and rates outside `/user`** (3: ➕ 3)
+
 - GET `/models/currencies` ➕ T6 `list_supported_currencies`;
 - GET `/currencies/rates/pair` and GET `/currencies/rates/:date` (`exchange-rates.ts`) ➕ T6 `get_exchange_rate`.
 
 **`/share`** (13: ➕ 4, ⛔ 9)
+
 - ➕ T24: GET /invitations/sent and /invitations/received `list_share_invitations`; GET /resources/:type/:id/members `list_share_members`; GET /shared-with-me `list_shared_with_me`.
 - ⛔ share: POST /invitations; POST /invitations/:token/accept; POST /invitations/:token/decline; POST /invitations/:id/resend; DELETE /invitations/:id; POST /invitations/:id/back-invite; PATCH and DELETE /resources/:type/:id/members/:userId; POST /shared-with-me/:type/:id/leave.
 
 **`/bank-data-providers`** (21: ➕ 5, ⛔ 16)
+
 - ➕ T24:
   - GET /connections and GET /connections/:connectionId → `list_bank_connections`;
   - GET /connections/:connectionId/sync-job-progress, GET /active-sync-jobs and GET /sync/status → `get_bank_sync_status`.
@@ -549,36 +566,38 @@ Paths are relative to each mount; Apple Pay routes are in Group D.
   - POST /enablebanking/countries and /banks (take the user's Enable Banking app key), POST /enablebanking/oauth-callback.
 
 **`/import`** (29: ➕ 3, ⛔ 26)
+
 - ➕ T25: GET /batches-history `list_import_batches`; DELETE /batch/:batchId `delete_import_batch`; GET /batch-delete/status `get_import_batch_delete_status`.
 - ⛔ import: csv (5 routes), text-source (5), ynab (3), budget-bakers-wallet (4), ms-money (4), ofx (4), ai-map-categories (1).
 
 **Other mounts** (⛔ all):
 
-| Mount | Routes | Reason |
-| --- | --- | --- |
-| `/auth` (better-auth-extensions) | signups-open, features, set-password | auth |
-| `/billing` | checkout, portal | account |
-| `/admin` | PATCH /users/:id/plan | admin |
-| `/brand-logos` | GET /search | cosmetic |
-| `/resource-leases` | POST /refresh | import (keeps an ms-money/ofx upload alive) |
-| `/client-logs` | POST / | transport (frontend telemetry) |
-| `/sse` | GET /events | transport |
-| `/mcp` | POST, GET, DELETE / | transport (the MCP endpoint itself) |
-| `/webhooks` | POST /github, POST /billing | transport |
-| `/github`, `/landing`, `/demo` | GET /activity, POST /faq/ask, POST / | transport (public landing and demo) |
-| `/tests` | 3 routes | internal (mounted only in test) |
+| Mount                            | Routes                               | Reason                                      |
+| -------------------------------- | ------------------------------------ | ------------------------------------------- |
+| `/auth` (better-auth-extensions) | signups-open, features, set-password | auth                                        |
+| `/billing`                       | checkout, portal                     | account                                     |
+| `/admin`                         | PATCH /users/:id/plan                | admin                                       |
+| `/brand-logos`                   | GET /search                          | cosmetic                                    |
+| `/resource-leases`               | POST /refresh                        | import (keeps an ms-money/ofx upload alive) |
+| `/client-logs`                   | POST /                               | transport (frontend telemetry)              |
+| `/sse`                           | GET /events                          | transport                                   |
+| `/mcp`                           | POST, GET, DELETE /                  | transport (the MCP endpoint itself)         |
+| `/webhooks`                      | POST /github, POST /billing          | transport                                   |
+| `/github`, `/landing`, `/demo`   | GET /activity, POST /faq/ask, POST / | transport (public landing and demo)         |
+| `/tests`                         | 3 routes                             | internal (mounted only in test)             |
 
 OAuth metadata (`oauth-metadata.route.ts`) registers `app.get` routes outside the router count and is auth.
 
 **Totals** (401 routes):
 
-| Group | Routes |
-| --- | --- |
-| ✅ covered today | 103 |
-| ➕ planned | 175 (Group B 4, Group C 6, Group A 165) |
-| ⛔ excluded | 123 |
+| Group            | Routes                                  |
+| ---------------- | --------------------------------------- |
+| ✅ covered today | 103                                     |
+| ➕ planned       | 175 (Group B 4, Group C 6, Group A 165) |
+| ⛔ excluded      | 123                                     |
 
 Recount from the tables:
+
 - ⛔: accounts 1, attachments 1, transactions 3, payees 1, subscriptions 1, investments 8, notifications 1, user 35, share 9, bank 16, import 26, other mounts 21.
 
   That sums to 123. "Other mounts" are auth 3, billing 2, admin 1, brand-logos 1, resource-leases 1, client-logs 1, sse 1, mcp 3, webhooks 2, github, landing and demo 3, tests 3.
@@ -589,23 +608,24 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 
 ### Excluded routes (reasons)
 
-| Key | Routes | Why no tool |
-| --- | --- | --- |
-| auth | `/auth/*`, OAuth metadata, `/user/settings/mcp/connected-apps*` | Sign-in, password and OAuth-grant management. An MCP client must not manage its own grants; revoking stays in Settings. |
-| account | billing checkout and portal, feature trials, profile update, user delete, data wipe | Account lifecycle and payment redirects. There is no `profile:write` scope, and deleting or wiping the account must stay a deliberate in-app action. |
-| admin | `/admin/*`, securities price sync, upload info and bulk upload | Operator-only routes behind `adminOnly`. |
-| internal | `/tests/*`, `POST /notifications`, `PUT /investments/portfolios/:id/balance` | Test-only or test seeding routes, or a route background jobs use. |
-| transport | `/mcp`, `/sse`, `/webhooks/*`, `/client-logs`, `/github`, `/landing`, `/demo` | Transports, signed webhooks, telemetry and public pages. |
-| bank | connect, reauthorize, OAuth callback, Enable Banking country and bank lists, available accounts, account link, every sync and load action, stuck-pending check, disconnect, connection edit, reconcile-duplicates, provider list | These need the bank's consent flow or a live bank call, which needs the user present (PSU headers). Unattended calls can burn the bank's daily limit (about 4 per day for Enable Banking). Some take the user's provider secrets. Read-only connection and sync status is in T24. |
-| file | attachment download, data export, backups and restore, invoice matching | These move file bytes. An MCP client cannot stream them, and base64 through the model context is costly and leaks documents into transcripts. Uploads already use `create_attachment_upload_url`. |
-| import | csv, text-source, ynab, budget-bakers-wallet, ms-money, ofx, investment statement import, ai-map-categories, resource leases | These are interactive wizards (parse, map, review duplicates, execute) built around a file. Some spend the server's AI on extraction. An agent records rows through `create_transaction` / `create_investment_transaction`, and can undo an import through T25. |
-| share | invitation create, accept, decline, resend, cancel, back-invite; member update and revoke; leave | They grant or revoke another person's access to financial data, and send email. That stays a deliberate in-app action. The reads are in T24. |
-| ai | `/user/settings/ai/*`, `/user/ai/categorization/*` | They configure the app's own AI providers (API keys, models, CLI sign-in) and its built-in categorizer. Keys must not pass through a third-party client, and the client categorizes through `bulk_update_transactions`. |
-| ui | onboarding checklist | UI state with no data meaning. |
-| cosmetic | logo search, payee and subscription logo reset | Visual pickers an agent cannot see. Logo fields stay settable through the update tools. |
-| redundant | `GET /investments/securities` | The full global securities list. `search_securities` covers lookup. |
+| Key       | Routes                                                                                                                                                                                                                           | Why no tool                                                                                                                                                                                                                                                                       |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| auth      | `/auth/*`, OAuth metadata, `/user/settings/mcp/connected-apps*`                                                                                                                                                                  | Sign-in, password and OAuth-grant management. An MCP client must not manage its own grants; revoking stays in Settings.                                                                                                                                                           |
+| account   | billing checkout and portal, feature trials, profile update, user delete, data wipe                                                                                                                                              | Account lifecycle and payment redirects. There is no `profile:write` scope, and deleting or wiping the account must stay a deliberate in-app action.                                                                                                                              |
+| admin     | `/admin/*`, securities price sync, upload info and bulk upload                                                                                                                                                                   | Operator-only routes behind `adminOnly`.                                                                                                                                                                                                                                          |
+| internal  | `/tests/*`, `POST /notifications`, `PUT /investments/portfolios/:id/balance`                                                                                                                                                     | Test-only or test seeding routes, or a route background jobs use.                                                                                                                                                                                                                 |
+| transport | `/mcp`, `/sse`, `/webhooks/*`, `/client-logs`, `/github`, `/landing`, `/demo`                                                                                                                                                    | Transports, signed webhooks, telemetry and public pages.                                                                                                                                                                                                                          |
+| bank      | connect, reauthorize, OAuth callback, Enable Banking country and bank lists, available accounts, account link, every sync and load action, stuck-pending check, disconnect, connection edit, reconcile-duplicates, provider list | These need the bank's consent flow or a live bank call, which needs the user present (PSU headers). Unattended calls can burn the bank's daily limit (about 4 per day for Enable Banking). Some take the user's provider secrets. Read-only connection and sync status is in T24. |
+| file      | attachment download, data export, backups and restore, invoice matching                                                                                                                                                          | These move file bytes. An MCP client cannot stream them, and base64 through the model context is costly and leaks documents into transcripts. Uploads already use `create_attachment_upload_url`.                                                                                 |
+| import    | csv, text-source, ynab, budget-bakers-wallet, ms-money, ofx, investment statement import, ai-map-categories, resource leases                                                                                                     | These are interactive wizards (parse, map, review duplicates, execute) built around a file. Some spend the server's AI on extraction. An agent records rows through `create_transaction` / `create_investment_transaction`, and can undo an import through T25.                   |
+| share     | invitation create, accept, decline, resend, cancel, back-invite; member update and revoke; leave                                                                                                                                 | They grant or revoke another person's access to financial data, and send email. That stays a deliberate in-app action. The reads are in T24.                                                                                                                                      |
+| ai        | `/user/settings/ai/*`, `/user/ai/categorization/*`                                                                                                                                                                               | They configure the app's own AI providers (API keys, models, CLI sign-in) and its built-in categorizer. Keys must not pass through a third-party client, and the client categorizes through `bulk_update_transactions`.                                                           |
+| ui        | onboarding checklist                                                                                                                                                                                                             | UI state with no data meaning.                                                                                                                                                                                                                                                    |
+| cosmetic  | logo search, payee and subscription logo reset                                                                                                                                                                                   | Visual pickers an agent cannot see. Logo fields stay settable through the update tools.                                                                                                                                                                                           |
+| redundant | `GET /investments/securities`                                                                                                                                                                                                    | The full global securities list. `search_securities` covers lookup.                                                                                                                                                                                                               |
 
 **Apple Pay (Group D) exclusions:**
+
 - token minting (`POST /user/settings/ingest-tokens`) and the setup code: they return a long-lived secret into a third-party transcript;
 - access headers: secrets;
 - `POST /api/v1/ingest/card-payment`: a machine endpoint behind ingest-token auth; `create_transaction` covers manual entry.
@@ -624,6 +644,7 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 **Branch:** `feat/custom-currencies`
 
 **Worktree:** `/Users/nemirovsky/Developer/moneymatter-currencies`. Run `git switch feat/custom-currencies` first.
+
 - That worktree has `fix/cloudflare-access-cookie` checked out with uncommitted changes. Switch only once `git status` is clean; otherwise stop and ask the owner.
 - The main checkout cannot take this branch while the worktree holds it.
 
@@ -704,6 +725,7 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
   - backend typecheck, lint, oxfmt.
 
 **Merge:** once Task 2 passes, merge `feat/currency-rate-sources` into `dev` in the main checkout: `git switch dev`, then `git merge feat/currency-rate-sources`. Done: merged cleanly into `dev` (a531e9bb) with no conflicts; the unit gate (308 tests) and backend typecheck pass on `dev`. The batched e2e run on `dev` was not repeated.
+
 - `dev`'s MCP files changed only in five stats tools, which this group does not touch, so a conflict there is unexpected. If one appears, follow "Merge conflicts" in Technical Details.
 - Run Task 1's and Task 2's unit and e2e patterns as one batched run on `dev`.
 - Leave the main checkout on `dev`.
@@ -718,30 +740,30 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 
 **Files:**
 
-- Create: `packages/backend/src/tests/helpers/mcp-tools.ts`, `packages/backend/src/services/mcp/server-registration-drift.unit.ts`, `packages/backend/src/services/mcp/tools/write-guards.unit.ts`
+- Create: `packages/backend/src/tests/helpers/mcp-tools.ts`, `packages/backend/src/services/mcp/server-registration-drift.unit.ts`, `packages/backend/src/services/mcp/tools/write-guards.unit.ts`, `packages/backend/src/services/mcp/auth.unit.ts` (added: covers the `features` field)
 - Modify: `tools/custom-currency-tools.unit.ts`, `tools/rate-source-tools.unit.ts`, `tools/transaction-amount-inputs.unit.ts`, `tools/helpers.ts`, `tools/helpers.unit.ts`, `services/mcp/auth.ts`, `tool-scopes-drift.unit.ts`, every existing write tool in `tools/`, `tools/preview-transaction-automation.ts`, `.claude/skills/add-mcp-tool/SKILL.md`
 
-- [ ] `git merge dev`. It brings Groups B and C and dev's decimals changes to five stats tools. Resolve per "Merge conflicts" if needed, then run the drift suites.
-- [ ] `requireFeatureAccess` in `tools/helpers.ts` (Technical Details, "Helpers added in Tasks 1–3"; `assertBaseCurrencyUnlocked` and `enforceUserRateLimit` arrived with Tasks 1 and 2). Unit cases in `helpers.unit.ts` cover: feature missing → throws; feature present → passes; `features` absent from the auth payload → throws.
-- [ ] `services/mcp/auth.ts`: add `features: Feature[]` to `McpAuthInfo.extra` and fill it from the `getEntitlementsByUserId` result that already supplies `readOnly` (no second call). Extend the existing auth unit or e2e coverage (`mcp-scope-gate`/`connected-apps` suites build `authInfo`) if it asserts the `extra` shape. `feat/apple-pay-ingest` also edits this file (the `hashToken` move), so Task 26's merge keeps both changes.
-- [ ] `requireScope` gets `allowReadOnly` (default false). Unit cases in `helpers.unit.ts`:
+- [x] `git merge dev`. It brings Groups B and C and dev's decimals changes to five stats tools. Resolve per "Merge conflicts" if needed, then run the drift suites. (Done: merged with no conflicts, c5097f07.)
+- [x] `requireFeatureAccess` in `tools/helpers.ts` (Technical Details, "Helpers added in Tasks 1–3"; `assertBaseCurrencyUnlocked` and `enforceUserRateLimit` arrived with Tasks 1 and 2). Unit cases in `helpers.unit.ts` cover: feature missing → throws; feature present → passes; `features` absent from the auth payload → throws.
+- [x] `services/mcp/auth.ts`: add `features: Feature[]` to `McpAuthInfo.extra` and fill it from the `getEntitlementsByUserId` result that already supplies `readOnly` (no second call). Extend the existing auth unit or e2e coverage (`mcp-scope-gate`/`connected-apps` suites build `authInfo`) if it asserts the `extra` shape. `feat/apple-pay-ingest` also edits this file (the `hashToken` move), so Task 26's merge keeps both changes.
+- [x] `requireScope` gets `allowReadOnly` (default false). Unit cases in `helpers.unit.ts`:
   - default: read-only user throws, demo user throws (unchanged);
   - `allowReadOnly: true`: a read-only user passes, a demo user passes, a missing scope still throws.
-- [ ] rate-limit audit: no other route that gets a tool carries a limiter (`attachmentUploadRateLimit` guards the byte upload, not `create_attachment_upload_url`). Re-check with `grep -n RateLimit routes/*.ts` and record any new find here; a new find gets `enforceUserRateLimit` and shared limit constants like Task 2's. The two rate-source tools already carry their limits from Task 2.
-- [ ] `tests/helpers/mcp-tools.ts` with `captureTools` and `makeExtra`. Import it in unit tests as `@tests/helpers/mcp-tools`.
-- [ ] migrate the hand-rolled fake servers onto it, so no copy survives: after `git merge dev`, switch `tools/custom-currency-tools.unit.ts` (Task 1), `tools/rate-source-tools.unit.ts` (Task 2) and `tools/transaction-amount-inputs.unit.ts` (its `inputSchemaOf`) to `captureTools` and `makeExtra`. Their assertions stay as they are; run the unit gate to confirm.
-- [ ] call `await assertBaseCurrencyUnlocked({ userId })` right after `requireScope` in every existing write tool whose REST counterpart carries `checkBaseCurrencyLock`. The Group B and C tools (Tasks 1 and 2) already do; confirm them and add the rest.
-  - Check each route in `routes/*.ts`. A tool whose route has no lock (for example `test_currency_rate_source`, `detect_subscription_candidates`, a GET in REST, and `create_attachment_upload_url` if its upload route has none) goes into `LOCK_EXEMPT_TOOLS`, with a comment naming the route.
-- [ ] the lock-carrying reads: the lock follows the REST route, so call `assertBaseCurrencyUnlocked` in the existing `preview_transaction_automation` (`POST /automations/preview`) and list it in `LOCK_GUARDED_READ_TOOLS` with the route in a comment. Task 8 adds `list_transfer_suggestions` (`POST /transactions/transfer-recommendations/bulk-scan`) to the same list. Re-check `routes/*.ts` for any other `checkBaseCurrencyLock` on a route that a read-named tool wraps, and add it.
-- [ ] `tool-scopes-drift.unit.ts`:
+- [x] rate-limit audit: no other route that gets a tool carries a limiter (`attachmentUploadRateLimit` guards the byte upload, not `create_attachment_upload_url`). Re-check with `grep -n RateLimit routes/*.ts` and record any new find here; a new find gets `enforceUserRateLimit` and shared limit constants like Task 2's. The two rate-source tools already carry their limits from Task 2. Audit result: no new find. Every other limiter (`routes/*.ts` and `routes/import-export/*.ts`) sits on a route that is excluded or has no tool: brand-logo search, demo start, billing, client logs, landing FAQ, price sync and bulk upload (admin), resource-lease refresh, share invitation sends, attachment byte upload, the CSV, OFX, YNAB, MS Money and Wallet import wizards, AI connection probes, data export, backup and restore, Stripe webhook.
+- [x] `tests/helpers/mcp-tools.ts` with `captureTools` and `makeExtra`. Import it in unit tests as `@tests/helpers/mcp-tools`.
+- [x] migrate the hand-rolled fake servers onto it, so no copy survives: after `git merge dev`, switch `tools/custom-currency-tools.unit.ts` (Task 1), `tools/rate-source-tools.unit.ts` (Task 2) and `tools/transaction-amount-inputs.unit.ts` (its `inputSchemaOf`) to `captureTools` and `makeExtra`. Their assertions stay as they are; run the unit gate to confirm.
+- [x] call `await assertBaseCurrencyUnlocked({ userId })` right after `requireScope` in every existing write tool whose REST counterpart carries `checkBaseCurrencyLock`. The Group B and C tools (Tasks 1 and 2) already do; confirm them and add the rest.
+  - Check each route in `routes/*.ts`. A tool whose route has no lock (for example `test_currency_rate_source`, `detect_subscription_candidates`, a GET in REST, and `create_attachment_upload_url` if its upload route has none) goes into `LOCK_EXEMPT_TOOLS`, with a comment naming the route. Done: 66 existing write tools now call the lock; the three exempt ones are `create_attachment_upload_url` (its upload route has no lock), `detect_subscription_candidates` and `test_currency_rate_source`. Tasks 4 and later add their own exempt tools to the list.
+- [x] the lock-carrying reads: the lock follows the REST route, so call `assertBaseCurrencyUnlocked` in the existing `preview_transaction_automation` (`POST /automations/preview`) and list it in `LOCK_GUARDED_READ_TOOLS` with the route in a comment. Task 8 adds `list_transfer_suggestions` (`POST /transactions/transfer-recommendations/bulk-scan`) to the same list. Re-check `routes/*.ts` for any other `checkBaseCurrencyLock` on a route that a read-named tool wraps, and add it.
+- [x] `tool-scopes-drift.unit.ts`:
   - new case "every tool that checks a scope also checks the base-currency lock, unless listed in `LOCK_EXEMPT_TOOLS`";
   - a case "every tool in `LOCK_GUARDED_READ_TOOLS` calls `assertBaseCurrencyUnlocked`". This case keys on the route mapping, not on `requireScope`, which read tools never call;
   - a case that every `LOCK_EXEMPT_TOOLS` and `LOCK_GUARDED_READ_TOOLS` entry exists, and that no tool is in both;
   - a case that every tool calling `allowReadOnly: true` is in a hand-kept `READ_ONLY_ROUTE_TOOLS` list (`mark_notifications_read`, `update_user_settings`, `change_base_currency`), each with the `READ_ONLY_ROUTES` entry in a comment, so the exemption cannot spread;
   - export nothing new.
-- [ ] `server-registration-drift.unit.ts`: every `export function register\w+` in `tools/*.ts` (and `venture-tools.ts` re-exports) is imported and called as `register…(server)` exactly once in `server.ts`, and `server.ts` calls nothing that is not exported.
-- [ ] `write-guards.unit.ts`: with `captureTools`, `archive_account`, `delete_tag` and `create_transaction` throw while the lock is set, and their service mocks are not called. Each also throws for a demo user and for a read-only user. `preview_transaction_automation` throws while the lock is set.
-- [ ] update `.claude/skills/add-mcp-tool/SKILL.md`:
+- [x] `server-registration-drift.unit.ts`: every `export function register\w+` in `tools/*.ts` (and `venture-tools.ts` re-exports) is imported and called as `register…(server)` exactly once in `server.ts`, and `server.ts` calls nothing that is not exported.
+- [x] `write-guards.unit.ts`: with `captureTools`, `archive_account`, `delete_tag` and `create_transaction` throw while the lock is set, and their service mocks are not called. Each also throws for a demo user and for a read-only user. `preview_transaction_automation` throws while the lock is set.
+- [x] update `.claude/skills/add-mcp-tool/SKILL.md`:
   - the template with `requireScope`, `assertBaseCurrencyUnlocked`, `requireFeatureAccess` and `enforceUserRateLimit`;
   - the naming and scope rules (Technical Details, "Tool conventions"), including `allowReadOnly` for `READ_ONLY_ROUTES` tools;
   - `DESTRUCTIVE_TOOLS`, `CONDITIONAL_DELETE_TOOLS`, `LOCK_EXEMPT_TOOLS`, `LOCK_GUARDED_READ_TOOLS` and `READ_ONLY_ROUTE_TOOLS`;
@@ -750,7 +772,7 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
   - the unit test pattern with `captureTools` from `@tests/helpers/mcp-tools`;
   - the drift suites (four) and the gate pattern `services/mcp/`;
   - replace "do not add e2e tests" with: the gate runs the MCP e2e suites plus the REST suites of the wrapped routes, and a check moved out of a controller gets an e2e case first.
-- [ ] gate:
+- [x] gate (done: 141 unit tests in 11 suites, 28 e2e tests in 4 suites, backend typecheck, lint and oxfmt clean):
   - unit: `npm run test:unit -- --testPathPattern='services/mcp/'`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='routes/base-currency-guard-coverage|services/currencies/change-base-currency-status|services/mcp/(connected-apps|mcp-scope-gate)'` (the rate-source limiter cases moved to Task 2);
   - backend typecheck, lint, oxfmt.
@@ -1127,6 +1149,7 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
   - `get_earliest_transaction_date`.
 
   All are read tools. Arrays are taken as arrays, not the comma strings REST uses.
+
 - [ ] `get_balance_history` bug fix, test first (the combined branch calls `getCombinedBalanceHistory` without `includeCreditLimit`, while `/stats/combined-balance-history` passes `settings.includeCreditLimitInStats`):
   - write the `stats-tools.unit.ts` case first: the settings mock returns `includeCreditLimitInStats: true`, and the combined branch must call the report with that setting applied (the combined service receives `includeCreditLimit: true`);
   - run it and confirm it fails on the current tool;
@@ -1398,6 +1421,7 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
   - typecheck, lint, oxfmt.
 
 **Merge:** once Tasks 3–25 pass, merge `feat/mcp-coverage` into `dev` in the main checkout: `git switch dev` (clean tree), then `git merge feat/mcp-coverage`.
+
 - `git merge dev` into `feat/mcp-coverage` first if `dev` moved since Task 3.
 - Run the unit gate and one batched e2e run of the MCP suites plus `routes/base-currency-guard-coverage` on `dev`.
 
