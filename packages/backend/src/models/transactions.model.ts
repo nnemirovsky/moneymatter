@@ -1372,13 +1372,21 @@ type CreateTxOptionalParams = Partial<
   >
 >;
 
-export type CreateTransactionPayload = CreateTxRequiredParams & CreateTxOptionalParams;
+export type CreateTransactionPayload = CreateTxRequiredParams &
+  CreateTxOptionalParams & {
+    /**
+     * Owner of the account when it differs from `userId` (a collaborator writing on a shared
+     * account). The owner's definition of the currency governs the native amounts.
+     */
+    accountOwnerUserId?: number;
+  };
 
-export const createTransaction = async ({ userId, ...rest }: CreateTransactionPayload) => {
+export const createTransaction = async ({ userId, accountOwnerUserId, ...rest }: CreateTransactionPayload) => {
   const { amount, commissionRate, cashbackAmount, originalAmount, refAmount, refCommissionRate } = rest;
   const rounded = await roundTransactionMoney({
     values: { amount, commissionRate, cashbackAmount, originalAmount, refAmount, refCommissionRate },
     userId,
+    accountOwnerUserId,
     currencyCode: rest.currencyCode,
     refCurrencyCode: rest.refCurrencyCode,
     originalCurrencyCode: rest.originalCurrencyCode,
@@ -1395,6 +1403,8 @@ export const createTransaction = async ({ userId, ...rest }: CreateTransactionPa
 export interface UpdateTransactionByIdParams {
   id: string;
   userId: number;
+  /** Owner of the account when it differs from `userId`; its definition of the currency governs the native amounts. */
+  accountOwnerUserId?: number;
   amount?: Money;
   refAmount?: Money;
   note?: string | null;
@@ -1429,11 +1439,13 @@ export interface UpdateTransactionByIdParams {
 const roundUpdatePayloadMoney = async ({
   id,
   userId,
+  accountOwnerUserId,
   payload,
 }: {
   id: string;
   userId: number;
-  payload: Omit<UpdateTransactionByIdParams, 'id' | 'userId'>;
+  accountOwnerUserId?: number;
+  payload: Omit<UpdateTransactionByIdParams, 'id' | 'userId' | 'accountOwnerUserId'>;
 }) => {
   const { amount, refAmount, originalAmount } = payload;
 
@@ -1462,6 +1474,7 @@ const roundUpdatePayloadMoney = async ({
   return roundTransactionMoney({
     values: { amount, refAmount, originalAmount },
     userId,
+    accountOwnerUserId,
     currencyCode,
     refCurrencyCode: payload.refCurrencyCode ?? stored?.refCurrencyCode,
     originalCurrencyCode: payload.originalCurrencyCode ?? stored?.originalCurrencyCode,
@@ -1469,7 +1482,7 @@ const roundUpdatePayloadMoney = async ({
 };
 
 export const updateTransactionById = async (
-  { id, userId, ...payload }: UpdateTransactionByIdParams,
+  { id, userId, accountOwnerUserId, ...payload }: UpdateTransactionByIdParams,
   {
     // For refunds we need to have an option to disable them. Otherwise there will be some kind of
     // deadlock - request stucks forever with no error message. TODO: consider removing this logic at all
@@ -1478,7 +1491,7 @@ export const updateTransactionById = async (
 ) => {
   const where = { id, userId };
 
-  const rounded = await roundUpdatePayloadMoney({ id, userId, payload });
+  const rounded = await roundUpdatePayloadMoney({ id, userId, accountOwnerUserId, payload });
 
   await Transactions.update(removeUndefinedKeys({ ...payload, ...rounded }), {
     where,
