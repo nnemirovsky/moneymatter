@@ -36,6 +36,7 @@ import {
   subscriptionReminderEmailWorker,
 } from '@services/subscriptions/reminder-email-queue';
 import { createAppUserWithUniqueUsername, seedUserDefaults } from '@services/user/create-user-with-defaults.service';
+import { webPushQueue, webPushWorker } from '@services/web-push/push-queue';
 import { STRIPE_TEST_WEBHOOK_SECRET, extractCookies, makeAuthRequest, makeRequest } from '@tests/helpers';
 import { startOfDay } from 'date-fns';
 import { generateVAPIDKeys } from 'web-push';
@@ -529,6 +530,8 @@ async function closeAllE2eResources() {
     await subscriptionReminderEmailQueue.close();
     await baseCurrencyChangeWorker.close();
     await baseCurrencyChangeQueue.close();
+    await webPushWorker.close();
+    await webPushQueue.close();
 
     // Now safe to close Redis client
     await redisClient.quit();
