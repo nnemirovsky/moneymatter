@@ -170,6 +170,9 @@ const getCategoryBudgetStats = async ({
       continue;
     }
 
+    // A row with no base-currency amount (custom currency, no rate yet) is left out of every figure.
+    if (tx.refAmount === null) continue;
+
     countedTransactions.push({ id: tx.id, refundLinked: tx.refundLinked });
     const isExpense = tx.transactionType === TRANSACTION_TYPES.expense;
     const refAmount = tx.refAmount.toMinorUnits({ decimals });
@@ -188,7 +191,7 @@ const getCategoryBudgetStats = async ({
   // Process splits - only count the split's refAmount
   for (const split of matchingSplits) {
     const transaction = split.get('transaction') as Transactions.default;
-    if (!transaction) continue;
+    if (!transaction || split.refAmount === null) continue;
 
     countedTransactions.push({ id: transaction.id, refundLinked: transaction.refundLinked });
     const isExpense = transaction.transactionType === TRANSACTION_TYPES.expense;
@@ -292,7 +295,12 @@ const aggregateTransactionStats = ({
   limitAmount: number | null;
   decimals: number;
 }): StatsResponse => {
-  const result = transactions.reduce((acc, curr) => {
+  // A row with no base-currency amount (custom currency, no rate yet) is left out of every figure.
+  const valued = transactions.flatMap((tx) =>
+    tx.refAmount === null ? [] : [{ time: tx.time, transactionType: tx.transactionType, refAmount: tx.refAmount }],
+  );
+
+  const result = valued.reduce((acc, curr) => {
     const isExpense = curr.transactionType === TRANSACTION_TYPES.expense;
     const refAmount = curr.refAmount.toMinorUnits({ decimals });
 
@@ -308,7 +316,7 @@ const aggregateTransactionStats = ({
     return acc;
   }, getResponseInitialState());
 
-  result.summary.transactionsCount = transactions.length;
+  result.summary.transactionsCount = valued.length;
 
   if (limitAmount !== null) {
     const netSpending = Math.max(0, -result.summary.balance);

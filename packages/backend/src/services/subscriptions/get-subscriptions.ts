@@ -118,9 +118,9 @@ interface SubscriptionLinkedTransaction extends Omit<
   'amount' | 'refAmount' | 'commissionRate' | 'refCommissionRate' | 'cashbackAmount'
 > {
   amount: number;
-  refAmount: number;
+  refAmount: number | null;
   commissionRate: number;
-  refCommissionRate: number;
+  refCommissionRate: number | null;
   cashbackAmount: number;
   SubscriptionTransactions: Pick<SubscriptionTransactions, 'matchSource' | 'matchedAt' | 'status'>;
 }
@@ -336,9 +336,9 @@ export const getSubscriptionById = async ({
   const transactions: SubscriptionLinkedTransaction[] = (raw.transactions ?? []).map((tx) => ({
     ...tx,
     amount: tx.amount.toNumber(),
-    refAmount: tx.refAmount.toNumber(),
+    refAmount: tx.refAmount?.toNumber() ?? null,
     commissionRate: tx.commissionRate.toNumber(),
-    refCommissionRate: tx.refCommissionRate.toNumber(),
+    refCommissionRate: tx.refCommissionRate?.toNumber() ?? null,
     cashbackAmount: tx.cashbackAmount.toNumber(),
   }));
 

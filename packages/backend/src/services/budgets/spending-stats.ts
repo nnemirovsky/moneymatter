@@ -532,7 +532,11 @@ const getManualBudgetSpendingStats = async ({
     return canonical === OTHER_CATEGORY_ID ? null : canonical;
   };
 
-  const txDataList: NormalizedTxData[] = transactions.map((tx) => {
+  // A row with no base-currency amount (custom currency, no rate yet) cannot be added to a base-currency
+  // figure, so every budget aggregate leaves it out.
+  const txDataList: NormalizedTxData[] = transactions.flatMap((tx) => {
+    if (tx.refAmount === null) return [];
+
     const rootCatId = tx.categoryId
       ? canonicalize(getRootCategoryId({ categoryId: tx.categoryId, categoryMap }))
       : null;
@@ -659,6 +663,7 @@ const getCategoryBudgetSpendingStats = async ({
   for (const tx of primaryCategoryTransactions) {
     const splits = tx.get('splits') as TransactionSplits[] | undefined;
     if (splits && splits.length > 0) continue;
+    if (tx.refAmount === null) continue;
 
     const topLevelCatId = getTopLevelTargetCategoryId({
       categoryId: tx.categoryId!,
@@ -679,7 +684,7 @@ const getCategoryBudgetSpendingStats = async ({
   // Process splits
   for (const split of matchingSplits) {
     const transaction = split.get('transaction') as Transactions.default;
-    if (!transaction) continue;
+    if (!transaction || split.refAmount === null) continue;
 
     const topLevelCatId = getTopLevelTargetCategoryId({
       categoryId: split.categoryId,

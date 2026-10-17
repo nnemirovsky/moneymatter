@@ -87,7 +87,8 @@ export async function transformBudgets({ userId }: { userId: number }): Promise<
 
   return budgets.map((budget): BudgetRow => {
     const linked = txByBudgetId.get(budget.id) ?? [];
-    const spentAmount = Money.sum(linked.map((t) => t.refAmount.abs()));
+    // Rows with no base-currency amount (custom currency, no rate yet) are left out of the total.
+    const spentAmount = Money.sum(linked.flatMap((t) => (t.refAmount ? [t.refAmount.abs()] : [])));
     return {
       name: budget.name,
       status: budget.status,
