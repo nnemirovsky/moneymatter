@@ -2,6 +2,7 @@
 import CategoryMultiSelectField from '@/components/fields/category-multi-select-field.vue';
 import InputField from '@/components/fields/input-field.vue';
 import Button from '@/components/lib/ui/button/Button.vue';
+import { useFormatCurrency } from '@/composable/formatters';
 import type { BudgetModel } from '@bt/shared/types';
 import { format } from 'date-fns';
 import { ref, watch } from 'vue';
@@ -19,6 +20,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const { baseCurrencyDecimals } = useFormatCurrency();
 
 const formData = ref({
   name: '',
@@ -79,6 +81,7 @@ const handleSave = () => {
       :label="t('budgets.settings.limitLabel')"
       :placeholder="t('budgets.settings.limitPlaceholder')"
       type="number"
+      :decimals="baseCurrencyDecimals"
       only-positive
       class="w-full"
       :disabled="isLoading"
