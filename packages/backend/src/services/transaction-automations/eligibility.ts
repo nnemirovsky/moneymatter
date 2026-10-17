@@ -35,14 +35,17 @@ export const isAutomationEligible = ({
   (!isPlanned || isCardPaymentPlan({ externalData }));
 
 /**
- * SQL twin of the account-type half of `isAutomationEligible` for the preview scan (the
- * transfer/planned halves are `findTransactions` policy). Keyed on the account row, not
- * `Transactions.accountType`: unlinking rewrites that column to `system` on every row, and relinking
- * restores it only on rows the same provider synced.
+ * SQL twin of `isAutomationEligible` for the preview scan, except for the transfer half, which is
+ * `findTransactions` policy. The scan asks for planned rows too (`planned: 'include'`) and this
+ * filter drops every plan that is not a card-payment one, as `isAutomationEligible` does. The
+ * account-type half is keyed on the account row, not `Transactions.accountType`: unlinking
+ * rewrites that column to `system` on every row, and relinking restores it only on rows the same
+ * provider synced.
  * Split parents are dropped too: their category is derived from their split rows.
  */
 export const buildEligibilityWhere = ({ bankAccountIds }: { bankAccountIds: string[] }) => ({
   [Op.and]: [
+    literal(`("Transactions"."isPlanned" = false OR "Transactions"."externalData"->'cardPayment' IS NOT NULL)`),
     {
       [Op.or]: [
         { accountId: { [Op.in]: bankAccountIds } },

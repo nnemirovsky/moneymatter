@@ -15,6 +15,7 @@ import { describe, expect, it } from '@jest/globals';
 import type { LunchFlowApiTransaction } from '@services/bank-data-providers/lunchflow/types';
 import * as helpers from '@tests/helpers';
 import { expectCsvImportCompleted, waitForCsvImportCompletion } from '@tests/helpers/import-export';
+import * as ingestHelpers from '@tests/helpers/ingest-tokens';
 import { getLunchFlowBalanceMock, getLunchFlowTransactionsMock } from '@tests/mocks/lunchflow/mock-api';
 import { subDays } from 'date-fns';
 
@@ -338,6 +339,37 @@ describe('POST /automations/preview', () => {
       'Imported two',
       'Imported one',
     ]);
+  });
+
+  it('scans a card-payment plan on a connected account but not a plan the user wrote there', async () => {
+    const { account } = await syncBankRows({
+      transactions: [bankRow({ amount: -10, date: daysAgo(3), description: 'Synced one' })],
+    });
+    await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: account.id }, raw: true });
+    const { secret } = await ingestHelpers.createTestIngestToken();
+    const logged = await ingestHelpers.postCardPayment({
+      secret,
+      body: {
+        amount: '47.00',
+        merchant: 'Cafe Heart of Batumi',
+        card: 'TBC Visa',
+        idempotencyKey: 'preview-card-payment-plan',
+      },
+    });
+    expect(logged.status).toBe(200);
+    expect(logged.body.response).toMatchObject({ outcome: 'logged', planned: true });
+    await helpers.createPlannedTransaction({
+      payload: { accountId: account.id, note: 'Hand-written plan', time: daysAgo(1).toISOString() },
+      raw: true,
+    });
+
+    const result = await preview({
+      match: 'all',
+      items: [{ field: 'dayOfMonth', operator: 'between', value: { min: 1, max: 31 } }],
+    });
+
+    expect(result.scannedCount).toBe(2);
+    expect(result.matches.map((match) => match.note)).toEqual(['Cafe Heart of Batumi', 'Synced one']);
   });
 
   it('hides a saved rule match that already carries its result and lists it again once the rule changes', async () => {
