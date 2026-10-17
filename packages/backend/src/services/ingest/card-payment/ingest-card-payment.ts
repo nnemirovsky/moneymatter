@@ -5,6 +5,7 @@ import CardAccountMappings from '@models/card-account-mappings.model';
 import { getUsernameById } from '@models/users.model';
 
 import { normalizeCardLabel } from '../normalize-card-label';
+import { categorizeAfterCommit } from './categorize-after-commit';
 import { cleanText } from './clean-text';
 import { computeFingerprint } from './fingerprint';
 import { formatSummary } from './format-summary';
@@ -68,7 +69,9 @@ const rejectWithoutRecord = ({ reason, locale }: { reason: CardPaymentRejectionR
  * 2. the request row is recorded and committed (a body without a usable idempotency key has
  *    nothing to key a row on and is refused unrecorded);
  * 3. the row is processed in a second transaction, which answers with a returned outcome;
- * 4. if that transaction threw, a third records the request as waiting.
+ * 4. if that transaction threw, a third records the request as waiting;
+ * 5. a payment logged by this request goes to AI categorization, outside any transaction, and waits
+ *    a short while for the answer when its row has no category yet.
  */
 export const ingestCardPayment = async ({
   userId,
@@ -107,9 +110,16 @@ export const ingestCardPayment = async ({
     body,
   });
 
+  let result: ProcessIngestResult;
   try {
-    return await processIngestRequest({ requestId, fingerprint, locale });
+    result = await processIngestRequest({ requestId, fingerprint, locale });
   } catch (error) {
     return parkFailedRequest({ requestId, error, locale });
   }
+
+  if (result.outcome !== 'logged' || result.duplicate || result.transactionId === null) return result;
+
+  const categorized = await categorizeAfterCommit({ userId, requestId, transactionId: result.transactionId, locale });
+
+  return categorized ? { ...result, ...categorized } : result;
 };

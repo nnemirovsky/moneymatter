@@ -508,16 +508,17 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
 - Create: `packages/backend/src/services/ingest/card-payment/categorize-after-commit.ts`
 - Modify: `packages/backend/src/services/ingest/card-payment/ingest-card-payment.ts`
 - Create: `packages/backend/src/services/ingest/card-payment/ai-categorization.e2e.ts`
+- Modify: `packages/backend/src/services/ingest/card-payment/constants.ts` (`aiWaitBudgetMs`, `aiPollIntervalMs`), `packages/backend/src/tests/mocks/gemini/mock-api.ts` (`categorizationsByName`: answer by category name instead of prompt ordinal)
 
-- [ ] write failing e2e with the existing AI test environment (`tests/helpers/ai-test-env.ts` / `ai-categorization.ts`):
+- [x] write failing e2e (red run: 4 of 8 failed on assertions, the 4 'no job' cases already held because nothing queued yet; see the progress log) with the existing AI test environment (`tests/helpers/ai-test-env.ts` / `ai-categorization.ts`):
   - an AI answer within the budget → the summary names the AI's category and `categoryPending: false`;
   - an AI that answers after the budget → "categorizing…", and the row is categorized later (poll the transaction);
   - no AI configured → `categoryPending: false`, "Uncategorized", no job queued;
   - a `hint` payee category or a history category → a job is queued but not awaited: the answer names that category at once, and AI may later override it (as for bank rows);
   - an `enforce` payee category or a rule's category → no job queued (`categorizationMeta` is set);
   - a planned row → no job queued at ingest (AI skips planned rows; Task 9 queues it after the merge)
-- [ ] after commit: when the row is non-planned, its `categorizationMeta` is null, and an AI client resolves for `AI_FEATURE.categorization`, call `queueCategorizationJob({ userId: owner, transactionIds: [id], scope: anyCategory, trigger: sync })`; only when the row is in the default category, poll it until `categorizationMeta` is set or 8 s pass (the budget is a constant, overridable in tests)
-- [ ] gate: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='ingest/card-payment/ai-categorization.e2e'`
+- [x] after commit: when the row is non-planned, its `categorizationMeta` is null, and an AI client resolves for `AI_FEATURE.categorization`, call `queueCategorizationJob({ userId: owner, transactionIds: [id], scope: anyCategory, trigger: sync })`; only when the row is in the default category, poll it until `categorizationMeta` is set or 8 s pass (the budget is `cardPaymentTimings.aiWaitBudgetMs`, overridable in tests; ⚠️ the lookup is `resolveAIConfiguration`, the same resolver `createAIClient` uses, so no model object is built just to test for a client; a failure anywhere in this step is logged and leaves the logged answer as tx 2 built it)
+- [x] gate (passed: e2e 1 suite, 8 tests; typecheck, lint and oxfmt clean): `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='ingest/card-payment/ai-categorization.e2e'`
 
 ### Task 8: Waiting payments: list, retry, dismiss, retention
 
@@ -545,7 +546,7 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
   - `GET /user/settings/card-mappings/unlinked` returns the distinct parked card labels with counts;
   - the cleanup cron deletes `logged`/`rejected`/`dismissed` rows older than 90 days and keeps `parked` and `received` rows
 - [ ] routes `GET /user/settings/card-payments/requests`, `POST …/requests/:id/retry` (guarded), `DELETE …/requests/:id` (exempt); `GET /user/settings/card-mappings/unlinked`; `GET /user/settings/card-payments/unconfirmed`
-- [ ] retry runs `processIngestRequest` (tx 2, with tx 3 on a throw) on the stored payload under the request's user, never a client-sent body: inside `withTransaction` it locks the row (`findOne` with `lock: UPDATE`) and re-checks that the status is `parked`, or `received` with `createdAt` older than 1 minute, before processing, so a concurrent retry waits, then sees `logged` and gets a 409
+- [ ] retry runs `processIngestRequest` (tx 2, with tx 3 on a throw) on the stored payload under the request's user, never a client-sent body: inside `withTransaction` it locks the row (`findOne` with `lock: UPDATE`) and re-checks that the status is `parked`, or `received` with `createdAt` older than 1 minute, before processing, so a concurrent retry waits, then sees `logged` and gets a 409 (⚠️ Task 7: a retry that logs a payment should also call `categorizeAfterCommit`; it is exported from `categorize-after-commit.ts`, takes `{ userId, requestId, transactionId, locale }` and returns the replacement answer or `null`)
 - [ ] test hooks for the interrupted and racing cases: an env-gated (`NODE_ENV=test`) fault injector in `processIngestRequest`, set through a test-only header the way other e2e fault hooks in the repo do; if no such pattern exists, ⚠️ ask before adding one
 - [ ] gate: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='(ingest/card-payment/requests|crons/ingest-requests-cleanup|routes/base-currency-guard-coverage).e2e'`
 

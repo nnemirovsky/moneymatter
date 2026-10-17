@@ -79,9 +79,35 @@ export function rejectIfWrongModel({ request, expectedModel }: { request: Reques
   );
 }
 
+/** Category name to the ordinal the prompt gave it, read from the CATEGORIES table ("c3|parent|Name"). */
+async function readPromptCategoryOrdinals({ request }: { request: Request }): Promise<Map<string, number>> {
+  const ordinals = new Map<string, number>();
+  const body = (await request
+    .clone()
+    .json()
+    .catch(() => null)) as {
+    contents?: { parts?: { text?: string }[] }[];
+  } | null;
+  const prompt = (body?.contents ?? [])
+    .flatMap((content) => content.parts ?? [])
+    .map((part) => part.text ?? '')
+    .join('\n');
+
+  for (const match of prompt.matchAll(/^c(\d+)\|[^|]*\|(.*)$/gm)) {
+    ordinals.set(match[2]!, Number(match[1]));
+  }
+
+  return ordinals;
+}
+
 interface MockCategorizationOptions {
   /** Map of transaction ordinal to category ordinal (1-based, prompt order), emitted as "t1:c2" alias pairs */
   categorizations?: Record<number, number>;
+  /**
+   * Map of transaction ordinal to a category name, resolved against the CATEGORIES table of the
+   * prompt, so a test need not know the order the app lists categories in
+   */
+  categorizationsByName?: Record<number, string>;
   /** Map of transaction ordinal to a skip reason code, emitted as "t1:skip:transfer" lines */
   skips?: Record<number, string>;
   /** Verbatim response text; overrides categorizations/skips (e.g. a prose refusal) */
@@ -111,6 +137,7 @@ interface MockCategorizationOptions {
 export function createGeminiMock(options: MockCategorizationOptions = {}) {
   const {
     categorizations = {},
+    categorizationsByName = {},
     skips = {},
     rawText,
     finishReason = 'STOP',
@@ -126,6 +153,8 @@ export function createGeminiMock(options: MockCategorizationOptions = {}) {
     if (modelMismatch) return passthroughOtherModels ? undefined : modelMismatch;
 
     if (delayMs) await delay(delayMs);
+
+    const promptCategoryOrdinals = await readPromptCategoryOrdinals({ request });
 
     if (readApiKey({ request }) === INVALID_GEMINI_API_KEY) {
       return invalidKeyResponse();
@@ -145,9 +174,26 @@ export function createGeminiMock(options: MockCategorizationOptions = {}) {
       );
     }
 
+    const unknownCategory = Object.values(categorizationsByName).find((name) => !promptCategoryOrdinals.has(name));
+    if (unknownCategory !== undefined) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 400,
+            message: `Category "${unknownCategory}" is not in the prompt`,
+            status: 'INVALID_ARGUMENT',
+          },
+        },
+        { status: 400 },
+      );
+    }
+
     const responseText =
       rawText ??
       [
+        ...Object.entries(categorizationsByName).map(
+          ([txOrdinal, name]) => `t${txOrdinal}:c${promptCategoryOrdinals.get(name)}`,
+        ),
         ...Object.entries(categorizations).map(([txOrdinal, catOrdinal]) => `t${txOrdinal}:c${catOrdinal}`),
         ...Object.entries(skips).map(([txOrdinal, reason]) => `t${txOrdinal}:skip:${reason}`),
       ].join('\n');
