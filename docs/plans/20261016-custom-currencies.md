@@ -403,10 +403,19 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - Modify: `packages/frontend/src/js/helpers/formatters.ts`, `packages/frontend/src/composable/formatters.ts`, the 6 component-level formatters, amount input components (locate them with ast-grep)
 - Create/Modify: matching vitest files
 
-- [ ] formatters take the currency's decimals instead of assuming 2
-- [ ] amount inputs accept and show up to the currency's decimals
-- [ ] vitest: format and parse for JPY, USD and KWD, plus large VND values
-- [ ] gate: frontend typecheck, lint and unit tests
+- [x] formatters take the currency's decimals instead of assuming 2
+  - `js/helpers/currency-decimals.ts` is the one place the frontend resolves a currency's decimals by code: a registry the currencies store fills from `CurrencyModel.digits` on every `loadCurrencies` / `loadBaseCurrency` (the field the API already returns for each currency; no new endpoint), then the ISO value from `Intl`, then 2. Task 12 and Task 15 add the per-user override by registering it into the same registry
+  - `toLocalFiatCurrency` and `toLocalCurrencyNumber` read it, so the 2-decimal clamp is gone (KWD, BHD render 3, JPY and VND 0). A code `Intl` rejects renders as a bare number with its registered decimals and the code appended
+  - `useFormatCurrency` exposes `baseCurrencyDecimals`; `convert` in `useExchangeRates` rounds to the target currency's decimals; the original-amount suggestion no longer clamps to 2; Lunchflow and Walutomat balances go through `formatUIAmount`
+  - kept as they are on purpose: the payees net-flow formatters (whole base-currency units by design), the account-selection row for no-currency accounts, the depreciation chart's symbol lookup, and the investment, portfolio and billing formatters (not account-currency amounts)
+- [x] amount inputs accept and show up to the currency's decimals
+  - `InputField` (`type="number"`) gains `decimals`: digits past the cap are dropped as they are typed or pasted, `0` drops the decimal point (and blocks the `.` key). `FormattedAmountField` gains `decimals` (default 2) for both parsing and display
+  - wired to the currency of the amount on: the transaction dialog (amount, transfer target amount, original amount, split rows, templates), inline amount editing, account creation (initial balance, credit limit), the account balance, initial balance and credit limit editors, subscriptions (create, edit, mark paid; dropped the fixed `step="0.01"`), loan form and loan payment, and, in the base currency, trackers and budget-plan inputs. The per-currency decimals validator replaces `currencyDecimal` (message `forms.validators.invalidCurrencyDecimal` now takes `{decimals}`, `en` and `uk`)
+  - not wired (left at any precision, documented limit): investment, venture, vehicle, portfolio-transfer, automation-condition and records-filter amount inputs
+- [x] vitest: format and parse for JPY, USD and KWD, plus large VND values
+  - `formatters.spec.ts` (KWD, BHD, JPY, VND 20.5e9, registered tickers), `currency-decimals.spec.ts` (new), `formatted-amount.test.ts` (parse at 0, 3, 8 decimals, VND with grouping in both separator styles), `formatted-amount-field.test.ts` (new), `input-field.test.ts` (`decimals`), `currencies.test.ts` (store registers decimals), `suggest-original-amount.test.ts`, `balance-adjustment-dialog.test.ts` (USD, KWD, JPY)
+- [x] gate: frontend typecheck, lint and unit tests
+  - result: typecheck clean, lint exit 0 (warnings only, plus `i18n keys OK`), oxfmt clean, unit suite 246 files, all pass
 
 ### Phase 2: per-user custom currencies
 

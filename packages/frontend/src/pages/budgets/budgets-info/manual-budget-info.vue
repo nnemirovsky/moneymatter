@@ -9,6 +9,7 @@ import ActionButton from '@/components/lib/ui/action-button/action-button.vue';
 import Button from '@/components/lib/ui/button/Button.vue';
 import PillTabs from '@/components/lib/ui/pill-tabs/pill-tabs.vue';
 import { useNotificationCenter } from '@/components/notification-center';
+import { useFormatCurrency } from '@/composable/formatters';
 import { useBudgetAccess } from '@/composable/use-budget-access';
 import { captureException } from '@/lib/sentry';
 import BudgetSharingPanel from '@/pages/budgets/components/budget-sharing-panel.vue';
@@ -42,6 +43,7 @@ const router = useRouter();
 const queryClient = useQueryClient();
 const { addSuccessNotification, addErrorNotification } = useNotificationCenter();
 const { t } = useI18n();
+const { baseCurrencyDecimals } = useFormatCurrency();
 const budgetData = ref();
 const currentBudgetId = ref<string>(route.params.id as string);
 const isEditDialogOpen = ref(false);
@@ -215,6 +217,7 @@ watchEffect(() => {
                 :label="$t('budgets.settings.limitLabel')"
                 :placeholder="$t('budgets.settings.limitPlaceholder')"
                 type="number"
+                :decimals="baseCurrencyDecimals"
                 class="w-full"
                 :disabled="isBudgetDataUpdating"
               />
