@@ -1,20 +1,23 @@
 import { Transaction, QueryInterface } from 'sequelize';
 
 import {
-  MONEY_COLUMNS,
-  MONEY_COLUMN_PRECISION,
-  MONEY_COLUMN_SCALE,
-  MONEY_JSON_FIELDS,
+  MONEY_COLUMNS_20261016,
+  MONEY_COLUMN_PRECISION_20261016,
+  MONEY_COLUMN_SCALE_20261016,
+  MONEY_JSON_FIELDS_20261016,
   MoneyJsonFieldSpec,
-} from '../common/lib/money-columns';
+} from './utils/money-columns-20261016';
 import { createRealTransactionsViewSql, dropRealTransactionsViewSql } from './utils/real-transactions-view';
 
 /**
  * Moves every transactional money amount from integer cents (BIGINT) to DECIMAL(36,18), and
  * rewrites the cents held inside JSON fields as decimals. `up` divides by 100, which is lossless.
  *
- * The column and JSON lists come from `common/lib/money-columns.ts`, which the backup v1
- * converter also reads.
+ * The column and JSON lists are the frozen snapshot in `utils/money-columns-20261016.ts`, the
+ * columns that held cents when this migration was written. The live list in
+ * `common/lib/money-columns.ts` (backup, restore and the v1 converter read it) grows with the
+ * schema and must not be imported here, or a column added later would fail this migration on a
+ * fresh database.
  *
  * `real_transactions` selects from "Transactions", and Postgres refuses to change the type of a
  * column a view depends on, so the view is dropped first and recreated afterwards.
@@ -24,11 +27,11 @@ import { createRealTransactionsViewSql, dropRealTransactionsViewSql } from './ut
  * (e.g. on "BudgetLineGoals"."amount") rejects, so `down` fails until such rows are removed.
  */
 
-const DECIMAL_TYPE = `NUMERIC(${MONEY_COLUMN_PRECISION},${MONEY_COLUMN_SCALE})`;
+const DECIMAL_TYPE = `NUMERIC(${MONEY_COLUMN_PRECISION_20261016},${MONEY_COLUMN_SCALE_20261016})`;
 
 const columnsByTable = (): Map<string, string[]> => {
   const byTable = new Map<string, string[]>();
-  for (const { table, column } of MONEY_COLUMNS) {
+  for (const { table, column } of MONEY_COLUMNS_20261016) {
     byTable.set(table, [...(byTable.get(table) ?? []), column]);
   }
   return byTable;
@@ -121,7 +124,7 @@ const runMigration = async ({
     for (const sql of alterColumnTypesSql({ direction })) {
       await run(sql);
     }
-    for (const field of MONEY_JSON_FIELDS) {
+    for (const field of MONEY_JSON_FIELDS_20261016) {
       await run(rewriteJsonFieldSql({ field, direction }));
     }
     await run(createRealTransactionsViewSql);
