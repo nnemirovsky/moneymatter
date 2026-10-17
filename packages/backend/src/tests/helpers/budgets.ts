@@ -1,9 +1,9 @@
 import { BUDGET_TYPES, BudgetModel, type BudgetSpendingStatsResponse } from '@bt/shared/types';
 import addTransactionsToBudget from '@controllers/budgets/add-transaction-to-budget';
 import removeTransactionsFromBudget from '@controllers/budgets/remove-transaction-from-budget';
+import { serializeBudgetStats } from '@root/serializers';
 import * as getBudgetService from '@root/services/budget.service';
 import * as createBudgetService from '@root/services/budgets/create-budget';
-import type { getBudgetStats } from '@root/services/budgets/stats';
 import { Response } from 'express';
 
 import { makeRequest } from './common';
@@ -177,7 +177,7 @@ export async function archiveCustomBudget<R extends boolean | undefined = undefi
 }
 
 export async function getStats<R extends boolean | undefined = undefined>({ id, raw }: { id: string; raw?: R }) {
-  return makeRequest<Awaited<ReturnType<typeof getBudgetStats>> | null, R>({
+  return makeRequest<ReturnType<typeof serializeBudgetStats> | null, R>({
     method: 'get',
     url: `/budgets/${id}/stats`,
     raw,
