@@ -1,4 +1,4 @@
-import { Money, centsToApiDecimalOrNull } from '@common/types/money';
+import { Money, moneyToApiDecimalOrNull } from '@common/types/money';
 import { logger } from '@js/utils';
 import BudgetCategories from '@models/budget-categories.model';
 import BudgetTransactions from '@models/budget-transactions.model';
@@ -93,7 +93,7 @@ export async function transformBudgets({ userId }: { userId: number }): Promise<
       status: budget.status,
       periodStart: budget.startDate ? toDateOnly({ value: budget.startDate }) : '',
       periodEnd: budget.endDate ? toDateOnly({ value: budget.endDate }) : '',
-      limitAmount: centsToApiDecimalOrNull(budget.limitAmount),
+      limitAmount: moneyToApiDecimalOrNull(budget.limitAmount),
       currency: baseCurrencyCode,
       categories: (categoriesByBudgetId.get(budget.id) ?? []).toSorted(),
       spentAmount: spentAmount.toNumber(),
