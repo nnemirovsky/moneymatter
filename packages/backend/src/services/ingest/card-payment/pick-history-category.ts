@@ -10,7 +10,8 @@ export const HISTORY_CATEGORY_MONTHS = 12;
 /**
  * The category the owner most often gave the payee's past payments, or `null` when there is none.
  *
- * Counts only real, non-transfer rows from the last 12 months before `asOf`, and not the
+ * Counts only real, non-transfer rows dated since 12 months before `asOf`, with no upper bound
+ * (a payment retried weeks after it was made also sees what the user logged since), and not the
  * user's default category: that one is what an uncategorized row carries, so it says nothing
  * about the payee. Split parents are left out as well, their category is derived from their
  * splits. The most frequent category wins and a tie goes to the one used last.

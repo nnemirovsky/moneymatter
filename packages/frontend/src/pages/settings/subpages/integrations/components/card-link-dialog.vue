@@ -129,8 +129,7 @@ const handleSubmit = async () => {
     if (!mapping) {
       emit('saved', await create({ cardLabel, accountId: account.id }));
     } else {
-      // Only what changed: the server refuses an empty patch, and an unchanged name would trip its
-      // duplicate-name check.
+      // Only what changed: the server refuses an empty patch.
       const changes = {
         ...(cardLabel !== mapping.cardLabel && { cardLabel }),
         ...(account.id !== mapping.accountId && { accountId: account.id }),
