@@ -170,7 +170,7 @@ When this plan is done, the server has about 250 tools (about 260 with Apple Pay
 ## Solution Overview
 
 - **Tool shape.** Each tool is one file in `tools/`, following the skill's template, with three changes after Task 3:
-  - write tools call `requireScope` (with `allowReadOnly` on the `READ_ONLY_ROUTES` tools), then `await assertBaseCurrencyUnlocked({ userId })`, then (when gated) `await requireFeatureAccess({ userId, feature })`, then (when their route is rate-limited) `await enforceUserRateLimit(…)`, before `trackMcpToolUsed`;
+  - write tools call `requireScope` (with `allowReadOnly` on the `READ_ONLY_ROUTES` tools), then `await assertBaseCurrencyUnlocked({ userId })`, then (when gated) `requireFeatureAccess({ extra, feature })`, then (when their route is rate-limited) `await enforceUserRateLimit(…)`, before `trackMcpToolUsed`;
   - errors are thrown as `Error`s with the same i18n message the REST route returns;
   - output goes through the route's serializer, and lists through an MCP slim helper in `serializers.ts` when the REST payload carries UI-only fields.
 - **Consolidation.** Routes that differ only by an id or a filter share one tool:
@@ -191,6 +191,7 @@ When this plan is done, the server has about 250 tools (about 260 with Apple Pay
 - **Names:**
   - read tools start with `get_`, `list_`, `search_` or `preview_`, and nothing else does;
   - `delete_*` tools require `finance:delete`;
+  - a tool whose delete path is optional (`ignore_payee_name` with `force`) is the one exception: `finance:write` normally, plus `finance:delete` on the delete path, listed in `CONDITIONAL_DELETE_TOOLS` instead of `DESTRUCTIVE_TOOLS`;
   - other tools that permanently remove data (`bulk_delete_*`, `revoke_ingest_token`, `dismiss_card_payment_request` if it deletes) also require `finance:delete` and are added to `DESTRUCTIVE_TOOLS`. A soft delete that a restore tool undoes is a `finance:write` tool: `remove_duplicate_transactions` and `merge_duplicate_transactions` (merged rows get `deletedAt` and `mergedIntoId`, and `restore_removed_transactions` clears both).
 - **Refined inputs:** the SDK's `inputSchema` is a plain shape of Zod fields, so a rule that spans fields (an either-or, a mutually exclusive pair, a `superRefine`) cannot sit in it. The tool exposes the shared schema's `.shape` as `inputSchema` and runs the full shared schema or validator (`schema.parse(args)`, or an `assert…Args` helper like `assertOriginalCurrencyArgs`) in its handler, so REST and MCP enforce one rule set. The unit test asserts the tool rejects, not the shape.
 - **Shared logic:** controller logic a tool needs (validation, orchestration) moves into a service or shared schema that the controller and the tool both call. The tool never re-implements it.
@@ -217,12 +218,12 @@ When this plan is done, the server has about 250 tools (about 260 with Apple Pay
 - `assertBaseCurrencyUnlocked({ userId })`:
   - `isBaseCurrencyChangeLocked`; throws `t({ key: 'currencies.baseCurrencyChangeInProgress' })`;
   - fails closed with `t({ key: 'common.serviceTemporarilyUnavailable' })` when Redis throws, as the middleware does.
-- `requireFeatureAccess({ userId, feature })`: `getEntitlementsByUserId`; throws the same message as `requireFeature`'s 402 when the feature is missing.
+- `requireFeatureAccess({ extra, feature })`: reads `extra.authInfo.extra.features`, the way `requireScope` reads `readOnly`, and throws the same message as `requireFeature`'s 402 when the feature is missing. It makes no entitlement call of its own: `verifyAccessToken` in `services/mcp/auth.ts` already calls `getEntitlementsByUserId` on every MCP request and keeps only `readOnly`, so Task 3 keeps `features` (`Entitlements.features`, active feature trials already merged in) beside it in `McpAuthInfo.extra`. A missing `features` array counts as no features, so a gate never passes on an auth payload that failed to carry it.
 - `requireScope({ extra, scope, allowReadOnly = false })`: with `allowReadOnly: true` it skips the read-only rejection and the demo rejection, and still checks the scope. Only the tools on `READ_ONLY_ROUTES` routes pass it.
 - `enforceUserRateLimit({ userId, limit })`: calls `RateLimitService.checkRateLimit` with `limit.key({ userId })`, `limit.windowSeconds` and `limit.maxAttempts`; throws `t({ key: 'middleware.tooManyRequests' })` when refused, and lets the call through when Redis is down, as the REST middleware does for these routes. The budgets are shared constants (`RATE_SOURCE_SAVE_LIMIT`, `RATE_SOURCE_TEST_LIMIT`, in `services/common/user-rate-limits.ts`) that `middlewares/rate-limit.ts` also reads, so the two paths cannot drift and share one counter per user.
 - `packages/backend/src/tests/helpers/mcp-tools.ts` (the project's helper directory; a new unit-only module, because the existing `tests/helpers/mcp.ts` imports `@root/app`, supertest and the auth pool, which a unit test must not load):
   - `captureTools({ register })` returns `[{ name, config, handler }]`;
-  - `makeExtra({ userId, scopes, readOnly = false, role })` builds the `extra` that `getUserId` and `requireScope` read.
+  - `makeExtra({ userId, scopes, readOnly = false, role, features = [] })` builds the `extra` that `getUserId`, `requireScope` and `requireFeatureAccess` read, so a gated-tool test passes `features` and mocks no entitlement service.
   - Unit tests import it as `@tests/helpers/mcp-tools`.
 
 ### Route audit
@@ -710,10 +711,11 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 **Files:**
 
 - Create: `packages/backend/src/tests/helpers/mcp-tools.ts`, `packages/backend/src/services/common/user-rate-limits.ts`, `packages/backend/src/services/mcp/server-registration-drift.unit.ts`, `packages/backend/src/services/mcp/tools/write-guards.unit.ts`
-- Modify: `tools/helpers.ts`, `tools/helpers.unit.ts`, `tool-scopes-drift.unit.ts`, `middlewares/rate-limit.ts` (reads the shared limits), every existing write tool in `tools/`, `tools/preview-transaction-automation.ts`, `tools/set-currency-rate-source.ts`, `tools/test-currency-rate-source.ts`, `.claude/skills/add-mcp-tool/SKILL.md`
+- Modify: `tools/custom-currency-tools.unit.ts`, `tools/rate-source-tools.unit.ts`, `tools/transaction-amount-inputs.unit.ts`, `tools/helpers.ts`, `tools/helpers.unit.ts`, `services/mcp/auth.ts`, `tool-scopes-drift.unit.ts`, `middlewares/rate-limit.ts` (reads the shared limits), every existing write tool in `tools/`, `tools/preview-transaction-automation.ts`, `tools/set-currency-rate-source.ts`, `tools/test-currency-rate-source.ts`, `.claude/skills/add-mcp-tool/SKILL.md`
 
 - [ ] `git merge dev`. It brings Groups B and C and dev's decimals changes to five stats tools. Resolve per "Merge conflicts" if needed, then run the drift suites.
-- [ ] `assertBaseCurrencyUnlocked` and `requireFeatureAccess` in `tools/helpers.ts` (Technical Details, "Helpers added in Task 3"). Unit cases in `helpers.unit.ts` cover: lock set → throws; Redis error → throws the unavailable message; unlocked → passes; feature missing → throws; feature present → passes.
+- [ ] `assertBaseCurrencyUnlocked` and `requireFeatureAccess` in `tools/helpers.ts` (Technical Details, "Helpers added in Task 3"). Unit cases in `helpers.unit.ts` cover: lock set → throws; Redis error → throws the unavailable message; unlocked → passes; feature missing → throws; feature present → passes; `features` absent from the auth payload → throws.
+- [ ] `services/mcp/auth.ts`: add `features: Feature[]` to `McpAuthInfo.extra` and fill it from the `getEntitlementsByUserId` result that already supplies `readOnly` (no second call). Extend the existing auth unit or e2e coverage (`mcp-scope-gate`/`connected-apps` suites build `authInfo`) if it asserts the `extra` shape. `feat/apple-pay-ingest` also edits this file (the `hashToken` move), so Task 26's merge keeps both changes.
 - [ ] `requireScope` gets `allowReadOnly` (default false). Unit cases in `helpers.unit.ts`:
   - default: read-only user throws, demo user throws (unchanged);
   - `allowReadOnly: true`: a read-only user passes, a demo user passes, a missing scope still throws.
@@ -725,6 +727,7 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
   - unit cases: the limiter refusing throws the `middleware.tooManyRequests` message and the service mock is not called; allowed → passes; Redis down → passes; both tools use their own limit; the middleware and the tools read the same constants.
   - audit: no other route that gets a tool carries a limiter (`attachmentUploadRateLimit` guards the byte upload, not `create_attachment_upload_url`). Re-check with `grep -n RateLimit routes/*.ts` and record any new find here.
 - [ ] `tests/helpers/mcp-tools.ts` with `captureTools` and `makeExtra`. Import it in unit tests as `@tests/helpers/mcp-tools`.
+- [ ] migrate the hand-rolled fake servers onto it, so no copy survives: after `git merge dev`, switch `tools/custom-currency-tools.unit.ts` (Task 1), `tools/rate-source-tools.unit.ts` (Task 2) and `tools/transaction-amount-inputs.unit.ts` (its `inputSchemaOf`) to `captureTools` and `makeExtra`. Their assertions stay as they are; run the unit gate to confirm.
 - [ ] call `await assertBaseCurrencyUnlocked({ userId })` right after `requireScope` in every existing write tool whose REST counterpart carries `checkBaseCurrencyLock`.
   - Check each route in `routes/*.ts`. A tool whose route has no lock (for example `test_currency_rate_source`, `detect_subscription_candidates`, a GET in REST, and `create_attachment_upload_url` if its upload route has none) goes into `LOCK_EXEMPT_TOOLS`, with a comment naming the route.
 - [ ] the lock-carrying reads: the lock follows the REST route, so call `assertBaseCurrencyUnlocked` in the existing `preview_transaction_automation` (`POST /automations/preview`) and list it in `LOCK_GUARDED_READ_TOOLS` with the route in a comment. Task 8 adds `list_transfer_suggestions` (`POST /transactions/transfer-recommendations/bulk-scan`) to the same list. Re-check `routes/*.ts` for any other `checkBaseCurrencyLock` on a route that a read-named tool wraps, and add it.
@@ -739,7 +742,7 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 - [ ] update `.claude/skills/add-mcp-tool/SKILL.md`:
   - the template with `requireScope`, `assertBaseCurrencyUnlocked`, `requireFeatureAccess` and `enforceUserRateLimit`;
   - the naming and scope rules (Technical Details, "Tool conventions"), including `allowReadOnly` for `READ_ONLY_ROUTES` tools;
-  - `DESTRUCTIVE_TOOLS`, `LOCK_EXEMPT_TOOLS`, `LOCK_GUARDED_READ_TOOLS` and `READ_ONLY_ROUTE_TOOLS`;
+  - `DESTRUCTIVE_TOOLS`, `CONDITIONAL_DELETE_TOOLS`, `LOCK_EXEMPT_TOOLS`, `LOCK_GUARDED_READ_TOOLS` and `READ_ONLY_ROUTE_TOOLS`;
   - "mirror the REST route: same service, validation, lock, feature gate, rate limit and read-only handling; move controller-only logic into a service or shared schema instead of copying it";
   - refined inputs: expose the shared schema's `.shape` and enforce refinements in the handler (Technical Details, "Refined inputs");
   - the unit test pattern with `captureTools` from `@tests/helpers/mcp-tools`;
@@ -982,19 +985,19 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 **Files:**
 
 - Create: `tools/{set-payees-categorization-mode,bulk-delete-payees,get-ignored-payee-names,ignore-payee-name,unignore-payee-name,apply-payee-tags-to-transactions,create-payee-alias,delete-payee-alias}.ts`, `tools/payee-tools.unit.ts`
-- Modify: `tools/update-payee.ts`, the four metafiles, `tool-scopes-drift.unit.ts` (`DESTRUCTIVE_TOOLS` gets `bulk_delete_payees`)
+- Modify: `tools/update-payee.ts`, the four metafiles, `tool-scopes-drift.unit.ts` (`DESTRUCTIVE_TOOLS` gets `bulk_delete_payees`; new `CONDITIONAL_DELETE_TOOLS` gets `ignore_payee_name`)
 
 - [ ] read first: `controllers/payees/*`, `services/payees/*`
 - [ ] `update_payee`: add the `PATCH /payees/:id` fields it lacks (`categorizationMode`, `defaultTagIds`, `defaultLocation`, logo fields), with the REST schema.
 - [ ] `set_payees_categorization_mode` (`finance:write`): `mode` (`CATEGORIZATION_MODE`) → `bulkUpdateCategorizationMode`. The description says it applies to every payee.
 - [ ] `bulk_delete_payees` (`finance:delete`): `ids` (1–2000), `ignoreFuture?` → `bulkDeletePayees`.
 - [ ] `get_ignored_payee_names` (read): `listPayeeIgnoredNames`.
-- [ ] `ignore_payee_name` (`finance:write`): `rawName`, `force?` → `addPayeeIgnoredName`. With `force`, which deletes the matching payee, the tool also requires `finance:delete`. Without `force` the 409 message passes through.
+- [ ] `ignore_payee_name` (`finance:write`, plus `finance:delete` when `force` is set): `rawName`, `force?` → `addPayeeIgnoredName`. With `force` the service deletes the matching payee for good, so the handler calls `requireScope({ extra, scope: 'finance:delete' })` before the service. Without `force` only `finance:write` applies and the 409 message passes through. This is the one deliberate conditional-scope tool: it cannot sit in `DESTRUCTIVE_TOOLS`, because that rule demands `finance:delete` on every call and the drift check refuses a source with `scope: 'finance:write'`. It goes in a hand-kept `CONDITIONAL_DELETE_TOOLS` list in `tool-scopes-drift.unit.ts` instead, and that case asserts its source holds both scope checks; the unit test below proves the `force` path.
 - [ ] `unignore_payee_name` (`finance:write`): `ignoredNameId` → `removePayeeIgnoredName`.
 - [ ] `apply_payee_tags_to_transactions` (`finance:write`): `payeeId` → `applyPayeeTagsToExisting`.
 - [ ] `create_payee_alias` (`finance:write`): `payeeId`, `rawName`.
 - [ ] `delete_payee_alias` (`finance:delete`): `payeeId`, `aliasId`.
-- [ ] unit test `payee-tools.unit.ts`: the `force` scope rule, the new `update_payee` fields, args.
+- [ ] unit test `payee-tools.unit.ts`: the `force` scope rule (write-only token: `force: false` passes, `force: true` throws and the service mock is not called), the new `update_payee` fields, args.
 - [ ] metafiles under `// Payees`. Add the missing rows for the six existing payee tools to SKILL.md while there.
 - [ ] gate:
   - unit: `services/mcp/`;
@@ -1461,6 +1464,11 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
   - Use a one-off script under the scratchpad, not committed: `captureTools` over every register function, `z.toJSONSchema(z.object(shape))` per tool, plus name and description.
   - Record the tool count, total bytes, and the five largest tools.
   - Write the figures under this task as a short note (the Overview's lazy-loading assumption for ~250 tools rests on them).
+  - **Threshold:** the full `tools/list` JSON must stay at or under 300,000 bytes (about 75k tokens). That is the budget for a client that loads every tool up front; a lazy client such as Claude Code only pays for names.
+  - **If it is over, this task stays open and the fix lands on `feat/mcp-coverage` before the final merge to `dev` (and any deploy)**, in this order, stopping at the first step that gets under the threshold:
+    1. cut the descriptions and `.describe()` texts of the five largest tools and any field description that repeats the tool description;
+    2. add the smallest toolset switch the installed SDK supports: `createMcpServer({ toolset })`, called at session start in `routes/mcp.route.ts` (the server is built per session, with `mcpAuthInfo` in hand). With `?tools=core` on `/mcp` it calls `RegisteredTool.disable()` on every tool outside a hand-kept `CORE_TOOLS` list; `McpServer` (SDK 1.31, `^1.29` in `package.json`) omits disabled tools from `tools/list` and answers a call to one with "Tool … disabled". The default stays the full set, so existing connections do not change. Add a unit case for the switch and a server-card note.
+  - Record which step was needed, or that none was.
 - [ ] unit: `npm run test:unit -- --testPathPattern='services/mcp/'`.
 - [ ] e2e: one batched run of every gate pattern of Tasks 1–25 (and 26–27 if landed) as a single `--testPathPattern` alternation under `lockf -t 7200 /tmp/mm-e2e.lock`. This is not the full suite.
 - [ ] backend typecheck, lint, oxfmt.
@@ -1506,8 +1514,8 @@ _Items requiring manual work or external systems; no checkboxes._
 **Tool count decision:**
 
 - About 250 tools rely on clients loading tools lazily (Claude Code does, through tool search). A client that loads every tool up front may truncate the list or spend much of its context on it. Task 28 records the measured `tools/list` size.
-- If it is too large for the clients the owner uses, choose a follow-up:
-  - scope-based or opt-in toolsets (for example a `?tools=core|full` query on `/mcp`);
+- Task 28 enforces a 300,000-byte budget before the final merge to `dev`, with description trimming and a `?tools=core` switch (via `RegisteredTool.disable()`) as its mitigations. If the owner's clients still struggle after that, choose a follow-up:
+  - scope-based toolsets (disable the write and delete tools for a read-only grant);
   - folding the rarest tools into fewer consolidated tools.
 
 **Upstream:**
