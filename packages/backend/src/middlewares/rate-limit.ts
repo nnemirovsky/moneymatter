@@ -333,3 +333,30 @@ export const logoSearchRateLimit = createRateLimit({
     return `logo-search:user:${user.id}`;
   },
 });
+
+/**
+ * Rate-source preview limit (per user, 20 previews per minute). Each call makes the server fetch
+ * a URL the user typed, so it stays low enough that the endpoint cannot be used to hammer a host.
+ */
+export const rateSourceTestRateLimit = createRateLimit({
+  windowSeconds: 60,
+  maxAttempts: 20,
+  keyGenerator: (req: Request) => {
+    const user = req.user as Users;
+    return `rate-source-test:user:${user.id}`;
+  },
+});
+
+/**
+ * Rate-source save limit (per user, 20 saves per minute, the preview's budget). A save that changes
+ * the source fetches from CoinGecko (one shared key for the instance) or from the user's URL, and
+ * values every saved row of the currency again, so it cannot be repeated without bound.
+ */
+export const rateSourceSaveRateLimit = createRateLimit({
+  windowSeconds: 60,
+  maxAttempts: 20,
+  keyGenerator: (req: Request) => {
+    const user = req.user as Users;
+    return `rate-source-save:user:${user.id}`;
+  },
+});

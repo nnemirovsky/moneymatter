@@ -1,7 +1,11 @@
 import type {
   BaseCurrencyChangeStatus,
+  CoingeckoCoinSearchResult,
   CreateCustomCurrencyBody,
+  CurrencyRateSourceResponse,
   CustomCurrencyModel,
+  TestCurrencyRateSourceResponse,
+  UpdateCurrencyRateSourceBody,
   UpdateCustomCurrencyBody,
 } from '@bt/shared/types';
 import { CURRENCY_CODE_COLUMNS } from '@common/lib/currency-code-columns';
@@ -336,6 +340,56 @@ export function deleteCustomCurrency<R extends boolean | undefined = undefined>(
   return makeRequest<void, R>({
     method: 'delete',
     url: `/user/currencies/custom/${code}`,
+    raw,
+  });
+}
+
+export function setCurrencyRateSource<R extends boolean | undefined = undefined>({
+  code,
+  payload,
+  raw,
+}: {
+  code: string;
+  /** Typed loosely so a test can send a body the API must reject. */
+  payload: UpdateCurrencyRateSourceBody | Record<string, unknown>;
+  raw?: R;
+}) {
+  return makeRequest<CurrencyRateSourceResponse, R>({
+    method: 'put',
+    url: `/user/currencies/${code}/rate-source`,
+    payload,
+    raw,
+  });
+}
+
+export function testCurrencyRateSource<R extends boolean | undefined = undefined>({
+  code,
+  payload,
+  raw,
+}: {
+  code: string;
+  /** Typed loosely so a test can send a body the API must reject. */
+  payload: Record<string, unknown>;
+  raw?: R;
+}) {
+  return makeRequest<TestCurrencyRateSourceResponse, R>({
+    method: 'post',
+    url: `/user/currencies/${code}/rate-source/test`,
+    payload,
+    raw,
+  });
+}
+
+export function searchCoingeckoCoins<R extends boolean | undefined = undefined>({
+  query,
+  raw,
+}: {
+  query: string;
+  raw?: R;
+}) {
+  return makeRequest<CoingeckoCoinSearchResult[], R>({
+    method: 'get',
+    url: `/user/currencies/coingecko/search?query=${encodeURIComponent(query)}`,
     raw,
   });
 }

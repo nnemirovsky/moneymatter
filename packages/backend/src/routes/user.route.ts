@@ -17,6 +17,11 @@ import {
   updateCustomCurrency,
 } from '@controllers/currencies/custom-currencies';
 import editCurrencyExchangeRate from '@controllers/currencies/edit-currency-exchange-rate';
+import {
+  findCoingeckoCoins,
+  testCurrencyRateSource,
+  updateCurrencyRateSource,
+} from '@controllers/currencies/rate-source';
 import { exportDataController } from '@controllers/data-export/export-data.controller';
 import { getConnectedAppsController, revokeConnectedAppController } from '@controllers/mcp/connected-apps.controller';
 import {
@@ -74,6 +79,8 @@ import {
   backupRateLimit,
   backupRestoreRateLimit,
   dataExportRateLimit,
+  rateSourceSaveRateLimit,
+  rateSourceTestRateLimit,
 } from '@middlewares/rate-limit';
 import { selfHostOnly } from '@middlewares/self-host-only';
 import { Router } from 'express';
@@ -109,10 +116,17 @@ router.post('/currencies', checkBaseCurrencyLock, addUserCurrencies);
 // Custom currencies change which decimals amounts round to, so they sit behind the same
 // base-currency guard as every other write that feeds amounts.
 router.get('/currencies/custom', listCustomCurrencies);
+// Coin lookup for the CoinGecko rate-source editor; read-only, so it is not behind the guard.
+router.get('/currencies/coingecko/search', findCoingeckoCoins);
 router.post('/currencies/custom', checkBaseCurrencyLock, createCustomCurrency);
 router.put('/currencies/custom/:code', checkBaseCurrencyLock, updateCustomCurrency);
 router.delete('/currencies/custom/:code', checkBaseCurrencyLock, deleteCustomCurrency);
 router.post('/currencies/base', checkBaseCurrencyLock, setBaseUserCurrency);
+// The source decides which rate prices a currency's amounts, so it sits behind the same guard. A save
+// fetches rates and values saved rows again, so it is limited like the preview.
+router.put('/currencies/:code/rate-source', checkBaseCurrencyLock, rateSourceSaveRateLimit, updateCurrencyRateSource);
+// A preview saves nothing, so it is not behind the base-currency guard.
+router.post('/currencies/:code/rate-source/test', rateSourceTestRateLimit, testCurrencyRateSource);
 // The enqueue route owns its own dedupe: its NX lock acquisition returns the proper 423,
 // so guarding it here would reject the request that is supposed to start the change.
 router.post('/currencies/change-base', changeBaseCurrency);

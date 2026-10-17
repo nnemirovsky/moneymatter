@@ -77,6 +77,116 @@ export interface UpdateCustomCurrencyBody {
   symbol?: string | null;
 }
 
+/**
+ * Where a currency's rates come from for one user. `provider` is the market feed of ISO currencies.
+ * A custom currency has no market feed and takes `manual`, `peg`, `coingecko` or `http`.
+ */
+export const CURRENCY_RATE_SOURCES = ['provider', 'manual', 'peg', 'coingecko', 'http'] as const;
+export type CurrencyRateSource = (typeof CURRENCY_RATE_SOURCES)[number];
+
+/** Rate sources an ISO currency can take; the others price custom currencies only. */
+export const ISO_CURRENCY_RATE_SOURCES = ['provider', 'manual'] as const satisfies readonly CurrencyRateSource[];
+
+/** Quote currency of the synced sources when the config names none. */
+export const DEFAULT_RATE_SOURCE_QUOTE_CURRENCY = 'USD';
+
+/** The rate is `factor` times the rate of `pegCurrency`. */
+export interface PegRateSourceConfig {
+  pegCurrency: string;
+  factor: number;
+}
+
+/** Daily prices of one CoinGecko coin, stored in `quoteCurrency`. */
+export interface CoingeckoRateSourceConfig {
+  coinId: string;
+  quoteCurrency: string;
+}
+
+/** One coin of `GET /user/currencies/coingecko/search`, the id a CoinGecko rate source is configured with. */
+export interface CoingeckoCoinSearchResult {
+  coinId: string;
+  symbol: string;
+  name: string;
+  logoUrl: string | null;
+  marketCapRank: number | null;
+}
+
+/** An HTTP source sends at most this many request headers. */
+export const HTTP_RATE_SOURCE_MAX_HEADERS = 10;
+
+/** The placeholders an HTTP source URL template may hold, written `{date}`, `{code}` and `{quote}`. */
+export const HTTP_URL_TEMPLATE_PLACEHOLDER_NAMES = ['date', 'code', 'quote'] as const;
+export type HttpUrlTemplatePlaceholderName = (typeof HTTP_URL_TEMPLATE_PLACEHOLDER_NAMES)[number];
+
+/**
+ * A JSON endpoint called once per day. `urlTemplate` may hold `{date}`, `{code}` and `{quote}`;
+ * `jsonPath` points at the price in the response, and the rate is stored in `quoteCurrency`.
+ * The request headers are secrets (usually an API key): they are stored encrypted and never
+ * returned, only their names are.
+ */
+export interface HttpRateSourceConfig {
+  urlTemplate: string;
+  jsonPath: string;
+  quoteCurrency: string;
+  /** Names of the request headers the source sends; their values are never returned. */
+  headerNames: string[];
+}
+
+/**
+ * Settings of an `http` source as the editor sends them. `headers` is optional: omitted keeps the
+ * headers already saved on an `http` source, `{}` removes them, an object replaces them.
+ */
+export interface HttpRateSourceInput {
+  urlTemplate: string;
+  jsonPath: string;
+  quoteCurrency?: string;
+  headers?: Record<string, string>;
+}
+
+/** Body of `POST /user/currencies/:code/rate-source/test`. `date` is the UTC day to ask for, today by default. */
+export interface TestCurrencyRateSourceBody {
+  rateSource: 'http';
+  config: HttpRateSourceInput;
+  date?: string;
+}
+
+/** Why a rate-source preview did not produce a rate. */
+export const RATE_SOURCE_TEST_FAILURES = [
+  'blocked',
+  'https_required',
+  'timeout',
+  'network',
+  'http_status',
+  'too_large',
+  'not_json',
+  'path_not_found',
+  'not_a_number',
+  'headers_unreadable',
+] as const;
+export type RateSourceTestFailure = (typeof RATE_SOURCE_TEST_FAILURES)[number];
+
+/** Response of `POST /user/currencies/:code/rate-source/test`; nothing is saved either way. */
+export type TestCurrencyRateSourceResponse =
+  | { ok: true; date: string; rate: number; quoteCurrency: string }
+  | { ok: false; reason: RateSourceTestFailure; message: string };
+
+/** Body of `PUT /user/currencies/:code/rate-source`. */
+export type UpdateCurrencyRateSourceBody =
+  | { rateSource: 'provider' | 'manual' }
+  | { rateSource: 'peg'; config: PegRateSourceConfig }
+  | { rateSource: 'coingecko'; config: Omit<CoingeckoRateSourceConfig, 'quoteCurrency'> & { quoteCurrency?: string } }
+  | { rateSource: 'http'; config: HttpRateSourceInput };
+
+/** A currency's saved rate source; the config is `null` for `provider` and `manual`. */
+export type CurrencyRateSourceSetting =
+  | { rateSource: 'provider' | 'manual'; rateSourceConfig: null }
+  | { rateSource: 'peg'; rateSourceConfig: PegRateSourceConfig }
+  | { rateSource: 'coingecko'; rateSourceConfig: CoingeckoRateSourceConfig }
+  | { rateSource: 'http'; rateSourceConfig: HttpRateSourceConfig };
+
+/** Response of `PUT /user/currencies/:code/rate-source`. */
+export type CurrencyRateSourceResponse = CurrencyRateSourceSetting & { currencyCode: string };
+
 export interface UserCurrencyModel {
   id: RecordId;
   userId: number;
@@ -90,6 +200,10 @@ export interface UserCurrencyModel {
   symbolOverride: string | null;
   /** Decimals the user's amounts keep in this currency (0 to 18); `null` keeps `currency.digits`. */
   decimalsOverride: number | null;
+  /** Where the currency's rates come from; `provider` until the user picks another source. */
+  rateSource: CurrencyRateSource;
+  /** Settings of the source; `null` for `provider` and `manual`. */
+  rateSourceConfig: PegRateSourceConfig | CoingeckoRateSourceConfig | HttpRateSourceConfig | null;
   currency?: CurrencyModel;
   user?: UserModel;
 }
@@ -100,9 +214,16 @@ export interface ExchangeRatesModel {
   rate: number;
 }
 
+/** Where a stored user rate came from. */
+export const USER_EXCHANGE_RATE_SOURCES = ['manual', 'coingecko', 'http'] as const;
+export type UserExchangeRateSource = (typeof USER_EXCHANGE_RATE_SOURCES)[number];
+
 export interface UserExchangeRatesModel extends ExchangeRatesModel {
   userId: number;
   custom?: boolean;
+  /** Calendar day (YYYY-MM-DD) the rate starts to apply. Only rates of custom currencies are read by day. */
+  effectiveDate: string;
+  source: UserExchangeRateSource;
 }
 
 /**

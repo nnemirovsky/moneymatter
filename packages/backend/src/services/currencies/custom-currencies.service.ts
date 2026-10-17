@@ -133,6 +133,7 @@ export const createCustomCurrency = withTransaction(
       // A custom currency has no market rate; the user's own rate applies.
       liveRateUpdate: false,
       isDefaultCurrency: false,
+      rateSource: 'manual',
       nameOverride: name,
       symbolOverride: symbol ?? null,
       decimalsOverride: decimals,
