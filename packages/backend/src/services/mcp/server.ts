@@ -15,6 +15,7 @@ import { registerBulkUpdateTransactions } from './tools/bulk-update-transactions
 import { registerCreateAttachmentUploadUrl } from './tools/create-attachment-upload-url';
 import { registerCreateBudget } from './tools/create-budget';
 import { registerCreateCategory } from './tools/create-category';
+import { registerCreateCustomCurrency } from './tools/create-custom-currency';
 import { registerCreateInvestmentTransaction } from './tools/create-investment-transaction';
 import { registerCreatePayee } from './tools/create-payee';
 import { registerCreatePortfolio } from './tools/create-portfolio';
@@ -26,6 +27,8 @@ import { registerCreateTransactionAutomation } from './tools/create-transaction-
 import { registerCreateTransactionGroup } from './tools/create-transaction-group';
 import { registerDeleteBudget } from './tools/delete-budget';
 import { registerDeleteCategory } from './tools/delete-category';
+import { registerDeleteCustomCurrency } from './tools/delete-custom-currency';
+import { registerDeleteExchangeRates } from './tools/delete-exchange-rates';
 import { registerDeleteInvestmentTransaction } from './tools/delete-investment-transaction';
 import { registerDeletePayee } from './tools/delete-payee';
 import { registerDeletePortfolio } from './tools/delete-portfolio';
@@ -43,6 +46,7 @@ import { registerGetBudgetSpendingStats } from './tools/get-budget-spending-stat
 import { registerGetBudgets } from './tools/get-budgets';
 import { registerGetCashFlow } from './tools/get-cash-flow';
 import { registerGetCategories } from './tools/get-categories';
+import { registerGetCurrencyRateHistory } from './tools/get-currency-rate-history';
 import { registerGetExpensesForPeriod } from './tools/get-expenses-for-period';
 import { registerGetInvestmentTransactions } from './tools/get-investment-transactions';
 import { registerGetPayee } from './tools/get-payee';
@@ -64,6 +68,7 @@ import { registerLinkRefund } from './tools/link-refund';
 import { registerLinkTransactionToPortfolio } from './tools/link-transaction-to-portfolio';
 import { registerLinkTransactionsToSubscription } from './tools/link-transactions-to-subscription';
 import { registerLinkTransfer } from './tools/link-transfer';
+import { registerListCustomCurrencies } from './tools/list-custom-currencies';
 import { registerListPortfolioTransfers } from './tools/list-portfolio-transfers';
 import { registerListSubscriptionCandidates } from './tools/list-subscription-candidates';
 import { registerMergePayees } from './tools/merge-payees';
@@ -72,9 +77,13 @@ import { registerRemoveTagsFromTransaction } from './tools/remove-tags-from-tran
 import { registerRemoveTransactionsFromBudget } from './tools/remove-transactions-from-budget';
 import { registerRemoveTransactionsFromGroup } from './tools/remove-transactions-from-group';
 import { registerReorderTransactionAutomations } from './tools/reorder-transaction-automations';
+import { registerSearchCoingeckoCoins } from './tools/search-coingecko-coins';
 import { registerSearchSecurities } from './tools/search-securities';
 import { registerSearchTransactions } from './tools/search-transactions';
+import { registerSetCurrencyRateSource } from './tools/set-currency-rate-source';
+import { registerSetExchangeRates } from './tools/set-exchange-rates';
 import { registerSplitTransaction } from './tools/split-transaction';
+import { registerTestCurrencyRateSource } from './tools/test-currency-rate-source';
 import { registerToggleSubscriptionActive } from './tools/toggle-subscription-active';
 import { registerTransferAccountToPortfolio } from './tools/transfer-account-to-portfolio';
 import { registerTransferPortfolioToAccount } from './tools/transfer-portfolio-to-account';
@@ -84,6 +93,7 @@ import { registerUnlinkTransactionsFromSubscription } from './tools/unlink-trans
 import { registerUnlinkTransfer } from './tools/unlink-transfer';
 import { registerUpdateBudget } from './tools/update-budget';
 import { registerUpdateCategory } from './tools/update-category';
+import { registerUpdateCustomCurrency } from './tools/update-custom-currency';
 import { registerUpdateInvestmentTransaction } from './tools/update-investment-transaction';
 import { registerUpdatePayee } from './tools/update-payee';
 import { registerUpdatePortfolio } from './tools/update-portfolio';
@@ -271,6 +281,18 @@ export function createMcpServer(): McpServer {
   registerCreateVentureEvent(server);
   registerUpdateVentureEvent(server);
   registerDeleteVentureEvent(server);
+
+  // Currencies
+  registerListCustomCurrencies(server);
+  registerCreateCustomCurrency(server);
+  registerUpdateCustomCurrency(server);
+  registerDeleteCustomCurrency(server);
+  registerSearchCoingeckoCoins(server);
+  registerGetCurrencyRateHistory(server);
+  registerSetCurrencyRateSource(server);
+  registerTestCurrencyRateSource(server);
+  registerSetExchangeRates(server);
+  registerDeleteExchangeRates(server);
 
   return server;
 }
