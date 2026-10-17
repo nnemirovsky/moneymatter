@@ -11,8 +11,8 @@ export default createController(
     }),
   }),
   async ({ user, params }) => {
-    const stats = await getBudgetSpendingStats({ userId: user.id, budgetId: params.id });
+    const { stats, decimals } = await getBudgetSpendingStats({ userId: user.id, budgetId: params.id });
 
-    return { data: serializeBudgetSpendingStats(stats) };
+    return { data: serializeBudgetSpendingStats({ stats, decimals }) };
   },
 );
