@@ -15,6 +15,7 @@ import { registerBulkUpdateTransactions } from './tools/bulk-update-transactions
 import { registerCreateAttachmentUploadUrl } from './tools/create-attachment-upload-url';
 import { registerCreateBudget } from './tools/create-budget';
 import { registerCreateCategory } from './tools/create-category';
+import { registerCreateCustomCurrency } from './tools/create-custom-currency';
 import { registerCreateInvestmentTransaction } from './tools/create-investment-transaction';
 import { registerCreatePayee } from './tools/create-payee';
 import { registerCreatePortfolio } from './tools/create-portfolio';
@@ -26,6 +27,7 @@ import { registerCreateTransactionAutomation } from './tools/create-transaction-
 import { registerCreateTransactionGroup } from './tools/create-transaction-group';
 import { registerDeleteBudget } from './tools/delete-budget';
 import { registerDeleteCategory } from './tools/delete-category';
+import { registerDeleteCustomCurrency } from './tools/delete-custom-currency';
 import { registerDeleteInvestmentTransaction } from './tools/delete-investment-transaction';
 import { registerDeletePayee } from './tools/delete-payee';
 import { registerDeletePortfolio } from './tools/delete-portfolio';
@@ -64,6 +66,7 @@ import { registerLinkRefund } from './tools/link-refund';
 import { registerLinkTransactionToPortfolio } from './tools/link-transaction-to-portfolio';
 import { registerLinkTransactionsToSubscription } from './tools/link-transactions-to-subscription';
 import { registerLinkTransfer } from './tools/link-transfer';
+import { registerListCustomCurrencies } from './tools/list-custom-currencies';
 import { registerListPortfolioTransfers } from './tools/list-portfolio-transfers';
 import { registerListSubscriptionCandidates } from './tools/list-subscription-candidates';
 import { registerMergePayees } from './tools/merge-payees';
@@ -84,6 +87,7 @@ import { registerUnlinkTransactionsFromSubscription } from './tools/unlink-trans
 import { registerUnlinkTransfer } from './tools/unlink-transfer';
 import { registerUpdateBudget } from './tools/update-budget';
 import { registerUpdateCategory } from './tools/update-category';
+import { registerUpdateCustomCurrency } from './tools/update-custom-currency';
 import { registerUpdateInvestmentTransaction } from './tools/update-investment-transaction';
 import { registerUpdatePayee } from './tools/update-payee';
 import { registerUpdatePortfolio } from './tools/update-portfolio';
@@ -271,6 +275,12 @@ export function createMcpServer(): McpServer {
   registerCreateVentureEvent(server);
   registerUpdateVentureEvent(server);
   registerDeleteVentureEvent(server);
+
+  // Currencies
+  registerListCustomCurrencies(server);
+  registerCreateCustomCurrency(server);
+  registerUpdateCustomCurrency(server);
+  registerDeleteCustomCurrency(server);
 
   return server;
 }
