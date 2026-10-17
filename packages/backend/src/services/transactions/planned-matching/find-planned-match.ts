@@ -4,6 +4,7 @@ import { toMoneyColumnValue } from '@common/types/money-column';
 import { namespace } from '@models/connection';
 import PayeeAliases from '@models/payee-aliases.model';
 import Payees from '@models/payees.model';
+import TransactionSplits from '@models/transaction-splits.model';
 import Transactions from '@models/transactions.model';
 import { normalizePayeeName } from '@services/payees/normalize-name';
 import { resolveNormalizedName } from '@services/payees/payee-namespace';
@@ -14,6 +15,9 @@ import { CARD_PAYMENT_AMOUNT_TOLERANCE, isSameShop, isWithinCardPaymentTolerance
 
 /** Tolerance candidates read per incoming row; a connected account holds a handful of open plans. */
 const TOLERANCE_CANDIDATE_LIMIT = 25;
+
+/** Exact-amount candidates read per incoming row; two or three equal plans is already unusual. */
+const EXACT_CANDIDATE_LIMIT = 25;
 
 /**
  * EXISTS probe against the partial `(accountId, time) WHERE isPlanned` index, so a sync or
@@ -42,7 +46,8 @@ export const selectAccountsWithPlannedRows = async ({ accountIds }: { accountIds
   return accountsWithPlannedRows;
 };
 
-const findExactMatch = ({
+/** Plans an incoming row could settle at its exact amount, closest in time first. */
+const findExactCandidates = ({
   accountId,
   amount,
   transactionType,
@@ -54,10 +59,8 @@ const findExactMatch = ({
   transactionType: TRANSACTION_TYPES;
   currencyCode: string;
   time: Date;
-}): Promise<Transactions | null> => {
-  const sequelizeTx = namespace.get('transaction');
-
-  return Transactions.findOne({
+}): Promise<Transactions[]> =>
+  Transactions.findAll({
     where: {
       accountId,
       isPlanned: true,
@@ -72,10 +75,46 @@ const findExactMatch = ({
     order: Sequelize.literal(
       `ABS(EXTRACT(EPOCH FROM ("time" - '${time.toISOString()}'::timestamptz))) ASC, "createdAt" ASC`,
     ),
+    limit: EXACT_CANDIDATE_LIMIT,
+    transaction: namespace.get('transaction'),
+  });
+
+/** Locks one plan by id; `null` when another in-flight batch holds it or it is no longer planned. */
+const lockPlan = ({ id }: { id: string }): Promise<Transactions | null> => {
+  const sequelizeTx = namespace.get('transaction');
+
+  return Transactions.findOne({
+    where: { id, isPlanned: true },
     transaction: sequelizeTx,
     lock: sequelizeTx?.LOCK.UPDATE,
     skipLocked: Boolean(sequelizeTx),
   });
+};
+
+/**
+ * Lazy "same shop?" check of plans against one bank text. The bank text may already name a payee
+ * (an alias the user or an earlier merge taught, or a payee of its own). That payee decides: the
+ * plan's payee confirms, any other one is a conflict. One lookup serves every plan.
+ */
+const createSameShopCheck = ({ merchantText }: { merchantText: string }) => {
+  let incomingPayeeId: string | null | undefined;
+
+  const resolveIncomingPayeeId = async ({ userId }: { userId: number }): Promise<string | null> => {
+    if (incomingPayeeId === undefined) {
+      const hit = await resolveNormalizedName({ userId, normalized: normalizePayeeName({ raw: merchantText }) });
+      incomingPayeeId = hit?.payeeId ?? null;
+    }
+
+    return incomingPayeeId;
+  };
+
+  return async ({ plan, planNames }: { plan: Transactions; planNames: string[] }): Promise<boolean> =>
+    isSameShop({
+      planNames,
+      planPayeeId: plan.payeeId ?? null,
+      incomingText: merchantText,
+      incomingPayeeId: await resolveIncomingPayeeId({ userId: plan.userId }),
+    });
 };
 
 /** Every name a card-payment plan answers to: the Wallet merchant, the payee and its aliases. */
@@ -108,6 +147,49 @@ export const loadPlanNames = async ({ plans }: { plans: Transactions[] }): Promi
 };
 
 /**
+ * Orders the exact-amount candidates for the booking. The exact pass stays permissive, since a
+ * bank descriptor often shares no word with the Wallet name, but with several equal plans a
+ * card-payment plan of the same shop goes first, so two shops with equal amounts cannot swap
+ * bookings when the dates drift. The rest keep their order, closest in time first.
+ */
+const preferSameShop = async ({
+  plans,
+  merchantText,
+}: {
+  plans: Transactions[];
+  merchantText: string | undefined;
+}): Promise<Transactions[]> => {
+  const cardPaymentPlans = plans.filter((plan) => Boolean(plan.externalData?.cardPayment));
+  if (!merchantText || plans.length < 2 || cardPaymentPlans.length === 0) return plans;
+
+  const planNames = await loadPlanNames({ plans: cardPaymentPlans });
+  const isSameShopAsText = createSameShopCheck({ merchantText });
+  const sameShop = new Set<string>();
+
+  for (const plan of cardPaymentPlans) {
+    if (await isSameShopAsText({ plan, planNames: planNames.get(plan.id) ?? [] })) sameShop.add(plan.id);
+  }
+
+  return [...plans.filter((plan) => sameShop.has(plan.id)), ...plans.filter((plan) => !sameShop.has(plan.id))];
+};
+
+/** The sum of each plan's splits; a plan without splits has no entry. */
+const loadSplitTotals = async ({ plans }: { plans: Transactions[] }): Promise<Map<string, Money>> => {
+  const splits = await TransactionSplits.findAll({
+    where: { transactionId: plans.map((plan) => plan.id) },
+    attributes: ['transactionId', 'amount'],
+    transaction: namespace.get('transaction'),
+  });
+  const totals = new Map<string, Money>();
+
+  for (const split of splits) {
+    totals.set(split.transactionId, (totals.get(split.transactionId) ?? Money.zero()).add(split.amount));
+  }
+
+  return totals;
+};
+
+/**
  * Second pass for plans the card-payment ingest wrote: the bank's amount may differ from the
  * Wallet's (a tip, an FX hold), so the plan is found by amount band, time window and merchant
  * affinity instead of by exact amount. Without merchant text there is nothing to tie the booking
@@ -116,7 +198,8 @@ export const loadPlanNames = async ({ plans }: { plans: Transactions[] }): Promi
  * SQL narrows the candidates (same account, type, currency, `cardPayment` plans, a wide amount
  * band, the window), ordered by amount distance, then time distance. `isWithinCardPaymentTolerance`
  * and `isSameShop` decide in code, and the first candidate that passes is locked by id; one
- * another batch already holds is skipped for the next.
+ * another batch already holds is skipped for the next. A plan the user split is skipped when the
+ * booking is below its split total: the merge would leave the splits larger than the row.
  */
 const findCardPaymentMatch = async ({
   accountId,
@@ -170,35 +253,19 @@ const findCardPaymentMatch = async ({
   );
   if (inTolerance.length === 0) return null;
 
-  const planNames = await loadPlanNames({ plans: inTolerance });
-  // The bank text may already name a payee (an alias the user or an earlier merge taught, or a
-  // payee of its own). That payee decides: the plan's payee confirms, any other one blocks the
-  // merge. One lookup serves every candidate.
-  let incomingPayeeId: string | null | undefined;
-  const resolveIncomingPayeeId = async ({ userId }: { userId: number }): Promise<string | null> => {
-    if (incomingPayeeId === undefined) {
-      const hit = await resolveNormalizedName({ userId, normalized: normalizePayeeName({ raw: merchantText }) });
-      incomingPayeeId = hit?.payeeId ?? null;
-    }
+  // A merge writes the bank's amount over the plan's. A plan the user split keeps its splits, so a
+  // booking below their total would leave the splits exceeding the row: that plan stays open.
+  const splitTotals = await loadSplitTotals({ plans: inTolerance });
+  const coversSplits = inTolerance.filter((plan) => !(splitTotals.get(plan.id) ?? Money.zero()).greaterThan(amount));
+  if (coversSplits.length === 0) return null;
 
-    return incomingPayeeId;
-  };
+  const planNames = await loadPlanNames({ plans: coversSplits });
+  const isSameShopAsText = createSameShopCheck({ merchantText });
 
-  for (const plan of inTolerance) {
-    const sameShop = isSameShop({
-      planNames: planNames.get(plan.id) ?? [],
-      planPayeeId: plan.payeeId ?? null,
-      incomingText: merchantText,
-      incomingPayeeId: await resolveIncomingPayeeId({ userId: plan.userId }),
-    });
-    if (!sameShop) continue;
+  for (const plan of coversSplits) {
+    if (!(await isSameShopAsText({ plan, planNames: planNames.get(plan.id) ?? [] }))) continue;
 
-    const locked = await Transactions.findOne({
-      where: { id: plan.id, isPlanned: true },
-      transaction: sequelizeTx,
-      lock: sequelizeTx?.LOCK.UPDATE,
-      skipLocked: Boolean(sequelizeTx),
-    });
+    const locked = await lockPlan({ id: plan.id });
     if (locked) return locked;
   }
 
@@ -236,10 +303,14 @@ export const findPlannedMatch = async ({
 }): Promise<Transactions | null> => {
   if (!amount.isPositive()) return null;
 
-  const exact = await findExactMatch({ accountId, amount, transactionType, currencyCode, time });
-  if (exact) return exact;
-
   const merchantText = rawMerchantName?.trim() || note?.trim();
+
+  const exactCandidates = await findExactCandidates({ accountId, amount, transactionType, currencyCode, time });
+  for (const plan of await preferSameShop({ plans: exactCandidates, merchantText })) {
+    const locked = await lockPlan({ id: plan.id });
+    if (locked) return locked;
+  }
+
   if (!merchantText) return null;
 
   return findCardPaymentMatch({ accountId, amount, transactionType, currencyCode, time, merchantText });

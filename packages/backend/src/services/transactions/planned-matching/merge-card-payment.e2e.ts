@@ -379,6 +379,60 @@ describe('Card-payment plans – settlement on bank sync', () => {
       expect(rows.find((row) => row.payeeId === garden.id)).toMatchObject({ isPlanned: false, amount: 52 });
     }, 60000);
 
+    it('does not shrink a split plan below its split total, and still merges a booking that covers it', async () => {
+      const { connectionId, accountId, secret } = await setup();
+      const planId = await ingestPlan({ secret });
+      const splitCategory = await createCategory('Split part');
+      await helpers.updateTransaction({
+        id: planId,
+        payload: { splits: [{ categoryId: splitCategory.id, amount: 45 }] },
+        raw: true,
+      });
+
+      const tooLow = booking({ cents: 4000, counterName: MERCHANT, daysAgo: 2 });
+      await syncAccount({ connectionId, accountId, transactions: [tooLow] });
+
+      let rows = await listAccountTransactions({ accountId });
+      expect(rows).toHaveLength(3);
+      expect(rows.find((row) => row.id === planId)).toMatchObject({ isPlanned: true, amount: 47 });
+
+      const covering = booking({ cents: 4600, counterName: MERCHANT, daysAgo: 1 });
+      await syncAccount({ connectionId, accountId, transactions: [covering] });
+
+      rows = await listAccountTransactions({ accountId });
+      expect(rows).toHaveLength(4);
+      expect(rows.find((row) => row.id === planId)).toMatchObject({ isPlanned: false, amount: 46 });
+    }, 60000);
+
+    it('gives each of two equal-amount plans the booking of its own shop when the dates drift', async () => {
+      const { connectionId, accountId, secret } = await setup();
+      const heartTime = addHours(subDays(startOfDay(new Date()), 3), 12).toISOString();
+      const sparTime = addHours(subDays(startOfDay(new Date()), 1), 12).toISOString();
+      const heartPlanId = await ingestPlan({ secret, overrides: { time: heartTime } });
+      const sparPlanId = await ingestPlan({ secret, overrides: { merchant: 'Spar Batumi', time: sparTime } });
+      const heartPayeeId = (await readRow({ id: heartPlanId })).payeeId;
+      const sparPayeeId = (await readRow({ id: sparPlanId })).payeeId;
+      expect(heartPayeeId).not.toBe(sparPayeeId);
+
+      // The Heart booking is dated next to the Spar plan, and the Spar booking next to the Heart plan.
+      const heartBooking = booking({ cents: 4700, counterName: 'CAFE HEART OF BATUMI', daysAgo: 1 });
+      const sparBooking = booking({ cents: 4700, counterName: 'SPAR BATUMI GE', daysAgo: 3 });
+      await syncAccount({ connectionId, accountId, transactions: [heartBooking, sparBooking] });
+
+      const rows = await listAccountTransactions({ accountId });
+      expect(rows).toHaveLength(3);
+      expect(rows.find((row) => row.id === heartPlanId)).toMatchObject({
+        isPlanned: false,
+        originalId: heartBooking.id,
+        payeeId: heartPayeeId,
+      });
+      expect(rows.find((row) => row.id === sparPlanId)).toMatchObject({
+        isPlanned: false,
+        originalId: sparBooking.id,
+        payeeId: sparPayeeId,
+      });
+    }, 60000);
+
     it('does not merge a booking more than 25 % away from the plan', async () => {
       const { connectionId, accountId, secret } = await setup();
       const planId = await ingestPlan({ secret });
