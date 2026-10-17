@@ -50,14 +50,17 @@
           "yourKey": "Ваш ключ",
           "yourKeyTooltip": "Працює на одній із ваших власних AI-моделей. Ваш провайдер стягує оплату напряму з вас, а MoneyMatter не обмежує використання.",
           "server": "Серверний",
-          "serverTooltip": "Працює на MoneyMatter AI, що входить у ваш план. Діють обмеження на використання."
+          "serverTooltip": "Працює на MoneyMatter AI, що входить у ваш план. Діють обмеження на використання.",
+          "subscription": "Підписка",
+          "subscriptionTooltip": "Працює на вашій власній підписці Claude або ChatGPT. Плати за токени немає, діють ліміти вашого плану."
         },
         "sharedPoolNote": "На вашому поточному плані модель MoneyMatter AI працює у спільному пулі, тому за високого загального навантаження можуть діяти обмеження. {link}, щоб їх уникнути.",
         "sharedPoolNoteLink": "Перейдіть на Plus",
         "modelLabel": "Модель",
         "modelInfo": {
           "estimatedCost": "Орієнт. вартість:",
-          "per100Transactions": "за 100 транзакцій"
+          "per100Transactions": "за 100 транзакцій",
+          "includedInSubscription": "Входить у вашу підписку"
         },
         "notifications": {
           "updateSuccess": "Модель успішно оновлено",
@@ -164,7 +167,8 @@
         },
         "badges": {
           "default": "За замовчуванням",
-          "defaultSkipped": "За замовчуванням · пропущено, поки потребує уваги"
+          "defaultSkipped": "За замовчуванням · пропущено, поки потребує уваги",
+          "subscription": "Підписка"
         },
         "status": {
           "model": "{provider} · {model}"
@@ -175,13 +179,17 @@
           "setDefault": "Встановити за замовчуванням",
           "remove": "Видалити",
           "reconnect": "Перепідключити",
-          "enterKey": "Ввести API-ключ"
+          "enterKey": "Ввести API-ключ",
+          "signInAgain": "Увійти знову"
         },
         "removeDialog": {
           "title": "Видалити цю AI-модель?",
           "description": "Модель «{name}» та її збережений API-ключ буде видалено.",
           "pinnedFeatures": "Ці функції перейдуть на автоматичний режим: {features}.",
-          "confirm": "Видалити"
+          "confirm": "Видалити",
+          "descriptionSubscription": "Модель «{name}» та її збережений вхід буде видалено.",
+          "claudeRevokeHint": "Токен Claude після видалення не відкликається. Щоб відкликати його, відкрийте {link} і приберіть доступ Claude Code.",
+          "claudeRevokeLink": "налаштування вашого облікового запису Claude"
         },
         "removeKeyDialog": {
           "title": "Видалити API-ключ?",
@@ -257,6 +265,51 @@
           "custom": {
             "label": "Власний (сумісний з OpenAI)",
             "namePlaceholder": "напр., Мій сервер"
+          },
+          "claudeCode": {
+            "label": "Claude Code (підписка)",
+            "namePlaceholder": "напр., Моя підписка Claude",
+            "signInLabel": "Увійти через Claude"
+          },
+          "codex": {
+            "label": "Codex (підписка ChatGPT)",
+            "namePlaceholder": "напр., Моя підписка ChatGPT",
+            "signInLabel": "Увійти через ChatGPT"
+          },
+          "cliNotInstalled": "Не встановлено в цьому образі бекенду",
+          "disabledOption": "{label} · {reason}"
+        },
+        "credential": {
+          "validUntil": "Вхід дійсний до {date}",
+          "expiresSoon": "Вхід спливає {date}",
+          "expired": "Вхід сплив {date}"
+        },
+        "cli": {
+          "personalUse": {
+            "claudeCode": "Лише для особистого використання з вашою власною підпискою Claude, згідно з умовами Anthropic.",
+            "codex": "Лише для особистого використання з вашою власною підпискою ChatGPT, згідно з умовами OpenAI."
+          },
+          "editHint": "Вхід уже виконано. Входьте знову, лише щоб замінити збережений вхід.",
+          "starting": "Запускаємо вхід…",
+          "openSignInPage": "Відкрити сторінку входу",
+          "codeLabel": "Код входу",
+          "codePlaceholder": "Вставте код зі сторінки входу",
+          "submitCode": "Надіслати код",
+          "cancel": "Скасувати вхід",
+          "retry": "Спробувати ще раз",
+          "verifying": "Перевіряємо вхід…",
+          "succeeded": "Вхід виконано.",
+          "succeededSave": "Вхід виконано. Збережіть модель, щоб залишити вхід.",
+          "failed": "Вхід не завершився.",
+          "expired": "Вхід сплив. Почніть його знову.",
+          "claudeCode": {
+            "awaiting": "Увійдіть на сторінці, що відкрилася, а потім вставте код, який вона покаже."
+          },
+          "codex": {
+            "awaiting": "Відкрийте сторінку входу та введіть цей код:",
+            "copyCode": "Копіювати код входу",
+            "waiting": "Чекаємо, поки ви підтвердите вхід…",
+            "deviceCodeHint": "Для входу в Codex у ChatGPT має бути ввімкнено вхід за кодом пристрою: Налаштування → Безпека."
           }
         }
       },
