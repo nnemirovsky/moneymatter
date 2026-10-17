@@ -1,10 +1,40 @@
-import { BUDGET_TYPES, TRANSACTION_TYPES } from '@bt/shared/types';
+import { BUDGET_TYPES, type RecordId, TRANSACTION_TYPES } from '@bt/shared/types';
 import { NONEXISTENT_ID } from '@common/lib/record-id-helpers';
 import { describe, expect, it } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
 import * as helpers from '@tests/helpers';
 
 import { getResponseInitialState } from './stats';
+
+/** Runs the flow as a KWD-base user (3 decimals) with a KWD account. */
+const inKwdBook = async (fn: (book: { accountId: RecordId; categoryId: RecordId }) => Promise<void>): Promise<void> => {
+  const kwdUser = await helpers.provisionSecondUserWithBaseCurrency({ currencyCode: 'KWD' });
+
+  await helpers.asUser({
+    cookies: kwdUser.cookies,
+    fn: async () => {
+      await helpers.addUserCurrencies({ currencyCodes: ['KWD'], raw: true });
+      const account = await helpers.createAccount({
+        payload: helpers.buildAccountPayload({ currencyCode: 'KWD' }),
+        raw: true,
+      });
+      const category = await helpers.addCustomCategory({ name: 'Precision', color: '#AABBCC', raw: true });
+      await fn({ accountId: account.id, categoryId: category.id });
+    },
+  });
+};
+
+const expenseOf = ({ accountId, categoryId, amount }: { accountId: RecordId; categoryId: RecordId; amount: number }) =>
+  helpers.createTransaction({
+    payload: helpers.buildTransactionPayload({
+      accountId,
+      categoryId,
+      amount,
+      transactionType: TRANSACTION_TYPES.expense,
+      time: '2025-06-15T10:00:00Z',
+    }),
+    raw: true,
+  });
 
 describe('Get budget stats', () => {
   it('successfully returns stats', async () => {
@@ -267,6 +297,64 @@ describe('Get budget stats', () => {
       expect(stats.summary.actualExpense).toBe(300);
       expect(stats.summary.balance).toBe(-300);
       expect(stats.summary.utilizationRate?.toFixed(2)).toBe(((300 / 1000) * 100).toFixed(2));
+    });
+  });
+
+  describe('Base currency decimals', () => {
+    it('reports a manual tracker at 3 decimals for a KWD-base user', async () => {
+      await inKwdBook(async ({ accountId, categoryId }) => {
+        const [tx] = await expenseOf({ accountId, categoryId, amount: 1.234 });
+        const budget = await helpers.createCustomBudget({ name: 'kwd-manual', limitAmount: 10.125, raw: true });
+        await helpers.addTransactionToCustomBudget({ id: budget.id, payload: { transactionIds: [tx.id] } });
+
+        const stats = (await helpers.getStats({ id: budget.id, raw: true }))!;
+
+        expect(stats.summary.actualExpense).toBe(1.234);
+        expect(stats.summary.balance).toBe(-1.234);
+        expect(stats.summary.actualIncome).toBe(0);
+        expect(stats.summary.utilizationRate?.toFixed(2)).toBe(((1.234 / 10.125) * 100).toFixed(2));
+      });
+    });
+
+    it('reports a category tracker at 3 decimals for a KWD-base user', async () => {
+      await inKwdBook(async ({ accountId, categoryId }) => {
+        await expenseOf({ accountId, categoryId, amount: 1.234 });
+        const budget = await helpers.createCustomBudget({
+          name: 'kwd-category',
+          type: BUDGET_TYPES.category,
+          categoryIds: [categoryId],
+          startDate: '2025-06-01T00:00:00Z',
+          endDate: '2025-06-30T23:59:59Z',
+          limitAmount: 10.125,
+          raw: true,
+        });
+
+        const stats = (await helpers.getStats({ id: budget.id, raw: true }))!;
+
+        expect(stats.summary.actualExpense).toBe(1.234);
+        expect(stats.summary.balance).toBe(-1.234);
+        expect(stats.summary.utilizationRate?.toFixed(2)).toBe(((1.234 / 10.125) * 100).toFixed(2));
+      });
+    });
+
+    it('keeps the 2-decimal values for a 2-decimal base user', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const [tx] = await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({
+          accountId: account.id,
+          amount: 1.23,
+          transactionType: TRANSACTION_TYPES.expense,
+        }),
+        raw: true,
+      });
+      const budget = await helpers.createCustomBudget({ name: 'two-decimals', limitAmount: 10.12, raw: true });
+      await helpers.addTransactionToCustomBudget({ id: budget.id, payload: { transactionIds: [tx.id] } });
+
+      const stats = (await helpers.getStats({ id: budget.id, raw: true }))!;
+
+      expect(stats.summary.actualExpense).toBe(1.23);
+      expect(stats.summary.balance).toBe(-1.23);
+      expect(stats.summary.utilizationRate?.toFixed(2)).toBe(((123 / 1012) * 100).toFixed(2));
     });
   });
 });

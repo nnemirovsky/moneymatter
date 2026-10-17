@@ -1,4 +1,5 @@
 import { BUDGET_TYPES, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES } from '@bt/shared/types';
+import { getBaseCurrencyDecimals } from '@common/lib/currency-precision';
 import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
 import { t } from '@i18n/index';
 import Accounts from '@models/accounts.model';
@@ -15,6 +16,7 @@ import { authorizeBudgetRead } from './authorize-budget-access';
 import { buildDateFilter } from './utils/build-date-filter';
 import { fetchBudgetRefundPairs } from './utils/refund-pairs';
 
+/** Sums in integer minor units at the budget owner's base currency decimals. */
 interface StatsResponse {
   summary: {
     actualIncome: number;
@@ -58,9 +60,11 @@ export const getResponseInitialState = (): StatsResponse => ({
 const getManualBudgetStats = async ({
   budgetId,
   callerUserId,
+  decimals,
 }: {
   budgetId: string;
   callerUserId: number;
+  decimals: number;
 }): Promise<StatsResponse> => {
   const budgetDetails = await findOrThrowNotFound({
     query: Budgets.findByPk(budgetId),
@@ -80,9 +84,9 @@ const getManualBudgetStats = async ({
     attributes: ['id', 'time', 'amount', 'refAmount', 'transactionType', 'refundLinked'],
   });
 
-  const limitAmount = budgetDetails.limitAmount?.toCents() ?? null;
-  const result = aggregateTransactionStats({ transactions, limitAmount });
-  await applyRefundAdjustments({ countedTransactions: transactions, result, limitAmount });
+  const limitAmount = budgetDetails.limitAmount?.toMinorUnits({ decimals }) ?? null;
+  const result = aggregateTransactionStats({ transactions, limitAmount, decimals });
+  await applyRefundAdjustments({ countedTransactions: transactions, result, limitAmount, decimals });
   return result;
 };
 
@@ -94,10 +98,12 @@ const getCategoryBudgetStats = async ({
   userId,
   budgetId,
   isOwner,
+  decimals,
 }: {
   userId: number;
   budgetId: string;
   isOwner: boolean;
+  decimals: number;
 }): Promise<StatsResponse> => {
   const budgetDetails = await findOrThrowNotFound({
     query: Budgets.findByPk(budgetId, {
@@ -169,13 +175,14 @@ const getCategoryBudgetStats = async ({
 
     countedTransactions.push({ id: tx.id, refundLinked: tx.refundLinked });
     const isExpense = tx.transactionType === TRANSACTION_TYPES.expense;
+    const refAmount = tx.refAmount.toMinorUnits({ decimals });
 
     if (isExpense) {
-      result.summary.actualExpense += tx.refAmount.toCents();
-      result.summary.balance -= tx.refAmount.toCents();
+      result.summary.actualExpense += refAmount;
+      result.summary.balance -= refAmount;
     } else {
-      result.summary.actualIncome += tx.refAmount.toCents();
-      result.summary.balance += tx.refAmount.toCents();
+      result.summary.actualIncome += refAmount;
+      result.summary.balance += refAmount;
     }
 
     updateDateRange(result, tx.time);
@@ -188,13 +195,14 @@ const getCategoryBudgetStats = async ({
 
     countedTransactions.push({ id: transaction.id, refundLinked: transaction.refundLinked });
     const isExpense = transaction.transactionType === TRANSACTION_TYPES.expense;
+    const refAmount = split.refAmount.toMinorUnits({ decimals });
 
     if (isExpense) {
-      result.summary.actualExpense += split.refAmount.toCents();
-      result.summary.balance -= split.refAmount.toCents();
+      result.summary.actualExpense += refAmount;
+      result.summary.balance -= refAmount;
     } else {
-      result.summary.actualIncome += split.refAmount.toCents();
-      result.summary.balance += split.refAmount.toCents();
+      result.summary.actualIncome += refAmount;
+      result.summary.balance += refAmount;
     }
 
     updateDateRange(result, transaction.time);
@@ -203,14 +211,14 @@ const getCategoryBudgetStats = async ({
   const uniqueCountedIds = new Set(countedTransactions.map((tx) => tx.id));
   result.summary.transactionsCount = uniqueCountedIds.size;
 
-  const limitAmount = budgetDetails.limitAmount?.toCents() ?? null;
+  const limitAmount = budgetDetails.limitAmount?.toMinorUnits({ decimals }) ?? null;
 
   if (limitAmount !== null) {
     const netSpending = Math.max(0, -result.summary.balance);
     result.summary.utilizationRate = (netSpending / limitAmount) * 100;
   }
 
-  await applyRefundAdjustments({ countedTransactions, result, limitAmount });
+  await applyRefundAdjustments({ countedTransactions, result, limitAmount, decimals });
 
   return result;
 };
@@ -238,16 +246,18 @@ const applyRefundAdjustments = async ({
   countedTransactions,
   result,
   limitAmount,
+  decimals,
 }: {
   countedTransactions: { id: string; refundLinked: boolean }[];
   result: StatsResponse;
   limitAmount: number | null;
+  decimals: number;
 }): Promise<void> => {
   const pairs = await fetchBudgetRefundPairs({ countedTransactions });
   if (pairs.length === 0) return;
 
   for (const pair of pairs) {
-    const adjustment = pair.refundTx.refAmount.toCents();
+    const adjustment = pair.refundTx.refAmount.toMinorUnits({ decimals });
 
     if (pair.originalInScope) {
       if (pair.originalTx.transactionType === TRANSACTION_TYPES.expense) {
@@ -279,9 +289,11 @@ const applyRefundAdjustments = async ({
 const aggregateTransactionStats = ({
   transactions,
   limitAmount,
+  decimals,
 }: {
   transactions: Pick<Transactions.default, 'time' | 'refAmount' | 'transactionType'>[];
   limitAmount: number | null;
+  decimals: number;
 }): StatsResponse => {
   // A row with no base-currency amount (custom currency, no rate yet) is left out of every figure.
   const valued = transactions.flatMap((tx) =>
@@ -290,7 +302,7 @@ const aggregateTransactionStats = ({
 
   const result = valued.reduce((acc, curr) => {
     const isExpense = curr.transactionType === TRANSACTION_TYPES.expense;
-    const refAmount = curr.refAmount.toCents();
+    const refAmount = curr.refAmount.toMinorUnits({ decimals });
 
     if (isExpense) {
       acc.summary.actualExpense += refAmount;
@@ -314,8 +326,14 @@ const aggregateTransactionStats = ({
   return result;
 };
 
+/** The stats with the `decimals` their minor units are at, which the serializer needs to turn them into decimals. */
+export interface BudgetStatsResult {
+  stats: StatsResponse;
+  decimals: number;
+}
+
 export const getBudgetStats = withTransaction(
-  async ({ userId, budgetId }: { userId: number; budgetId: string }): Promise<StatsResponse> => {
+  async ({ userId, budgetId }: { userId: number; budgetId: string }): Promise<BudgetStatsResult> => {
     // Share-aware auth: recipient sees the same numbers the owner would (per PRD
     // visibility decision). Downstream queries scope against the owner's userId so
     // a recipient's unrelated transactions don't filter the result.
@@ -326,10 +344,14 @@ export const getBudgetStats = withTransaction(
       message: t({ key: 'budgets.budgetNotFound' }),
     });
 
-    if (budgetDetails.type === BUDGET_TYPES.category) {
-      return getCategoryBudgetStats({ userId: ownerUserId, budgetId, isOwner });
-    }
+    // The budget's amounts are in its owner's base currency, whoever reads them.
+    const decimals = await getBaseCurrencyDecimals({ userId: ownerUserId });
 
-    return getManualBudgetStats({ budgetId, callerUserId: userId });
+    const stats =
+      budgetDetails.type === BUDGET_TYPES.category
+        ? await getCategoryBudgetStats({ userId: ownerUserId, budgetId, isOwner, decimals })
+        : await getManualBudgetStats({ budgetId, callerUserId: userId, decimals });
+
+    return { stats, decimals };
   },
 );

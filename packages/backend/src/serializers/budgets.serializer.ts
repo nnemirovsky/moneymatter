@@ -6,7 +6,7 @@
  * Deserializers convert API decimal inputs to Money.
  */
 import { BUDGET_TYPES, ResourceShareInfo } from '@bt/shared/types';
-import { Money, centsToApiDecimal, moneyToApiDecimalOrNull } from '@common/types/money';
+import { Money, minorUnitsToApiDecimal, moneyToApiDecimalOrNull } from '@common/types/money';
 import type Budgets from '@models/budget.model';
 import type { BudgetShareContext } from '@services/sharing/get-shared-budgets.service';
 
@@ -115,14 +115,20 @@ interface BudgetStatsInternal {
 }
 
 /**
- * Serialize budget stats to API decimal format
+ * Serialize budget stats to API decimal format. The sums are minor units at `decimals`.
  */
-export function serializeBudgetStats(stats: BudgetStatsInternal): BudgetStatsApiResponse {
+export function serializeBudgetStats({
+  stats,
+  decimals,
+}: {
+  stats: BudgetStatsInternal;
+  decimals: number;
+}): BudgetStatsApiResponse {
   return {
     summary: {
-      actualIncome: centsToApiDecimal(stats.summary.actualIncome),
-      actualExpense: centsToApiDecimal(stats.summary.actualExpense),
-      balance: centsToApiDecimal(stats.summary.balance),
+      actualIncome: minorUnitsToApiDecimal({ value: stats.summary.actualIncome, decimals }),
+      actualExpense: minorUnitsToApiDecimal({ value: stats.summary.actualExpense, decimals }),
+      balance: minorUnitsToApiDecimal({ value: stats.summary.balance, decimals }),
       utilizationRate: stats.summary.utilizationRate,
       transactionsCount: stats.summary.transactionsCount,
       firstTransactionDate: stats.summary.firstTransactionDate,
@@ -139,7 +145,7 @@ interface SpendingCategoryInternal {
   categoryId: string;
   name: string;
   color: string;
-  amount: number; // cents
+  amount: number; // minor units
   children?: SpendingCategoryInternal[];
 }
 
@@ -150,34 +156,48 @@ interface SpendingStatsInternal {
     periods: {
       periodStart: string;
       periodEnd: string;
-      expense: number; // cents
-      income: number; // cents
+      expense: number; // minor units
+      income: number; // minor units
     }[];
   };
 }
 
-function serializeSpendingCategory(item: SpendingCategoryInternal) {
+interface BudgetSpendingCategoryApiResponse {
+  categoryId: string;
+  name: string;
+  color: string;
+  amount: number;
+  children?: BudgetSpendingCategoryApiResponse[];
+}
+
+function serializeSpendingCategory({
+  item,
+  decimals,
+}: {
+  item: SpendingCategoryInternal;
+  decimals: number;
+}): BudgetSpendingCategoryApiResponse {
   return {
     categoryId: item.categoryId,
     name: item.name,
     color: item.color,
-    amount: centsToApiDecimal(item.amount),
+    amount: minorUnitsToApiDecimal({ value: item.amount, decimals }),
     ...(item.children?.length && {
-      children: item.children.map(serializeSpendingCategory),
+      children: item.children.map((child) => serializeSpendingCategory({ item: child, decimals })),
     }),
   };
 }
 
-export function serializeBudgetSpendingStats(stats: SpendingStatsInternal) {
+export function serializeBudgetSpendingStats({ stats, decimals }: { stats: SpendingStatsInternal; decimals: number }) {
   return {
-    spendingsByCategory: stats.spendingsByCategory.map(serializeSpendingCategory),
+    spendingsByCategory: stats.spendingsByCategory.map((item) => serializeSpendingCategory({ item, decimals })),
     spendingOverTime: {
       granularity: stats.spendingOverTime.granularity,
       periods: stats.spendingOverTime.periods.map((period) => ({
         periodStart: period.periodStart,
         periodEnd: period.periodEnd,
-        expense: centsToApiDecimal(period.expense),
-        income: centsToApiDecimal(period.income),
+        expense: minorUnitsToApiDecimal({ value: period.expense, decimals }),
+        income: minorUnitsToApiDecimal({ value: period.income, decimals }),
       })),
     },
   };

@@ -1,5 +1,6 @@
 import type { RecordId } from '@bt/shared/types';
 import { BUDGET_TYPES, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES } from '@bt/shared/types';
+import { getBaseCurrencyDecimals } from '@common/lib/currency-precision';
 import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
 import { t } from '@i18n/index';
 import Accounts from '@models/accounts.model';
@@ -39,7 +40,7 @@ interface SpendingByCategoryItem {
   categoryId: RecordId;
   name: string;
   color: string;
-  amount: number; // cents, positive (expenses only)
+  amount: number; // minor units, positive (expenses only)
   children?: SpendingByCategoryItem[];
 }
 
@@ -51,8 +52,8 @@ interface CategoryAmountEntry {
 interface SpendingPeriod {
   periodStart: string; // yyyy-MM-dd
   periodEnd: string;
-  expense: number; // cents, positive
-  income: number; // cents, positive
+  expense: number; // minor units, positive
+  income: number; // minor units, positive
 }
 
 interface SpendingStatsResponse {
@@ -259,7 +260,7 @@ const buildSpendingsByCategory = ({
 
 interface NormalizedTxData {
   time: Date;
-  amount: number; // cents
+  amount: number; // minor units
   isExpense: boolean;
   categoryId: RecordId | null; // aggregation target (root or top-level target), null = skip category aggregation
   originalCategoryId: RecordId | null; // the actual leaf category
@@ -362,14 +363,16 @@ const aggregateTransactionData = ({
 const buildRefundAdjustments = ({
   pairs,
   resolveCategoryBucket,
+  decimals,
 }: {
   pairs: BudgetRefundPair[];
   resolveCategoryBucket: (categoryId: RecordId) => RecordId | null;
+  decimals: number;
 }): NormalizedTxData[] => {
   const adjustments: NormalizedTxData[] = [];
 
   for (const pair of pairs) {
-    const adjustmentAmount = pair.refundTx.refAmount.toCents();
+    const adjustmentAmount = pair.refundTx.refAmount.toMinorUnits({ decimals });
 
     const pushSide = ({
       tx,
@@ -465,10 +468,12 @@ const getManualBudgetSpendingStats = async ({
   userId: ownerUserId,
   budgetId,
   callerUserId,
+  decimals,
 }: {
   userId: number;
   budgetId: string;
   callerUserId: number;
+  decimals: number;
 }): Promise<SpendingStatsResponse> => {
   const budgetDetails = await findOrThrowNotFound({
     query: Budgets.findOne({ where: { id: budgetId, userId: ownerUserId } }),
@@ -537,7 +542,7 @@ const getManualBudgetSpendingStats = async ({
       : null;
     return {
       time: tx.time,
-      amount: tx.refAmount.toCents(),
+      amount: tx.refAmount.toMinorUnits({ decimals }),
       isExpense: tx.transactionType === TRANSACTION_TYPES.expense,
       categoryId: rootCatId,
       // Apply the merge map to the child id too — otherwise we'd render duplicate
@@ -551,6 +556,7 @@ const getManualBudgetSpendingStats = async ({
   const refundAdjustments = buildRefundAdjustments({
     pairs: refundPairs,
     resolveCategoryBucket: (categoryId) => canonicalize(getRootCategoryId({ categoryId, categoryMap })),
+    decimals,
   });
 
   return aggregateTransactionData({
@@ -568,10 +574,12 @@ const getCategoryBudgetSpendingStats = async ({
   userId,
   budgetId,
   isOwner,
+  decimals,
 }: {
   userId: number;
   budgetId: string;
   isOwner: boolean;
+  decimals: number;
 }): Promise<SpendingStatsResponse> => {
   const budgetDetails = await findOrThrowNotFound({
     query: Budgets.findOne({
@@ -665,7 +673,7 @@ const getCategoryBudgetSpendingStats = async ({
 
     txDataList.push({
       time: tx.time,
-      amount: tx.refAmount.toCents(),
+      amount: tx.refAmount.toMinorUnits({ decimals }),
       isExpense: tx.transactionType === TRANSACTION_TYPES.expense,
       categoryId: topLevelCatId,
       originalCategoryId: tx.categoryId!,
@@ -686,7 +694,7 @@ const getCategoryBudgetSpendingStats = async ({
 
     txDataList.push({
       time: transaction.time,
-      amount: split.refAmount.toCents(),
+      amount: split.refAmount.toMinorUnits({ decimals }),
       isExpense: transaction.transactionType === TRANSACTION_TYPES.expense,
       categoryId: topLevelCatId,
       originalCategoryId: split.categoryId,
@@ -700,6 +708,7 @@ const getCategoryBudgetSpendingStats = async ({
   const refundAdjustments = buildRefundAdjustments({
     pairs: refundPairs,
     resolveCategoryBucket: (categoryId) => getTopLevelTargetCategoryId({ categoryId, categoryMap, targetCategoryIds }),
+    decimals,
   });
 
   return aggregateTransactionData({
@@ -710,13 +719,19 @@ const getCategoryBudgetSpendingStats = async ({
   });
 };
 
+/** The stats with the `decimals` their minor units are at, which the serializer needs to turn them into decimals. */
+export interface BudgetSpendingStatsResult {
+  stats: SpendingStatsResponse;
+  decimals: number;
+}
+
 export const getBudgetSpendingStats = async ({
   userId,
   budgetId,
 }: {
   userId: number;
   budgetId: string;
-}): Promise<SpendingStatsResponse> => {
+}): Promise<BudgetSpendingStatsResult> => {
   // Share-aware auth: recipient sees the same numbers the owner would (per PRD
   // visibility decision). Downstream queries scope against the owner's userId so
   // a recipient's unrelated transactions don't filter the result.
@@ -727,9 +742,13 @@ export const getBudgetSpendingStats = async ({
     message: t({ key: 'budgets.budgetNotFound' }),
   });
 
-  if (budgetDetails.type === BUDGET_TYPES.category) {
-    return getCategoryBudgetSpendingStats({ userId: ownerUserId, budgetId, isOwner });
-  }
+  // The budget's amounts are in its owner's base currency, whoever reads them.
+  const decimals = await getBaseCurrencyDecimals({ userId: ownerUserId });
 
-  return getManualBudgetSpendingStats({ userId: ownerUserId, budgetId, callerUserId: userId });
+  const stats =
+    budgetDetails.type === BUDGET_TYPES.category
+      ? await getCategoryBudgetSpendingStats({ userId: ownerUserId, budgetId, isOwner, decimals })
+      : await getManualBudgetSpendingStats({ userId: ownerUserId, budgetId, callerUserId: userId, decimals });
+
+  return { stats, decimals };
 };
