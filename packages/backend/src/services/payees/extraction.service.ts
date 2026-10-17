@@ -15,6 +15,12 @@ import { ensureAliasExists, isPayeeNameIgnored, resolveNormalizedName } from './
 interface ExtractionInput {
   userId: number;
   rawMerchantName: string | null | undefined;
+  /**
+   * Occurrences (prior unmatched rows + the current one) that promote a name to a new Payee.
+   * Overrides the user's `payeePromotionThreshold` for this call. A caller that holds a
+   * deliberate merchant field rather than a guess from a note passes 1.
+   */
+  promotionThreshold?: number;
 }
 
 interface ExtractionResult {
@@ -121,7 +127,7 @@ async function collectPriorUnmatched({
  * for `rawMerchantName` or skip the call entirely when the row is locked.
  */
 export const resolvePayeeForRawMerchant = withTransaction(
-  async ({ userId, rawMerchantName }: ExtractionInput): Promise<ExtractionResult> => {
+  async ({ userId, rawMerchantName, promotionThreshold }: ExtractionInput): Promise<ExtractionResult> => {
     const noMatch: ExtractionResult = { payeeId: null };
 
     if (!rawMerchantName) return noMatch;
@@ -187,10 +193,11 @@ export const resolvePayeeForRawMerchant = withTransaction(
     }
 
     // Step 3: occurrence-based promotion. Prior unmatched rows + the current tx must reach the
-    // user's `payeePromotionThreshold` → spin up a new Payee and backfill the priors.
-    const { payeePromotionThreshold = 2 } = await getUserSettings({ userId });
+    // caller's threshold, else the user's `payeePromotionThreshold` → spin up a new Payee and
+    // backfill the priors.
+    const threshold = promotionThreshold ?? (await getUserSettings({ userId })).payeePromotionThreshold ?? 2;
     const priorIds = await collectPriorUnmatched({ userId, normalizedQuery });
-    if (priorIds.length + 1 >= payeePromotionThreshold) {
+    if (priorIds.length + 1 >= threshold) {
       // Concurrent bank-sync workers can promote the same `normalizedName` at
       // once and race on `payees_user_id_normalized_name_uniq`; `insertOrAdopt`
       // keeps the shared transaction usable and lands both racers on one Payee.

@@ -13,6 +13,7 @@ import {
   replayLoggedRequest,
   type ProcessIngestResult,
 } from './process-ingest-request';
+import { CardPaymentRateUnavailableError } from './rate-unavailable-error';
 
 const parkFailedRequestImpl = async ({
   requestId,
@@ -35,11 +36,19 @@ const parkFailedRequestImpl = async ({
   if (!OPEN_REQUEST_STATUSES.includes(row.status)) throw error;
 
   if (error instanceof ExchangeRateUnavailableError) {
-    return markParked({
-      row,
-      reason: 'rateUnavailable',
-      summary: formatSummary({ summary: { type: 'parked', reason: 'processingFailed' }, locale }),
-    });
+    // Only a lookup that named its pair can say which rate is missing; any other says it generically.
+    const summary =
+      error instanceof CardPaymentRateUnavailableError
+        ? ({
+            type: 'parked',
+            reason: 'rateUnavailable',
+            fromCurrencyCode: error.fromCurrencyCode,
+            toCurrencyCode: error.toCurrencyCode,
+            date: error.date,
+          } as const)
+        : ({ type: 'parked', reason: 'processingFailed' } as const);
+
+    return markParked({ row, reason: 'rateUnavailable', summary: formatSummary({ summary, locale }) });
   }
 
   logger.error({

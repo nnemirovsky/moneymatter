@@ -195,7 +195,16 @@ const processIngestRequestImpl = async ({
     return markParked({
       row,
       reason: processed.reason,
-      summary: formatSummary({ summary: { type: 'parked', reason: processed.reason }, locale }),
+      summary: formatSummary({
+        summary: {
+          type: 'parked',
+          reason: processed.reason,
+          fromCurrencyCode: processed.fromCurrencyCode,
+          toCurrencyCode: processed.toCurrencyCode,
+          date: processed.date,
+        },
+        locale,
+      }),
     });
   }
 

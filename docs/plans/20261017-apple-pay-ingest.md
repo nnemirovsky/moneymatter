@@ -473,7 +473,7 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
 - Modify: `packages/backend/src/services/ingest/card-payment/ingest-card-payment.ts`
 - Create: `packages/backend/src/services/ingest/card-payment/processing.e2e.ts`
 
-- [ ] write failing e2e:
+- [x] write failing e2e (red run: 8 of 16 new cases failed on assertions, the rest already held because `createTransaction` already provides them; see the progress log):
   - **payee:**
     - a first-seen merchant creates a payee and an alias, and the logo resolution is enqueued (the brand-logo mock records it);
     - a known alias links the existing payee;
@@ -494,12 +494,12 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
     - a custom-currency account with no rate → parked
   - **connected account:** a mapping to a bank-connected account creates a planned row (`isPlanned: true`, not in the balance) and the summary says the bank will confirm it
   - **time:** the stored `time` equals the sent ISO time
-- [ ] `resolvePayeeForRawMerchant({ userId, rawMerchantName, promotionThreshold? })`: the parameter overrides the user setting only when given; every existing caller passes nothing
-- [ ] `pickHistoryCategory({ ownerUserId, payeeId })`: one aggregate over the owner's non-planned, non-transfer rows from the last 12 months, excluding the default category; the most frequent wins, ties go to the latest
-- [ ] `convertToAccountCurrency({ ownerUserId, amount, from, to, date })`: `calculateRefAmount`, then `roundToCurrency` half-even to the account's decimals; `ExchangeRateUnavailableError` or `null` → `{ parked: 'rateUnavailable' }`
-- [ ] `isAutomationEligible`: also true for a planned row whose `externalData` has `cardPayment` (ingest-created plans only); its unit test gets both cases
-- [ ] `processCardPayment` (steps 5–9 of tx 2): the mapping's account (owned, still active), then the conversion, the payee, the history category and `createTransaction` with the parameters from Solution Overview; the outcome is written to the request row; an `ExchangeRateUnavailableError` from anywhere in it reaches tx 3 as `rateUnavailable`
-- [ ] gate: `npm run test:unit -- --testPathPattern='transaction-automations/eligibility'`; `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='(ingest/card-payment/(processing|ingest-card-payment)|payees/payees|transactions/original-currency-metadata|transaction-automations/).*e2e'`
+- [x] `resolvePayeeForRawMerchant({ userId, rawMerchantName, promotionThreshold? })`: the parameter overrides the user setting only when given; every existing caller passes nothing
+- [x] `pickHistoryCategory({ ownerUserId, payeeId })`: one aggregate over the owner's non-planned, non-transfer rows from the last 12 months, excluding the default category; the most frequent wins, ties go to the latest
+- [x] `convertToAccountCurrency({ ownerUserId, amount, from, to, date })`: `calculateRefAmount`, then `roundToCurrency` half-even to the account's decimals; `ExchangeRateUnavailableError` → `{ parked: 'rateUnavailable' }` (⚠️ `calculateRefAmount` throws for a custom currency without a rate and never returns `null`, so there is no `null` branch)
+- [x] `isAutomationEligible`: also true for a planned row whose `externalData` has `cardPayment` (ingest-created plans only); its unit test gets both cases
+- [x] `processCardPayment` (steps 5–9 of tx 2): the mapping's account (owned, still active), then the conversion, the payee, the history category and `createTransaction` with the parameters from Solution Overview; the outcome is written to the request row; an `ExchangeRateUnavailableError` from anywhere in it reaches tx 3 as `rateUnavailable` (⚠️ `createTransaction`'s throw is rewrapped as `CardPaymentRateUnavailableError`, which names the pair account currency → base currency and the day, so the parked summary is pair-specific; the payee is resolved first and passed as `payeeId`, `rawMerchantName` is not passed again)
+- [x] gate (passed: unit 15 suites, 320 tests; e2e 8 suites, 149 passed, none skipped; typecheck, lint and oxfmt clean): `npm run test:unit -- --testPathPattern='transaction-automations/eligibility'`; `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='(ingest/card-payment/(processing|ingest-card-payment)|payees/payees|transactions/original-currency-metadata|transaction-automations/).*e2e'`
 
 ### Task 7: AI categorization with a bounded wait
 

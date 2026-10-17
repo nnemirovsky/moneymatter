@@ -52,8 +52,28 @@ describe('isAutomationEligible', () => {
     ).toBe(true);
   });
 
+  it('accepts a planned row that carries a card payment, on a connected account', () => {
+    expect(
+      isAutomationEligible({
+        ...eligible,
+        isPlanned: true,
+        externalData: { applyAutomations: true, cardPayment: { source: 'apple-pay' } },
+      }),
+    ).toBe(true);
+  });
+
   it.each([
     ['a manual system row', { accountType: ACCOUNT_TYPES.system, externalData: null }],
+    ['a planned row with no card payment', { isPlanned: true, externalData: { applyAutomations: true } }],
+    ['a planned row whose card payment is null', { isPlanned: true, externalData: { cardPayment: null } }],
+    [
+      'a planned card payment that is a transfer leg',
+      {
+        isPlanned: true,
+        externalData: { cardPayment: {} },
+        transferNature: TRANSACTION_TRANSFER_NATURE.common_transfer,
+      },
+    ],
     ['a planned row', { isPlanned: true }],
     ['a planned row even with applyAutomations', { isPlanned: true, externalData: { applyAutomations: true } }],
     ['a transfer leg', { transferNature: TRANSACTION_TRANSFER_NATURE.common_transfer }],
