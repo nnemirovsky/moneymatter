@@ -22,9 +22,9 @@ export function registerGetBudgetSpendingStats(server: McpServer) {
       const userId = getUserId({ extra });
       trackMcpToolUsed({ userId, tool: 'get_budget_spending_stats', clientId: extra.authInfo?.clientId });
 
-      const stats = await getBudgetSpendingStats({ userId, budgetId: args.budgetId });
+      const { stats, decimals } = await getBudgetSpendingStats({ userId, budgetId: args.budgetId });
 
-      return jsonContent({ data: serializeBudgetSpendingStats(stats) });
+      return jsonContent({ data: serializeBudgetSpendingStats({ stats, decimals }) });
     },
   );
 }
