@@ -6,6 +6,7 @@ import { encryptCredentials } from '@services/bank-data-providers/utils/credenti
 import type { Transaction } from 'sequelize';
 import { v7 as uuidv7 } from 'uuid';
 
+import { withoutHeaderNames } from '../rate-source-headers';
 import { BACKUP_TABLES, type BackupTableDef } from '../registry';
 import type { ArchiveAnalysis, TableColumnPlan } from './analyze-archive';
 import { buildInsertRecord, runBulkInsert } from './bulk-insert';
@@ -111,6 +112,15 @@ function buildRowOverrides({
       ? (row.symbolOverride ?? null)
       : (row.symbolOverride ?? definition?.symbol ?? null);
     overrides.decimalsOverride = row.decimalsOverride ?? definition?.decimals ?? null;
+  }
+
+  // The request headers of an HTTP rate source never travel: whatever an archive claims about
+  // them is dropped, so the source starts without headers and the user enters them again.
+  if (def.stripSecret === 'rateSourceHeaders') {
+    if (hasColumn({ plan, field: 'rateSourceConfig' })) {
+      overrides.rateSourceConfig = withoutHeaderNames({ config: row.rateSourceConfig }) ?? null;
+    }
+    if (hasColumn({ plan, field: 'rateSourceHeadersEncrypted' })) overrides.rateSourceHeadersEncrypted = null;
   }
 
   // Bank credentials never travel: re-encrypt an empty stub on THIS instance and
