@@ -99,6 +99,14 @@ const parseTime = ({ value }: { value: string }): Date | null => {
   return isRealDate ? new Date(wallClock.getTime() - offsetMinutes * 60_000) : null;
 };
 
+/**
+ * A payload's `time` as a displayable ISO timestamp: the request's own when it is a valid one, else
+ * the fallback. A blank time is how a client says "now", and a rejected request keeps whatever
+ * malformed text it sent, so the stored payload alone cannot be trusted to hold a date.
+ */
+export const readPayloadTime = ({ value, fallback }: { value: unknown; fallback: Date }): string =>
+  (typeof value === 'string' ? parseTime({ value }) : null)?.toISOString() ?? fallback.toISOString();
+
 const readDryRunCard = ({ value }: { value: unknown }): string | null => {
   if (typeof value !== 'string') return null;
 

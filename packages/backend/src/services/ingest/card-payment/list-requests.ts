@@ -15,6 +15,7 @@ import { Op, literal } from 'sequelize';
 
 import { normalizeCardLabel } from '../normalize-card-label';
 import { cardPaymentTimings } from './constants';
+import { readPayloadTime } from './parse-payload';
 import { isWaitingRequest } from './process-ingest-request';
 
 /** The waiting list is bounded so a long-neglected backlog cannot grow the response without limit. */
@@ -40,7 +41,7 @@ const toRequestDto = ({ row, now }: { row: IngestRequests; now: Date }): CardPay
     cardLabel: row.cardLabel,
     merchant: asText({ value: row.payload.merchant }),
     amountText: asText({ value: row.payload.amount }),
-    time: asText({ value: row.payload.time }) ?? row.createdAt.toISOString(),
+    time: readPayloadTime({ value: row.payload.time, fallback: row.createdAt }),
     transactionId: row.transactionId,
     createdAt: row.createdAt.toISOString(),
   };

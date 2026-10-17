@@ -27,6 +27,19 @@ describe('resolveCurrency', () => {
     expect(resolveCurrency({ ...base, explicitCurrency: 'A' })).toEqual({ ok: false, reason: 'invalidCurrency' });
   });
 
+  it('accepts a custom code up to the repo limit and refuses a longer one', () => {
+    expect(resolveCurrency({ ...base, explicitCurrency: 'loyaltypoints' })).toEqual({
+      ok: true,
+      currencyCode: 'LOYALTYPOINTS',
+      source: 'explicit',
+    });
+    expect(resolveCurrency({ ...base, explicitCurrency: 'A'.repeat(16) })).toMatchObject({ ok: true });
+    expect(resolveCurrency({ ...base, explicitCurrency: 'A'.repeat(17) })).toEqual({
+      ok: false,
+      reason: 'invalidCurrency',
+    });
+  });
+
   it('takes a code written in the amount text', () => {
     expect(resolveCurrency({ ...base, textCode: 'usd' })).toEqual({
       ok: true,

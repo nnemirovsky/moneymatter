@@ -1,4 +1,4 @@
-import type { CardPaymentRejectionReason } from '@bt/shared/types';
+import { CURRENCY_CODE_PATTERN, type CardPaymentRejectionReason } from '@bt/shared/types';
 
 /**
  * Currency symbols a Wallet amount can carry, with the currencies each one can stand for. A symbol
@@ -45,8 +45,6 @@ export const getSymbolCandidates = ({ symbol }: { symbol: string }): readonly st
   return Object.hasOwn(CURRENCY_SYMBOLS, key) ? CURRENCY_SYMBOLS[key] : undefined;
 };
 
-const CURRENCY_CODE_SHAPE = /^[A-Z0-9]{2,10}$/;
-
 export type CurrencySource = 'explicit' | 'text-code' | 'symbol' | 'account';
 
 export type ResolveCurrencyResult =
@@ -86,7 +84,7 @@ export const resolveCurrency = ({
   if (explicitCurrency !== null) {
     const code = explicitCurrency.trim().toUpperCase();
 
-    return CURRENCY_CODE_SHAPE.test(code)
+    return CURRENCY_CODE_PATTERN.test(code)
       ? { ok: true, currencyCode: code, source: 'explicit' }
       : { ok: false, reason: 'invalidCurrency' };
   }

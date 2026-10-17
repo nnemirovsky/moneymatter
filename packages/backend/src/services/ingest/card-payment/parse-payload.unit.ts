@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { parsePayload } from './parse-payload';
+import { parsePayload, readPayloadTime } from './parse-payload';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const receivedAt = new Date('2026-10-17T17:05:00.000Z');
@@ -321,5 +321,26 @@ describe('parsePayload', () => {
     it('is only a dry run for the boolean true', () => {
       expect(parse({ body: { ...validBody, dryRun: 'true' } })).toMatchObject({ kind: 'payment' });
     });
+  });
+});
+
+describe('readPayloadTime', () => {
+  const fallback = new Date('2026-10-17T17:05:00.000Z');
+
+  it.each([
+    ['a blank time', ''],
+    ['a whitespace time', '   '],
+    ['a missing time', undefined],
+    ['a null time', null],
+    ['a malformed time', 'yesterday'],
+    ['a time without an offset', '2026-10-17T12:00:00'],
+    ['a number', 1760000000],
+    ['an impossible date', '2026-02-30T12:00:00Z'],
+  ])('falls back for %s', (_name, value) => {
+    expect(readPayloadTime({ value, fallback })).toBe(fallback.toISOString());
+  });
+
+  it('returns a valid time normalized to UTC', () => {
+    expect(readPayloadTime({ value: '2026-10-17T21:00:00+04:00', fallback })).toBe('2026-10-17T17:00:00.000Z');
   });
 });

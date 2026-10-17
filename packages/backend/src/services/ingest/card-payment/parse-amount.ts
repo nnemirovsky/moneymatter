@@ -145,6 +145,13 @@ const readAffixes = ({
   return { negative, symbol, currencyCode };
 };
 
+// A JSON number is written with a `.` and no grouping, so it needs no separator inference.
+const readPlainDecimal = ({ text }: { text: string }): { integer: string; fraction: string } | null => {
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(text);
+
+  return match ? { integer: match[1]!, fraction: match[2] ?? '' } : null;
+};
+
 /**
  * The text of an amount field as sent: a string stays as it is, a JSON number is written without
  * an exponent, anything else has no text.
@@ -162,6 +169,9 @@ export const amountInputToText = ({ input }: { input: unknown }): string | null 
  * side, any of the usual thousands and decimal separators (including non-breaking and narrow
  * spaces and Arabic-Indic digits), a minus sign or accounting parentheses.
  *
+ * A JSON number is a plain decimal (`1.234` is one and 234 thousandths); in a string a lone `.` or
+ * `,` followed by three digits is a thousands separator.
+ *
  * `negative`, `zero` and `invalid` come back as failures, never as a throw: the iOS glitch that
  * sends `0` or an empty amount is a rejected payment, not a crash. See `readDigits` for how a lone
  * `,` or `.` is read.
@@ -176,7 +186,8 @@ export const parseAmount = ({ input }: { input: unknown }): ParseAmountResult =>
 
   const run = runs[0]!;
   const affixes = readAffixes({ text: `${text.slice(0, run.index)} ${text.slice(run.index + run[0].length)}` });
-  const digits = readDigits({ text: run[0] });
+  // `1.234` as a JSON number is 1.234 (KWD has three decimals); only a string needs the heuristic.
+  const digits = typeof input === 'number' ? readPlainDecimal({ text: run[0] }) : readDigits({ text: run[0] });
   if (!affixes || !digits) return { ok: false, reason: 'invalid' };
 
   const integer = digits.integer.replace(/^0+(?=\d)/, '');

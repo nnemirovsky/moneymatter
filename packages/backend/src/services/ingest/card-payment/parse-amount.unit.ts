@@ -26,6 +26,9 @@ describe('parseAmount', () => {
       ['an integer', 47, '47'],
       ['a decimal number', 47.5, '47.5'],
       ['a number JSON would write with an exponent', 1e-7, '0.0000001'],
+      ['a three-decimal number, read as a decimal, not as thousands (KWD)', 1.234, '1.234'],
+      ['a larger three-decimal number', 1234.567, '1234.567'],
+      ['a number that looks like a grouped integer', 12.345, '12.345'],
       ['an integer string', '47', '47'],
       ['a dot decimal', '47.00', '47'],
       ['a comma decimal', '47,00', '47'],
@@ -39,6 +42,10 @@ describe('parseAmount', () => {
   });
 
   describe('thousands and decimal separators', () => {
+    it('still reads a three-digit group in a string as thousands', () => {
+      expect(parseAmount({ input: '1.234' })).toEqual(ok({ amount: '1234' }));
+    });
+
     it.each([
       ['comma thousands, dot decimal', '1,234.56', '1234.56'],
       ['dot thousands, comma decimal', '1.234,56', '1234.56'],
