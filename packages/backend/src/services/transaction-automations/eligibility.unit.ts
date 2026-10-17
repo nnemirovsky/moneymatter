@@ -88,11 +88,13 @@ describe('isAutomationEligible', () => {
 });
 
 describe('buildEligibilityWhere', () => {
-  it('carries the trigger axis of its predicate twin and drops split parents', () => {
+  it('carries the planned and trigger axes of its predicate twin and drops split parents', () => {
     const bankAccountIds = [generateRandomRecordId(), generateRandomRecordId()];
-    const [eligibility, noSplits] = buildEligibilityWhere({ bankAccountIds })[Op.and];
+    const [plannedClause, eligibility, noSplits] = buildEligibilityWhere({ bankAccountIds })[Op.and];
     const [accountClause, importClause, apiClause] = eligibility?.[Op.or] ?? [];
 
+    expect((plannedClause as ReturnType<typeof literal>).val).toContain(`"isPlanned" = false OR`);
+    expect((plannedClause as ReturnType<typeof literal>).val).toContain(`"externalData"->'cardPayment' IS NOT NULL`);
     expect(accountClause).toEqual({ accountId: { [Op.in]: bankAccountIds } });
     expect((importClause as ReturnType<typeof literal>).val).toContain(`"externalData"->'importDetails' IS NOT NULL`);
     expect((apiClause as ReturnType<typeof literal>).val).toContain(`"externalData"->'applyAutomations' IS NOT NULL`);
