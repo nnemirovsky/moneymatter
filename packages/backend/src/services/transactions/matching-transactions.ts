@@ -36,7 +36,7 @@ interface MatchingRow {
   refAmount: number;
 }
 
-type RawMatchingRow = Omit<MatchingRow, 'refAmount'> & { refAmount: string };
+type RawMatchingRow = Omit<MatchingRow, 'refAmount'> & { refAmount: string | null };
 
 /** Every transaction the list shows for these filters, with the list's visibility scope. */
 const findMatchingRows = async (filters: ListFilters): Promise<MatchingRow[]> => {
@@ -49,7 +49,10 @@ const findMatchingRows = async (filters: ListFilters): Promise<MatchingRow[]> =>
     limit: Infinity,
     attributes: ['id', 'userId', 'accountId', 'transactionType', 'transferNature', 'transferId', 'refAmount'],
   })) as unknown as RawMatchingRow[];
-  const rows = rawRows.map((row): MatchingRow => ({ ...row, refAmount: Money.fromDecimal(row.refAmount).toCents() }));
+  // A row with no base-currency amount (custom currency, no rate yet) is left out of the totals.
+  const rows = rawRows.flatMap((row): MatchingRow[] =>
+    row.refAmount === null ? [] : [{ ...row, refAmount: Money.fromDecimal(row.refAmount).toCents() }],
+  );
 
   // The tag filter joins TransactionTags, which repeats a row per matching tag.
   return [...new Map(rows.map((row) => [row.id, row])).values()];
