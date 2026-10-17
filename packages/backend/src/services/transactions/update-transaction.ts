@@ -25,7 +25,9 @@ import {
   assertTxWriteAccess,
 } from '@services/sharing/auth/authorize-account-write.service';
 import { ensureUserCurrencyConnected } from '@services/sharing/auth/ensure-currency-connected.service';
+import { settlePeriodOnConfirm } from '@services/subscriptions/settle-period-on-match';
 import * as refundsService from '@services/tx-refunds';
+import { ConnectionError, DatabaseError, UniqueConstraintError } from 'sequelize';
 
 import { withTransaction } from '../common/with-transaction';
 import { calcTransferTransactionRefAmount, createOppositeTransaction } from './create-transaction';
@@ -805,6 +807,26 @@ export const updateTransaction = withTransaction(
             // Emit event for real-time reminders check (handled by event listener)
             eventBus.emit(DOMAIN_EVENTS.TRANSACTIONS_TAGGED, { tagIds: payload.tagIds, userId: payload.userId });
           }
+        }
+      }
+
+      // Confirming a plan is the moment its money moves, so a subscription it is linked to
+      // can settle its period now.
+      if (prevData.isPlanned && !baseTransaction.isPlanned) {
+        try {
+          await settlePeriodOnConfirm({ transaction: baseTransaction, userId: ctx.accountOwnerUserId });
+        } catch (error) {
+          if (
+            error instanceof DatabaseError ||
+            error instanceof UniqueConstraintError ||
+            error instanceof ConnectionError
+          ) {
+            throw error;
+          }
+          logger.error({
+            message: `Failed to settle a subscription period for confirmed transaction ${baseTransaction.id}`,
+            error: error as Error,
+          });
         }
       }
 
