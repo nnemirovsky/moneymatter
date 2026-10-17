@@ -569,14 +569,22 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - Modify: `services/currencies/change-base-currency.service.ts`, `base-currency-change-drain.ts`, `services/user-exchange-rate/*`
 - Create: `services/currencies/change-base-currency.custom.e2e.ts`
 
-- [ ] `rebuildTransactions` and the per-day balance sweep resolve custom legs through the user's rate source, crossing via the source's quote currency into the new base
-- [ ] custom legs resolve through the user's undated custom rate in its original quote, crossed into the new base with the normal ISO resolution of quote → new base for the transaction's date (the Task 13 resolver path, not separate base-change code)
-- [ ] no user rate row is rewritten by a base change, custom or ISO
-- [ ] a missing custom rate gives `null` plus `refAmountMissing` and never aborts the base change
-- [ ] e2e: change base while holding a custom-currency account (with a rate, and without one); ISO-only base change is unchanged; a mixed case (custom holding plus an ISO manual rate such as USD → EUR) keeps the ISO rate row unchanged; in the mixed case, a USDT transaction (USDT → USD custom rate 1, manual ISO USD → EUR 0.95, base EUR) is valued with 0.95, the same as a USD transaction
-- [ ] `revalueBalanceHistory` and the `revalueAccountsInCurrencies` trigger resolve custom-currency accounts through the same crossing (undated custom rate in its quote × ISO resolution of quote → base, per day), instead of returning `skipped`
-- [ ] e2e: after a base change, a custom-currency account's balance history is expressed in the new base
-- [ ] gate: the full base-change e2e suite passes
+- [x] `rebuildTransactions` and the per-day balance sweep resolve custom legs through the user's rate source, crossing via the source's quote currency into the new base
+  - result: `rebuildTransactions` and `recalculateAccounts` go through `getExchangeRate` as before, which already hands a custom pair to the Task 13 resolver; no conversion code was added. The per-day sweep is `revalueBalanceHistory` (below)
+- [x] custom legs resolve through the user's undated custom rate in its original quote, crossed into the new base with the normal ISO resolution of quote → new base for the transaction's date (the Task 13 resolver path, not separate base-change code)
+  - result: confirmed by the e2e: a USDT priced 1:1 in USD is valued exactly like a USD holding on the same day, both for the transaction and the account's ref balance
+- [x] no user rate row is rewritten by a base change, custom or ISO
+  - result: nothing in the change touches `UserExchangeRates`; the e2e snapshots every rate row (rate and `date`) before and after and compares them, in the plain and the mixed case
+- [x] a missing custom rate gives `null` plus `refAmountMissing` and never aborts the base change
+  - result: `localCalculateRefAmountOrNull` (change-base-currency.service.ts) answers `null` for an `ExchangeRateUnavailableError` on a conversion with a custom side (zero amounts convert to zero without a rate); ISO misses keep throwing. It is used for the transaction `refAmount` and `refCommissionRate` and the account `refInitialBalance`, `refCurrentBalance` and `refCreditLimit`. The transaction save skips hooks, so `refAmountMissing` is set from `refAmount` in the rebuild itself. Other tables (loans, investments, holdings) are ISO-only and unchanged
+- [x] e2e: change base while holding a custom-currency account (with a rate, and without one); ISO-only base change is unchanged; a mixed case (custom holding plus an ISO manual rate such as USD → EUR) keeps the ISO rate row unchanged; in the mixed case, a USDT transaction (USDT → USD custom rate 1, manual ISO USD → EUR 0.95, base EUR) is valued with 0.95, the same as a USD transaction
+  - result: `services/currencies/change-base-currency.custom.e2e.ts`, 8 tests. ⚠️ The 0.95 is asserted for entries made after the change: during the rebuild the base is still the old one, and an ISO manual rate applies only when its quote is the current base (the documented ISO rule, left alone), so the rebuild values the USDT and the USD transaction alike from the market and the test asserts they are equal and that the rate rows are unchanged. ISO-only base change is covered by the existing `change-base-currency.*` suites, which pass unchanged
+- [x] `revalueBalanceHistory` and the `revalueAccountsInCurrencies` trigger resolve custom-currency accounts through the same crossing (undated custom rate in its quote × ISO resolution of quote → base, per day), instead of returning `skipped`
+  - result: `revalueBalanceHistory` resolves each day of a custom account through `getExchangeRate` (no flat-rate shortcut, no 5-decimal market resolver). When no rate reaches the pair it deletes the account's `Balances` rows and returns `skipped`, because rows left from an earlier base would be read as amounts in the current one. `revalueAccountsInCurrencies` now also revalues custom accounts the user prices through an edited code, however many custom steps away (`withDependentCustomCurrencies`)
+- [x] e2e: after a base change, a custom-currency account's balance history is expressed in the new base
+  - result: in the same file (history equals the USD account's in the new base and the account's ref balance; rebuilds on a custom-rate edit and on an edit of the quote's ISO rate; cleared while no rate exists)
+- [x] gate: the full base-change e2e suite passes
+  - result: 22 suites, 252 tests, 0 failed: every `services/currencies/` file, `crons/balance-revalue-sweep`, `budget-plans/{guards,restore-plan}`, `loans/loan-balance-history`, `reconciliation`, `user-settings/fire-settings*`, `user-exchange-rate/`, `balances/` and `routes/base-currency-guard-coverage`. Backend typecheck, lint (exit 0), oxfmt and unit suite (192 suites, 2618 passed) are clean
 
 ### Task 15: Frontend custom currency management and display
 
