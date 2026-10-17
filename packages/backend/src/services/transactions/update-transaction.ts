@@ -200,6 +200,7 @@ const makeBasicBaseTxUpdation = async (
     // (the row's actual `userId`), not the caller. They differ when a recipient
     // edits an owner-created transaction with `transactionsWriteScope: 'all'`.
     userId: ctx.txCreatorUserId,
+    accountOwnerUserId: ctx.accountOwnerUserId,
     transactionType,
     paymentType: newData.paymentType,
     accountId: newData.accountId,
@@ -294,6 +295,7 @@ const makeBasicBaseTxUpdation = async (
   if (defaultUserCurrency.code !== baseTransactionUpdateParams.currencyCode) {
     baseTransactionUpdateParams.refAmount = await calculateRefAmount({
       userId: newData.userId,
+      amountOwnerUserId: ctx.accountOwnerUserId,
       amount: effectiveAmount,
       baseCode: baseTransactionUpdateParams.currencyCode,
       quoteCode: defaultUserCurrency.code,
@@ -680,6 +682,7 @@ export const updateTransaction = withTransaction(
           await ensureUserCurrencyConnected({
             userId: ctx.callerUserId,
             currencyCode: prevData.currencyCode,
+            definitionOwnerUserId: authCtx.accountOwnerUserId,
           });
         }
       }

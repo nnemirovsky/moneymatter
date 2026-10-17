@@ -465,7 +465,11 @@ export const createTransaction = withTransaction(
       // would otherwise trip `currencyNotConnected` inside the ref-amount lookup.
       // Auto-connect so the guard stays internal and not user-facing.
       if (!isOwner && generalTxCurrency.code !== defaultUserCurrency.code) {
-        await ensureUserCurrencyConnected({ userId, currencyCode: generalTxCurrency.code });
+        await ensureUserCurrencyConnected({
+          userId,
+          currencyCode: generalTxCurrency.code,
+          definitionOwnerUserId: accountOwnerUserId,
+        });
       }
 
       // Every figure the caller entered is rounded to the account currency's decimals once, here, so
@@ -478,7 +482,8 @@ export const createTransaction = withTransaction(
           cashbackAmount: payload.cashbackAmount,
           originalAmount: payload.originalAmount,
         },
-        userId: accountOwnerUserId,
+        userId,
+        accountOwnerUserId,
         currencyCode: generalTxCurrency.code,
         refCurrencyCode: undefined,
         originalCurrencyCode: payload.originalCurrencyCode,
@@ -558,6 +563,7 @@ export const createTransaction = withTransaction(
         commissionRate,
         refCommissionRate: commissionRate,
         userId,
+        accountOwnerUserId,
         accountId,
         accountType,
         transferNature,
@@ -571,6 +577,7 @@ export const createTransaction = withTransaction(
       if (defaultUserCurrency.code !== generalTxCurrency.code) {
         generalTxParams.refAmount = await calculateRefAmount({
           userId,
+          amountOwnerUserId: accountOwnerUserId,
           amount: generalTxParams.amount,
           baseCode: generalTxCurrency.code,
           quoteCode: defaultUserCurrency.code,
@@ -578,6 +585,7 @@ export const createTransaction = withTransaction(
         });
         generalTxParams.refCommissionRate = await calculateRefAmount({
           userId,
+          amountOwnerUserId: accountOwnerUserId,
           amount: generalTxParams.commissionRate || Money.zero(),
           baseCode: generalTxCurrency.code,
           quoteCode: defaultUserCurrency.code,
