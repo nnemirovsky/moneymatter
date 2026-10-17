@@ -24,6 +24,13 @@ import {
   updateCurrencyRateSource,
 } from '@controllers/currencies/rate-source';
 import { exportDataController } from '@controllers/data-export/export-data.controller';
+import { getAccessHeadersController, setAccessHeadersController } from '@controllers/ingest/access-headers.controller';
+import {
+  createCardMappingController,
+  deleteCardMappingController,
+  listCardMappingsController,
+  updateCardMappingController,
+} from '@controllers/ingest/card-mappings.controller';
 import {
   createIngestTokenController,
   listIngestTokensController,
@@ -216,5 +223,21 @@ router.delete('/settings/mcp/connected-apps/:clientId', revokeConnectedAppContro
 router.get('/settings/ingest-tokens', listIngestTokensController);
 router.post('/settings/ingest-tokens', blockDemoUsers, ingestSettingsWriteRateLimit, createIngestTokenController);
 router.delete('/settings/ingest-tokens/:id', revokeIngestTokenController);
+
+// Card links: which account a Wallet card's payments are logged on.
+router.get('/settings/card-mappings', listCardMappingsController);
+router.post('/settings/card-mappings', createCardMappingController);
+router.patch('/settings/card-mappings/:id', updateCardMappingController);
+router.delete('/settings/card-mappings/:id', deleteCardMappingController);
+
+// Cloudflare Access service-token headers for the setup code. The secret is write-only. Demo users
+// cannot store credentials.
+router.get('/settings/card-payments/access-headers', getAccessHeadersController);
+router.put(
+  '/settings/card-payments/access-headers',
+  blockDemoUsers,
+  ingestSettingsWriteRateLimit,
+  setAccessHeadersController,
+);
 
 export default router;

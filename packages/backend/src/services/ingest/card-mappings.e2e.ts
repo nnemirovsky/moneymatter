@@ -1,0 +1,406 @@
+import { ACCOUNT_STATUSES, API_ERROR_CODES } from '@bt/shared/types';
+import { decryptToken } from '@common/utils/encryption';
+import { beforeEach, describe, expect, it } from '@jest/globals';
+import IngestSettings from '@models/ingest-settings.model';
+import { RateLimitService } from '@services/common/rate-limit.service';
+import * as helpers from '@tests/helpers';
+import type { ErrorResponse } from '@tests/helpers/common';
+
+const CARD_LABEL_MAX_LENGTH = 100;
+
+const errorCode = ({ response }: { response: { body: unknown } }) =>
+  ((response.body as { response: ErrorResponse }).response ?? {}).code;
+
+/** An account owned by the second user. Must run inside `asUser`, which supplies that user's session. */
+const createSecondUserAccount = async () => {
+  await helpers.setBaseCurrencyForActiveUser({ currencyCode: global.BASE_CURRENCY.code });
+  const account = await helpers.createAccount({ raw: true });
+  expect(account.id).toEqual(expect.any(String));
+
+  return account;
+};
+
+describe('Card links', () => {
+  describe('GET /user/settings/card-mappings', () => {
+    it('is empty for a fresh user', async () => {
+      expect(await helpers.listCardMappings({ raw: true })).toEqual([]);
+    });
+
+    it("does not list another user's links", async () => {
+      const account = await helpers.createAccount({ raw: true });
+      await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: account.id }, raw: true });
+      const other = await helpers.signUpSecondUser();
+
+      const otherList = await helpers.asUser({
+        cookies: other.cookies,
+        fn: () => helpers.listCardMappings({ raw: true }),
+      });
+
+      expect(otherList).toEqual([]);
+    });
+
+    it('lists the links ordered by their normalized label', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      await helpers.createCardMapping({ payload: { cardLabel: 'Zeta', accountId: account.id }, raw: true });
+      await helpers.createCardMapping({ payload: { cardLabel: 'alpha', accountId: account.id }, raw: true });
+
+      const labels = (await helpers.listCardMappings({ raw: true })).map((mapping) => mapping.cardLabel);
+
+      expect(labels).toEqual(['alpha', 'Zeta']);
+    });
+  });
+
+  describe('POST /user/settings/card-mappings', () => {
+    it('creates a link and lists it with the label as typed', async () => {
+      const account = await helpers.createAccount({ raw: true });
+
+      const response = await helpers.createCardMapping({
+        payload: { cardLabel: '  TBC Visa  ', accountId: account.id },
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(response.body.response).toEqual({
+        id: expect.any(String),
+        cardLabel: 'TBC Visa',
+        accountId: account.id,
+        createdAt: expect.any(String),
+      });
+      expect(await helpers.listCardMappings({ raw: true })).toEqual([response.body.response]);
+    });
+
+    it('answers 409 for a label that normalizes to an existing one', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: account.id }, raw: true });
+
+      const duplicate = await helpers.createCardMapping({
+        payload: { cardLabel: '  tbc   VISA •••• 1234', accountId: account.id },
+      });
+
+      expect(duplicate.statusCode).toBe(409);
+      expect(errorCode({ response: duplicate })).toBe(API_ERROR_CODES.conflict);
+      expect(await helpers.listCardMappings({ raw: true })).toHaveLength(1);
+    });
+
+    it('lets two users link the same card name', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: account.id }, raw: true });
+      const other = await helpers.signUpSecondUser();
+
+      const created = await helpers.asUser({
+        cookies: other.cookies,
+        fn: async () => {
+          const otherAccount = await createSecondUserAccount();
+          return helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: otherAccount.id } });
+        },
+      });
+
+      expect(created.statusCode).toBe(201);
+    });
+
+    it("answers 422 for another user's account and leaves nothing behind", async () => {
+      const other = await helpers.signUpSecondUser();
+      const foreignAccount = await helpers.asUser({ cookies: other.cookies, fn: createSecondUserAccount });
+
+      const response = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: foreignAccount.id },
+      });
+
+      expect(response.statusCode).toBe(422);
+      expect(errorCode({ response })).toBe(API_ERROR_CODES.validationError);
+      expect(await helpers.listCardMappings({ raw: true })).toEqual([]);
+    });
+
+    it('answers 422 for an account that does not exist', async () => {
+      const response = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: '0192f0c2-0000-7000-8000-000000000000' },
+      });
+
+      expect(response.statusCode).toBe(422);
+    });
+
+    it('answers 422 for an archived account', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      await helpers.updateAccount({ id: account.id, payload: { status: ACCOUNT_STATUSES.archived } });
+
+      const response = await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: account.id } });
+
+      expect(response.statusCode).toBe(422);
+      expect(await helpers.listCardMappings({ raw: true })).toEqual([]);
+    });
+
+    it('answers 422 for a loan account', async () => {
+      const loan = await helpers.createLoan({
+        payload: helpers.buildCreateLoanPayload({ currencyCode: global.BASE_CURRENCY_CODE }),
+        raw: true,
+      });
+
+      const response = await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: loan.id } });
+
+      expect(response.statusCode).toBe(422);
+      expect(await helpers.listCardMappings({ raw: true })).toEqual([]);
+    });
+
+    it.each([
+      ['a blank label', { cardLabel: '   ' }],
+      ['a label over the limit', { cardLabel: 'x'.repeat(CARD_LABEL_MAX_LENGTH + 1) }],
+      ['a missing label', {}],
+      ['a malformed account id', { cardLabel: 'TBC Visa', accountId: 'not-an-id' }],
+    ])('answers 422 for %s', async (_name, overrides) => {
+      const account = await helpers.createAccount({ raw: true });
+
+      const response = await helpers.createCardMapping({ payload: { accountId: account.id, ...overrides } });
+
+      expect(response.statusCode).toBe(422);
+    });
+  });
+
+  describe('PATCH /user/settings/card-mappings/:id', () => {
+    it('renames the label and keeps the account', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const mapping = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: account.id },
+        raw: true,
+      });
+
+      const response = await helpers.updateCardMapping({ id: mapping.id, payload: { cardLabel: 'TBC Mastercard' } });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.body.response).toEqual({ ...mapping, cardLabel: 'TBC Mastercard' });
+    });
+
+    it('lets a link change only the letter case of its own label', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const mapping = await helpers.createCardMapping({
+        payload: { cardLabel: 'tbc visa', accountId: account.id },
+        raw: true,
+      });
+
+      const response = await helpers.updateCardMapping({ id: mapping.id, payload: { cardLabel: 'TBC Visa' } });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.body.response.cardLabel).toBe('TBC Visa');
+    });
+
+    it('points the link at another account', async () => {
+      const first = await helpers.createAccount({ raw: true });
+      const second = await helpers.createAccount({
+        payload: helpers.buildAccountPayload({ name: 'Second' }),
+        raw: true,
+      });
+      const mapping = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: first.id },
+        raw: true,
+      });
+
+      const updated = await helpers.updateCardMapping({ id: mapping.id, payload: { accountId: second.id }, raw: true });
+
+      expect(updated.accountId).toBe(second.id);
+      expect(await helpers.listCardMappings({ raw: true })).toEqual([updated]);
+    });
+
+    it('answers 409 when the new label belongs to another link', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: account.id }, raw: true });
+      const other = await helpers.createCardMapping({
+        payload: { cardLabel: 'Monobank', accountId: account.id },
+        raw: true,
+      });
+
+      const response = await helpers.updateCardMapping({ id: other.id, payload: { cardLabel: 'tbc visa' } });
+
+      expect(response.statusCode).toBe(409);
+      expect((await helpers.listCardMappings({ raw: true })).map((row) => row.cardLabel).toSorted()).toEqual([
+        'Monobank',
+        'TBC Visa',
+      ]);
+    });
+
+    it('answers 422 when the new account is archived', async () => {
+      const first = await helpers.createAccount({ raw: true });
+      const second = await helpers.createAccount({
+        payload: helpers.buildAccountPayload({ name: 'Second' }),
+        raw: true,
+      });
+      await helpers.updateAccount({ id: second.id, payload: { status: ACCOUNT_STATUSES.archived } });
+      const mapping = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: first.id },
+        raw: true,
+      });
+
+      const response = await helpers.updateCardMapping({ id: mapping.id, payload: { accountId: second.id } });
+
+      expect(response.statusCode).toBe(422);
+      expect((await helpers.listCardMappings({ raw: true }))[0]!.accountId).toBe(first.id);
+    });
+
+    it('answers 422 for a body with no fields', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const mapping = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: account.id },
+        raw: true,
+      });
+
+      const response = await helpers.updateCardMapping({ id: mapping.id, payload: {} });
+
+      expect(response.statusCode).toBe(422);
+    });
+
+    it("answers 404 for another user's link", async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const mapping = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: account.id },
+        raw: true,
+      });
+      const other = await helpers.signUpSecondUser();
+
+      const response = await helpers.asUser({
+        cookies: other.cookies,
+        fn: () => helpers.updateCardMapping({ id: mapping.id, payload: { cardLabel: 'Hijacked' } }),
+      });
+
+      expect(response.statusCode).toBe(404);
+      expect((await helpers.listCardMappings({ raw: true }))[0]!.cardLabel).toBe('TBC Visa');
+    });
+  });
+
+  describe('DELETE /user/settings/card-mappings/:id', () => {
+    it('removes the link and answers 404 the second time', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const mapping = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: account.id },
+        raw: true,
+      });
+
+      const first = await helpers.deleteCardMapping({ id: mapping.id });
+      const second = await helpers.deleteCardMapping({ id: mapping.id });
+
+      expect(first.statusCode).toBe(200);
+      expect(second.statusCode).toBe(404);
+      expect(await helpers.listCardMappings({ raw: true })).toEqual([]);
+    });
+
+    it("answers 404 for another user's link and keeps it", async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const mapping = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: account.id },
+        raw: true,
+      });
+      const other = await helpers.signUpSecondUser();
+
+      const response = await helpers.asUser({
+        cookies: other.cookies,
+        fn: () => helpers.deleteCardMapping({ id: mapping.id }),
+      });
+
+      expect(response.statusCode).toBe(404);
+      expect(await helpers.listCardMappings({ raw: true })).toHaveLength(1);
+    });
+
+    it('is implied by deleting the account: its links go with it', async () => {
+      const kept = await helpers.createAccount({ raw: true });
+      const removed = await helpers.createAccount({
+        payload: helpers.buildAccountPayload({ name: 'Removed' }),
+        raw: true,
+      });
+      await helpers.createCardMapping({ payload: { cardLabel: 'Kept', accountId: kept.id }, raw: true });
+      await helpers.createCardMapping({ payload: { cardLabel: 'Removed', accountId: removed.id }, raw: true });
+
+      await helpers.deleteAccount({ id: removed.id, raw: true });
+
+      expect((await helpers.listCardMappings({ raw: true })).map((mapping) => mapping.cardLabel)).toEqual(['Kept']);
+    });
+  });
+});
+
+describe('Cloudflare Access headers', () => {
+  const CLIENT_ID = 'abc123def456.access-a1b2';
+  const CLIENT_SECRET = 'f00dfacecafebeef0123456789abcdef0123456789abcdef0123456789abcdef';
+
+  beforeEach(async () => {
+    const { id } = await helpers.getUserInfo({ raw: true });
+    await RateLimitService.resetRateLimit(`ingest-settings-write:user:${id}`);
+  });
+
+  it('reports not configured for a fresh user', async () => {
+    expect(await helpers.getAccessHeaders({ raw: true })).toEqual({ configured: false, clientIdHint: null });
+  });
+
+  it('stores the pair and answers with a hint, never the secret', async () => {
+    const put = await helpers.setAccessHeaders({ payload: { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET } });
+    const get = await helpers.getAccessHeaders();
+
+    expect(put.statusCode).toBe(200);
+    expect(put.body.response).toEqual({ configured: true, clientIdHint: '…a1b2' });
+    expect(get.statusCode).toBe(200);
+    expect(get.body.response).toEqual({ configured: true, clientIdHint: '…a1b2' });
+    expect(JSON.stringify([put.body, get.body])).not.toContain(CLIENT_SECRET);
+    expect(JSON.stringify([put.body, get.body])).not.toContain(CLIENT_ID);
+  });
+
+  it('keeps both values encrypted at rest', async () => {
+    await helpers.setAccessHeaders({ payload: { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET }, raw: true });
+    const { id } = await helpers.getUserInfo({ raw: true });
+
+    const stored = await IngestSettings.findByPk(id);
+
+    expect(stored!.accessClientIdEnc).not.toContain(CLIENT_ID);
+    expect(stored!.accessClientSecretEnc).not.toContain(CLIENT_SECRET);
+    expect(decryptToken(stored!.accessClientIdEnc!)).toBe(CLIENT_ID);
+    expect(decryptToken(stored!.accessClientSecretEnc!)).toBe(CLIENT_SECRET);
+  });
+
+  it('replaces a stored pair', async () => {
+    await helpers.setAccessHeaders({ payload: { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET }, raw: true });
+
+    const replaced = await helpers.setAccessHeaders({
+      payload: { clientId: 'other.access-zz99', clientSecret: 'another-secret' },
+      raw: true,
+    });
+
+    expect(replaced).toEqual({ configured: true, clientIdHint: '…zz99' });
+    expect(await helpers.getAccessHeaders({ raw: true })).toEqual(replaced);
+  });
+
+  it('clears the pair when both values are null', async () => {
+    await helpers.setAccessHeaders({ payload: { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET }, raw: true });
+
+    const cleared = await helpers.setAccessHeaders({ payload: { clientId: null, clientSecret: null }, raw: true });
+
+    expect(cleared).toEqual({ configured: false, clientIdHint: null });
+    expect(await helpers.getAccessHeaders({ raw: true })).toEqual({ configured: false, clientIdHint: null });
+  });
+
+  it('answers 422 for one value without the other and keeps the stored pair', async () => {
+    await helpers.setAccessHeaders({ payload: { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET }, raw: true });
+
+    const onlyId = await helpers.setAccessHeaders({ payload: { clientId: 'x.access', clientSecret: null } });
+    const onlySecret = await helpers.setAccessHeaders({ payload: { clientId: null, clientSecret: 'secret' } });
+
+    expect(onlyId.statusCode).toBe(422);
+    expect(onlySecret.statusCode).toBe(422);
+    expect(await helpers.getAccessHeaders({ raw: true })).toEqual({ configured: true, clientIdHint: '…a1b2' });
+  });
+
+  it.each([
+    ['blank values', { clientId: '  ', clientSecret: ' ' }],
+    ['missing fields', {}],
+    ['an oversized value', { clientId: 'x'.repeat(256), clientSecret: 'secret' }],
+  ])('answers 422 for %s', async (_name, payload) => {
+    const response = await helpers.setAccessHeaders({ payload });
+
+    expect(response.statusCode).toBe(422);
+    expect(await helpers.getAccessHeaders({ raw: true })).toEqual({ configured: false, clientIdHint: null });
+  });
+
+  it("does not show one user's headers to another", async () => {
+    await helpers.setAccessHeaders({ payload: { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET }, raw: true });
+    const other = await helpers.signUpSecondUser();
+
+    const otherStatus = await helpers.asUser({
+      cookies: other.cookies,
+      fn: () => helpers.getAccessHeaders({ raw: true }),
+    });
+
+    expect(otherStatus).toEqual({ configured: false, clientIdHint: null });
+  });
+});

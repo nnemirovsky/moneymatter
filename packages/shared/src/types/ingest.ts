@@ -36,3 +36,45 @@ export interface CreateIngestTokenResponse {
   token: IngestTokenDto;
   secret: string;
 }
+
+/** Lifecycle of a logged ingest request. */
+export const INGEST_REQUEST_STATUSES = ['received', 'logged', 'parked', 'rejected', 'dismissed'] as const;
+
+export type IngestRequestStatus = (typeof INGEST_REQUEST_STATUSES)[number];
+
+/** A link between a Wallet card name and the account its payments are logged on. */
+export interface CardMappingDto {
+  id: RecordId;
+  /** The label as the user typed it. */
+  cardLabel: string;
+  accountId: RecordId;
+  createdAt: string;
+}
+
+/** Request body of `POST /user/settings/card-mappings`. */
+export interface CreateCardMappingPayload {
+  cardLabel: string;
+  accountId: RecordId;
+}
+
+/** Request body of `PATCH /user/settings/card-mappings/:id`; at least one field. */
+export interface UpdateCardMappingPayload {
+  cardLabel?: string;
+  accountId?: RecordId;
+}
+
+/**
+ * Whether Cloudflare Access service-token headers are stored for the setup code. The secret
+ * is write-only and the client id is reduced to a hint.
+ */
+export interface AccessHeadersStatusDto {
+  configured: boolean;
+  /** The last characters of the client id with a leading ellipsis, or `null` when not configured. */
+  clientIdHint: string | null;
+}
+
+/** Request body of `PUT /user/settings/card-payments/access-headers`: both values, or both `null` to clear. */
+export interface SetAccessHeadersPayload {
+  clientId: string | null;
+  clientSecret: string | null;
+}

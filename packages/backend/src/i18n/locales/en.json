@@ -482,6 +482,14 @@
     "missingScope": "The ingest token does not allow this action.",
     "tokenNotFound": "Ingest token not found."
   },
+  "cardMappings": {
+    "mappingNotFound": "Card link not found.",
+    "labelTaken": "A card with this name is already linked.",
+    "labelEmpty": "The card name cannot be empty.",
+    "accountNotFound": "Account not found.",
+    "accountArchived": "An archived account cannot be linked to a card.",
+    "accountNotSupported": "Loan and vehicle accounts cannot be linked to a card."
+  },
   "defaultCategories": {
     "main": {
       "food": "Food & Drinks",

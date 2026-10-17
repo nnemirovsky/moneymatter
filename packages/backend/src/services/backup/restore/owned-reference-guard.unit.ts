@@ -25,6 +25,7 @@ const EXPECTED_GUARDED_COLUMNS: Record<string, string[]> = {
   'budget-periods': ['planId'],
   'budget-plan-accounts': ['accountId', 'planId'],
   'budget-transactions': ['budgetId', 'transactionId'],
+  'card-account-mappings': ['accountId'],
   categories: ['parentId'],
   'category-tags': ['categoryId', 'tagId'],
   holdings: ['portfolioId'],

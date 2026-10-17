@@ -392,21 +392,22 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
 - Modify: `packages/backend/src/migrations/20261017020000-card-payment-ingest.ts`
 - Create: `packages/backend/src/models/{card-account-mappings,ingest-requests,ingest-settings}.model.ts`
 - Create: `packages/backend/src/services/ingest/{normalize-card-label,card-mappings.service,access-headers.service}.ts`, `normalize-card-label.unit.ts`
-- Create: `packages/backend/src/controllers/ingest/card-mappings.controller.ts`, `packages/backend/src/services/ingest/card-mappings.e2e.ts`
+- Create: `packages/backend/src/controllers/ingest/{card-mappings,access-headers}.controller.ts`, `packages/backend/src/services/ingest/card-mappings.e2e.ts`
 - Modify: `packages/backend/src/routes/user.route.ts`, `services/backup/registry.ts`, `routes/base-currency-guard-coverage.e2e.ts`
 
-- [ ] failing unit tests for `normalizeCardLabel` (trim, collapse whitespace, case-fold, Unicode NFC, strip a trailing "•••• 1234" if Wallet ever adds it)
-- [ ] failing e2e:
+- [x] failing unit tests for `normalizeCardLabel` (trim, collapse whitespace, case-fold, Unicode NFC, strip a trailing "•••• 1234" if Wallet ever adds it)
+- [x] failing e2e:
   - mapping CRUD (create, list empty and filled, rename the label, change the account, delete);
   - a duplicate normalized label is a 409;
   - an account the user does not own, an archived account, or a loan/vehicle account (`isDedicatedFlowAccountCategory`) is a 422;
   - deleting the account removes its mappings;
   - access headers: PUT stores them, GET returns `{ configured: true, clientIdHint: '…a1b2' }` and never the secret, PUT with `null`s clears them
-- [ ] migration: the three tables, FKs (`userId` cascade, `accountId` cascade, `tokenId`, `transactionId` and `duplicateOfId` set null), unique indexes and the `(userId, fingerprint, createdAt)` index; models with object-param statics
-- [ ] services and routes `GET|POST /user/settings/card-mappings`, `PATCH|DELETE /user/settings/card-mappings/:id`, `GET|PUT /user/settings/card-payments/access-headers` (encrypted with `encryptToken`)
-- [ ] backup registry: `CardAccountMappings` in `BACKUP_TABLES` (restore remaps `accountId`), `IngestRequests` and `IngestSettings` in `BACKUP_EXCLUDED` with reasons; a mapping round-trips through export and restore
-- [ ] guard coverage: exempt the mapping and access-header writes with reasons
-- [ ] gate: `npm run test:unit -- --testPathPattern='(normalize-card-label|backup/registry)'`; `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='(ingest/card-mappings|routes/base-currency-guard-coverage|backup/restore/restore-backup).e2e'`
+- [x] migration: the three tables, FKs (`userId` cascade, `accountId` cascade, `tokenId`, `transactionId` and `duplicateOfId` set null), unique indexes and the `(userId, fingerprint, createdAt)` index; models with object-param statics
+- [x] services and routes `GET|POST /user/settings/card-mappings`, `PATCH|DELETE /user/settings/card-mappings/:id`, `GET|PUT /user/settings/card-payments/access-headers` (encrypted with `encryptToken`; the PUT is behind `blockDemoUsers` and `ingestSettingsWriteRateLimit`)
+- [x] i18n keys `cardMappings.*` (en + uk); `owned-reference-guard.unit.ts` lists `card-account-mappings: ['accountId']`
+- [x] backup registry: `CardAccountMappings` in `BACKUP_TABLES` (restore remaps `accountId`), `IngestRequests` and `IngestSettings` in `BACKUP_EXCLUDED` with reasons; a mapping round-trips through export and restore
+- [x] guard coverage: exempt the mapping and access-header writes with reasons
+- [x] gate (passed: unit 20 tests in 3 suites; e2e 3 suites, card-mappings 34 tests, restore-backup round-trip with a mapping and guard coverage green; typecheck and lint clean): `npm run test:unit -- --testPathPattern='(normalize-card-label|backup/registry)'`; `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='(ingest/card-mappings|routes/base-currency-guard-coverage|backup/restore/restore-backup).e2e'`
 
 ### Task 4: Payload parsing and summaries
 

@@ -61,8 +61,11 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   'DELETE /api/v1/user/settings/ai/features/:feature',
   // Ingest tokens are credentials, no monetary data.
   'DELETE /api/v1/user/settings/ingest-tokens/:id',
+  // A card link names an account; it moves no money.
+  'DELETE /api/v1/user/settings/card-mappings/:id',
   'DELETE /api/v1/user/settings/mcp/connected-apps/:clientId',
   'PATCH /api/v1/user/settings',
+  'PATCH /api/v1/user/settings/card-mappings/:id',
   'POST /api/v1/user/backup',
   // A rate-source preview fetches one URL and saves nothing.
   'POST /api/v1/user/currencies/:code/rate-source/test',
@@ -74,11 +77,14 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   'POST /api/v1/user/settings/ai/connections/:id/default',
   'POST /api/v1/user/settings/ai/connections/models',
   'POST /api/v1/user/settings/ai/connections/test',
+  'POST /api/v1/user/settings/card-mappings',
   'POST /api/v1/user/settings/ingest-tokens',
   'PUT /api/v1/user/settings',
   'PUT /api/v1/user/settings/ai/connections/:id',
   'PUT /api/v1/user/settings/ai/custom-instructions',
   'PUT /api/v1/user/settings/ai/features/:feature',
+  // Cloudflare Access headers are credentials for the setup code, no monetary data.
+  'PUT /api/v1/user/settings/card-payments/access-headers',
   'PUT /api/v1/user/settings/onboarding',
   'PUT /api/v1/user/update',
 
