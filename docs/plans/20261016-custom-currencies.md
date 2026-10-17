@@ -619,23 +619,38 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - Modify: `models/user-exchange-rates.model.ts`, `services/user-exchange-rate/{get-user-exchange-rates,update-exchange-rates,get-exchange-rate}.service.ts`, `services/exchange-rates/build-daily-pair-rate-resolver.ts`, `services/balances/revalue-balance-history.service.ts`
 - Create/Modify: unit and e2e tests
 
-- [ ] migration: `UserExchangeRates.effectiveDate` (date, part of the key; existing rows get their `createdAt` date) and `source`
-- [ ] backup restore: before archive schema analysis, archives without `effectiveDate` (v1, and v2 exported before this migration) get it filled from each rate row's saved date using the migration's rule; e2e restores such an archive with non-empty user rates
-- [ ] `getRates` and `updateRates` take and write `effectiveDate`; an edit changes only that date's row
-- [ ] for **custom codes**, `resolveCustomRate` takes the latest rate on or before the date, ignores `liveRateUpdate` and the quote-is-base condition, and crosses via the stored quote currency
-- [ ] for **ISO codes**, behaviour stays date-independent as documented ("a custom rate applies to every date"): the ISO rate UI path writes no `effectiveDate` semantics of its own, and lookups keep using the latest row regardless of the transaction date
-- [ ] e2e: an ISO manual rate set today still applies to a transaction back-dated before it
-- [ ] keep custom-source rates at full precision (not through `formatRate`); round only the resulting amount
-- [ ] the dated resolver keeps the crossing rule: the custom rate effective on the transaction's date (in its stored quote) times the normal ISO resolution from that quote to the current base on the same date; base change therefore needs no extra code here and never rewrites rate rows
-- [ ] e2e: USDT → USD manual rate 1 effective Jan 1 and no later row; USD → EUR market 0.8 on Jan 1 and 0.9 on Jan 2; after a base change to EUR, a 10-USDT transaction on Jan 2 is 9 EUR, both when rebuilt and when newly entered
-- [ ] e2e: change base while holding a custom currency with a backfilled multi-date rate history; each historical refAmount matches the per-date conversion
-- [ ] `buildDailyPairRateResolver` and `revalue-balance-history` use per-day user rates
-- [ ] tests:
+- [x] migration: `UserExchangeRates.effectiveDate` (date, part of the key; existing rows get their `createdAt` date) and `source`
+  - result: `20261016020000-currency-rate-sources.ts` adds `effectiveDate` (DATE, NOT NULL, in the primary key in place of the `date` write timestamp) and `source` (varchar(32), default `'manual'`). Existing rows get the UTC day of `date`; a same-day duplicate of a pair keeps the row written last. `down` keeps only the latest-day row of each pair (documented in the header; earlier dated rates are lost). Self-contained, no live lists. Checked by `check:money-migration` (now 986 checks, 0 failed: seed with offset timestamps, UTC dating, duplicate collapse, key columns, same-day insert rejected, down, up again)
+- [x] backup restore: before archive schema analysis, archives without `effectiveDate` (v1, and v2 exported before this migration) get it filled from each rate row's saved date using the migration's rule; e2e restores such an archive with non-empty user rates
+  - result: `restore/fill-user-rate-effective-dates.ts`, called by `loadBackupArchive` right after the v1 money conversion (so before the schema analysis, for every format version): a rate without `effectiveDate` gets the UTC day of its saved `date` (a bad date is a 422), and rows of one pair landing on one day collapse to the one saved last. Unit tests (5) plus e2e in `dated-user-exchange-rates.e2e.ts`: an archive stripped of `effectiveDate`/`source` restores with rates dated by their saved day, and a dated custom history round-trips
+- [x] `getRates` and `updateRates` take and write `effectiveDate`; an edit changes only that date's row
+  - result: `getRates` takes `asOfDate` and returns rows latest first; `updateRates` / the `PUT /user/currency/rates` pairs take an optional `effectiveDate` (today when omitted) and write the row of that pair and day only; `DELETE /user/currency/rates` pairs take one too. Every write is `source: 'manual'`. An `effectiveDate` on a pair of ISO currencies is a 422
+- [x] for **custom codes**, `resolveCustomRate` takes the latest rate on or before the date, ignores `liveRateUpdate` and the quote-is-base condition, and crosses via the stored quote currency
+  - result: the dated lookup lives in `resolve-custom-pair-rate.ts`, which `getExchangeRate` already calls before `resolveCustomRate` for any pair with a custom side: the exact pair and each walk step take the row with the latest `effectiveDate` on or before the UTC day of the date, ignoring `liveRateUpdate` and the base. A day before the first rate is unavailable (null plus `refAmountMissing`). `resolveCustomRate` itself stays the ISO path
+- [x] for **ISO codes**, behaviour stays date-independent as documented ("a custom rate applies to every date"): the ISO rate UI path writes no `effectiveDate` semantics of its own, and lookups keep using the latest row regardless of the transaction date
+  - result: unchanged. `resolveCustomRate` reads the latest row of the pair whatever the date, ISO pairs keep one row (an edit rewrites it) and refuse an `effectiveDate`
+- [x] e2e: an ISO manual rate set today still applies to a transaction back-dated before it
+  - result: `dated-user-exchange-rates.e2e.ts` (ISO currencies: a USD to AED rate set today values a transaction 9 days back at the manual rate, not the market's)
+- [x] keep custom-source rates at full precision (not through `formatRate`); round only the resulting amount
+  - result: custom rates never pass `formatRate` (since Task 13) and chain through Big; e2e: SAT to AED 0.000001, 1,000,000 SAT is exactly 1 AED; unit test on the resolver
+- [x] the dated resolver keeps the crossing rule: the custom rate effective on the transaction's date (in its stored quote) times the normal ISO resolution from that quote to the current base on the same date; base change therefore needs no extra code here and never rewrites rate rows
+  - result: the walk takes the stored quote of the rate in force on the day, and the ISO leg is `getExchangeRate` for the same date
+- [x] e2e: USDT → USD manual rate 1 effective Jan 1 and no later row; USD → EUR market 0.8 on Jan 1 and 0.9 on Jan 2; after a base change to EUR, a 10-USDT transaction on Jan 2 is 9 EUR, both when rebuilt and when newly entered
+  - result: in the same file (single USDT to USD rate from day 1, USD to EUR 0.8 and 0.9 on the two days: the 10 USDT on day 2 is 40 AED, 9 EUR after the base change, 9 EUR when entered afterwards, every rate row unchanged)
+- [x] e2e: change base while holding a custom currency with a backfilled multi-date rate history; each historical refAmount matches the per-date conversion
+  - result: in the same file (USDT 1, 2, 3 on three days and EUR 0.5, 0.5, 0.25: the refAmounts are 5, 10, 7.5 EUR after the change)
+- [x] `buildDailyPairRateResolver` and `revalue-balance-history` use per-day user rates
+  - result: `revalueBalanceHistory` already resolves a custom account through `getExchangeRate` for each day, so the dated rates apply per day with no change. `buildDailyPairRateResolver` reads market rows and is reached only with two ISO currencies, so it is unchanged; the one caller that could hand it a custom pair, `budget-plans/activity/get-plan-cash.ts` (`storedRate`), now resolves a pair with a custom side through `getExchangeRate` for the day
+- [x] tests:
+  - result: all four covered in `dated-user-exchange-rates.e2e.ts` and `resolve-custom-pair-rate.unit.ts` (back-dated tx, one-date edit and one-date removal, SAT rate, ISO behaviour). The pre-existing `change-base-currency.custom.e2e.ts` back-dates its transactions, so its USDT rates now start on 2000-01-01; `get-combined-balance-history.e2e.ts` passes `effectiveDate` for its direct insert
   - a back-dated transaction uses the rate effective on its date
   - an edit to one date leaves other dates alone
   - a SAT-sized rate (0.000001) converts one million units to exactly 1
   - the existing ISO user-rate behaviour is unchanged
-- [ ] gate: these tests and the existing user-exchange-rate e2e suite pass
+- [x] gate: these tests and the existing user-exchange-rate e2e suite pass
+  - result: backend typecheck, lint (warnings only), oxfmt, frontend typecheck; unit suite 193 suites (the known `expiring-upload-cache` DNS flake aside); `check:money-migration` 986 passed; FULL e2e 296 suites: the only failures were `get-combined-balance-history` (fixed, a direct insert needed `effectiveDate`), `get-net-worth-drivers` (a market-rate flake, passes with the former on rerun: 2 suites, 53 tests) and the known `securities-daily-sync` load flake
+- [x] ➕ (found in the phase 2 review) `getExchangeRate` built `customCodes` from the requested pair only, so a custom rate quoting another custom code was walked as ISO and the ISO resolution re-entered the custom path with a fresh `visited` set: SAT to COIN plus COIN to SAT (the editor stores both directions) hung a conversion of SAT into any currency without an exact rate
+  - result: the resolver now takes `isCustom({ code })` and asks it at every step (so it walks the whole chain in one `visited` set and the ISO leg only ever gets ISO codes), and a step skips rates that quote a code already walked, so the reverse rate the editor stores beside every pair cannot win over a rate that leads out. A walk with nothing left is unavailable. Unit tests (2) and e2e through the pair endpoint and a transaction (2): a pure loop answers 404 / flagged missing, and with COIN to USD present SAT resolves through it
 
 ### Task 17: Rate-source configuration model and endpoint
 
