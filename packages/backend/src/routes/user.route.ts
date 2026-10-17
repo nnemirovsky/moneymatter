@@ -24,6 +24,11 @@ import {
   updateCurrencyRateSource,
 } from '@controllers/currencies/rate-source';
 import { exportDataController } from '@controllers/data-export/export-data.controller';
+import {
+  createIngestTokenController,
+  listIngestTokensController,
+  revokeIngestTokenController,
+} from '@controllers/ingest/ingest-tokens.controller';
 import { getConnectedAppsController, revokeConnectedAppController } from '@controllers/mcp/connected-apps.controller';
 import {
   cancelCliAuthSessionController,
@@ -80,6 +85,7 @@ import {
   backupRateLimit,
   backupRestoreRateLimit,
   dataExportRateLimit,
+  ingestSettingsWriteRateLimit,
   rateSourceSaveRateLimit,
   rateSourceTestRateLimit,
 } from '@middlewares/rate-limit';
@@ -204,5 +210,11 @@ router.post(
 // MCP Connected Apps
 router.get('/settings/mcp/connected-apps', getConnectedAppsController);
 router.delete('/settings/mcp/connected-apps/:clientId', revokeConnectedAppController);
+
+// Ingest tokens: personal credentials for machine clients (the Apple Pay shortcut). The secret is
+// returned by the create response only. Demo users cannot mint credentials.
+router.get('/settings/ingest-tokens', listIngestTokensController);
+router.post('/settings/ingest-tokens', blockDemoUsers, ingestSettingsWriteRateLimit, createIngestTokenController);
+router.delete('/settings/ingest-tokens/:id', revokeIngestTokenController);
 
 export default router;

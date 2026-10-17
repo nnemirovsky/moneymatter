@@ -23,3 +23,16 @@ export interface IngestTokenDto {
   createdAt: string;
   expiresAt: string | null;
 }
+
+/** Request body of `POST /user/settings/ingest-tokens`. */
+export interface CreateIngestTokenPayload {
+  name: string;
+  /** Days until the token stops working; omitted for a token that does not expire. */
+  expiresInDays?: number;
+}
+
+/** The only response that carries the secret. It is shown once and cannot be read again. */
+export interface CreateIngestTokenResponse {
+  token: IngestTokenDto;
+  secret: string;
+}

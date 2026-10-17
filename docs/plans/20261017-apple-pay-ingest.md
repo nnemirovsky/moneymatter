@@ -370,8 +370,9 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
 - Modify: `packages/backend/src/routes/user.route.ts`, `packages/backend/src/middlewares/rate-limit.ts` (`ingestSettingsWriteRateLimit`)
 - Modify: `packages/backend/src/routes/base-currency-guard-coverage.e2e.ts`
 - Create: `packages/backend/src/services/ingest-tokens/ingest-tokens.e2e.ts`, `packages/backend/src/tests/helpers/ingest.ts` (exported from `helpers/index.ts`)
+- Modify: `packages/backend/src/services/ingest-tokens/{password-reset,session-isolation}.e2e.ts` (token state through the HTTP list and revoke instead of counting rows), `packages/shared/src/types/ingest.ts` (create payload and response types)
 
-- [ ] write failing e2e:
+- [x] write failing e2e:
   - create returns the secret once and list never contains it;
   - list is empty for a fresh user;
   - revoke removes it and is a 404 on a second revoke;
@@ -379,10 +380,10 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
   - a name longer than 100 chars is a 422;
   - a demo user is blocked (`blockDemoUsers`);
   - the 11th create in a minute is a 429
-- [ ] routes `GET|POST /user/settings/ingest-tokens`, `DELETE /user/settings/ingest-tokens/:id` behind `authenticateSession`; zod schemas (`name` 1–100, `expiresInDays` optional 1–3650)
-- [ ] guard coverage: add an `AUTH_MIDDLEWARES` set (`authenticateSession`, `authenticateIngestToken`) to the invariant; exempt the token `POST`/`DELETE` routes with the reason "credentials, no monetary data"
-- [ ] i18n keys (`ingest.tokens.*` error messages) in `en` + `uk` through `i18n-editor`
-- [ ] gate: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='(ingest-tokens/ingest-tokens|routes/base-currency-guard-coverage).e2e'`
+- [x] routes `GET|POST /user/settings/ingest-tokens`, `DELETE /user/settings/ingest-tokens/:id` behind `authenticateSession`; zod schemas (`name` 1–100, `expiresInDays` optional 1–3650)
+- [x] guard coverage: add an `AUTH_MIDDLEWARES` set (`authenticateSession`, `authenticateIngestToken`) to the invariant; exempt the token `POST`/`DELETE` routes with the reason "credentials, no monetary data"
+- [x] i18n keys: none added. Task 1's `ingestTokens.*` (en + uk) already covers the not-found message, and validation failures use zod's 422 messages
+- [x] gate (passed: 6 suites, 54 passed and 4 skipped until Task 5, with typecheck and lint clean): `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='(ingest-tokens/ingest-tokens|routes/base-currency-guard-coverage).e2e'`
 
 ### Task 3: Card mappings, ingest log and access-header storage
 

@@ -6,21 +6,24 @@ const TEST_AUTH_USER_ID = 'test-user-id';
 
 describe('password reset revokes ingest tokens', () => {
   it("deletes every token of the user whose password was reset and leaves other users' tokens", async () => {
-    const owner = await helpers.getUserInfo({ raw: true });
-    await ingestHelpers.createTestIngestToken({ name: 'Phone' });
-    await ingestHelpers.createTestIngestToken({ name: 'Laptop' });
+    await helpers.createIngestToken({ payload: { name: 'Phone' }, raw: true });
+    await helpers.createIngestToken({ payload: { name: 'Laptop' }, raw: true });
 
     const other = await helpers.signUpSecondUser();
-    const otherApp = await helpers.findAppUserByEmail({ email: other.email });
-    await ingestHelpers.createTestIngestToken({ userId: otherApp.id, name: 'Other' });
+    const listOtherTokens = () =>
+      helpers.asUser({ cookies: other.cookies, fn: () => helpers.listIngestTokens({ raw: true }) });
+    await helpers.asUser({
+      cookies: other.cookies,
+      fn: () => helpers.createIngestToken({ payload: { name: 'Other' }, raw: true }),
+    });
 
-    expect(await ingestHelpers.countTestIngestTokens({ userId: owner.id })).toBe(2);
+    expect(await helpers.listIngestTokens({ raw: true })).toHaveLength(2);
 
     const res = await helpers.resetPasswordForTests({ authUserId: TEST_AUTH_USER_ID });
 
     expect(res.status).toBe(200);
-    expect(await ingestHelpers.countTestIngestTokens({ userId: owner.id })).toBe(0);
-    expect(await ingestHelpers.countTestIngestTokens({ userId: otherApp.id })).toBe(1);
+    expect(await helpers.listIngestTokens({ raw: true })).toEqual([]);
+    expect(await listOtherTokens()).toHaveLength(1);
   });
 
   // The 401 on the ingest route needs Task 5's route; it passes once that exists.

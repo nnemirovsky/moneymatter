@@ -36,9 +36,6 @@ export async function createTestIngestToken({
   return created;
 }
 
-export const countTestIngestTokens = ({ userId }: { userId?: number } = {}) =>
-  IngestTokens.count({ where: userId === undefined ? {} : { userId } });
-
 /** A request carrying no session cookie, only the given headers: what a machine client sends. */
 export function requestWithoutSession({
   method,

@@ -360,3 +360,16 @@ export const rateSourceSaveRateLimit = createRateLimit({
     return `rate-source-save:user:${user.id}`;
   },
 });
+
+/**
+ * Ingest settings writes (per user, 10 per minute). Minting a token or a setup code creates a
+ * credential, so it is limited like a login-adjacent action.
+ */
+export const ingestSettingsWriteRateLimit = createRateLimit({
+  windowSeconds: 60,
+  maxAttempts: 10,
+  keyGenerator: (req: Request) => {
+    const user = req.user as Users;
+    return `ingest-settings-write:user:${user.id}`;
+  },
+});
