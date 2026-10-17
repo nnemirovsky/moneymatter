@@ -760,11 +760,17 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - Modify: the custom-currency dialog or settings page from Task 15
 - Create: rate-source form components, vitest specs, a Playwright spec
 
-- [ ] add a source selector with a form per source: dated manual rates, peg (currency plus factor), CoinGecko coin search, HTTP (template, path, headers)
-- [ ] add a "Test" button with the previewed rate or the error
-- [ ] add the i18n keys for `en` and `uk` through `i18n-editor`
-- [ ] Playwright: peg USDT to USD; the missing-rate badge disappears and the totals update
-- [ ] gate: frontend typecheck, lint, unit and e2e tests
+- [x] add a source selector with a form per source: dated manual rates, peg (currency plus factor), CoinGecko coin search, HTTP (template, path, headers)
+  - result: `rate-source/rate-source-editor.vue` replaces the rate form in an expanded custom currency row (ISO rows keep `ExchangeRateForm`). A pill-tab selector (Manual, Peg, CoinGecko, HTTP) edits a draft (`rate-source-draft.ts`: `buildDraft`, `buildRateSourceBody`, `validateDraft`, `isDraftChanged`); Save appears only when the draft differs from the saved source, validates first, then `PUT /user/currencies/:code/rate-source`, and refreshes currencies, rates, accounts and transactions (`use-refresh-after-currency-change.ts`, now shared with the custom-currency dialog). Manual: the existing rate form gained an "Effective from" date (custom currencies only, sent as `effectiveDate` on both pairs) and a "Remove a rate" confirm dialog (`remove-dated-rate.vue`) that removes the rate starting on a chosen day; the rate form shows only while the saved source is manual, otherwise the user saves the source first. Peg: held currency (not itself) plus a positive factor. CoinGecko (`coingecko-source-form.vue`): debounced search, results with logo, symbol and rank, selected coin, ISO price currency; a 503 `CRYPTO_PROVIDER_NOT_CONFIGURED` from the search or from the save shows "CoinGecko is not available on this instance" naming `COINGECKO_API_KEY`. HTTP (`http-source-form.vue`): URL template with a `{date}`/`{code}`/`{quote}` hint, JSON path, ISO price currency, request headers. Saved headers are write-only: the UI lists their names, offers Replace (typed rows, masked values) or Remove (sends `headers: {}`) or Keep (omits `headers`), and never shows or retains a value after a save
+- [x] add a "Test" button with the previewed rate or the error
+  - result: the HTTP form's Test button calls `POST .../rate-source/test` with the draft (headers by the same keep/replace/clear rule), disabled until URL and path are filled; shows "On {date}, 1 {code} = {rate} {quote}" or the failure reason headline (one message per `RateSourceTestFailure`) plus the API message, or the refusal message of the request itself (rate limit). A result clears as soon as a setting changes
+- [x] add the i18n keys for `en` and `uk` through `i18n-editor`
+  - result: `settings.currencies.rateSource.*` in `en` and `uk` (edited directly; no subagent in this run; `i18n keys OK`, the audit reports no missing `uk` key)
+- [x] Playwright: peg USDT to USD; the missing-rate badge disappears and the totals update
+  - result: added to `e2e/tests/currencies/custom-currencies.spec.ts` (peg USDT to USD at factor 1, then the transactions page shows no `missing-rate-badge` and the 12.35 base amount). ⚠️ typechecked but not executed: it needs the docker dev stack, which this run does not start
+- [x] gate: frontend typecheck, lint, unit and e2e tests
+  - result: frontend typecheck clean, lint exit 0 (existing warnings only, `i18n keys OK`), oxfmt clean, unit suite 252 files passed (3495 tests, 33 skipped as before). New vitest: `rate-source-draft.spec.ts` (40), `rate-source-editor.test.ts` (19), `coingecko-source-form.test.ts` (7), `exchange-rate-form.test.ts` (4). Playwright not run (see above); no backend change in this task
+  - ➕ no endpoint lists a currency's dated manual rates, so the editor cannot show the rate history: the row header shows the rate in effect today, and a rate is removed by picking the day it starts on. A "list rates of a currency" endpoint would let the UI show and remove them from a list
 
 ### Task 23: Verify acceptance criteria
 
