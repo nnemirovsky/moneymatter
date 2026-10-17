@@ -34,6 +34,8 @@ interface GetCashFlowParams extends StatsScopeFilters {
   excludedCategoryIds?: RecordId[];
   /** Drops pending planned rows, leaving only money that actually moved. */
   excludePlanned?: boolean;
+  /** Decimals of the base currency: the scale the returned amounts are summed at (minor units). */
+  decimals: number;
 }
 
 type CategoryInfo = AccessibleCategoryInfo;
@@ -117,6 +119,7 @@ export const getCashFlow = withTransaction(
     categoryIds,
     excludedCategoryIds,
     excludePlanned,
+    decimals,
   }: GetCashFlowParams): Promise<GetCashFlowResponse> => {
     // Generate period buckets
     const buckets = generatePeriodBuckets({ from, to, granularity });
@@ -161,6 +164,7 @@ export const getCashFlow = withTransaction(
       // forecast. A plan is an intention of whoever recorded it.
       planned: excludePlanned ? 'exclude' : { visibleTo: userId },
       refunds: 'net',
+      decimals,
       window: { from, to },
       where: {
         [Op.and]: [
@@ -177,7 +181,7 @@ export const getCashFlow = withTransaction(
     });
 
     // Each leg carries its transaction's type, so one call covers both directions.
-    const allocations = await computeCategoryAllocations({ transactions, applyRefunds: false });
+    const allocations = await computeCategoryAllocations({ transactions, applyRefunds: false, decimals });
 
     // Determine which categories to report in the breakdown
     // If specific categories selected, report those exact categories (not aggregated to root)
@@ -222,12 +226,12 @@ export const getCashFlow = withTransaction(
      */
     const applyLeg = ({
       categoryId,
-      cents,
+      minor,
       time,
       isExpense,
     }: {
       categoryId: string | null;
-      cents: number;
+      minor: number;
       time: Date;
       isExpense: boolean;
     }): void => {
@@ -248,9 +252,9 @@ export const getCashFlow = withTransaction(
 
       const periodData = periodDataMap.get(bucketIndex)!;
       if (isExpense) {
-        periodData.expenses += cents;
+        periodData.expenses += minor;
       } else {
-        periodData.income += cents;
+        periodData.income += minor;
       }
 
       if (!aggregationCategoryId) return;
@@ -261,9 +265,9 @@ export const getCashFlow = withTransaction(
       };
 
       if (isExpense) {
-        currentAmounts.expenseAmount += cents;
+        currentAmounts.expenseAmount += minor;
       } else {
-        currentAmounts.incomeAmount += cents;
+        currentAmounts.incomeAmount += minor;
       }
 
       periodData.categories.set(aggregationCategoryId, currentAmounts);
@@ -272,7 +276,7 @@ export const getCashFlow = withTransaction(
     for (const leg of allocations.base) {
       applyLeg({
         categoryId: leg.categoryId,
-        cents: leg.cents,
+        minor: leg.minor,
         time: leg.time,
         isExpense: leg.transactionType === TRANSACTION_TYPES.expense,
       });
@@ -286,8 +290,8 @@ export const getCashFlow = withTransaction(
 
       // Both halves land in the refund's own bucket, so the period keeps the net cash it saw while
       // the money stops counting as spend on one side and as income on the other.
-      applyLeg({ categoryId: pair.expenseCategoryId, cents: -pair.cents, time: pair.time, isExpense: true });
-      applyLeg({ categoryId: pair.incomeCategoryId, cents: -pair.cents, time: pair.time, isExpense: false });
+      applyLeg({ categoryId: pair.expenseCategoryId, minor: -pair.minor, time: pair.time, isExpense: true });
+      applyLeg({ categoryId: pair.incomeCategoryId, minor: -pair.minor, time: pair.time, isExpense: false });
     }
 
     // Every period reports the same category set (stacked bars need a stable series list), so the
