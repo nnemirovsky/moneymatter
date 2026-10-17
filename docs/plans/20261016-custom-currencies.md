@@ -457,10 +457,14 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - Modify: `currencies.model.ts` (`getAllCurrencies`), the currencies controller and route, `services/exchange-rates/providers/registry.ts`, `providers/fawaz-currency-api/**`, `providers/api-layer/**`, `initialize-historical-rates.service.ts`
 - Create: `services/currencies/custom-currency-isolation.e2e.ts`, plus unit tests for the registry coverage set
 
-- [ ] exclude `isCustom` rows from `getAllCurrencies` and `GET /currencies`, the registry coverage set, the fawaz and ApiLayer `validCodes`, and the historical initializer
-- [ ] e2e: a custom code created directly in the test DB through a helper endpoint is invisible in `GET /currencies` for every user
-- [ ] unit tests: provider coverage reaches "complete" and the ApiLayer early stop still fires while custom rows exist; fawaz never ingests a custom code
-- [ ] gate: these tests pass, before any endpoint can create custom rows
+- [x] exclude `isCustom` rows from `getAllCurrencies` and `GET /currencies`, the registry coverage set, the fawaz and ApiLayer `validCodes`, and the historical initializer
+  - result: `getAllCurrencies` filters `isCustom: false` (the public `GET /models/currencies` and the registry's coverage set both read it); fawaz, ApiLayer and `initializeHistoricalRates` call `Currencies.findAll({ where: { isCustom: false } })`. `getCurrency`/`getCurrencies` (lookup by code, used by validation) are untouched: Task 11 owns visibility there
+- [x] e2e: a custom code created directly in the test DB through a helper endpoint is invisible in `GET /currencies` for every user
+  - result: `seedCustomCurrencyRow` / `removeCustomCurrencyRow` in `tests/helpers/currencies.ts` insert and clean a custom `BTC` row (the mocked providers quote BTC) attached to the primary user. `custom-currency-isolation.e2e.ts` (4 tests): the list excludes it for the owner and for a second user, and the daily sync (fawaz basket, then ApiLayer with fawaz down) and the historical backfill store no `ExchangeRates` row for it
+- [x] unit tests: provider coverage reaches "complete" and the ApiLayer early stop still fires while custom rows exist; fawaz never ingests a custom code
+  - result: `providers/custom-currency-isolation.unit.ts` (4 tests) fakes `Currencies.findAll` over ISO plus custom rows. All 4 fail when the filter is removed from `getAllCurrencies`, fawaz and ApiLayer (checked by mutation)
+- [x] gate: these tests pass, before any endpoint can create custom rows
+  - result: backend typecheck, lint (exit 0), oxfmt and the unit suite (187 suites, 2537 tests) are clean. E2E, one batched run: `services/currencies/(custom-currency-isolation|add-user-currency)|services/exchange-rates/|services/user-exchange-rate|services/bank-data-providers/monobank/monobank-flow`: 8 suites, 98 passed, 0 failed
 
 ### Task 11: Currency-code validation from the database
 
@@ -472,6 +476,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - [ ] `currencyCode()` checks the format `^[A-Z0-9]{2,16}$`; a shared service helper checks existence and that the code is visible to the user
 - [ ] the four importers use the shared format and visibility check; monobank keeps its ISO numeric mapping
 - [ ] the statement-parser prompt and import mapping recognise the user's custom codes
+- ➕ (found in Task 10) two more `getCurrency({ code })` callers resolve a code from an external source without a visibility check, so they would accept another user's custom code: `bank-data-providers/connection/connect-selected-accounts.ts:218` (bank account currency) and `investments/holdings/create-holding.service.ts:32` (security currency). Both are ISO-only; make them reject `isCustom` rows (or take the new shared helper with an ISO-only option)
 - [ ] tests: format unit tests; e2e rejects another user's custom code and an unknown code (listing the valid ones); a CSV import into a custom-currency account is accepted
 - [ ] gate: these tests pass
 
@@ -491,6 +496,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - [ ] block making a custom currency the base currency, and keep ISO-only validation for portfolios, investment transactions, ventures, vehicles and loans (e2e: creating a USDT loan or portfolio → 422)
 - [ ] account and transaction payloads carry the account currency's effective metadata **as defined by the account owner** (`decimals`, `symbol`, `isCustom`), so a collaborator's UI can format by the account rather than by its own currency list
 - [ ] e2e: happy path, empty state, duplicate code for the same user, another user's code invisible, delete or decimals change while in use → 409, and two users defining SAT with 0 and 8 decimals each storing their own precision
+- ➕ user cleanup (found in Task 10): `Currencies.createdByUserId` has no foreign key, so deleting a user (`services/user/delete-user.service.ts`) or wiping their data (`wipe-user-data.service.ts`) removes their `UsersCurrencies` rows through the cascade or the per-table destroy but leaves their global custom `Currencies` rows behind, still pointing at the deleted id. Both flows go through `runUserDestroyLifecycle` (`user-destroy-lifecycle.ts`), and `DELETE /user/currencies/custom/:code` has the same end state. Add one shared helper (for example `pruneUnusedCustomCurrencies`) that deletes `isCustom` rows no `UsersCurrencies` row references any more and clears `createdByUserId` on rows that survive because another user attached them. Call it inside the transaction from the lifecycle after `destroyInTx`, and from the `DELETE` endpoint. e2e: delete a user who defined SAT and assert the row is gone; delete a user whose SAT another user also holds and assert the row stays with `createdByUserId` null
 - [ ] gate: these tests pass
 
 ### Task 13: Transactions in custom currencies with an explicit missing-rate state
