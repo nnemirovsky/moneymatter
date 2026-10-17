@@ -44,7 +44,6 @@ interface CreateIngestTokenParams {
   userId: number;
   name: string;
   purpose?: IngestTokenPurpose;
-  scopes?: readonly IngestScope[];
   expiresInDays?: number;
 }
 
@@ -53,7 +52,6 @@ const createIngestTokenImpl = async ({
   userId,
   name,
   purpose = 'general',
-  scopes = DEFAULT_INGEST_SCOPES,
   expiresInDays,
 }: CreateIngestTokenParams): Promise<{ token: IngestTokenDto; secret: string }> => {
   const secret = generateIngestTokenSecret();
@@ -64,7 +62,7 @@ const createIngestTokenImpl = async ({
     purpose,
     tokenHash: hashToken({ token: secret }),
     start: secret.slice(0, INGEST_TOKEN_START_LENGTH),
-    scopes: [...scopes],
+    scopes: [...DEFAULT_INGEST_SCOPES],
     expiresAt: expiresInDays === undefined ? null : addDays(new Date(), expiresInDays),
   });
 

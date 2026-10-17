@@ -33,7 +33,7 @@ describe('ingest tokens are not sessions', () => {
       },
     );
 
-    it('is refused where the session cookie alone is accepted', async () => {
+    it('accepts the session cookie on the same route (control for the refusals above)', async () => {
       const res = await helpers.getUserInfo({ raw: false });
 
       expect(res.statusCode).toBe(200);
