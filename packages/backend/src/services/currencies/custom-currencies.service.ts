@@ -1,15 +1,15 @@
 import type { CreateCustomCurrencyBody, CustomCurrencyModel, UpdateCustomCurrencyBody } from '@bt/shared/types';
 import { invalidateCurrencyDecimalsCache } from '@common/lib/currency-decimals-cache';
+import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
 import { t } from '@i18n/index';
-import { ConflictError, NotFoundError } from '@js/errors';
-import { CacheClient } from '@js/utils/cache';
+import { ConflictError } from '@js/errors';
+import { namespace } from '@models/connection';
 import Currencies from '@models/currencies.model';
 import { connection } from '@models/index';
 import UserExchangeRates from '@models/user-exchange-rates.model';
 import UsersCurrencies from '@models/users-currencies.model';
 import { insertOrAdopt } from '@services/common/run-in-savepoint';
 import { withTransaction } from '@services/common/with-transaction';
-import { buildRefAmountCachePattern } from '@services/ref-amount-cache';
 import cc from 'currency-codes';
 import { Op, QueryTypes } from 'sequelize';
 
@@ -34,6 +34,13 @@ const USAGE_SOURCES = [
   { label: 'subscription candidates', table: 'SubscriptionCandidates', columns: ['currencyCode'] },
   { label: 'budget plans', table: 'BudgetPlans', columns: ['currencyCode'] },
 ] as const;
+
+/** Reads the global currency row under FOR SHARE inside the ambient CLS transaction. */
+const lockCurrencyRow = ({ code }: { code: string }) => {
+  const sequelizeTx = namespace.get('transaction');
+
+  return Currencies.findOne({ where: { code }, transaction: sequelizeTx, lock: sequelizeTx?.LOCK.SHARE });
+};
 
 const toCustomCurrencyModel = (effective: EffectiveCurrency): CustomCurrencyModel => ({
   code: effective.code,
@@ -65,20 +72,11 @@ const findOwnCustomCurrency = async ({ userId, code }: { userId: number; code: s
     include: [{ model: Currencies, as: 'currency', where: { isCustom: true }, required: true }],
   }) as Promise<(UsersCurrencies & { currency: Currencies }) | null>;
 
-const requireOwnCustomCurrency = async ({ userId, code }: { userId: number; code: string }) => {
-  const held = await findOwnCustomCurrency({ userId, code });
-
-  if (!held) {
-    throw new NotFoundError({ message: t({ key: 'currencies.customCurrencyNotFound', variables: { code } }) });
-  }
-
-  return held;
-};
-
-const dropCachedRefAmounts = ({ userId }: { userId: number }) =>
-  // The converted-amount cache key carries no decimals, so entries made under the old definition
-  // would keep serving amounts rounded to it.
-  new CacheClient({ logPrefix: 'custom-currencies' }).delete(buildRefAmountCachePattern({ userId }), true);
+const requireOwnCustomCurrency = ({ userId, code }: { userId: number; code: string }) =>
+  findOrThrowNotFound({
+    query: findOwnCustomCurrency({ userId, code }),
+    message: t({ key: 'currencies.customCurrencyNotFound', variables: { code } }),
+  });
 
 export const listCustomCurrencies = async ({ userId }: { userId: number }): Promise<CustomCurrencyModel[]> => {
   const held = (await UsersCurrencies.findAll({
@@ -107,9 +105,14 @@ export const createCustomCurrency = withTransaction(
       throw new ConflictError({ message: t({ key: 'currencies.customCurrencyAlreadyDefined', variables: { code } }) });
     }
 
+    // FOR SHARE keeps `pruneUnusedCustomCurrencies` from deleting the row between here and the holding
+    // insert below (the delete would cascade the new holding away). A null result means a prune
+    // removed the row after the read above, so it is created afresh.
+    const lockedExisting = existing ? await lockCurrencyRow({ code }) : null;
+
     // Two users defining the same new code at once: the loser adopts the winner's row.
     const currency =
-      existing ??
+      lockedExisting ??
       (await insertOrAdopt({
         insert: () =>
           Currencies.create({
@@ -121,7 +124,7 @@ export const createCustomCurrency = withTransaction(
             symbol: symbol ?? null,
             createdByUserId: userId,
           }),
-        adopt: () => Currencies.findOne({ where: { code } }),
+        adopt: () => lockCurrencyRow({ code }),
       }));
 
     const held = await UsersCurrencies.create({
@@ -168,10 +171,7 @@ const updateCustomCurrencyImpl = async ({
     ...(decimals !== undefined && { decimalsOverride: decimals }),
   });
 
-  return {
-    decimalsChanged,
-    currency: toCustomCurrencyModel(applyCurrencyOverrides({ currency: held.currency, overrides: held })),
-  };
+  return toCustomCurrencyModel(applyCurrencyOverrides({ currency: held.currency, overrides: held }));
 };
 
 const updateCustomCurrencyInTx = withTransaction(updateCustomCurrencyImpl);
@@ -179,11 +179,11 @@ const updateCustomCurrencyInTx = withTransaction(updateCustomCurrencyImpl);
 export const updateCustomCurrency = async (
   params: UpdateCustomCurrencyBody & { userId: number; code: string },
 ): Promise<CustomCurrencyModel> => {
-  const { currency, decimalsChanged } = await updateCustomCurrencyInTx(params);
+  const currency = await updateCustomCurrencyInTx(params);
 
   // After the commit, so a concurrent read cannot repopulate the cache from the old definition.
+  // The converted-amount cache needs no drop: it never holds a conversion with a custom side.
   invalidateCurrencyDecimalsCache({ userId: params.userId, code: params.code });
-  if (decimalsChanged) await dropCachedRefAmounts({ userId: params.userId });
 
   return currency;
 };
@@ -213,5 +213,4 @@ export const deleteCustomCurrency = async ({ userId, code }: { userId: number; c
   await deleteCustomCurrencyInTx({ userId, code });
 
   invalidateCurrencyDecimalsCache({ userId, code });
-  await dropCachedRefAmounts({ userId });
 };

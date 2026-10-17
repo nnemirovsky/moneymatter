@@ -32,9 +32,14 @@ interface MatchingRow {
   transactionType: TRANSACTION_TYPES;
   transferNature: TRANSACTION_TRANSFER_NATURE;
   transferId: string | null;
-  /** Base-currency cents, converted from the exact decimal string the raw read returns. */
-  refAmount: number;
+  /**
+   * Base-currency cents, converted from the exact decimal string the raw read returns.
+   * `null` for a row with no base-currency value (custom currency, no rate yet).
+   */
+  refAmount: number | null;
 }
+
+type PricedMatchingRow = MatchingRow & { refAmount: number };
 
 type RawMatchingRow = Omit<MatchingRow, 'refAmount'> & { refAmount: string | null };
 
@@ -49,9 +54,12 @@ const findMatchingRows = async (filters: ListFilters): Promise<MatchingRow[]> =>
     limit: Infinity,
     attributes: ['id', 'userId', 'accountId', 'transactionType', 'transferNature', 'transferId', 'refAmount'],
   })) as unknown as RawMatchingRow[];
-  // A row with no base-currency amount (custom currency, no rate yet) is left out of the totals.
-  const rows = rawRows.flatMap((row): MatchingRow[] =>
-    row.refAmount === null ? [] : [{ ...row, refAmount: Money.fromDecimal(row.refAmount).toCents() }],
+  // Unpriced rows stay in: a bulk action must still reach them. Only the totals leave them out.
+  const rows = rawRows.map(
+    (row): MatchingRow => ({
+      ...row,
+      refAmount: row.refAmount === null ? null : Money.fromDecimal(row.refAmount).toCents(),
+    }),
   );
 
   // The tag filter joins TransactionTags, which repeats a row per matching tag.
@@ -59,7 +67,9 @@ const findMatchingRows = async (filters: ListFilters): Promise<MatchingRow[]> =>
 };
 
 export const getTransactionsSummary = async (filters: ListFilters): Promise<TransactionsSummaryResponse> => {
-  const rows = dedupeTransferLegs(await findMatchingRows(filters));
+  // A row with no base-currency amount has no value to total, so it is left out of count and sums.
+  const priced = (await findMatchingRows(filters)).filter((row): row is PricedMatchingRow => row.refAmount !== null);
+  const rows = dedupeTransferLegs(priced);
   const totals = sumTransactionTotals(rows);
 
   return {

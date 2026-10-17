@@ -278,6 +278,27 @@ describe('Transactions in custom currencies', () => {
       expect((await readAccount({ id: usdt.id })).refCurrentBalance).toBe(-22.04);
     });
 
+    it('flags the entry instead of hanging when two custom currencies are quoted in each other and neither has a rate in the base', async () => {
+      await createCurrency({ code: 'SAT', decimals: 8 });
+      await createCurrency({ code: 'COIN', decimals: 4 });
+      const sat = await createAccountIn({ code: 'SAT' });
+
+      // The endpoint stores both directions, so SAT is quoted in COIN and COIN in SAT: a loop.
+      await setRates(pairRates({ code: 'SAT', rate: 3, quote: 'COIN' }));
+
+      const [created] = await createTx({ accountId: sat.id, amount: 0.5 });
+
+      expect(created!.amount).toBe(0.5);
+      expect(created!.refAmount).toBeNull();
+      expect(created!.refAmountMissing).toBe(true);
+
+      // A rate to the base breaks the loop for the entries saved after it.
+      await setRates(pairRates({ code: 'SAT', rate: 2 }));
+      const [valued] = await createTx({ accountId: sat.id, amount: 0.5 });
+      expect(valued!.refAmount).toBe(1);
+      expect(valued!.refAmountMissing).toBe(false);
+    });
+
     it('turns a valued transaction back into a flagged one when its rate is removed before an edit', async () => {
       await createCurrency({ code: 'USDT', decimals: 6 });
       await setRates(pairRates({ code: 'USDT', rate: 4 }));
@@ -300,6 +321,73 @@ describe('Transactions in custom currencies', () => {
 
       expect(updated!.refAmount).toBeNull();
       expect(updated!.refAmountMissing).toBe(true);
+    });
+  });
+
+  describe('bulk actions selected by filters over rows with no rate', () => {
+    const noteOf = async ({ id }: { id: string }) => (await readTx({ id })).note;
+
+    it('bulk edit reaches every unpriced row of a custom-currency account', async () => {
+      await createCurrency({ code: 'USDT', decimals: 6 });
+      const usdt = await createAccountIn({ code: 'USDT' });
+      const [first] = await createTx({ accountId: usdt.id, amount: 5 });
+      const [second] = await createTx({ accountId: usdt.id, amount: 7 });
+      expect(first!.refAmountMissing).toBe(true);
+
+      const result = await helpers.bulkUpdateTransactions({
+        payload: { selection: { filters: { accountIds: [usdt.id as RecordId] }, excludedIds: [] }, note: 'bulk' },
+        raw: true,
+      });
+
+      expect(result.updatedIds.toSorted()).toEqual([first!.id, second!.id].toSorted());
+      expect(await noteOf({ id: first!.id })).toBe('bulk');
+      expect(await noteOf({ id: second!.id })).toBe('bulk');
+    });
+
+    it('bulk delete reaches every unpriced row of a custom-currency account', async () => {
+      await createCurrency({ code: 'USDT', decimals: 6 });
+      const usdt = await createAccountIn({ code: 'USDT' });
+      const [first] = await createTx({ accountId: usdt.id, amount: 5 });
+      const [second] = await createTx({ accountId: usdt.id, amount: 7 });
+
+      const result = await helpers.bulkDeleteTransactions({
+        payload: { selection: { filters: { accountIds: [usdt.id as RecordId] }, excludedIds: [] } },
+        raw: true,
+      });
+
+      expect(result.deletedIds.toSorted()).toEqual([first!.id, second!.id].toSorted());
+      const remaining = (await helpers.getTransactions({
+        accountIds: [usdt.id as RecordId],
+        raw: true,
+      })) as unknown as TransactionApiResponse[];
+      expect(remaining).toEqual([]);
+    });
+
+    it('a mixed selection of priced and unpriced rows honours the excluded ids', async () => {
+      await createCurrency({ code: 'USDT', decimals: 6 });
+      const usdt = await createAccountIn({ code: 'USDT' });
+      const base = await createAccountIn({ code: BASE(), name: 'Base' });
+      const [unpriced] = await createTx({ accountId: usdt.id, amount: 5 });
+      const [keptUnpriced] = await createTx({ accountId: usdt.id, amount: 6 });
+      const [priced] = await createTx({ accountId: base.id, amount: 10 });
+      const filters = { accountIds: [usdt.id as RecordId, base.id as RecordId] };
+
+      const updated = await helpers.bulkUpdateTransactions({
+        payload: { selection: { filters, excludedIds: [keptUnpriced!.id] }, note: 'mixed' },
+        raw: true,
+      });
+
+      expect(updated.updatedIds.toSorted()).toEqual([unpriced!.id, priced!.id].toSorted());
+      expect(await noteOf({ id: keptUnpriced!.id })).not.toBe('mixed');
+
+      const deleted = await helpers.bulkDeleteTransactions({
+        payload: { selection: { filters, excludedIds: [keptUnpriced!.id] } },
+        raw: true,
+      });
+
+      expect(deleted.deletedIds.toSorted()).toEqual([unpriced!.id, priced!.id].toSorted());
+      const remaining = (await helpers.getTransactions({ raw: true })) as unknown as TransactionApiResponse[];
+      expect(remaining.map((tx) => tx.id)).toEqual([keptUnpriced!.id]);
     });
   });
 
