@@ -37,6 +37,21 @@ export function invalidateAppUserCache({ authUserId }: { authUserId: string }): 
   return appUserCache.delete(`${APP_USER_CACHE_KEY_PREFIX}${authUserId}`);
 }
 
+/** The app user behind an auth user id, read through the Redis cache. `null` when there is none. */
+export async function resolveAppUser({ authUserId }: { authUserId: string }): Promise<AppUser | null> {
+  const cacheKey = `${APP_USER_CACHE_KEY_PREFIX}${authUserId}`;
+
+  const cached = await appUserCache.read(cacheKey);
+  if (cached) return cached;
+
+  const user = await findAppUser({ where: { authUserId } });
+  if (user) {
+    await appUserCache.write({ key: cacheKey, value: user });
+  }
+
+  return user;
+}
+
 /**
  * Middleware to authenticate requests using better-auth sessions.
  *
@@ -59,20 +74,7 @@ export const authenticateSession = async (req: Request, res: Response, next: Nex
       });
     }
 
-    const authUserId = session.user.id;
-    const cacheKey = `${APP_USER_CACHE_KEY_PREFIX}${authUserId}`;
-
-    // Check Redis cache first
-    let user = await appUserCache.read(cacheKey);
-
-    if (!user) {
-      // Cache miss — look up the app user by authUserId
-      user = await findAppUser({ where: { authUserId } });
-
-      if (user) {
-        await appUserCache.write({ key: cacheKey, value: user });
-      }
-    }
+    const user = await resolveAppUser({ authUserId: session.user.id });
 
     if (!user) {
       return res.status(401).json({

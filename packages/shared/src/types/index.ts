@@ -36,4 +36,5 @@ export * from './billing';
 export * from './resource-lease';
 export * from './client-logs';
 export * from './sse';
+export * from './ingest';
 export * from './testing';

@@ -603,6 +603,10 @@ export const BACKUP_EXCLUDED: readonly BackupExcludedDef[] = [
     reason: 'Feature-trial counters. Restoring them would hand back spent tries on every restore.',
   },
   {
+    model: models.IngestTokens,
+    reason: 'Credentials, stored hashed; a restored hash is useless and a restore must not resurrect a revoked token.',
+  },
+  {
     model: models.TransactionAttachments,
     reason:
       'Rows point at files in attachment storage, which the backup archive does not carry — restoring rows alone would list attachments that cannot be opened. Attachments are not part of backup/restore.',

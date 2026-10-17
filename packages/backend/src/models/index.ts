@@ -29,6 +29,7 @@ import ExchangeRatesModel from './exchange-rates.model';
 import FeatureUsagesModel from './feature-usages.model';
 import ImportBatchAccountEffectsModel from './import-batch-account-effects.model';
 import ImportBatchesModel from './import-batches.model';
+import IngestTokensModel from './ingest-tokens.model';
 import HoldingsModel from './investments/holdings.model';
 import InvestmentTransactionModel from './investments/investment-transaction.model';
 import PortfolioBalancesModel from './investments/portfolio-balances.model';
@@ -146,6 +147,7 @@ const models = [
   PayeesModel,
   PayeeAliasesModel,
   BrandLogosModel,
+  IngestTokensModel,
   PayeeIgnoredNamesModel,
   PayeeTagsModel,
   CategoryTagsModel,

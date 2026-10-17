@@ -3,7 +3,7 @@
 // (replacing them). Do not remove it.
 import 'express';
 
-import type { Entitlements } from '@bt/shared/types';
+import type { Entitlements, IngestScope } from '@bt/shared/types';
 import type { AppUser } from '@middlewares/better-auth';
 import type Stripe from 'stripe';
 
@@ -21,6 +21,8 @@ declare global {
     interface Request {
       user?: AppUser | null;
       entitlements?: Entitlements;
+      /** Set by `authenticateIngestToken`: the token that authenticated the request. */
+      ingestToken?: { id: string; scopes: IngestScope[] };
       stripeEvent?: Stripe.Event;
     }
   }

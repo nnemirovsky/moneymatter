@@ -1,4 +1,5 @@
 import { UserRole } from '@bt/shared/types';
+import { hashToken } from '@common/lib/hash-token';
 import { authPool } from '@config/auth';
 import { Unauthorized } from '@js/errors';
 import { CacheClient } from '@js/utils/cache';
@@ -6,7 +7,6 @@ import { logger } from '@js/utils/logger';
 import Users from '@models/users.model';
 import { getEntitlementsByUserId } from '@services/entitlements/resolve-entitlements.service';
 import { parseScopes } from '@services/mcp/tools/helpers';
-import { createHash } from 'node:crypto';
 
 type AppUser = Pick<Users, 'username' | 'id' | 'authUserId' | 'role'>;
 
@@ -36,14 +36,6 @@ export interface McpAuthInfo {
     role: UserRole;
     readOnly: boolean;
   };
-}
-
-/**
- * Hash a token the same way better-auth stores it: SHA-256, base64url, no padding.
- */
-function hashToken({ token }: { token: string }): string {
-  const hash = createHash('sha256').update(token).digest();
-  return hash.toString('base64url');
 }
 
 /**

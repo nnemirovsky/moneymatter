@@ -31,7 +31,7 @@ const nonDev =
     return middleware(req, res, next);
   };
 
-const respondTooManyRequests = ({
+export const respondTooManyRequests = ({
   res,
   maxAttempts,
   retryAfterSeconds,

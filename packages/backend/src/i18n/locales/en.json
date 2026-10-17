@@ -477,6 +477,11 @@
   "middleware": {
     "tooManyRequests": "Too many requests. Please try again later."
   },
+  "ingestTokens": {
+    "unauthorized": "The ingest token is missing, invalid or expired.",
+    "missingScope": "The ingest token does not allow this action.",
+    "tokenNotFound": "Ingest token not found."
+  },
   "defaultCategories": {
     "main": {
       "food": "Food & Drinks",

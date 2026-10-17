@@ -17,6 +17,7 @@ interface BetterAuthConfig {
   emailAndPassword?: {
     enabled?: boolean;
     sendResetPassword?: unknown;
+    onPasswordReset?: (params: { user: { id: string } }) => Promise<void>;
     password?: {
       hash?: (password: string) => Promise<string>;
       verify?: (params: { password: string; hash: string }) => Promise<boolean>;
@@ -276,6 +277,25 @@ export function betterAuth(config: BetterAuthConfig): AuthInstance {
           JSON.stringify({ message: "Reset password isn't enabled", code: 'RESET_PASSWORD_DISABLED' }),
           { status: 400, headers: { 'Content-Type': 'application/json' } },
         );
+      }
+
+      // Stand-in for the reset-link flow: the mock's reset token is the auth user id, and the
+      // configured `onPasswordReset` hook runs exactly as it does after a real reset.
+      if (path === '/reset-password' && request.method === 'POST') {
+        const body = (await request.json()) as { token?: string; newPassword?: string };
+        if (!body.token || !body.newPassword) {
+          return new Response(JSON.stringify({ message: 'Invalid token', code: 'INVALID_TOKEN' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
+        await config.emailAndPassword?.onPasswordReset?.({ user: { id: body.token } });
+
+        return new Response(JSON.stringify({ status: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
       }
 
       if (path === '/sign-out' && request.method === 'POST') {

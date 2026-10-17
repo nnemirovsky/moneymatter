@@ -152,6 +152,14 @@ export const auth = betterAuth({
           'revoke OAuth refresh tokens',
           () => pool.query('DELETE FROM ba_oauth_refresh_token WHERE "userId" = $1', [user.id]),
         ],
+        [
+          'revoke ingest tokens',
+          () =>
+            pool.query(
+              'DELETE FROM "IngestTokens" WHERE "userId" IN (SELECT id FROM "Users" WHERE "authUserId" = $1)',
+              [user.id],
+            ),
+        ],
         // Only needs to outlive cookies minted before the reset; after expiry the default version is harmless.
         [
           'bump session cache version',

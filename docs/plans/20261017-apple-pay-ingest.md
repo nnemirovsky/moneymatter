@@ -346,21 +346,21 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
 - Modify: `packages/shared/src/types/` (new `ingest.ts`: `INGEST_SCOPES`, token DTOs)
 - Create: `packages/backend/src/services/ingest-tokens/{session-isolation,password-reset}.e2e.ts`
 
-- [ ] move `hashToken` from `services/mcp/auth.ts` to `common/lib/hash-token.ts` unchanged; a unit test pins its output for a fixed input, so stored MCP tokens keep verifying
-- [ ] write failing e2e (`session-isolation.e2e.ts`): a minted token sent cookie-less as `Authorization: Bearer` and as `x-api-key` to `GET /user` and `POST /transactions` gets 401 (a regression guard: nothing registers the token with better-auth); a revoked token, an expired token and a token without `ingest:transactions` are refused by the ingest middleware (exercised from Task 5's route, so these cases are marked "pass at Task 5")
-- [ ] write failing e2e (`password-reset.e2e.ts`): after a password reset through the auth mock's `/reset-password` route, the token list is empty and the token gets 401 on the ingest route (the 401 case passes at Task 5)
-- [ ] migration and model `IngestTokens` (columns in Solution Overview → Data); object-param statics
-- [ ] `ingest-tokens.service.ts`:
+- [x] move `hashToken` from `services/mcp/auth.ts` to `common/lib/hash-token.ts` unchanged; a unit test pins its output for a fixed input, so stored MCP tokens keep verifying
+- [x] write failing e2e (`session-isolation.e2e.ts`): a minted token sent cookie-less as `Authorization: Bearer` and as `x-api-key` to `GET /user` and `POST /transactions` gets 401 (a regression guard: nothing registers the token with better-auth); a revoked token, an expired token and a token without `ingest:transactions` are refused by the ingest middleware (exercised from Task 5's route, so these cases are marked "pass at Task 5")
+- [x] write failing e2e (`password-reset.e2e.ts`): after a password reset through the auth mock's `/reset-password` route, the token list is empty and the token gets 401 on the ingest route (the 401 case passes at Task 5)
+- [x] migration and model `IngestTokens` (columns in Solution Overview → Data); object-param statics
+- [x] `ingest-tokens.service.ts`:
   - `createIngestToken({ userId, name, purpose?, expiresInDays? })` returns `{ token, secret }` with the secret only here; it stores `hashToken(secret)` and `start`;
   - `listIngestTokens({ userId })`; `revokeIngestToken({ userId, id })`, which is a 404 for another user's id; `revokeIngestTokens({ userId, purpose? })`;
   - `verifyIngestToken({ secret })`: hash lookup, expiry check; `lastUsedAt` is updated at most once a minute (a conditional `UPDATE … WHERE "lastUsedAt" < now() - interval '1 minute' OR "lastUsedAt" IS NULL`);
   - `userId` is always the app's `Users.id`; DTO `{ id, name, start, scopes, lastUsedAt, createdAt, expiresAt }`
-- [ ] `authenticateIngestToken({ scope })` middleware (named function `authenticateIngestToken`): the IP auth-failure budget check (Technical Details → Rate limits) before anything else, Bearer parse, verify, scope check (403), resolve the app user through `findAppUser` and the existing cache, set `req.user` and `req.ingestToken`, Sentry user, then `enforceReadOnly`. A failure is a 401 with `API_ERROR_CODES.unauthorized` and an i18n message, and it increments the IP's failure count
-- [ ] `onPasswordReset`: add a `'revoke ingest tokens'` step, `DELETE FROM "IngestTokens" WHERE "userId" IN (SELECT id FROM "Users" WHERE "authUserId" = $1)` through the same `pool`, next to the OAuth token steps
-- [ ] auth mock: a `POST /reset-password` route taking `{ token, newPassword }`, where the mock's reset token is the auth user id, that awaits `config.emailAndPassword.onPasswordReset({ user })`; a helper `resetPasswordForTests({ authUserId })` in `tests/helpers/user.ts`
-- [ ] backup registry: `IngestTokens` in `BACKUP_EXCLUDED` ("credentials, stored hashed; a restored hash is useless and a restore must not resurrect a revoked token")
-- [ ] unit tests: Bearer parsing (missing, wrong scheme, extra spaces), the token format and the DTO mapping
-- [ ] gate: `npm run test:unit -- --testPathPattern='(hash-token|ingest-tokens|ingest-token-auth|backup/registry)'`; `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='(ingest-tokens/(session-isolation|password-reset)|mcp/(connected-apps|mcp-scope-gate)).e2e'` (the session and token-list cases pass; the ingest cases stay skipped until Task 5); typecheck and lint
+- [x] `authenticateIngestToken({ scope })` middleware (named function `authenticateIngestToken`): the IP auth-failure budget check (Technical Details → Rate limits) before anything else, Bearer parse, verify, scope check (403), resolve the app user through `findAppUser` and the existing cache, set `req.user` and `req.ingestToken`, Sentry user, then `enforceReadOnly`. A failure is a 401 with `API_ERROR_CODES.unauthorized` and an i18n message, and it increments the IP's failure count
+- [x] `onPasswordReset`: add a `'revoke ingest tokens'` step, `DELETE FROM "IngestTokens" WHERE "userId" IN (SELECT id FROM "Users" WHERE "authUserId" = $1)` through the same `pool`, next to the OAuth token steps
+- [x] auth mock: a `POST /reset-password` route taking `{ token, newPassword }`, where the mock's reset token is the auth user id, that awaits `config.emailAndPassword.onPasswordReset({ user })`; a helper `resetPasswordForTests({ authUserId })` in `tests/helpers/user.ts`
+- [x] backup registry: `IngestTokens` in `BACKUP_EXCLUDED` ("credentials, stored hashed; a restored hash is useless and a restore must not resurrect a revoked token")
+- [x] unit tests: Bearer parsing (missing, wrong scheme, extra spaces), the token format and the DTO mapping
+- [x] gate (passed: unit 68 tests in 10 suites; e2e 4 suites, 22 passed, 4 skipped until Task 5; typecheck and lint clean; full unit suite 3132 passed): `npm run test:unit -- --testPathPattern='(hash-token|ingest-tokens|ingest-token-auth|backup/registry)'`; `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='(ingest-tokens/(session-isolation|password-reset)|mcp/(connected-apps|mcp-scope-gate)).e2e'` (the session and token-list cases pass; the ingest cases stay skipped until Task 5); typecheck and lint
 
 ### Task 2: Token management endpoints
 
