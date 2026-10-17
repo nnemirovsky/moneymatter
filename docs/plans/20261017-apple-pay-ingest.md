@@ -584,24 +584,24 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
 - Create: `packages/shared/src/lib/card-payment-setup-code.ts` (encoder/decoder, shared so the backend and the shortcut generator tests use one definition) + its unit test in `packages/backend/src/services/ingest/setup-code.unit.ts`
 - Create: `packages/backend/src/controllers/ingest/card-payment-setup-code.controller.ts`, `packages/backend/src/services/ingest/create-setup-code.ts`
 - Create: `packages/backend/src/services/ingest/setup-code.e2e.ts`
-- Modify: `packages/backend/src/routes/user.route.ts`, `routes/base-currency-guard-coverage.e2e.ts`
+- Modify: `packages/backend/src/routes/user.route.ts`, `routes/base-currency-guard-coverage.e2e.ts`, `services/ingest/index.ts`, `tests/helpers/ingest.ts`, `packages/shared/src/types/ingest.ts` (payload and response types), `i18n/locales/{en,uk}.json` (`ingest.setupCodeUnusable`)
 
-- [ ] failing unit tests:
+- [x] failing unit tests (red run: 18 of 18 failed on assertions against a signature-only stub):
   - `encodeSetupCode`/`decodeSetupCode` round trip with and without the CF fields;
   - the output is standard base64 (no `-`/`_`) prefixed `v1.`;
   - `v` is checked: an unknown version, a bad prefix, bad JSON, a missing `url`/`token` and an input over 2 KB are rejected;
   - a non-http(s) `url` is rejected
-- [ ] failing e2e for `POST /user/settings/card-payments/setup-code`:
-  - it returns `{ token, setupCode }`; the decoded code has the sent `ingestUrl`, the new secret, and the CF id and secret when stored;
+- [x] failing e2e (red run: 27 of 28 new cases failed on assertions, 404 for the missing route; the 401-without-session case held) for `POST /user/settings/card-payments/setup-code`:
+  - it returns 201 `{ token, setupCode }` (⚠️ `token` is the new token's listing entry without the secret; the secret exists only inside the code, with `Cache-Control: no-store` on the response); the decoded code has the sent `ingestUrl`, the new secret, and the CF id and secret when stored;
   - with `revokePrevious` (default true) the earlier Apple Pay token stops working;
   - the token list shows the new token without a secret;
   - a second call mints another token, so nothing re-reveals the first;
   - an invalid `ingestUrl` is a 422;
   - the 11th call in a minute is a 429;
   - a demo user is blocked
-- [ ] the service mints setup-code tokens with `purpose: 'card-payment-setup'` (a server-set column, never client input) so `revokePrevious` targets only those
-- [ ] guard coverage: exempt with the reason "mints a credential, no monetary data"
-- [ ] gate: `npm run test:unit -- --testPathPattern='ingest/setup-code'`; `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='(ingest/setup-code|routes/base-currency-guard-coverage).e2e'`
+- [x] the service mints setup-code tokens with `purpose: 'card-payment-setup'` (a server-set column, never client input) so `revokePrevious` targets only those
+- [x] guard coverage: exempt with the reason "mints a credential, no monetary data"
+- [x] gate (passed: unit 18 tests in 1 suite; e2e 2 suites, 37 passed; typecheck, lint and oxfmt clean): `npm run test:unit -- --testPathPattern='ingest/setup-code'`; `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='(ingest/setup-code|routes/base-currency-guard-coverage).e2e'`
 
 ### Task 11: The generic shortcut: generator, reviewable plist, served asset
 

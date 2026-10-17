@@ -5,6 +5,8 @@ import type {
   CardPaymentRequestView,
   CardPaymentRetryResponse,
   CreateCardMappingPayload,
+  CreateCardPaymentSetupCodePayload,
+  CreateCardPaymentSetupCodeResponse,
   CreateIngestTokenPayload,
   CreateIngestTokenResponse,
   IngestTokenDto,
@@ -173,6 +175,21 @@ export async function listUnconfirmedCardPayments<R extends boolean | undefined 
   return makeRequest<UnconfirmedCardPaymentDto[], R>({
     method: 'get',
     url: '/user/settings/card-payments/unconfirmed',
+    raw,
+  });
+}
+
+export async function createCardPaymentSetupCode<R extends boolean | undefined = false>({
+  payload,
+  raw,
+}: {
+  payload: Partial<CreateCardPaymentSetupCodePayload> | Record<string, unknown>;
+  raw?: R;
+}) {
+  return makeRequest<CreateCardPaymentSetupCodeResponse, R>({
+    method: 'post',
+    url: '/user/settings/card-payments/setup-code',
+    payload,
     raw,
   });
 }

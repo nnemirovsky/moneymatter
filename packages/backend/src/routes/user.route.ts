@@ -38,6 +38,7 @@ import {
   listUnlinkedCardsController,
   retryCardPaymentRequestController,
 } from '@controllers/ingest/card-payment-requests.controller';
+import { createCardPaymentSetupCodeController } from '@controllers/ingest/card-payment-setup-code.controller';
 import {
   createIngestTokenController,
   listIngestTokensController,
@@ -253,6 +254,15 @@ router.put(
   blockDemoUsers,
   ingestSettingsWriteRateLimit,
   setAccessHeadersController,
+);
+
+// The setup code bundles the ingest URL, a freshly minted token and the stored Cloudflare Access
+// pair. It is shown once and never stored, so there is no GET. Demo users cannot mint credentials.
+router.post(
+  '/settings/card-payments/setup-code',
+  blockDemoUsers,
+  ingestSettingsWriteRateLimit,
+  createCardPaymentSetupCodeController,
 );
 
 export default router;

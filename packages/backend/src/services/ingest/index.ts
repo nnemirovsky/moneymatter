@@ -12,6 +12,7 @@ export {
   toCardMappingDto,
   updateCardMapping,
 } from './card-mappings.service';
+export { createCardPaymentSetupCode } from './create-setup-code';
 export { normalizeCardLabel } from './normalize-card-label';
 export { ingestCardPayment, type IngestCardPaymentResult } from './card-payment/ingest-card-payment';
 export { dismissIngestRequest } from './card-payment/dismiss-request';

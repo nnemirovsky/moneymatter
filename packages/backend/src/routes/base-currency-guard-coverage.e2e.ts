@@ -80,6 +80,8 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   'POST /api/v1/user/settings/ai/connections/models',
   'POST /api/v1/user/settings/ai/connections/test',
   'POST /api/v1/user/settings/card-mappings',
+  // The setup code mints a credential and moves no money.
+  'POST /api/v1/user/settings/card-payments/setup-code',
   'POST /api/v1/user/settings/ingest-tokens',
   'PUT /api/v1/user/settings',
   'PUT /api/v1/user/settings/ai/connections/:id',

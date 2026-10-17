@@ -193,3 +193,23 @@ export interface UnconfirmedCardPaymentDto {
   card: string | null;
   time: string;
 }
+
+/** Request body of `POST /user/settings/card-payments/setup-code`. */
+export interface CreateCardPaymentSetupCodePayload {
+  /** Absolute URL of `POST /api/v1/ingest/card-payment` on the instance the shortcut talks to. */
+  ingestUrl: string;
+  /** Name of the token the code carries; the server picks one when omitted. */
+  tokenName?: string;
+  /** Revoke the earlier setup-code tokens in the same step. Defaults to `true`. */
+  revokePrevious?: boolean;
+}
+
+/**
+ * The only response that carries a setup code. The code embeds the new token's secret (and the
+ * stored Cloudflare Access pair), so it is shown once and cannot be read again; `token` is the
+ * new token's listing entry and never holds the secret.
+ */
+export interface CreateCardPaymentSetupCodeResponse {
+  token: IngestTokenDto;
+  setupCode: string;
+}

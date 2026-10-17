@@ -526,7 +526,8 @@
     "idempotencyConflict": "This idempotency key was already used for a different payment.",
     "requestDismissed": "This payment was dismissed in MoneyMatter.",
     "requestNotFound": "Card payment request not found.",
-    "requestNotWaiting": "This payment is not waiting to be logged."
+    "requestNotWaiting": "This payment is not waiting to be logged.",
+    "setupCodeUnusable": "The setup code cannot be built from these values. Shorten the ingest URL or the Cloudflare Access values."
   },
   "defaultCategories": {
     "main": {

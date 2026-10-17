@@ -530,7 +530,8 @@
     "idempotencyConflict": "Цей ключ ідемпотентності вже використано для іншого платежу.",
     "requestDismissed": "Цей платіж відхилено в MoneyMatter.",
     "requestNotFound": "Запит на оплату карткою не знайдено.",
-    "requestNotWaiting": "Цей платіж не очікує на запис."
+    "requestNotWaiting": "Цей платіж не очікує на запис.",
+    "setupCodeUnusable": "З цих значень не вдається побудувати код налаштування. Скоротіть адресу прийому або значення Cloudflare Access."
   },
   "defaultCategories": {
     "main": {
