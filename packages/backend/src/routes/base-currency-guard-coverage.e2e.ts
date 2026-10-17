@@ -63,6 +63,8 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   'DELETE /api/v1/user/settings/ingest-tokens/:id',
   // A card link names an account; it moves no money.
   'DELETE /api/v1/user/settings/card-mappings/:id',
+  // Dismissing a waiting payment only changes the request log; the payment was never booked.
+  'DELETE /api/v1/user/settings/card-payments/requests/:id',
   'DELETE /api/v1/user/settings/mcp/connected-apps/:clientId',
   'PATCH /api/v1/user/settings',
   'PATCH /api/v1/user/settings/card-mappings/:id',

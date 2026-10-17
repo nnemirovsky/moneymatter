@@ -139,3 +139,57 @@ export interface CardPaymentDryRunResponse {
 }
 
 export type CardPaymentResponse = CardPaymentLoggedResponse | CardPaymentParkedResponse | CardPaymentDryRunResponse;
+
+/** Which requests `GET /user/settings/card-payments/requests` returns. */
+export const CARD_PAYMENT_REQUEST_VIEWS = ['parked', 'recent'] as const;
+
+export type CardPaymentRequestView = (typeof CARD_PAYMENT_REQUEST_VIEWS)[number];
+
+/** How many requests the `recent` view returns. */
+export const CARD_PAYMENT_RECENT_REQUESTS_LIMIT = 50;
+
+/** Days a `logged`, `rejected` or `dismissed` request is kept before the daily cleanup deletes it. */
+export const INGEST_REQUEST_RETENTION_DAYS = 90;
+
+/**
+ * Why a request is in the state it is in: a park or rejection reason, or `interrupted` for a
+ * request whose processing died before it recorded an outcome.
+ */
+export type IngestRequestReason = CardPaymentParkReason | CardPaymentRejectionReason | 'interrupted';
+
+/** One request a client sent to the card-payment endpoint, as Settings lists it. */
+export interface CardPaymentRequestDto {
+  id: RecordId;
+  status: IngestRequestStatus;
+  reason: IngestRequestReason | null;
+  /** The line the shortcut showed (or would have shown) for this request. */
+  summary: string | null;
+  cardLabel: string | null;
+  merchant: string | null;
+  /** The amount exactly as the client sent it, e.g. `"47,00 GEL"`. */
+  amountText: string | null;
+  /** The payment time the client sent, else the time the server received the request. */
+  time: string;
+  transactionId: RecordId | null;
+  createdAt: string;
+}
+
+/** The answer of `POST /user/settings/card-payments/requests/:id/retry`. */
+export type CardPaymentRetryResponse = CardPaymentLoggedResponse | CardPaymentParkedResponse;
+
+/** A card label payments are waiting on, with how many. */
+export interface UnlinkedCardDto {
+  cardLabel: string;
+  count: number;
+}
+
+/** A planned row the card-payment ingest wrote that the bank has not confirmed within the match window. */
+export interface UnconfirmedCardPaymentDto {
+  transactionId: RecordId;
+  accountId: RecordId;
+  amount: number;
+  currencyCode: string;
+  merchant: string | null;
+  card: string | null;
+  time: string;
+}

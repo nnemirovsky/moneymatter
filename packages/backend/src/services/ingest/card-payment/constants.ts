@@ -8,11 +8,14 @@
  *   default category before it answers "categorizing…". The wait is short because the shortcut
  *   waits for the answer.
  * - `aiPollIntervalMs`: how often the row is read while waiting.
+ * - `interruptedAfterMs`: a `received` request older than this is taken to have lost its processing
+ *   pass (the process died mid-way), so Settings offers it for retry; a younger one is in flight.
  */
 export const cardPaymentTimings = {
   repeatWindowMs: 120_000,
   aiWaitBudgetMs: 8_000,
   aiPollIntervalMs: 250,
+  interruptedAfterMs: 60_000,
 };
 
 /** `externalReference` is `<source>:<idempotency key>`: at most 32 + 1 + 128 characters. */

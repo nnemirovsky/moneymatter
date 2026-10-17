@@ -14,6 +14,7 @@ import { demoCleanupCron } from './crons/demo-cleanup';
 import { demoTemplateRefreshCron } from './crons/demo-template-refresh';
 import { loadCurrencyRatesJob } from './crons/exchange-rates';
 import { httpRatesSyncCron } from './crons/http-rates-sync';
+import { ingestRequestsCleanupCron } from './crons/ingest-requests-cleanup';
 import { purgeDeletedPortfoliosCron } from './crons/purge-deleted-portfolios';
 import { securitiesDailySyncCron } from './crons/securities-daily-sync';
 import { shareInvitationsExpireCron } from './crons/share-invitations-expire';
@@ -41,6 +42,7 @@ const prodOnlyCrons = [
   shareResourceOrphanCleanupCron,
   purgeDeletedPortfoliosCron,
   budgetPlansPurgeCron,
+  ingestRequestsCleanupCron,
   balanceRevalueSweepCron,
   attachmentsOrphanSweepCron,
   bankAccountsSyncCron,

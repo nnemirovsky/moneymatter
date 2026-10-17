@@ -1,11 +1,16 @@
 import type {
   AccessHeadersStatusDto,
   CardMappingDto,
+  CardPaymentRequestDto,
+  CardPaymentRequestView,
+  CardPaymentRetryResponse,
   CreateCardMappingPayload,
   CreateIngestTokenPayload,
   CreateIngestTokenResponse,
   IngestTokenDto,
   SetAccessHeadersPayload,
+  UnconfirmedCardPaymentDto,
+  UnlinkedCardDto,
   UpdateCardMappingPayload,
 } from '@bt/shared/types';
 
@@ -109,6 +114,65 @@ export async function setAccessHeaders<R extends boolean | undefined = false>({
     method: 'put',
     url: '/user/settings/card-payments/access-headers',
     payload,
+    raw,
+  });
+}
+
+export async function listCardPaymentRequests<R extends boolean | undefined = false>({
+  status,
+  raw,
+}: {
+  status?: CardPaymentRequestView | string;
+  raw?: R;
+} = {}) {
+  return makeRequest<CardPaymentRequestDto[], R>({
+    method: 'get',
+    url: '/user/settings/card-payments/requests',
+    payload: status ? { status } : undefined,
+    raw,
+  });
+}
+
+export async function retryCardPaymentRequest<R extends boolean | undefined = false>({
+  id,
+  raw,
+}: {
+  id: string;
+  raw?: R;
+}) {
+  return makeRequest<CardPaymentRetryResponse, R>({
+    method: 'post',
+    url: `/user/settings/card-payments/requests/${id}/retry`,
+    raw,
+  });
+}
+
+export async function dismissCardPaymentRequest<R extends boolean | undefined = false>({
+  id,
+  raw,
+}: {
+  id: string;
+  raw?: R;
+}) {
+  return makeRequest<{ success: boolean }, R>({
+    method: 'delete',
+    url: `/user/settings/card-payments/requests/${id}`,
+    raw,
+  });
+}
+
+export async function listUnlinkedCards<R extends boolean | undefined = false>({ raw }: { raw?: R } = {}) {
+  return makeRequest<UnlinkedCardDto[], R>({
+    method: 'get',
+    url: '/user/settings/card-mappings/unlinked',
+    raw,
+  });
+}
+
+export async function listUnconfirmedCardPayments<R extends boolean | undefined = false>({ raw }: { raw?: R } = {}) {
+  return makeRequest<UnconfirmedCardPaymentDto[], R>({
+    method: 'get',
+    url: '/user/settings/card-payments/unconfirmed',
     raw,
   });
 }

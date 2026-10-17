@@ -528,7 +528,9 @@
       "timeTooOld": "Час платежу більш ніж на 30 днів у минулому."
     },
     "idempotencyConflict": "Цей ключ ідемпотентності вже використано для іншого платежу.",
-    "requestDismissed": "Цей платіж відхилено в MoneyMatter."
+    "requestDismissed": "Цей платіж відхилено в MoneyMatter.",
+    "requestNotFound": "Запит на оплату карткою не знайдено.",
+    "requestNotWaiting": "Цей платіж не очікує на запис."
   },
   "defaultCategories": {
     "main": {

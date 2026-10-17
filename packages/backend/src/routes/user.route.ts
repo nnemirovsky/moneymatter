@@ -32,6 +32,13 @@ import {
   updateCardMappingController,
 } from '@controllers/ingest/card-mappings.controller';
 import {
+  dismissCardPaymentRequestController,
+  listCardPaymentRequestsController,
+  listUnconfirmedCardPaymentsController,
+  listUnlinkedCardsController,
+  retryCardPaymentRequestController,
+} from '@controllers/ingest/card-payment-requests.controller';
+import {
   createIngestTokenController,
   listIngestTokensController,
   revokeIngestTokenController,
@@ -226,9 +233,17 @@ router.delete('/settings/ingest-tokens/:id', revokeIngestTokenController);
 
 // Card links: which account a Wallet card's payments are logged on.
 router.get('/settings/card-mappings', listCardMappingsController);
+router.get('/settings/card-mappings/unlinked', listUnlinkedCardsController);
 router.post('/settings/card-mappings', createCardMappingController);
 router.patch('/settings/card-mappings/:id', updateCardMappingController);
 router.delete('/settings/card-mappings/:id', deleteCardMappingController);
+
+// Card payments that did not log on arrival: the waiting list, retry (writes a transaction, so it
+// honors the base-currency lock), dismiss, and plans the bank never confirmed.
+router.get('/settings/card-payments/requests', listCardPaymentRequestsController);
+router.post('/settings/card-payments/requests/:id/retry', checkBaseCurrencyLock, retryCardPaymentRequestController);
+router.delete('/settings/card-payments/requests/:id', dismissCardPaymentRequestController);
+router.get('/settings/card-payments/unconfirmed', listUnconfirmedCardPaymentsController);
 
 // Cloudflare Access service-token headers for the setup code. The secret is write-only. Demo users
 // cannot store credentials.

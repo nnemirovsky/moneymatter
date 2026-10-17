@@ -5,20 +5,19 @@ import CardAccountMappings from '@models/card-account-mappings.model';
 import { getUsernameById } from '@models/users.model';
 
 import { normalizeCardLabel } from '../normalize-card-label';
-import { categorizeAfterCommit } from './categorize-after-commit';
 import { cleanText } from './clean-text';
 import { computeFingerprint } from './fingerprint';
 import { formatSummary } from './format-summary';
-import { parkFailedRequest } from './park-failed-request';
 import {
   CARD_PAYMENT_CARD_MAX_LENGTH,
   CARD_PAYMENT_DEFAULT_SOURCE,
   CARD_PAYMENT_SOURCE_PATTERN as SOURCE_PATTERN,
   parsePayload,
 } from './parse-payload';
-import { processIngestRequest, type ProcessIngestResult } from './process-ingest-request';
+import type { ProcessIngestResult } from './process-ingest-request';
 import { readUserLocale } from './read-user-locale';
 import { recordIngestRequest } from './record-request';
+import { runIngestPass } from './run-ingest-pass';
 
 export type IngestCardPaymentResult = CardPaymentDryRunResponse | ProcessIngestResult;
 
@@ -110,16 +109,5 @@ export const ingestCardPayment = async ({
     body,
   });
 
-  let result: ProcessIngestResult;
-  try {
-    result = await processIngestRequest({ requestId, fingerprint, locale });
-  } catch (error) {
-    return parkFailedRequest({ requestId, error, locale });
-  }
-
-  if (result.outcome !== 'logged' || result.duplicate || result.transactionId === null) return result;
-
-  const categorized = await categorizeAfterCommit({ userId, requestId, transactionId: result.transactionId, locale });
-
-  return categorized ? { ...result, ...categorized } : result;
+  return runIngestPass({ userId, requestId, fingerprint, locale });
 };

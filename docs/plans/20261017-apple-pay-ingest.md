@@ -524,12 +524,12 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
 
 **Files:**
 
-- Create: `packages/backend/src/controllers/ingest/card-payment-requests.controller.ts`, `packages/backend/src/services/ingest/card-payment/{list-requests,retry-request}.ts`
+- Create: `packages/backend/src/controllers/ingest/card-payment-requests.controller.ts`, `packages/backend/src/services/ingest/card-payment/{list-requests,retry-request,dismiss-request,run-ingest-pass}.ts` (⚠️ `run-ingest-pass.ts` is the tx 2 / tx 3 / AI sequence the ingest endpoint and the retry share)
 - Create: `packages/backend/src/crons/ingest-requests-cleanup.ts` (+ registration where the other crons register)
 - Modify: `packages/backend/src/routes/user.route.ts`, `routes/base-currency-guard-coverage.e2e.ts`
 - Create: `packages/backend/src/services/ingest/card-payment/requests.e2e.ts`, `packages/backend/src/crons/ingest-requests-cleanup.e2e.ts`
 
-- [ ] write failing e2e:
+- [x] write failing e2e (red run: 22 of 25 new cases failed on assertions, 404 for the missing routes and the stub cron deleting nothing; the 3 that held were the unknown-id 404s, which a missing route also answers, and the cron's empty case):
   - empty list;
   - a parked `unknownCard` request is listed; after the card is linked, retry → 200 `logged` and the transaction exists;
   - a retry while still unlinked stays parked;
@@ -545,10 +545,10 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
   - `GET ?status=recent` returns the last 50 of every status, newest first, with summary, card, merchant, amount text and time;
   - `GET /user/settings/card-mappings/unlinked` returns the distinct parked card labels with counts;
   - the cleanup cron deletes `logged`/`rejected`/`dismissed` rows older than 90 days and keeps `parked` and `received` rows
-- [ ] routes `GET /user/settings/card-payments/requests`, `POST …/requests/:id/retry` (guarded), `DELETE …/requests/:id` (exempt); `GET /user/settings/card-mappings/unlinked`; `GET /user/settings/card-payments/unconfirmed`
-- [ ] retry runs `processIngestRequest` (tx 2, with tx 3 on a throw) on the stored payload under the request's user, never a client-sent body: inside `withTransaction` it locks the row (`findOne` with `lock: UPDATE`) and re-checks that the status is `parked`, or `received` with `createdAt` older than 1 minute, before processing, so a concurrent retry waits, then sees `logged` and gets a 409 (⚠️ Task 7: a retry that logs a payment should also call `categorizeAfterCommit`; it is exported from `categorize-after-commit.ts`, takes `{ userId, requestId, transactionId, locale }` and returns the replacement answer or `null`)
-- [ ] test hooks for the interrupted and racing cases: an env-gated (`NODE_ENV=test`) fault injector in `processIngestRequest`, set through a test-only header the way other e2e fault hooks in the repo do; if no such pattern exists, ⚠️ ask before adding one
-- [ ] gate: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='(ingest/card-payment/requests|crons/ingest-requests-cleanup|routes/base-currency-guard-coverage).e2e'`
+- [x] routes `GET /user/settings/card-payments/requests`, `POST …/requests/:id/retry` (guarded), `DELETE …/requests/:id` (exempt); `GET /user/settings/card-mappings/unlinked`; `GET /user/settings/card-payments/unconfirmed`
+- [x] retry runs `processIngestRequest` (tx 2, with tx 3 on a throw) on the stored payload under the request's user, never a client-sent body: inside `withTransaction` it locks the row (`findOne` with `lock: UPDATE`) and re-checks that the status is `parked`, or `received` with `createdAt` older than 1 minute, before processing, so a concurrent retry waits, then sees `logged` and gets a 409 (⚠️ Task 7: a retry that logs a payment should also call `categorizeAfterCommit`; it is exported from `categorize-after-commit.ts`, takes `{ userId, requestId, transactionId, locale }` and returns the replacement answer or `null`; done: `runIngestPass` calls it for both paths, and a retry names the AI category in its answer; a retry of a request that is not waiting (logged, rejected, dismissed, or `received` under a minute) is a 409 `notWaiting`; a retry that is still parked answers 202)
+- [x] test hooks for the interrupted and racing cases (⚠️ the repo has no fault-injection pattern, so no production hook was added: the cases use `jest.spyOn` on `CardAccountMappings.findOne` to make tx 2 throw and on `IngestRequests.findOne` to fail or pause tx 3 by its locked read)
+- [x] gate (passed: e2e 3 suites, 34 passed; unit 12 suites, 264 passed; typecheck, lint and oxfmt clean): `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='(ingest/card-payment/requests|crons/ingest-requests-cleanup|routes/base-currency-guard-coverage).e2e'`
 
 ### Task 9: Bank-sync settlement of card-payment plans
 

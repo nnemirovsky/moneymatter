@@ -524,7 +524,9 @@
       "timeTooOld": "The payment time is more than 30 days in the past."
     },
     "idempotencyConflict": "This idempotency key was already used for a different payment.",
-    "requestDismissed": "This payment was dismissed in MoneyMatter."
+    "requestDismissed": "This payment was dismissed in MoneyMatter.",
+    "requestNotFound": "Card payment request not found.",
+    "requestNotWaiting": "This payment is not waiting to be logged."
   },
   "defaultCategories": {
     "main": {

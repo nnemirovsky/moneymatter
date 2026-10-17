@@ -14,3 +14,6 @@ export {
 } from './card-mappings.service';
 export { normalizeCardLabel } from './normalize-card-label';
 export { ingestCardPayment, type IngestCardPaymentResult } from './card-payment/ingest-card-payment';
+export { dismissIngestRequest } from './card-payment/dismiss-request';
+export { listCardPaymentRequests, listUnconfirmedCardPayments, listUnlinkedCards } from './card-payment/list-requests';
+export { retryIngestRequest } from './card-payment/retry-request';

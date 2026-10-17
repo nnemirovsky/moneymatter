@@ -31,7 +31,7 @@ export type ProcessIngestResult =
   | LoggedResult
   | { outcome: 'parked'; reason: CardPaymentParkReason; summary: string; requestId: RecordId }
   | { outcome: 'rejected'; reason: CardPaymentRejectionReason; message: string }
-  | { outcome: 'conflict'; reason: 'keyReused' | 'dismissed'; message: string };
+  | { outcome: 'conflict'; reason: 'keyReused' | 'dismissed' | 'notWaiting'; message: string };
 
 /** Statuses a pass may start from: the payment has no final outcome yet. */
 export const OPEN_REQUEST_STATUSES: readonly IngestRequestStatus[] = ['received', 'parked', 'rejected'];
@@ -47,6 +47,26 @@ const dismissedResult = ({ locale }: { locale: string }): ProcessIngestResult =>
   reason: 'dismissed',
   message: t({ key: 'ingest.requestDismissed', locale }),
 });
+
+const notWaitingResult = ({ locale }: { locale: string }): ProcessIngestResult => ({
+  outcome: 'conflict',
+  reason: 'notWaiting',
+  message: t({ key: 'ingest.requestNotWaiting', locale }),
+});
+
+/**
+ * Whether the user may retry the request: it is parked, or it was received long enough ago that
+ * its processing pass must have been lost.
+ */
+export const isWaitingRequest = ({
+  row,
+  now = new Date(),
+}: {
+  row: Pick<IngestRequests, 'status' | 'createdAt'>;
+  now?: Date;
+}) =>
+  row.status === 'parked' ||
+  (row.status === 'received' && now.getTime() - row.createdAt.getTime() > cardPaymentTimings.interruptedAfterMs);
 
 /** The answer for a request that is already logged, from the stored transaction. */
 export const replayLoggedRequest = async ({
@@ -144,17 +164,24 @@ const findOriginalInWindow = ({ row }: { row: IngestRequests }) => {
 const processIngestRequestImpl = async ({
   requestId,
   fingerprint,
+  retry = false,
   locale,
 }: {
   requestId: RecordId;
   /** The fingerprint of the body that arrived now. Omitted when the stored payload is retried. */
   fingerprint?: string;
+  /**
+   * The user asked to retry the stored payment from Settings. Checked under the row lock, so of two
+   * concurrent retries the second finds the first one's outcome and is refused.
+   */
+  retry?: boolean;
   locale: string;
 }): Promise<ProcessIngestResult> => {
   const row = await IngestRequests.findOne({ where: { id: requestId }, lock: true });
   if (!row) throw new Error(`Ingest request ${requestId} does not exist.`);
 
   if (row.status === 'dismissed') return dismissedResult({ locale });
+  if (retry && !isWaitingRequest({ row })) return notWaitingResult({ locale });
   if (fingerprint !== undefined && row.fingerprint !== fingerprint) return keyReusedResult({ locale });
   if (row.status === 'logged') return replayLoggedRequest({ row, locale });
 
