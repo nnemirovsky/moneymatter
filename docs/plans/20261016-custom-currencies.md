@@ -782,11 +782,17 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 
 ### Task 24: [Final] Update documentation
 
-- [ ] `CLAUDE.md` rule 6 (Money convention): decimal storage, per-currency rounding modes, `money-columns.ts`
-- [ ] `packages/docs/src/content/docs/settings/base-currency-and-currencies.mdx`: precision, custom currencies, dated rates, rate-source badges, and that custom-currency transactions get their base amounts recomputed (ISO currencies keep theirs)
-- [ ] `packages/backend/docs/exchange-rates.md`: custom sources, the role of `UserExchangeRates` (dated, per user), exclusion of custom codes from provider sync, full-precision custom rates
-- [ ] new docs pages under `packages/docs/src/content/docs/settings/` for custom currencies and rate sources; `self-hosting` docs for the HTTP source under `IS_SELF_HOST`
-- [ ] move this plan to `docs/plans/completed/`
+Done ahead of Task 23 by owner instruction (Task 23 needs heavy test runs and stays open).
+
+- [x] `CLAUDE.md` rule 6 (Money convention): decimal storage, per-currency rounding modes, `money-columns.ts`
+  - rule 6 was already rewritten in phase 1 and matched the code for decimal storage, rounding modes and `money-columns.ts`; added only what was stale or missing: the account owner's decimals for native amounts, the frozen snapshots under `migrations/utils/`, nullable ref amounts with `refAmountMissing`, and dated custom-currency rates
+- [x] `packages/docs/src/content/docs/settings/base-currency-and-currencies.mdx`: precision, custom currencies, dated rates, rate-source badges, and that custom-currency transactions get their base amounts recomputed (ISO currencies keep theirs)
+  - also touched `stats/how-stats-are-calculated.mdx`, `getting-started/key-concepts.mdx`, `settings/security-and-account.mdx` (backups) and `getting-started/self-hosting.mdx`, where the old text said every rate is undated or described only market rates
+  - screenshots (skipped - not automatable): they need a running dev stack and the throwaway docs user; no `<Screenshot>` tags were added, so there are no broken image references
+- [x] `packages/backend/docs/exchange-rates.md`: custom sources, the role of `UserExchangeRates` (dated, per user), exclusion of custom codes from provider sync, full-precision custom rates
+- [x] new docs pages under `packages/docs/src/content/docs/settings/` for custom currencies and rate sources (`custom-currencies.mdx`, `rate-sources.mdx`); `self-hosting` docs for the HTTP source under `IS_SELF_HOST` (`self-hosting/docs/environment-reference.md`, `getting-started/self-hosting.mdx`), and `COINGECKO_API_KEY` now documented as enabling the CoinGecko rate source
+  - `cd packages/docs && npm run build` passes, and the link validator reports all internal links valid
+- [ ] move this plan to `docs/plans/completed/` (not yet: moves after Task 23, which is still open)
 
 ## Post-Completion
 
