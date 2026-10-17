@@ -8,6 +8,7 @@ import Budgets from '@models/budget.model';
 import Categories from '@models/categories.model';
 import { findTransactions } from '@models/transactions-query';
 import { withTransaction } from '@services/common/with-transaction';
+import { roundToBaseCurrency } from '@services/currencies/round-to-base-currency';
 import { Op } from 'sequelize';
 
 import { expandCategoryIds } from './utils/expand-category-ids';
@@ -35,6 +36,9 @@ const prepareTransactionFilters = (payload: CreateBudgetPayload) => ({
 export const createBudget = withTransaction(async (payload: CreateBudgetPayload) => {
   const budgetType = payload.type ?? BUDGET_TYPES.manual;
 
+  // A budget is denominated in the owner's base currency.
+  const [limitAmount] = await roundToBaseCurrency({ userId: payload.userId, values: [payload.limitAmount] });
+
   const budgetData: CreateBudgetPayload = {
     name: payload.name,
     userId: payload.userId,
@@ -43,7 +47,7 @@ export const createBudget = withTransaction(async (payload: CreateBudgetPayload)
     startDate: payload.startDate ?? null,
     endDate: payload.endDate ?? null,
     autoInclude: payload.autoInclude ?? false,
-    limitAmount: payload.limitAmount ?? null,
+    limitAmount: limitAmount ?? null,
   };
 
   // Validate categoryIds exist before creating budget

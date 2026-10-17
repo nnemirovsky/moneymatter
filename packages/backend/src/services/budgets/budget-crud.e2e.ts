@@ -35,6 +35,35 @@ describe('Budget CRUD', () => {
       expect(budgetById?.name).toBe(budgetName);
     });
 
+    it('rounds the limit half-up to the decimals of the base currency', async () => {
+      const budget = await helpers.createCustomBudget({
+        name: budgetName,
+        startDate: '2025-03-01T00:00:00Z',
+        endDate: '2025-03-31T23:59:59Z',
+        limitAmount: 100.555,
+        raw: true,
+      });
+      expect(budget.limitAmount).toBe(100.56);
+
+      const edited = await helpers.editCustomBudget({ id: budget.id, raw: true, params: { limitAmount: 77.774 } });
+      expect(edited.limitAmount).toBe(77.77);
+
+      const kwdUser = await helpers.provisionSecondUserWithBaseCurrency({ currencyCode: 'KWD' });
+      await helpers.asUser({
+        cookies: kwdUser.cookies,
+        fn: async () => {
+          const kwdBudget = await helpers.createCustomBudget({
+            name: budgetName,
+            startDate: '2025-03-01T00:00:00Z',
+            endDate: '2025-03-31T23:59:59Z',
+            limitAmount: 100.5555,
+            raw: true,
+          });
+          expect(kwdBudget.limitAmount).toBe(100.556);
+        },
+      });
+    });
+
     it('can create budgets with the same name', async () => {
       await helpers.createCustomBudget({
         name: budgetName,
