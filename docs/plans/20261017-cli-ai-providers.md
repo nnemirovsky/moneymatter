@@ -305,9 +305,9 @@ Create/re-auth reuse the existing `POST /settings/ai/connections` and `PUT /sett
 
 **Files:** `packages/docs/src/content/docs/ai/use-your-ai-subscription.mdx`, `packages/docs/src/content/docs/settings/general-settings.mdx` (AI map line), `packages/docs/src/content/docs/getting-started/self-hosting.mdx`, `self-hosting/docs/environment-reference.md`, `self-hosting/README.md` if it lists AI options
 
-- [ ] New docs page (follow the `user-docs` skill; screenshots of the dialog and sign-in panel using the throwaway docs user with mocked availability): what it is, self-host + admin requirement, setting `ADMIN_USERS`, Claude flow (code paste), Codex flow (device code; enable it in ChatGPT security settings), choosing models, subscription limits, re-sign-in and yearly Claude expiry, disconnect/revoke, the personal-use terms notice, and that budget suggestions keep using the instance's server model (they never run on a connection).
-- [ ] Environment reference: rewrite `ADMIN_USERS` (now gates subscription AI); add `AI_CLI_CLAUDE_PATH`, `AI_CLI_CODEX_PATH`, `AI_CLI_MAX_CONCURRENT_RUNS`; note the image size increase.
-- [ ] Gate: `cd packages/docs && npm run build` succeeds; links in the new page resolve.
+- [x] New docs page (follow the `user-docs` skill; screenshots of the dialog and sign-in panel using the throwaway docs user with mocked availability): what it is, self-host + admin requirement, setting `ADMIN_USERS`, Claude flow (code paste), Codex flow (device code; enable it in ChatGPT security settings), choosing models, subscription limits, re-sign-in and yearly Claude expiry, disconnect/revoke, the personal-use terms notice, and that budget suggestions keep using the instance's server model (they never run on a connection). (screenshots skipped - not automatable: no dev stack or browser session in this run; no image references added. Also updated `general-settings.mdx` AI line, `self-hosting.mdx` feature table and backup note)
+- [x] Environment reference: rewrite `ADMIN_USERS` (now gates subscription AI); add `AI_CLI_CLAUDE_PATH`, `AI_CLI_CODEX_PATH`, `AI_CLI_MAX_CONCURRENT_RUNS`; note the image size increase. (also `self-hosting/.env.example`; image sizes recorded: amd64 2.04 GB, arm64 1.94 GB, about 1.29 GB before; `self-hosting/README.md` lists no AI options, unchanged)
+- [x] Gate: `cd packages/docs && npm run build` succeeds; links in the new page resolve. (build passes, "All internal links are valid")
 
 ## Post-Completion
 
