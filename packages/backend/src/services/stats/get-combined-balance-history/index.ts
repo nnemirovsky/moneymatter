@@ -407,7 +407,7 @@ export const getCombinedBalanceHistory = async ({
             where: { userId, accountCategory: ACCOUNT_CATEGORIES.loan, excludeFromStats: false },
             attributes: ['id', 'refInitialBalance'],
           });
-          const openingCentsByAccount = new Map(loanAccounts.map((a) => [a.id, a.refInitialBalance.toCents()]));
+          const openingCentsByAccount = new Map(loanAccounts.map((a) => [a.id, a.refInitialBalance?.toCents() ?? 0]));
 
           return getAggregatedBalanceHistory({
             userId,

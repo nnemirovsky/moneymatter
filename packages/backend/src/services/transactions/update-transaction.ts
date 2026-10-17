@@ -15,8 +15,9 @@ import { deleteSplitsForTransaction } from '@models/transaction-splits.model';
 import * as Transactions from '@models/transactions.model';
 import * as UsersCurrencies from '@models/users-currencies.model';
 import { getUserDefaultCategory } from '@models/users.model';
-import { calculateRefAmount } from '@services/calculate-ref-amount.service';
+import { calculateRefAmountOrNull } from '@services/calculate-ref-amount.service';
 import { DOMAIN_EVENTS, eventBus } from '@services/common/event-bus';
+import { assertCurrencyCodesVisible } from '@services/currencies/assert-currency-codes-visible';
 import { assertLoanEditAllowed } from '@services/loans/assert-loan-edit-allowed';
 import { deriveImpliedDestinationAmount } from '@services/loans/implied-destination-amount';
 import {
@@ -199,6 +200,7 @@ const makeBasicBaseTxUpdation = async (
     // (the row's actual `userId`), not the caller. They differ when a recipient
     // edits an owner-created transaction with `transactionsWriteScope: 'all'`.
     userId: ctx.txCreatorUserId,
+    accountOwnerUserId: ctx.accountOwnerUserId,
     transactionType,
     paymentType: newData.paymentType,
     accountId: newData.accountId,
@@ -291,8 +293,10 @@ const makeBasicBaseTxUpdation = async (
   }
 
   if (defaultUserCurrency.code !== baseTransactionUpdateParams.currencyCode) {
-    baseTransactionUpdateParams.refAmount = await calculateRefAmount({
+    // `null` flags the row as missing its base-currency amount (custom currency, no rate yet).
+    baseTransactionUpdateParams.refAmount = await calculateRefAmountOrNull({
       userId: newData.userId,
+      amountOwnerUserId: ctx.accountOwnerUserId,
       amount: effectiveAmount,
       baseCode: baseTransactionUpdateParams.currencyCode,
       quoteCode: defaultUserCurrency.code,
@@ -616,6 +620,8 @@ export const updateTransaction = withTransaction(
     payload: UpdateTransactionParams,
   ): Promise<[baseTx: Transactions.default, oppositeTx?: Transactions.default]> => {
     try {
+      await assertCurrencyCodesVisible({ userId: payload.userId, codes: [payload.originalCurrencyCode] });
+
       // Single fetch + write-authorization gate. `getWritableTransactionById` throws 404
       // when the caller has no claim, 401 when scope: 'own' is violated. Returns a
       // pre-resolved `authCtx` so this service doesn't reassemble auth primitives.
@@ -677,6 +683,7 @@ export const updateTransaction = withTransaction(
           await ensureUserCurrencyConnected({
             userId: ctx.callerUserId,
             currencyCode: prevData.currencyCode,
+            definitionOwnerUserId: authCtx.accountOwnerUserId,
           });
         }
       }

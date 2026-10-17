@@ -264,7 +264,7 @@ export const getNetWorthHistory = async ({
         const openingCentsByAccount = new Map(
           accounts
             .filter((a) => a.accountCategory === ACCOUNT_CATEGORIES.loan)
-            .map((a) => [a.id, a.refInitialBalance.toCents()]),
+            .map((a) => [a.id, a.refInitialBalance?.toCents() ?? 0]),
         );
 
         const series = await getPerAccountBalanceHistory({

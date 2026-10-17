@@ -1,4 +1,4 @@
-import { ACCOUNT_CATEGORIES, type Cents, type RecordId } from '@bt/shared/types';
+import { ACCOUNT_CATEGORIES, asCents, type Cents, type RecordId } from '@bt/shared/types';
 import Accounts from '@models/accounts.model';
 import { getAccessibleAccountIdsForUser } from '@services/sharing/auth/get-accessible-account-ids.service';
 import { Op } from 'sequelize';
@@ -32,7 +32,7 @@ export const getCreditLimitCentsByAccount = async ({
     attributes: ['id', 'refCreditLimit'],
   });
 
-  return new Map(accounts.map((account) => [account.id, account.refCreditLimit.toCents()]));
+  return new Map(accounts.map((account) => [account.id, account.refCreditLimit?.toCents() ?? asCents(0)]));
 };
 
 /** Sum of `getCreditLimitCentsByAccount`, for reads that adjust one aggregate balance. */

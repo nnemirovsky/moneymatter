@@ -1,10 +1,11 @@
 import { getConversionDecimals } from '@common/lib/currency-precision';
 import { Money } from '@common/types/money';
 import { t } from '@i18n/index';
-import { ValidationError } from '@js/errors';
+import { ExchangeRateUnavailableError, ValidationError } from '@js/errors';
 import { logger } from '@js/utils/logger';
 import * as Currencies from '@models/currencies.model';
 import * as UsersCurrencies from '@models/users-currencies.model';
+import { findCustomCurrencyCodes, includesCustomCurrencyCode } from '@services/currencies/custom-currency-codes';
 import * as userExchangeRateService from '@services/user-exchange-rate';
 
 import { calculateRefAmountFromParams } from './calculate-ref-amount.utils';
@@ -30,9 +31,11 @@ import { buildRefAmountCacheKey, refAmountCache, serializeRefAmountCacheValue } 
  * const refAmountForDefaultUserCurrency = await calculateRefAmount({ amount: 100, userId: 42, baseCode: 'USD' });
  */
 async function calculateRefAmountImpl(params: Params): Promise<Money> {
-  const { baseCode, quoteCode, userId, amount, bypassCache = false } = params;
+  const { baseCode, quoteCode, userId, amount, bypassCache = false, amountOwnerUserId } = params;
 
   const dateStr = new Date(params.date).toISOString().split('T')[0]!;
+
+  let involvesCustomCurrency = false;
 
   try {
     // Resolve the quote currency BEFORE building the cache key: when `quoteCode` is
@@ -64,6 +67,11 @@ async function calculateRefAmountImpl(params: Params): Promise<Money> {
       });
     }
 
+    // A custom currency converts at the user's own rate, which can change at any moment and which
+    // no edit path invalidates here, so its conversions are never cached.
+    involvesCustomCurrency = (await findCustomCurrencyCodes({ codes: [baseCode, resolvedQuoteCode] })).size > 0;
+    const useCache = !bypassCache && !involvesCustomCurrency;
+
     const cacheKey = buildRefAmountCacheKey({
       userId,
       amount,
@@ -72,7 +80,7 @@ async function calculateRefAmountImpl(params: Params): Promise<Money> {
       dateStr,
     });
 
-    if (!bypassCache) {
+    if (useCache) {
       const cachedAmount = await refAmountCache.read(cacheKey);
 
       if (cachedAmount !== null) {
@@ -82,7 +90,7 @@ async function calculateRefAmountImpl(params: Params): Promise<Money> {
 
     // If baseCode equals the resolved quote currency, no conversion is needed.
     if (resolvedQuoteCode === baseCode) {
-      if (!bypassCache) {
+      if (useCache) {
         await refAmountCache.write({ key: cacheKey, value: serializeRefAmountCacheValue({ amount }) });
       }
       return amount;
@@ -96,20 +104,27 @@ async function calculateRefAmountImpl(params: Params): Promise<Money> {
       bypassCache,
     });
 
-    const decimals = await getConversionDecimals({ userId, baseCode, quoteCode: resolvedQuoteCode });
+    const decimals = await getConversionDecimals({
+      userId,
+      baseCode,
+      quoteCode: resolvedQuoteCode,
+      baseOwnerUserId: amountOwnerUserId,
+    });
 
     const finalAmount = calculateRefAmountFromParams({ amount, rate: result.rate, ...decimals });
 
     // Cache the final result as an exact decimal string. Skipped under `bypassCache` (see its doc):
     // a write-back inside an uncommitted rate-write transaction would poison the
     // cache on rollback.
-    if (!bypassCache) {
+    if (useCache) {
       await refAmountCache.write({ key: cacheKey, value: serializeRefAmountCacheValue({ amount: finalAmount }) });
     }
 
     return finalAmount;
   } catch (e) {
-    if (process.env.NODE_ENV !== 'test') {
+    // A custom currency without a rate is an ordinary state the caller turns into a flagged row.
+    const isExpectedMiss = involvesCustomCurrency && e instanceof ExchangeRateUnavailableError;
+    if (process.env.NODE_ENV !== 'test' && !isExpectedMiss) {
       logger.error(e as Error);
     }
     throw e;
@@ -120,7 +135,13 @@ export { calculateRefAmountFromParams } from './calculate-ref-amount.utils';
 
 type Params = {
   amount: Money;
+  /** User whose base currency and rates drive the conversion. */
   userId: number;
+  /**
+   * Whose definition of `baseCode` rounds the amount before it converts: the account owner, when
+   * a collaborator writes on a shared account. Defaults to `userId`.
+   */
+  amountOwnerUserId?: number;
   date: Date | string;
   baseCode: string;
   quoteCode?: string;
@@ -135,3 +156,26 @@ type Params = {
 };
 
 export const calculateRefAmount = withTransaction(calculateRefAmountImpl);
+
+/**
+ * Like `calculateRefAmount`, but a conversion that involves a custom currency and has no rate
+ * answers `null` instead of throwing, so the row can still be saved and flagged `refAmountMissing`.
+ * An ISO conversion with no rate keeps throwing: a market rate that is absent is a data problem,
+ * while a custom currency simply has no rate until its owner provides one. A zero amount converts to
+ * zero without a rate.
+ */
+export const calculateRefAmountOrNull = async (params: Params): Promise<Money | null> => {
+  try {
+    return await calculateRefAmount(params);
+  } catch (error) {
+    if (!(error instanceof ExchangeRateUnavailableError)) throw error;
+
+    const codes = [params.baseCode, params.quoteCode].filter((code): code is string => Boolean(code));
+    if (await includesCustomCurrencyCode({ codes })) {
+      // Nothing converts to nothing, at any rate: a zero amount never needs one.
+      return params.amount.isZero() ? Money.zero() : null;
+    }
+
+    throw error;
+  }
+};

@@ -15,6 +15,7 @@ import {
   TransactionLocation,
   TransactionModel,
 } from '@bt/shared/types';
+import { CURRENCY_CODE_MAX_LENGTH } from '@common/lib/currency-code-columns';
 import { roundTransactionMoney } from '@common/lib/round-transaction-money';
 import { IdColumn } from '@common/types/id-column';
 import { Money } from '@common/types/money';
@@ -110,7 +111,7 @@ export interface TransactionsAttributes {
   id: string;
   amount: Money;
   /** Amount in user's base currency */
-  refAmount: Money;
+  refAmount: Money | null;
   note: string;
   externalUrl: string | null;
   externalReference: string | null;
@@ -148,7 +149,8 @@ export interface TransactionsAttributes {
     originalSource?: { originalId: string; importedFrom: string | null; accountType: ACCOUNT_TYPES };
   } & Record<string, unknown>;
   commissionRate: Money;
-  refCommissionRate: Money;
+  refCommissionRate: Money | null;
+  refAmountMissing: boolean;
   cashbackAmount: Money;
   originalAmount: Money | null;
   originalCurrencyCode: string | null;
@@ -177,8 +179,8 @@ export default class Transactions extends Model {
   declare amount: Money;
 
   // Amount in curreny of account
-  @MoneyField({ storage: 'decimal', precision: 36, scale: 18 })
-  declare refAmount: Money;
+  @MoneyField({ storage: 'decimal', precision: 36, scale: 18, allowNull: true, defaultValue: '0' })
+  declare refAmount: Money | null;
 
   @Length({ max: 2000 })
   @Column({ allowNull: true, type: DataType.STRING })
@@ -260,7 +262,7 @@ export default class Transactions extends Model {
   category!: Categories;
 
   @ForeignKey(() => Currencies)
-  @Column({ allowNull: true, type: DataType.STRING(3) })
+  @Column({ allowNull: true, type: DataType.STRING(CURRENCY_CODE_MAX_LENGTH) })
   currencyCode!: string;
 
   @Column({
@@ -271,7 +273,7 @@ export default class Transactions extends Model {
   accountType!: ACCOUNT_TYPES;
 
   @ForeignKey(() => Currencies)
-  @Column({ allowNull: true, defaultValue: null, type: DataType.STRING(3) })
+  @Column({ allowNull: true, defaultValue: null, type: DataType.STRING(CURRENCY_CODE_MAX_LENGTH) })
   refCurrencyCode!: string;
 
   @Column({
@@ -303,11 +305,16 @@ export default class Transactions extends Model {
   @MoneyField({ storage: 'decimal', precision: 36, scale: 18 })
   declare commissionRate: Money;
 
-  @MoneyField({ storage: 'decimal', precision: 36, scale: 18 })
-  declare refCommissionRate: Money;
+  @MoneyField({ storage: 'decimal', precision: 36, scale: 18, allowNull: true, defaultValue: '0' })
+  declare refCommissionRate: Money | null;
 
   @MoneyField({ storage: 'decimal', precision: 36, scale: 18 })
   declare cashbackAmount: Money;
+
+  // `true` while the base-currency amounts are `null` because a custom currency had no rate on the
+  // transaction's date; it drives the review badge and selects the rows a new rate fills.
+  @Column({ allowNull: false, defaultValue: false, type: DataType.BOOLEAN })
+  refAmountMissing!: boolean;
 
   // Metadata only: no balance, statistics or budget path reads these. What the user spent in a
   // foreign currency, with its ISO 4217 code. Both hold a value or both stay null.
@@ -315,7 +322,7 @@ export default class Transactions extends Model {
   declare originalAmount: Money | null;
 
   @ForeignKey(() => Currencies)
-  @Column({ allowNull: true, defaultValue: null, type: DataType.STRING(3) })
+  @Column({ allowNull: true, defaultValue: null, type: DataType.STRING(CURRENCY_CODE_MAX_LENGTH) })
   originalCurrencyCode!: string | null;
 
   // Represents if the transaction refunds another tx, or is being refunded by other. Added only for
@@ -368,6 +375,19 @@ export default class Transactions extends Model {
   declare createdAt: Date;
   declare updatedAt: Date;
   declare deletedAt: Date | null;
+
+  /**
+   * `refAmountMissing` follows `refAmount`: a row whose base-currency amount is `null` is flagged,
+   * and a write that gives it a value clears the flag. Deriving it at the model keeps every write
+   * path (manual entry, transfers, imports, a later rate) from setting one without the other.
+   */
+  @BeforeCreate
+  @BeforeUpdate
+  static syncRefAmountMissing(instance: Transactions) {
+    if (instance.isNewRecord || instance.changed('refAmount')) {
+      instance.refAmountMissing = instance.refAmount == null;
+    }
+  }
 
   @BeforeCreate
   @BeforeUpdate
@@ -584,8 +604,9 @@ export default class Transactions extends Model {
     const newRaw = newData as any,
       prevRaw = prevData as any;
     for (const field of MONEY_FIELDS) {
-      newRaw[field] = Money.fromDecimal(newRaw[field]);
-      prevRaw[field] = Money.fromDecimal(prevRaw[field]);
+      // `refAmount` and `refCommissionRate` are `null` while a custom currency has no rate.
+      newRaw[field] = newRaw[field] == null ? null : Money.fromDecimal(newRaw[field]);
+      prevRaw[field] = prevRaw[field] == null ? null : Money.fromDecimal(prevRaw[field]);
     }
 
     const wasPlanned = Boolean(prevData.isPlanned);
@@ -1365,13 +1386,21 @@ type CreateTxOptionalParams = Partial<
   >
 >;
 
-export type CreateTransactionPayload = CreateTxRequiredParams & CreateTxOptionalParams;
+export type CreateTransactionPayload = CreateTxRequiredParams &
+  CreateTxOptionalParams & {
+    /**
+     * Owner of the account when it differs from `userId` (a collaborator writing on a shared
+     * account). The owner's definition of the currency governs the native amounts.
+     */
+    accountOwnerUserId?: number;
+  };
 
-export const createTransaction = async ({ userId, ...rest }: CreateTransactionPayload) => {
+export const createTransaction = async ({ userId, accountOwnerUserId, ...rest }: CreateTransactionPayload) => {
   const { amount, commissionRate, cashbackAmount, originalAmount, refAmount, refCommissionRate } = rest;
   const rounded = await roundTransactionMoney({
     values: { amount, commissionRate, cashbackAmount, originalAmount, refAmount, refCommissionRate },
     userId,
+    accountOwnerUserId,
     currencyCode: rest.currencyCode,
     refCurrencyCode: rest.refCurrencyCode,
     originalCurrencyCode: rest.originalCurrencyCode,
@@ -1388,8 +1417,11 @@ export const createTransaction = async ({ userId, ...rest }: CreateTransactionPa
 export interface UpdateTransactionByIdParams {
   id: string;
   userId: number;
+  /** Owner of the account when it differs from `userId`; its definition of the currency governs the native amounts. */
+  accountOwnerUserId?: number;
   amount?: Money;
-  refAmount?: Money;
+  /** `null` stores a missing base-currency amount (a custom currency without a rate). */
+  refAmount?: Money | null;
   note?: string | null;
   externalUrl?: string | null;
   externalReference?: string | null;
@@ -1422,11 +1454,13 @@ export interface UpdateTransactionByIdParams {
 const roundUpdatePayloadMoney = async ({
   id,
   userId,
+  accountOwnerUserId,
   payload,
 }: {
   id: string;
   userId: number;
-  payload: Omit<UpdateTransactionByIdParams, 'id' | 'userId'>;
+  accountOwnerUserId?: number;
+  payload: Omit<UpdateTransactionByIdParams, 'id' | 'userId' | 'accountOwnerUserId'>;
 }) => {
   const { amount, refAmount, originalAmount } = payload;
 
@@ -1436,7 +1470,7 @@ const roundUpdatePayloadMoney = async ({
 
   const needsStoredRow =
     payload.currencyCode === undefined ||
-    (refAmount !== undefined && payload.refCurrencyCode === undefined) ||
+    (refAmount !== undefined && refAmount !== null && payload.refCurrencyCode === undefined) ||
     (originalAmount !== undefined && originalAmount !== null && payload.originalCurrencyCode === undefined);
 
   const stored = needsStoredRow
@@ -1455,6 +1489,7 @@ const roundUpdatePayloadMoney = async ({
   return roundTransactionMoney({
     values: { amount, refAmount, originalAmount },
     userId,
+    accountOwnerUserId,
     currencyCode,
     refCurrencyCode: payload.refCurrencyCode ?? stored?.refCurrencyCode,
     originalCurrencyCode: payload.originalCurrencyCode ?? stored?.originalCurrencyCode,
@@ -1462,7 +1497,7 @@ const roundUpdatePayloadMoney = async ({
 };
 
 export const updateTransactionById = async (
-  { id, userId, ...payload }: UpdateTransactionByIdParams,
+  { id, userId, accountOwnerUserId, ...payload }: UpdateTransactionByIdParams,
   {
     // For refunds we need to have an option to disable them. Otherwise there will be some kind of
     // deadlock - request stucks forever with no error message. TODO: consider removing this logic at all
@@ -1471,7 +1506,7 @@ export const updateTransactionById = async (
 ) => {
   const where = { id, userId };
 
-  const rounded = await roundUpdatePayloadMoney({ id, userId, payload });
+  const rounded = await roundUpdatePayloadMoney({ id, userId, accountOwnerUserId, payload });
 
   await Transactions.update(removeUndefinedKeys({ ...payload, ...rounded }), {
     where,
