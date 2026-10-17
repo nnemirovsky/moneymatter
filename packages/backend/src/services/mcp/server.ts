@@ -12,6 +12,7 @@ import { registerArchiveAccount } from './tools/archive-account';
 import { registerArchiveBudget } from './tools/archive-budget';
 import { registerAssignTagsToTransaction } from './tools/assign-tags-to-transaction';
 import { registerBulkUpdateTransactions } from './tools/bulk-update-transactions';
+import { registerCreateAccount } from './tools/create-account';
 import { registerCreateAttachmentUploadUrl } from './tools/create-attachment-upload-url';
 import { registerCreateBudget } from './tools/create-budget';
 import { registerCreateCategory } from './tools/create-category';
@@ -25,6 +26,7 @@ import { registerCreateTag } from './tools/create-tag';
 import { registerCreateTransaction } from './tools/create-transaction';
 import { registerCreateTransactionAutomation } from './tools/create-transaction-automation';
 import { registerCreateTransactionGroup } from './tools/create-transaction-group';
+import { registerDeleteAccount } from './tools/delete-account';
 import { registerDeleteBudget } from './tools/delete-budget';
 import { registerDeleteCategory } from './tools/delete-category';
 import { registerDeleteCustomCurrency } from './tools/delete-custom-currency';
@@ -40,6 +42,7 @@ import { registerDeleteTransactionAutomation } from './tools/delete-transaction-
 import { registerDeleteTransactionGroup } from './tools/delete-transaction-group';
 import { registerDetectSubscriptionCandidates } from './tools/detect-subscription-candidates';
 import { registerDismissSubscriptionCandidate } from './tools/dismiss-subscription-candidate';
+import { registerGetAccount } from './tools/get-account';
 import { registerGetAccounts } from './tools/get-accounts';
 import { registerGetBalanceHistory } from './tools/get-balance-history';
 import { registerGetBudgetSpendingStats } from './tools/get-budget-spending-stats';
@@ -87,10 +90,12 @@ import { registerTestCurrencyRateSource } from './tools/test-currency-rate-sourc
 import { registerToggleSubscriptionActive } from './tools/toggle-subscription-active';
 import { registerTransferAccountToPortfolio } from './tools/transfer-account-to-portfolio';
 import { registerTransferPortfolioToAccount } from './tools/transfer-portfolio-to-account';
+import { registerUnlinkAccountFromBankConnection } from './tools/unlink-account-from-bank-connection';
 import { registerUnlinkRefund } from './tools/unlink-refund';
 import { registerUnlinkTransactionFromPortfolio } from './tools/unlink-transaction-from-portfolio';
 import { registerUnlinkTransactionsFromSubscription } from './tools/unlink-transactions-from-subscription';
 import { registerUnlinkTransfer } from './tools/unlink-transfer';
+import { registerUpdateAccount } from './tools/update-account';
 import { registerUpdateBudget } from './tools/update-budget';
 import { registerUpdateCategory } from './tools/update-category';
 import { registerUpdateCustomCurrency } from './tools/update-custom-currency';
@@ -158,8 +163,13 @@ export function createMcpServer(): McpServer {
   // Profile & accounts
   registerGetUserProfile(server);
   registerGetAccounts(server);
+  registerGetAccount(server);
+  registerCreateAccount(server);
+  registerUpdateAccount(server);
   registerAdjustAccountBalance(server);
   registerArchiveAccount(server);
+  registerDeleteAccount(server);
+  registerUnlinkAccountFromBankConnection(server);
 
   // Transactions (read + CRUD + splits + refunds + transfer linking)
   registerSearchTransactions(server);
