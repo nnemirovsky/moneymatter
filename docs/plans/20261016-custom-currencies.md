@@ -693,15 +693,24 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - Create: `packages/backend/src/services/currencies/recompute-custom-ref-amounts.service.ts`, unit tests, `recompute-custom-ref-amounts.e2e.ts`
 - Modify: the rate-source endpoint, the manual-rate endpoints, the backfill completion hooks
 
-- [ ] expand the affected set first: starting from the changed currency and dates, follow the user's reverse peg and quote dependencies (a currency pegged to, or quoted via, a changed one) until no new currency is added, carrying the affected dates along
-- [ ] service: for one user, the expanded set of custom currencies and the dates whose effective rate changed, recompute `refAmount`, `refCommissionRate`, split ref amounts, account ref balances and `refAmountMissing`, then schedule the balance-history rebuild
-- [ ] every trigger (source change, manual-rate edit, backfill completion, daily-sync fill) clears the user's ref-amount cache through the Task 5 prefix helper after commit, including entries for dependent currencies; the recompute itself calls `calculateRefAmount` with `bypassCache: true`
-- [ ] e2e: after correcting a rate, a new transaction with the same amount, pair and date as an earlier one gets the corrected rate
-- [ ] trigger it on source change, backfill completion and manual-rate edits for past dates; the daily sync only fills `refAmountMissing` rows on the newly added date; never for ISO currencies
-- [ ] unit test: adding a rate for a new date selects no previously valued transaction
-- [ ] e2e: USDC pegged to USDT with a dated manual USDT/USD rate of 1; a 10-USDC transaction; correcting that historical USDT rate to 2 recomputes the USDC transaction to 20
-- [ ] e2e: create a custom-currency transaction **before** configuring a source (missing state), configure a peg, and check the transaction's `refAmount`, the account's ref balance and the stats; ISO transactions stay untouched
-- [ ] gate: these tests pass
+- [x] expand the affected set first: starting from the changed currency and dates, follow the user's reverse peg and quote dependencies (a currency pegged to, or quoted via, a changed one) until no new currency is added, carrying the affected dates along
+  - result: `recompute-scope.ts` (pure): `buildScope` and `expandScope` follow the dependency edges (`loadDependencyEdges`: the user's peg configs and the base-to-quote pairs of their stored rates, dependents restricted to custom codes) to a fixpoint; a dependent inherits every interval and mode of its source, and a cycle ends because an interval is added once per currency. Unit tests: pegged, chain, unrelated, cycle, inherited intervals
+- [x] service: for one user, the expanded set of custom currencies and the dates whose effective rate changed, recompute `refAmount`, `refCommissionRate`, split ref amounts, account ref balances and `refAmountMissing`, then schedule the balance-history rebuild
+  - result: `recomputeCustomRefAmounts({ userId, changes, remeasureSpot })` in `recompute-custom-ref-amounts.service.ts`, one DB transaction joined with the caller's. A change is `{ currencyCode, from, to, mode }` (UTC days, `to` exclusive, `null` open). Per currency it loads the author's rows (planned, adjustments and soft-deleted included) in the span, keeps those the intervals match, converts with `calculateRefAmountOrNull` (`bypassCache`, the account owner's decimals) and writes only a row whose value differs, with hooks off like the base change does (the hooks would move balances this does not touch), setting `refAmountMissing` from the new value. Splits follow their transaction. Accounts: `restampRefInitialBalance` (boundary-date opening stamp), `remeasureRefBalances` now takes `currencyCodes` for a targeted spot re-measure, then `scheduleBalanceRevalue` per account. A transfer leg whose counterpart (same author) is in the base currency is anchored to that leg's amount, not a rate, so it is skipped
+- [x] every trigger (source change, manual-rate edit, backfill completion, daily-sync fill) clears the user's ref-amount cache through the Task 5 prefix helper after commit, including entries for dependent currencies; the recompute itself calls `calculateRefAmount` with `bypassCache: true`
+  - result: the service calls `clearUserRefAmountCacheAfterCommit` (`services/clear-ref-amount-cache.ts`, the `buildRefAmountCachePattern` prefix delete, deferred to the ambient transaction's `afterCommit`) once per call, which covers the whole expanded set because the pattern is the user's. Conversions involving a custom code are never cached in the first place, so the clear is a guard for entries of other pairs; the recompute converts with `bypassCache: true`
+- [x] e2e: after correcting a rate, a new transaction with the same amount, pair and date as an earlier one gets the corrected rate
+  - result: `recompute-custom-ref-amounts.e2e.ts` (corrected 3 to 4: the saved 10 USDT goes 30 to 40, the next identical one is 40, the account's ref balance is -80); also splits, a correction that covers only its own days, a quoted custom currency, and an anchored transfer leg that keeps its value
+- [x] trigger it on source change, backfill completion and manual-rate edits for past dates; the daily sync only fills `refAmountMissing` rows on the newly added date; never for ISO currencies
+  - result: wired for a source change (`setCurrencyRateSource`, only when the saved source or config differs and the currency is custom), and for manual-rate edits and removals (`editUserExchangeRates`, `removeUserExchangeRates` via `custom-rate-changes.ts`: `planRateChanges` before the write, `resolveRateChanges` after it adds the day the new state ends). A rate that replaces a stored one, lands on a past day, or is removed values every row of its days (`recompute`); a rate for a new day that is not in the past only fills `refAmountMissing` rows (`fill`). The backfill-completion and daily-sync entry points are the same service: ➕ Tasks 20 and 21 call it (`recompute` over the backfilled days, `fill` for the new day) when they add those jobs. ISO pairs never plan a change (only a custom base side does) and an ISO source change is skipped
+- [x] unit test: adding a rate for a new date selects no previously valued transaction
+  - result: `recompute-scope.unit.ts` (11): a `fill` interval matches only a row with `refAmountMissing`, a `recompute` interval matches valued and unpriced rows alike, the end day is exclusive, open sides are unbounded, the envelope of several selectors
+- [x] e2e: USDC pegged to USDT with a dated manual USDT/USD rate of 1; a 10-USDC transaction; correcting that historical USDT rate to 2 recomputes the USDC transaction to 20
+  - result: in the new e2e, twice (a peg set before the transaction, and the same with a COIN currency pegged to nothing staying at 70). The rate is USDT to the base (AED) rather than to USD, which keeps the assertion on the peg dependency instead of on a market cross
+- [x] e2e: create a custom-currency transaction **before** configuring a source (missing state), configure a peg, and check the transaction's `refAmount`, the account's ref balance and the stats; ISO transactions stay untouched
+  - result: the unpriced 10 USDT row becomes 10 (flag cleared), the account's ref balance goes from null to -10, the category stats sum is 50 with the ISO row; the market rate of the ISO row's day is doubled before the peg and the ISO transaction keeps 40. Also: re-saving the same source writes nothing (`updatedAt` unchanged), and an ISO manual rate leaves a saved ISO transaction alone
+- [x] gate: these tests pass
+  - result: one batched e2e run, 8 suites, 164 tests, after fixing one wrong test assertion (the create response carries no splits) re-run of the new file alone: 14 passed. Batch: recompute-custom-ref-amounts, the phase 2 sanity files (custom-currency-transactions with the SAT/COIN loop and the bulk-selection cases, custom-currencies with backup and prune, transaction-portfolio-link), and the Task 16-18 files this touches (dated-user-exchange-rates, rate-source, peg-rate-source, update-exchange-rates.service). Backend typecheck, lint (warnings only), oxfmt, unit suite (196 suites, 2694 tests)
 
 ### Task 20: CoinGecko rate source
 
@@ -712,6 +721,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 
 - [ ] coin search endpoint for the config UI; history backfill on configure, respecting rate limits
 - [ ] daily sync cron, deduplicated by `coinId` per day, storing rates per user in the configured `quoteCurrency` with `source='coingecko'`, then triggering Task 19
+  - ➕ call `recomputeCustomRefAmounts` (Task 19, `mode: 'fill'` for the new day, `mode: 'recompute'` over the days a backfill wrote, `remeasureSpot` left on) after the rates commit; also call it when the configure-time backfill completes
 - [ ] e2e: change base while a CoinGecko source is configured; no re-fetch happens and refAmounts come out right through the quote crossing
 - [ ] tests: the backfill fills dates; a sync failure keeps the last rate and logs; a transaction gets its `refAmount` after the backfill
 - [ ] gate: these tests pass
@@ -728,6 +738,7 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - [ ] e2e: with the guard on (no `useSelfHost()`), an http URL is rejected
 - [ ] `POST /user/currencies/:code/rate-source/test` returns a preview without saving
 - [ ] unit tests for templating, path extraction and the wrapper limits; e2e for the preview and a daily sync
+  - ➕ the daily sync calls `recomputeCustomRefAmounts` (Task 19) with `mode: 'fill'` for the new day
 - [ ] gate: these tests pass
 
 ### Task 22: Frontend rate-source editor
