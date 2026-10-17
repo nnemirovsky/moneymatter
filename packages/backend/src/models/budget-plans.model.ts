@@ -44,7 +44,7 @@ export default class BudgetPlans
   @Column({ type: DataType.STRING(50), allowNull: false })
   type!: BudgetPlanTypeKey;
 
-  /** Base currency at creation; assigned amounts are cents in it. */
+  /** Base currency at creation; assigned amounts are in it. */
   @Column({ type: DataType.STRING(CURRENCY_CODE_MAX_LENGTH), allowNull: false })
   currencyCode!: string;
 
