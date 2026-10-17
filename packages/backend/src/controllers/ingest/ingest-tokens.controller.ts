@@ -24,8 +24,11 @@ export const createIngestTokenController = createController(
       expiresInDays: z.number().int().min(1).max(MAX_EXPIRES_IN_DAYS).optional(),
     }),
   }),
-  async ({ user, body }) => {
-    // The secret leaves the server in this response only: the store keeps its hash.
+  async ({ user, body, res }) => {
+    // The secret leaves the server in this response only: the store keeps its hash. No cache,
+    // proxy or browser history may keep it either.
+    res.setHeader('Cache-Control', 'no-store');
+
     const data: CreateIngestTokenResponse = await createIngestToken({
       userId: user.id,
       name: body.name,

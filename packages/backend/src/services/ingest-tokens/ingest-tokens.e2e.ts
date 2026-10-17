@@ -71,6 +71,7 @@ describe('Ingest token management', () => {
       const response = await helpers.createIngestToken({ payload: { name: '  Phone  ' } });
 
       expect(response.statusCode).toBe(201);
+      expect(response.header['cache-control']).toContain('no-store');
       const { token, secret } = response.body.response;
       expect(secret).toMatch(/^mm_ingest_[A-Za-z0-9_-]{43}$/);
       expect(token.name).toBe('Phone');
