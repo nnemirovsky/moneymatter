@@ -632,7 +632,7 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
   - the no-input branch sends `dryRun: true`;
   - drift: the committed XML equals the generator output
 - [ ] implement the generator: a deterministic UUID per action (seeded), so the XML is stable and diffable
-- [ ] vitest for `config.cardPaymentShortcutIcloudUrl`: the runtime value wins, an empty runtime string falls back to undefined
+- [ ] vitest for `config.cardPaymentShortcutIcloudUrl`: the runtime value wins, an empty runtime string falls back to undefined (⚠️ the getter, its spec `src/common/config.spec.ts`, the `docker-entrypoint.sh` key and the compose/`.env.example` pass-through were done early in Task 13, whose **Add Shortcut** button reads the getter; what remains for this task is only the line in its gate)
 - [ ] gate: `cd packages/frontend && npm run test:unit -- --run scripts/shortcuts/build-card-payment-shortcut.spec.ts src/common/config`; `npm run shortcuts:build` leaves no diff; typecheck (which now covers `scripts/`) and lint
 - [ ] the signed `.shortcut` and the iCloud link are made in Post-Completion; until then the **Add Shortcut** button (Task 13) hides itself when the file is absent (a HEAD probe) and the page points to the manual guide
 
@@ -660,10 +660,11 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
 
 - Create: `packages/frontend/src/pages/settings/subpages/integrations/pages/apple-pay.vue` and components: `card-links.vue`, `unlinked-cards.vue`, `waiting-payments.vue`, `setup-code-dialog.vue`, `access-headers-form.vue`, `setup-checklist.vue`
 - Create: `packages/frontend/src/pages/settings/subpages/integrations/ingest-url.ts` (+ spec)
-- Modify: `packages/frontend/package.json` (a QR library such as `qrcode@1.5.4` or a smaller equivalent, pinned)
+- Modify: `packages/frontend/package.json` (⚠️ QR library: `uqr@0.1.3`, pinned. A smaller equivalent of `qrcode@1.5.4`: MIT, no dependencies (`qrcode` pulls `yargs`, `pngjs` and `dijkstrajs`), ESM, and its `encode()` returns the module matrix, so the component draws its own SVG path and the secret never passes through `v-html` or a renderer's string output)
 - Create: vitest specs; `packages/frontend/e2e/tests/integrations/apple-pay.spec.ts`
+- Also created (⚠️ not in the original list): `components/{card-link-dialog,payment-request-summary,unconfirmed-payments,add-shortcut-button,setup-code-qr}.vue`, `composables/{use-generate-setup-code,use-log-waiting-payments,use-shortcut-link}.ts`, `apple-pay.ts` (account filter, shortcut probe and link, reason labels), `qr-code.ts`, `test-support.ts`; `normalizeCardLabel` moved to `packages/shared/src/lib/normalize-card-label.ts` (the backend file re-exports it) so the frontend matches card labels the way the server does when it retries waiting payments
 
-- [ ] failing vitest:
+- [x] failing vitest (red runs: the util specs failed 32 of 44 on assertions against signature-only stubs, `config` 1 of 3, the setup-code composable 3 of 6, the shortcut-link composable 3 of 5 and the log-waiting composable 6 of 7; the component and page specs were written beside their `.vue` files and passed on first run, except the access-headers spec, which caught the secret lingering in the mutation cache and led to a reset after each save):
   - `buildIngestUrl()` returns `${API_HTTP || window.location.origin}/api/v1/ingest/card-payment`;
   - card links: add (account picker limited to owned, active, non-loan/vehicle accounts), rename, re-point, delete;
   - unlinked cards show counts and a **Link** action that pre-fills the label and, after saving, offers **Log N waiting payments** (it calls retry per request);
@@ -677,10 +678,10 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
     - **Add Shortcut** links the signed file (or the iCloud link when configured, preferred on iOS);
     - the checklist shows three steps: create a Transaction automation in Shortcuts → Automation; choose your cards and **Run Immediately**; select "MoneyMatter: log card payment";
     - a **Test** hint explains that running the shortcut by hand sends a dry run
-- [ ] link to the docs page (Task 15) for the manual guide
-- [ ] i18n `settings.integrations.applePay.*` in `en` + `uk`; ask the owner for copy only where the wording is non-obvious
-- [ ] Playwright: link a card, generate a setup code, see the QR and copy it, close the dialog and confirm the code is gone (typechecked; run if the docker dev stack is up)
-- [ ] gate: `cd packages/frontend && npm run test:unit -- --run src/pages/settings/subpages/integrations`; frontend typecheck and lint
+- [x] link to the docs page (Task 15) for the manual guide (⚠️ `DocsLink` to `/integrations/apple-pay/`, which Task 15 creates; the link 404s on the docs site until then)
+- [x] i18n `settings.integrations.applePay.*` in `en` + `uk` (written directly into `settings/integrations.json`, since the `i18n-editor` subagent cannot be spawned in this run; the owner was asleep, so wording was decided from the plan: the `uk` iOS labels in the checklist carry the English label in brackets because the Ukrainian iOS strings were not verified on a device)
+- [x] Playwright (`e2e/tests/integrations/apple-pay.spec.ts`: a payment parked by a real ingest call, link the card from the unlinked list, log the waiting payment, generate a setup code, see the QR, copy it, close the dialog and confirm the code is gone, rename and delete a link; written and typechecked, not run: the docker dev stack is down)
+- [x] gate (passed: 21 suites, 174 tests in `integrations/` and `common/config`; full frontend unit run 287 files, 3868 passed; typecheck, lint, oxfmt and knip (no finding from this task) clean; backend `ingest/(normalize-card-label|setup-code)` 34 passed, backend typecheck and lint clean after `normalizeCardLabel` moved to `shared`): `cd packages/frontend && npm run test:unit -- --run src/pages/settings/subpages/integrations`; frontend typecheck and lint
 
 ### Task 14: Verify acceptance criteria
 

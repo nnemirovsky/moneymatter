@@ -4,7 +4,8 @@
       "title": "Integrations",
       "description": "Let shortcuts, scripts and other apps send data to MoneyMatter without signing in as you.",
       "tabs": {
-        "ingestTokens": "Ingest tokens"
+        "ingestTokens": "Ingest tokens",
+        "applePay": "Apple Pay"
       },
       "ingestTokens": {
         "title": "Ingest tokens",
@@ -59,6 +60,175 @@
           "copy": "Copy token",
           "copied": "Token copied to clipboard",
           "done": "Done"
+        }
+      },
+      "applePay": {
+        "title": "Apple Pay",
+        "description": "Log every Apple Pay payment in MoneyMatter the moment you tap, without typing anything. An iOS Shortcut sends each payment here, and MoneyMatter files it on the account linked to the card.",
+        "manualGuide": "Prefer to build the shortcut by hand? Follow the {link}.",
+        "manualGuideLink": "manual setup guide",
+        "setup": {
+          "title": "One-tap setup",
+          "description": "Generate a setup code, add the MoneyMatter shortcut to your iPhone and paste the code when the shortcut asks for it. The code carries a new token, so nothing else needs to be typed.",
+          "revokePrevious": "Revoke the previous Apple Pay token",
+          "revokePreviousHint": "The shortcut that uses the old token stops working until you set it up again with the new code.",
+          "generate": "Generate setup code",
+          "generateError": "Could not generate the setup code",
+          "addShortcut": "Add Shortcut",
+          "addShortcutHint": "Copy the setup code first. The shortcut asks for it once, when you add it.",
+          "shortcutUnavailable": "This instance does not ship the shortcut file. Build the shortcut by hand with the manual guide below, or ask the administrator for the shortcut link."
+        },
+        "accessHeaders": {
+          "title": "Cloudflare Access (optional)",
+          "description": "Fill these in only if a service such as Cloudflare Access sits in front of this instance and asks for a login before it lets requests through. The shortcut then sends the service token's Client ID and Client secret as the CF-Access-Client-Id and CF-Access-Client-Secret headers, and the setup code carries them. If nothing protects your instance, leave both empty.",
+          "clientIdLabel": "Client ID",
+          "clientIdPlaceholder": "Enter the service token's Client ID",
+          "clientSecretLabel": "Client secret",
+          "clientSecretPlaceholder": "Enter the service token's Client secret",
+          "clientSecretStoredPlaceholder": "Stored. Enter a new secret to replace it",
+          "statusConfigured": "Stored for the setup code: Client ID {hint}",
+          "statusNotConfigured": "Not set. The setup code will carry no Cloudflare Access headers.",
+          "bothRequired": "Enter both the Client ID and the Client secret, or leave both empty.",
+          "save": "Save headers",
+          "remove": "Remove",
+          "saved": "Cloudflare Access headers saved",
+          "removed": "Cloudflare Access headers removed",
+          "saveError": "Could not save the Cloudflare Access headers",
+          "loadError": "Could not load the Cloudflare Access headers."
+        },
+        "codeDialog": {
+          "title": "Your setup code",
+          "description": "Copy the code, tap Add Shortcut and paste the code when the shortcut asks for it. To set up another phone, scan the QR code and copy the text it shows.",
+          "warning": "You won't see this code again. It holds a token that can add payments to your account, so don't share it. If you lose it, generate a new one.",
+          "codeLabel": "Setup code",
+          "qrLabel": "QR code of the setup code",
+          "copy": "Copy code",
+          "copied": "Setup code copied to clipboard",
+          "done": "Done"
+        },
+        "checklist": {
+          "title": "Then create the automation on your iPhone",
+          "description": "iOS does not let apps share automations, so this part is done on the phone itself.",
+          "step1": "Open Shortcuts, go to Automation, tap + and choose Transaction.",
+          "step2": "Choose your cards, select Run Immediately and tap Next.",
+          "step3": "Select the shortcut \"MoneyMatter: log card payment\" and tap Done.",
+          "testTitle": "Test it",
+          "test": "Run the shortcut by hand from the Shortcuts app. Without a payment it sends a test request and shows a notification that confirms the connection."
+        },
+        "cardLinks": {
+          "title": "Card links",
+          "description": "Apple Wallet gives each card a name. Link that name to the account its payments should be logged on. A payment from a card without a link waits until you link it.",
+          "add": "Link a card",
+          "loadError": "Could not load your card links. Check your connection and try again.",
+          "empty": {
+            "title": "No cards linked yet",
+            "description": "Link a card to the account its payments belong to. A payment from an unlinked card shows up below and waits."
+          },
+          "accountMissing": "Account no longer available",
+          "edit": "Edit",
+          "editAria": "Edit the link for {name}",
+          "delete": "Delete",
+          "deleteAria": "Delete the link for {name}",
+          "dialog": {
+            "createTitle": "Link a card",
+            "editTitle": "Edit card link",
+            "description": "Use the card name exactly as Apple Wallet shows it. Case and a trailing number such as •••• 1234 are ignored.",
+            "cardLabel": "Card name",
+            "cardLabelPlaceholder": "Enter the card name, for example TBC Visa",
+            "cardLabelRequired": "Enter the card name.",
+            "account": "Account",
+            "accountPlaceholder": "Select an account",
+            "accountRequired": "Select an account.",
+            "save": "Save",
+            "createSuccess": "Card linked",
+            "updateSuccess": "Card link updated",
+            "saveError": "Could not save the card link"
+          },
+          "deleteDialog": {
+            "title": "Delete this card link?",
+            "description": "Payments from {name} will wait for a new link instead of being logged. Payments already logged stay as they are.",
+            "confirm": "Delete link",
+            "success": "Card link deleted",
+            "error": "Could not delete the card link"
+          }
+        },
+        "unlinked": {
+          "title": "Cards without a link",
+          "description": "These cards sent payments that are waiting for a link.",
+          "loadError": "Could not load the unlinked cards.",
+          "count": "{count} payment waiting | {count} payments waiting",
+          "link": "Link",
+          "linkAria": "Link the card {name}",
+          "offer": {
+            "title": "Log the waiting payments?",
+            "description": "{count} payment from {name} is waiting. Log it now? | {count} payments from {name} are waiting. Log them now?",
+            "confirm": "Log {count} waiting payment | Log {count} waiting payments",
+            "skip": "Not now"
+          },
+          "logged": "Logged {count} payment | Logged {count} payments",
+          "notLogged": "{count} payment could not be logged yet. Check the waiting payments below. | {count} payments could not be logged yet. Check the waiting payments below.",
+          "logError": "Could not log the waiting payments"
+        },
+        "waiting": {
+          "title": "Waiting payments",
+          "description": "Payments that reached MoneyMatter but could not be logged yet. Retry one once the cause is fixed, or dismiss it.",
+          "loadError": "Could not load the waiting payments.",
+          "empty": {
+            "title": "Nothing is waiting",
+            "description": "Every payment the shortcut sent has been logged."
+          },
+          "unknownMerchant": "No merchant",
+          "unknownAmount": "No amount",
+          "unknownCard": "No card",
+          "reasons": {
+            "unknownCard": "The card is not linked to an account.",
+            "rateUnavailable": "There is no exchange rate for this payment's date.",
+            "processingFailed": "MoneyMatter could not process this payment.",
+            "interrupted": "Processing was interrupted before it finished.",
+            "emptyPayment": "iOS sent no amount or merchant for this payment. Add it by hand.",
+            "rejected": "This payment was refused as invalid."
+          },
+          "retry": "Retry",
+          "retryAria": "Retry the payment at {name}",
+          "retryLogged": "Payment logged",
+          "retryStillWaiting": "Still waiting: {summary}",
+          "retryError": "Could not retry the payment",
+          "dismiss": "Dismiss",
+          "dismissAria": "Dismiss the payment at {name}",
+          "dismissDialog": {
+            "title": "Dismiss this payment?",
+            "description": "The payment at {name} will not be logged. You can still add it by hand.",
+            "confirm": "Dismiss payment",
+            "success": "Payment dismissed",
+            "error": "Could not dismiss the payment"
+          },
+          "recent": {
+            "show": "Show recent payments",
+            "hide": "Hide recent payments",
+            "title": "Recent payments",
+            "empty": "No payments have arrived yet.",
+            "loadError": "Could not load the recent payments."
+          },
+          "statuses": {
+            "received": "Processing",
+            "logged": "Logged",
+            "parked": "Waiting",
+            "rejected": "Refused",
+            "dismissed": "Dismissed"
+          }
+        },
+        "unconfirmed": {
+          "title": "Not confirmed by the bank",
+          "description": "These payments were noted when you paid, but the bank has not reported a matching one for over a week. If the bank's own row is already there, delete the note.",
+          "loadError": "Could not load the unconfirmed payments.",
+          "unknownMerchant": "No merchant",
+          "delete": "Delete",
+          "deleteAria": "Delete the note for {name}",
+          "deleteDialog": {
+            "title": "Delete this note?",
+            "description": "The planned payment at {name} is removed from the account. The bank's own transaction, if it arrived, is not touched.",
+            "confirm": "Delete note"
+          }
         }
       }
     }

@@ -541,6 +541,11 @@ const routes: RouteRecordRaw[] = [
                 name: ROUTES_NAMES.settingsIntegrationsIngestTokens,
                 component: () => import('@/pages/settings/subpages/integrations/pages/ingest-tokens.vue'),
               },
+              {
+                path: 'apple-pay',
+                name: ROUTES_NAMES.settingsIntegrationsApplePay,
+                component: () => import('@/pages/settings/subpages/integrations/pages/apple-pay.vue'),
+              },
             ],
           },
           {

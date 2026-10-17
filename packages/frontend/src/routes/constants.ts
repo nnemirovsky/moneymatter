@@ -71,6 +71,7 @@ export const ROUTES_NAMES = Object.freeze({
   settingsAiConnectedApps: `${ROUTER_LAYOUTS.dashboard}.settings.ai.connected-apps`,
   settingsIntegrations: `${ROUTER_LAYOUTS.dashboard}.settings.integrations`,
   settingsIntegrationsIngestTokens: `${ROUTER_LAYOUTS.dashboard}.settings.integrations.ingest-tokens`,
+  settingsIntegrationsApplePay: `${ROUTER_LAYOUTS.dashboard}.settings.integrations.apple-pay`,
   settingsSecurity: `${ROUTER_LAYOUTS.dashboard}.settings.security`,
   settingsSecurityLoginMethods: `${ROUTER_LAYOUTS.dashboard}.settings.security.login-methods`,
   settingsSecuritySessions: `${ROUTER_LAYOUTS.dashboard}.settings.security.sessions`,

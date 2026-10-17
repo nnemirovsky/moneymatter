@@ -17,7 +17,7 @@
 import { Card, CardContent, CardHeader } from '@/components/lib/ui/card';
 import { type RouterTabItem, RouterTabs } from '@/components/lib/ui/router-tabs';
 import { ROUTES_NAMES } from '@/routes';
-import { KeyRoundIcon } from '@lucide/vue';
+import { CreditCardIcon, KeyRoundIcon } from '@lucide/vue';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -32,6 +32,11 @@ const tabs = computed<RouterTabItem[]>(() => [
     value: ROUTES_NAMES.settingsIntegrationsIngestTokens,
     label: t('settings.integrations.tabs.ingestTokens'),
     icon: KeyRoundIcon,
+  },
+  {
+    value: ROUTES_NAMES.settingsIntegrationsApplePay,
+    label: t('settings.integrations.tabs.applePay'),
+    icon: CreditCardIcon,
   },
 ]);
 </script>
