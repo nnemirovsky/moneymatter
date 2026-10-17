@@ -336,6 +336,47 @@ describe('Card-payment plans – settlement on bank sync', () => {
         originalId: exact.id,
       });
       expect(rows.find((row) => row.originalId === other.id)).toMatchObject({ isPlanned: false, amount: 52 });
+
+      // The exact-amount booking settled the plan, but its text is another shop and is not learned.
+      const merged = rows.find((row) => row.id === planId)!;
+      const payee = await helpers.getPayeeById({ id: merged.payeeId!, raw: true });
+      expect(payee.aliases?.map((alias) => alias.normalizedName) ?? []).not.toContain('spar batumi');
+    }, 60000);
+
+    it('does not merge a tolerance booking from another shop that shares only the city and a category word', async () => {
+      const { connectionId, accountId, secret } = await setup();
+      const planId = await ingestPlan({ secret });
+      const plan = await readRow({ id: planId });
+
+      await syncAccount({
+        connectionId,
+        accountId,
+        transactions: [booking({ cents: 5200, counterName: 'CAFE BATUMI GE' })],
+      });
+
+      const rows = await listAccountTransactions({ accountId });
+      expect(rows).toHaveLength(3);
+      expect(rows.find((row) => row.id === planId)).toMatchObject({ isPlanned: true, amount: 47 });
+
+      const payee = await helpers.getPayeeById({ id: plan.payeeId!, raw: true });
+      expect(payee.aliases?.map((alias) => alias.normalizedName) ?? []).not.toContain('cafe batumi ge');
+    }, 60000);
+
+    it('does not merge a tolerance booking whose text is another known payee, even when a token is shared', async () => {
+      const { connectionId, accountId, secret } = await setup();
+      const planId = await ingestPlan({ secret });
+      const garden = await helpers.createPayee({ payload: { name: 'Heart Garden Grill' }, raw: true });
+
+      await syncAccount({
+        connectionId,
+        accountId,
+        transactions: [booking({ cents: 5200, counterName: 'HEART GARDEN GRILL' })],
+      });
+
+      const rows = await listAccountTransactions({ accountId });
+      expect(rows).toHaveLength(3);
+      expect(rows.find((row) => row.id === planId)).toMatchObject({ isPlanned: true, amount: 47 });
+      expect(rows.find((row) => row.payeeId === garden.id)).toMatchObject({ isPlanned: false, amount: 52 });
     }, 60000);
 
     it('does not merge a booking more than 25 % away from the plan', async () => {

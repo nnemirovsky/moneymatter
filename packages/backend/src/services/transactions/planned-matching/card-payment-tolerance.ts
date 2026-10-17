@@ -2,6 +2,8 @@ import { PLANNED_MATCH_WINDOW_DAYS } from '@bt/shared/types';
 import { Money } from '@common/types/money';
 import { normalizePayeeName } from '@services/payees/normalize-name';
 
+import { isGenericMerchantWord } from './generic-merchant-words';
+
 /** A card-payment plan settles at the bank's amount when it is within this share of the plan's. */
 export const CARD_PAYMENT_AMOUNT_TOLERANCE = '0.25';
 
@@ -57,10 +59,12 @@ const tokensMatch = ({ planToken, incomingToken }: { planToken: string; incoming
 
 /**
  * Whether the bank's merchant text is about the same shop as any of the plan's names (the Wallet
- * merchant, the payee name, its aliases). A name matches when at least half of its tokens find a
- * partner in the bank text, which tolerates reordering, extra city and country words, processor
- * prefixes and truncation, and rules out a different shop. A name with no usable token never
- * matches.
+ * merchant, the payee name, its aliases). Only a name's distinctive tokens count: city, country and
+ * business-kind words ("batumi", "cafe", "market") are shared by different shops and are skipped.
+ * A name matches when more than half of its distinctive tokens find a partner in the bank text,
+ * which tolerates reordering, extra city and country words, processor prefixes and truncation, and
+ * rules out a different shop. A name with no distinctive token never matches: when in doubt, the
+ * rows stay apart.
  */
 export const hasMerchantAffinity = ({
   planNames,
@@ -73,13 +77,35 @@ export const hasMerchantAffinity = ({
   if (incomingTokens.length === 0) return false;
 
   return planNames.some((name) => {
-    const planTokens = meaningfulTokens({ text: name });
+    const planTokens = meaningfulTokens({ text: name }).filter((token) => !isGenericMerchantWord({ token }));
     if (planTokens.length === 0) return false;
 
     const matched = planTokens.filter((planToken) =>
       incomingTokens.some((incomingToken) => tokensMatch({ planToken, incomingToken })),
     ).length;
 
-    return matched * 2 >= planTokens.length;
+    return matched * 2 > planTokens.length;
   });
+};
+
+/**
+ * Whether the bank's merchant text and a plan are the same shop. A payee the text already resolves
+ * to (a learned alias, a payee the user made) settles it: the plan's own payee confirms, any other
+ * payee is a conflict that no shared token can override. Text that names no known payee falls back
+ * to `hasMerchantAffinity`.
+ */
+export const isSameShop = ({
+  planNames,
+  planPayeeId,
+  incomingText,
+  incomingPayeeId,
+}: {
+  planNames: string[];
+  planPayeeId: string | null;
+  incomingText: string;
+  incomingPayeeId: string | null;
+}): boolean => {
+  if (planPayeeId && incomingPayeeId) return planPayeeId === incomingPayeeId;
+
+  return hasMerchantAffinity({ planNames, incomingText });
 };

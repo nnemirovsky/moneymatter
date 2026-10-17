@@ -10,11 +10,7 @@ import { resolveNormalizedName } from '@services/payees/payee-namespace';
 import { addDays, subDays } from 'date-fns';
 import { Op, Sequelize } from 'sequelize';
 
-import {
-  CARD_PAYMENT_AMOUNT_TOLERANCE,
-  hasMerchantAffinity,
-  isWithinCardPaymentTolerance,
-} from './card-payment-tolerance';
+import { CARD_PAYMENT_AMOUNT_TOLERANCE, isSameShop, isWithinCardPaymentTolerance } from './card-payment-tolerance';
 
 /** Tolerance candidates read per incoming row; a connected account holds a handful of open plans. */
 const TOLERANCE_CANDIDATE_LIMIT = 25;
@@ -119,7 +115,7 @@ export const loadPlanNames = async ({ plans }: { plans: Transactions[] }): Promi
  *
  * SQL narrows the candidates (same account, type, currency, `cardPayment` plans, a wide amount
  * band, the window), ordered by amount distance, then time distance. `isWithinCardPaymentTolerance`
- * and `hasMerchantAffinity` decide in code, and the first candidate that passes is locked by id; one
+ * and `isSameShop` decide in code, and the first candidate that passes is locked by id; one
  * another batch already holds is skipped for the next.
  */
 const findCardPaymentMatch = async ({
@@ -175,22 +171,26 @@ const findCardPaymentMatch = async ({
   if (inTolerance.length === 0) return null;
 
   const planNames = await loadPlanNames({ plans: inTolerance });
-  // The bank text may be an alias the user or an earlier merge taught: it then names the plan's
-  // payee even when no token of it overlaps. One lookup serves every candidate.
-  let learnedPayeeId: string | null | undefined;
-  const resolveLearnedPayeeId = async ({ userId }: { userId: number }): Promise<string | null> => {
-    if (learnedPayeeId === undefined) {
+  // The bank text may already name a payee (an alias the user or an earlier merge taught, or a
+  // payee of its own). That payee decides: the plan's payee confirms, any other one blocks the
+  // merge. One lookup serves every candidate.
+  let incomingPayeeId: string | null | undefined;
+  const resolveIncomingPayeeId = async ({ userId }: { userId: number }): Promise<string | null> => {
+    if (incomingPayeeId === undefined) {
       const hit = await resolveNormalizedName({ userId, normalized: normalizePayeeName({ raw: merchantText }) });
-      learnedPayeeId = hit?.payeeId ?? null;
+      incomingPayeeId = hit?.payeeId ?? null;
     }
 
-    return learnedPayeeId;
+    return incomingPayeeId;
   };
 
   for (const plan of inTolerance) {
-    const sameShop =
-      hasMerchantAffinity({ planNames: planNames.get(plan.id) ?? [], incomingText: merchantText }) ||
-      (Boolean(plan.payeeId) && plan.payeeId === (await resolveLearnedPayeeId({ userId: plan.userId })));
+    const sameShop = isSameShop({
+      planNames: planNames.get(plan.id) ?? [],
+      planPayeeId: plan.payeeId ?? null,
+      incomingText: merchantText,
+      incomingPayeeId: await resolveIncomingPayeeId({ userId: plan.userId }),
+    });
     if (!sameShop) continue;
 
     const locked = await Transactions.findOne({
