@@ -30,6 +30,14 @@ describe('computeFingerprint', () => {
     expect(computeFingerprint({ body: { ...body, card: 'tbc visa •••• 1234' } })).toBe(computeFingerprint({ body }));
   });
 
+  it('tells a JSON number from a string, because the parser reads 1.234 and "1.234" differently', () => {
+    const asNumber = { ...body, amount: 1.234 };
+    const asString = { ...body, amount: '1.234' };
+
+    expect(computeFingerprint({ body: asNumber })).not.toBe(computeFingerprint({ body: asString }));
+    expect(computeFingerprint({ body: { ...asNumber } })).toBe(computeFingerprint({ body: asNumber }));
+  });
+
   it('ignores time, name, idempotency key, source and unknown keys', () => {
     const extra = {
       ...body,
@@ -41,12 +49,6 @@ describe('computeFingerprint', () => {
     };
 
     expect(computeFingerprint({ body: extra })).toBe(computeFingerprint({ body }));
-  });
-
-  it('treats a number and its text as the same amount', () => {
-    expect(computeFingerprint({ body: { ...body, amount: 47.5 } })).toBe(
-      computeFingerprint({ body: { ...body, amount: '47.5' } }),
-    );
   });
 
   it.each([

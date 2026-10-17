@@ -21,10 +21,12 @@ export const computeFingerprint = ({ body }: { body: unknown }): string => {
 
   const card = normalizeCardLabel({ label: textField({ value: fields.card }) });
   const amountText = cleanText({ value: amountInputToText({ input: fields.amount }) ?? '' });
+  // The parser reads the number 1.234 and the text "1.234" differently (1.234 and 1234).
+  const amountKind = typeof fields.amount === 'number' ? 'number' : 'text';
   const currency = textField({ value: fields.currency }).toUpperCase();
   const merchant = textField({ value: fields.merchant });
 
   return createHash('sha256')
-    .update(JSON.stringify([card, amountText, currency, merchant]))
+    .update(JSON.stringify([card, amountKind, amountText, currency, merchant]))
     .digest('hex');
 };
