@@ -644,15 +644,15 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
 - Modify: `packages/frontend/src/routes/{index,constants}.ts`, `packages/frontend/src/pages/settings/settings.vue`, `packages/frontend/src/common/const/vue-query.ts`
 - Create: vitest specs next to the components; `packages/frontend/e2e/tests/integrations/ingest-tokens.spec.ts`
 
-- [ ] failing vitest:
+- [x] failing vitest (red runs: the util spec failed 6 of 8 on assertions against a signature-only stub; the composable spec failed 4 of 5 the same way; the two component specs failed to resolve their not-yet-written `.vue` files, which is the red state for a component):
   - the create dialog shows the secret once, with a copy button and a "you won't see it again" note;
   - closing the dialog clears the secret from state and from the vue-query cache;
   - the list renders name, `start…`, scope, last used ("Never" when null) and created;
   - revoke asks for confirmation
-- [ ] **Integrations** settings group with **Ingest tokens** and **Apple Pay** tabs (container-query layout, Settings conventions from `frontend-rules`)
-- [ ] i18n `settings.integrations.*` in `en` + `uk` through `i18n-editor`
-- [ ] Playwright: create a token, see it once, reload, see it masked, revoke it (typechecked; run if the docker dev stack is up)
-- [ ] gate: `cd packages/frontend && npm run test:unit -- --run src/pages/settings/subpages/integrations`; frontend typecheck and lint
+- [x] **Integrations** settings group with **Ingest tokens** and **Apple Pay** tabs (container-query layout, Settings conventions from `frontend-rules`) (⚠️ only the Ingest tokens tab exists now: the Apple Pay page is Task 13's, which adds its route and tab entry rather than leaving a dead tab behind)
+- [x] i18n `settings.integrations.*` in `en` + `uk` (new chunk `settings/integrations.json` in both locales, `settings.navigation.integrations` in `settings/index.json`, `file-context.json` entry, chunk name in `i18n/types.ts`; written directly, since the `i18n-editor` subagent cannot be spawned in this run)
+- [x] Playwright (written and typechecked; not run, the docker dev stack is down): create a token, see it once, reload, see it masked, revoke it (typechecked; run if the docker dev stack is up)
+- [x] gate (passed: 4 suites, 32 tests in `integrations/`; full frontend unit run 270 files, 3729 tests; typecheck, lint and oxfmt clean): `cd packages/frontend && npm run test:unit -- --run src/pages/settings/subpages/integrations`; frontend typecheck and lint
 
 ### Task 13: Frontend: Apple Pay page with one-tap setup
 

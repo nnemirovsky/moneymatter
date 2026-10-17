@@ -60,6 +60,7 @@ const I18N_CHUNKS = [
   'settings/security',
   'settings/admin',
   'settings/ai-integrations',
+  'settings/integrations',
   'settings/subscriptions',
   'settings/plan-billing',
   // Auth pages (OAuth)

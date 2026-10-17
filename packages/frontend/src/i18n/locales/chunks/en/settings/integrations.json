@@ -1,0 +1,66 @@
+{
+  "settings": {
+    "integrations": {
+      "title": "Integrations",
+      "description": "Let shortcuts, scripts and other apps send data to MoneyMatter without signing in as you.",
+      "tabs": {
+        "ingestTokens": "Ingest tokens"
+      },
+      "ingestTokens": {
+        "title": "Ingest tokens",
+        "description": "A token lets one shortcut or script add card payments to your account. Each token works for a single purpose and can be revoked at any time.",
+        "createButton": "Create token",
+        "loadError": "Could not load your tokens. Check your connection and try again.",
+        "empty": {
+          "title": "No tokens yet",
+          "description": "Create a token to connect an iOS Shortcut or a script that logs card payments."
+        },
+        "fields": {
+          "scope": "Scope",
+          "lastUsed": "Last used",
+          "created": "Created",
+          "expires": "Expires"
+        },
+        "never": "Never",
+        "scopes": {
+          "transactions": "Log card payments"
+        },
+        "revoke": {
+          "button": "Revoke",
+          "buttonAria": "Revoke token {name}",
+          "title": "Revoke this token?",
+          "description": "{name} stops working at once. Any shortcut or script that uses it gets an authorization error until you give it a new token.",
+          "confirm": "Revoke token",
+          "success": "Token revoked",
+          "error": "Could not revoke the token"
+        },
+        "create": {
+          "title": "Create ingest token",
+          "description": "Name the token after what will use it, so you can tell tokens apart later.",
+          "nameLabel": "Name",
+          "namePlaceholder": "Enter a name, for example iPhone shortcut",
+          "nameRequired": "Enter a name for the token.",
+          "expiresLabel": "Expires",
+          "expiresPlaceholder": "Select when the token expires",
+          "expiry": {
+            "never": "Never",
+            "days30": "In 30 days",
+            "days90": "In 90 days",
+            "year1": "In 1 year"
+          },
+          "submit": "Create token",
+          "error": "Could not create the token"
+        },
+        "secret": {
+          "title": "Your new token",
+          "description": "Copy the token now and keep it somewhere safe.",
+          "warning": "You won't see this token again. If you lose it, revoke it and create a new one.",
+          "label": "Token",
+          "copy": "Copy token",
+          "copied": "Token copied to clipboard",
+          "done": "Done"
+        }
+      }
+    }
+  }
+}
