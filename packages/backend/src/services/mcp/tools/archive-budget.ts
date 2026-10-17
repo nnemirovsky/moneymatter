@@ -4,7 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { toggleBudgetArchive } from '@services/budgets/toggle-archive';
 import { z } from 'zod';
 
-import { getUserId, jsonContent, requireScope } from './helpers';
+import { assertBaseCurrencyUnlocked, getUserId, jsonContent, requireScope } from './helpers';
 
 const inputSchema = {
   budgetId: recordId().describe('ID of the tracker to archive or unarchive'),
@@ -22,6 +22,7 @@ export function registerArchiveBudget(server: McpServer) {
     async (args, extra) => {
       const userId = getUserId({ extra });
       requireScope({ extra, scope: 'finance:write' });
+      await assertBaseCurrencyUnlocked({ userId });
       trackMcpToolUsed({ userId, tool: 'archive_budget', clientId: extra.authInfo?.clientId });
 
       const budget = await toggleBudgetArchive({ id: args.budgetId, userId, isArchived: args.isArchived });
