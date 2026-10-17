@@ -785,25 +785,25 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 
 **Files:**
 
-- Create: `tools/{get-account,create-account,update-account,delete-account,unlink-account-from-bank-connection}.ts`, `tools/account-tools.unit.ts`
+- Create: `tools/{get-account,create-account,update-account,delete-account,unlink-account-from-bank-connection}.ts`, `tools/account-tools.unit.ts`, `tools/account-output.ts` (shared account presenter), `controllers/accounts/account-body.schema.ts`, `services/accounts/assert-account-update-allowed.ts`
 - Modify: `services/accounts.service.ts` (or a new `services/accounts/assert-account-update-allowed.ts`), `controllers/accounts.controller.ts`, the four metafiles
 
-- [ ] read first: `controllers/accounts.controller.ts` (`getAccountById`, `createAccount`, `updateAccount`, `deleteAccount`), `controllers/accounts/unlink-from-bunk-connection.ts`, `services/accounts/transaction-count.ts`, `serializers.ts#slimAccountsForMcp`
-- [ ] move the controller-only update checks into the service path, used by REST and MCP alike:
+- [x] read first: `controllers/accounts.controller.ts` (`getAccountById`, `createAccount`, `updateAccount`, `deleteAccount`), `controllers/accounts/unlink-from-bunk-connection.ts`, `services/accounts/transaction-count.ts`, `serializers.ts#slimAccountsForMcp`
+- [x] move the controller-only update checks into the service path, used by REST and MCP alike (`services/accounts/assert-account-update-allowed.ts`; the body schemas moved to `controllers/accounts/account-body.schema.ts`, so REST and MCP accept the same input):
   - `currentBalance` only on system accounts;
   - no move into or out of the `vehicle` category.
-  - e2e coverage check: `accounts.controller.e2e.ts` already has both refusals ("rejects currentBalance changes on non-system account", "rejects moving a general account into the vehicle category"), so no new case is needed; keep them green through the move.
-- [ ] `get_account` (read): `accountId` → `getAccountById`, `attachAccountCurrencyMeta`, `serializeAccount`, slimmed, plus `transactionCount` from `getAccountTransactionCount`. Not found gives a clear error.
-- [ ] `create_account` (`finance:write`):
+  - e2e coverage check: `accounts.controller.e2e.ts` had the `currentBalance` refusal and the move into vehicle, but no case for a move out of vehicle. Added "rejects moving a vehicle account out of the vehicle category" first and ran it green against the unmoved controller (37 passed), then moved.
+- [x] `get_account` (read): `accountId` → `getAccountById`, `attachAccountCurrencyMeta`, `serializeAccount`, slimmed, plus `transactionCount` from `getAccountTransactionCount`. Not found gives a clear error.
+- [x] `create_account` (`finance:write`):
   - `name`, `currencyCode`, `accountCategory` (`ACCOUNT_CATEGORIES`, default `general`), `initialBalance`, `creditLimit` (≥ 0), logo fields (`logoFieldsShape`);
   - `type` is always `system`;
   - amounts through `Money.fromDecimal` as the controller does.
-- [ ] `update_account` (`finance:write`): `accountId`, plus optional `name`, `accountCategory`, `creditLimit`, `excludeFromStats`, `currentBalance`, `initialBalance` and logo fields. `status` stays with `archive_account`, and the description says so.
-- [ ] `delete_account` (`finance:delete`): `accountId`, `removePortfolioTransfers?` → `deleteAccountById`.
-- [ ] `unlink_account_from_bank_connection` (`finance:write`): `accountId` → `unlinkAccountFromBankConnection`. The description says the account becomes manual and keeps its history.
-- [ ] unit test `account-tools.unit.ts`, covering the moved checks through `update_account`.
-- [ ] metafiles under `// Profile & accounts`.
-- [ ] gate:
+- [x] `update_account` (`finance:write`): `accountId`, plus optional `name`, `accountCategory`, `creditLimit`, `excludeFromStats`, `currentBalance`, `initialBalance` and logo fields. `status` stays with `archive_account`, and the description says so.
+- [x] `delete_account` (`finance:delete`): `accountId`, `removePortfolioTransfers?` → `deleteAccountById`.
+- [x] `unlink_account_from_bank_connection` (`finance:write`): `accountId` → `unlinkAccountFromBankConnection`. The description says the account becomes manual and keeps its history.
+- [x] unit test `account-tools.unit.ts`, covering the moved checks through `update_account`.
+- [x] metafiles under `// Profile & accounts` (`server.ts`, `server-card.json`, SKILL.md rows, sha256). `slimAccountDetailForMcp` added to `serializers.ts` with its unit test.
+- [x] gate:
   - unit: `npm run test:unit -- --testPathPattern='services/mcp/'`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='controllers/accounts.controller|services/accounts/(archive-account|delete-account|transaction-count|balance-adjustment|account-brand-logos)|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - backend typecheck, lint, oxfmt.
