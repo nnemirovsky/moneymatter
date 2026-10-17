@@ -659,10 +659,15 @@ Motivation: importing an existing ledger (1932 rows, 44 accounts including USDT,
 - Modify: `20261016020000-currency-rate-sources.ts` (`UsersCurrencies.rateSource` and `rateSourceConfig`), `users-currencies.model.ts`, shared types
 - Create: `packages/backend/src/controllers/currencies/rate-source.ts`, `services/currencies/rate-sources/index.ts`, `rate-source.e2e.ts`
 
-- [ ] add the columns, plus a zod discriminated union for the config
-- [ ] `PUT /user/currencies/:code/rate-source` validates and saves the config only; Tasks 19–21 add the recompute and backfill triggers to this endpoint
-- [ ] e2e: each source's valid config; an invalid config → 422; a rate source on an ISO currency → only `provider` or `manual` allowed
-- [ ] gate: these tests pass
+- [x] add the columns, plus a zod discriminated union for the config
+  - result: `UsersCurrencies.rateSource` (varchar(16), default `'provider'`) and `rateSourceConfig` (jsonb, null) in the phase 3 migration `20261016020000-currency-rate-sources.ts` (rule 11: same unmerged file; a custom currency row that exists gets `'manual'`, since it has no market feed; `down` drops both columns). Model, shared types (`CURRENCY_RATE_SOURCES`, `PegRateSourceConfig`, `CoingeckoRateSourceConfig`, `HttpRateSourceConfig`, `UpdateCurrencyRateSourceBody`, `CurrencyRateSourceResponse`; `UserCurrencyModel` carries both fields) and the strict zod union in `services/currencies/rate-sources/index.ts`. `check:money-migration` extended (1000 checks, 0 failed: column types, ISO row on `provider`, custom row on `manual`, down removes both, up again). New custom currencies are created on `manual`
+- [x] `PUT /user/currencies/:code/rate-source` validates and saves the config only; Tasks 19–21 add the recompute and backfill triggers to this endpoint
+  - result: body `{ rateSource, config? }`, behind `checkBaseCurrencyLock` (the 423 is asserted in `routes/base-currency-guard-coverage.e2e.ts`, and the invariant test sees the route as guarded). The service (`rate-sources/set-rate-source.service.ts`) answers 404 for a currency the user does not hold, 422 for a source the currency kind cannot take, a self-peg, a peg to a code the user cannot use, or a synced-source quote that is not an ISO currency; it replaces source and config together and writes no rate. The list endpoint returns both fields
+- [x] e2e: each source's valid config; an invalid config → 422; a rate source on an ISO currency → only `provider` or `manual` allowed
+  - result: `rate-sources/rate-source.e2e.ts` (40 tests: defaults, each source valid, quote default, source switch drops config, rates untouched, ISO provider/manual accepted and the other three rejected, 28 invalid-body cases that leave the saved source alone, self-peg, foreign/unknown peg, custom or unknown quote, 404 for a code not held or another user's, per-user sources) plus `rate-sources/index.unit.ts` (28)
+- [x] gate: these tests pass
+  - result: rate-source e2e (40), base-currency-guard-coverage, custom-currencies, add-user-currency, backup (export, restore, v1 restore, ref-amount cache), dated-user-exchange-rates and the user-exchange-rate suites: 12 suites passed; backend typecheck, lint (warnings only), oxfmt, unit suite (194 suites), `check:money-migration` 1000 passed; frontend typecheck and lint (mock user currencies gained the two fields)
+  - ⚠️ `http` config has no `headers` yet: Task 21 adds them (encrypted at rest), so the strict schema rejects the key until then and no secret is stored in the clear
 
 ### Task 18: Manual and peg resolvers
 
