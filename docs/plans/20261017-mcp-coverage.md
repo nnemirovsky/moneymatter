@@ -632,20 +632,20 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 - Create: `packages/backend/src/services/mcp/tools/{list-custom-currencies,create-custom-currency,update-custom-currency,delete-custom-currency}.ts`, `packages/backend/src/services/mcp/tools/custom-currency-tools.unit.ts`
 - Modify: `tools/helpers.ts` and `tools/helpers.unit.ts` (the lock helper), the four metafiles, `tool-scopes-drift.unit.ts` (no list change expected)
 
-- [ ] read first: the `add-mcp-tool` skill, `controllers/currencies/custom-currencies.ts`, `services/currencies/custom-currencies.service.ts` on this branch, and `tools/transaction-amount-inputs.unit.ts` for the capture pattern. `tests/helpers/mcp-tools.ts` (Task 3) does not exist on this branch, so use a local capture helper in the test file.
-- [ ] `assertBaseCurrencyUnlocked({ userId })` in `tools/helpers.ts` (Technical Details, "Helpers added in Tasks 1–3"), with the `helpers.unit.ts` cases: lock set → throws; Redis error → throws the unavailable message; unlocked → passes. The three custom-currency writes call it right after `requireScope`, as their REST routes carry `checkBaseCurrencyLock`. This branch is an upstream PR candidate, so its tools must not ship without the lock.
-- [ ] `list_custom_currencies` (read): `listCustomCurrencies({ userId })`; code, name, symbol, decimals and logo as the REST list returns them.
-- [ ] `create_custom_currency` (`finance:write`):
+- [x] read first: the `add-mcp-tool` skill, `controllers/currencies/custom-currencies.ts`, `services/currencies/custom-currencies.service.ts` on this branch, and `tools/transaction-amount-inputs.unit.ts` for the capture pattern. `tests/helpers/mcp-tools.ts` (Task 3) does not exist on this branch, so use a local capture helper in the test file.
+- [x] `assertBaseCurrencyUnlocked({ userId })` in `tools/helpers.ts` (Technical Details, "Helpers added in Tasks 1–3"), with the `helpers.unit.ts` cases: lock set → throws; Redis error → throws the unavailable message; unlocked → passes. The three custom-currency writes call it right after `requireScope`, as their REST routes carry `checkBaseCurrencyLock`. This branch is an upstream PR candidate, so its tools must not ship without the lock.
+- [x] `list_custom_currencies` (read): `listCustomCurrencies({ userId })`; code, name, symbol, decimals and logo as the REST list returns them.
+- [x] `create_custom_currency` (`finance:write`):
   - `code`, `name`, `decimals` (int in the REST bounds), `symbol?`, using the controller's strict schema (export it if it is local);
   - an ISO code or a duplicate gives the REST error message;
   - the description says custom currencies are per user and need a rate source for base-currency values.
-- [ ] `update_custom_currency` (`finance:write`):
+- [x] `update_custom_currency` (`finance:write`):
   - `code`, plus optional `name`, `decimals`, `symbol` (null clears) and `logoUrl` (null clears) if the branch's schema has it;
   - the description says a decimals change is refused while the user has rows in the currency.
-- [ ] `delete_custom_currency` (`finance:delete`): `code`; refused while in use, as REST does.
-- [ ] unit test `custom-currency-tools.unit.ts`: the schema cases (an invalid code, decimals out of range); the scope and refusal for each write tool; each write tool throwing while the lock is set with its service mock not called; service args; read output passthrough.
-- [ ] metafiles: register in `server.ts` under a new `// Currencies` group, then the `server-card.json` entries, the SKILL.md rows and the sha256.
-- [ ] gate:
+- [x] `delete_custom_currency` (`finance:delete`): `code`; refused while in use, as REST does.
+- [x] unit test `custom-currency-tools.unit.ts`: the schema cases (an invalid code, decimals out of range); the scope and refusal for each write tool; each write tool throwing while the lock is set with its service mock not called; service args; read output passthrough.
+- [x] metafiles: register in `server.ts` under a new `// Currencies` group, then the `server-card.json` entries, the SKILL.md rows and the sha256.
+- [x] gate:
   - unit: `npm run test:unit -- --testPathPattern='services/mcp/'`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/currencies/(custom-currencies|custom-currency-isolation|custom-currency-transactions)|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - backend typecheck, lint, oxfmt.
