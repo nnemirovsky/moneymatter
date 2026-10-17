@@ -400,7 +400,7 @@ describe('Card-payment plans – settlement on bank sync', () => {
       await syncAccount({ connectionId, accountId, transactions: [covering] });
 
       rows = await listAccountTransactions({ accountId });
-      expect(rows).toHaveLength(4);
+      expect(rows).toHaveLength(3);
       expect(rows.find((row) => row.id === planId)).toMatchObject({ isPlanned: false, amount: 46 });
     }, 60000);
 
