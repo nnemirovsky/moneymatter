@@ -103,3 +103,39 @@ export const CARD_PAYMENT_REJECTION_REASONS = [
 ] as const;
 
 export type CardPaymentRejectionReason = (typeof CARD_PAYMENT_REJECTION_REASONS)[number];
+
+/** Why a payment that arrived was held back instead of being logged. */
+export const CARD_PAYMENT_PARK_REASONS = ['unknownCard', 'rateUnavailable', 'processingFailed'] as const;
+
+export type CardPaymentParkReason = (typeof CARD_PAYMENT_PARK_REASONS)[number];
+
+/** The payment was logged as a transaction (or is the replay of one that was). */
+export interface CardPaymentLoggedResponse {
+  outcome: 'logged';
+  /** The one line the shortcut shows as a notification. */
+  summary: string;
+  /** `null` when the transaction has since been deleted. */
+  transactionId: RecordId | null;
+  /** A planned row on a bank-connected account, to be confirmed by the bank sync. */
+  planned: boolean;
+  /** The categorization answer is still on its way. */
+  categoryPending: boolean;
+  /** Present and `true` on a replay of the same request or a repeat inside the repeat window. */
+  duplicate?: boolean;
+}
+
+/** The payment is stored and waits for the user (an unlinked card, a missing rate). */
+export interface CardPaymentParkedResponse {
+  outcome: 'parked';
+  reason: CardPaymentParkReason;
+  summary: string;
+  requestId: RecordId;
+}
+
+/** A dry run only checked the connection and the card link; nothing was written. */
+export interface CardPaymentDryRunResponse {
+  outcome: 'dryRun';
+  summary: string;
+}
+
+export type CardPaymentResponse = CardPaymentLoggedResponse | CardPaymentParkedResponse | CardPaymentDryRunResponse;

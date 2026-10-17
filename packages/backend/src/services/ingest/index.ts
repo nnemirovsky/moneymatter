@@ -13,3 +13,4 @@ export {
   updateCardMapping,
 } from './card-mappings.service';
 export { normalizeCardLabel } from './normalize-card-label';
+export { ingestCardPayment, type IngestCardPaymentResult } from './card-payment/ingest-card-payment';

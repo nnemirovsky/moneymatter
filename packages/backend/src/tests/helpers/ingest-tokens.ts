@@ -53,3 +53,20 @@ export function requestWithoutSession({
 }
 
 export const bearer = ({ secret }: { secret: string }) => ({ Authorization: `Bearer ${secret}` });
+
+/** What a machine client does: `POST /ingest/card-payment` with a bearer token and no session cookie. */
+export const postCardPayment = ({
+  secret,
+  body,
+  headers = {},
+}: {
+  secret: string;
+  body: object;
+  headers?: Record<string, string>;
+}) =>
+  requestWithoutSession({
+    method: 'post',
+    url: '/ingest/card-payment',
+    headers: { ...bearer({ secret }), ...headers },
+    body,
+  });

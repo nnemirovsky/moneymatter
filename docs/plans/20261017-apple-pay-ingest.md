@@ -437,7 +437,7 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
 - Create: `packages/backend/src/services/ingest/card-payment/ingest-card-payment.e2e.ts`
 - Modify: `packages/backend/src/routes/base-currency-guard-coverage.e2e.ts`, `services/ingest-tokens/{session-isolation,password-reset}.e2e.ts` (un-skip)
 
-- [ ] write failing e2e (a token and a mapping created through helpers, requests sent without cookies):
+- [x] write failing e2e (a token and a mapping created through helpers, requests sent without cookies):
   - happy path: a mapped card in the account's currency → 200 `logged`, then `GET /transactions` shows an expense with the amount, `externalReference` `apple-pay:<key>`, `externalData.cardPayment` and the summary text;
   - empty state: a dry run with no mappings → 200 `dryRun` "… is not linked yet", and nothing is written;
   - unknown card → 202 `parked`/`unknownCard`, nothing is in `GET /transactions`, and the request is listed as parked (Task 8's list; until then asserted through the replay of the same key);
@@ -451,25 +451,25 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
   - the base-currency lock → 423;
   - the 31st request in a minute → 429 with `Retry-After`;
   - after 20 bad-token attempts from one IP, the 21st → 429, and a valid token from the same IP → 429 too (reset the limiter keys after the case, as the other limiter e2e do)
-- [ ] `setup-middleware.ts`: an `'8kb'` entry for `${API_PREFIX}/ingest/card-payment` in the per-path limit map; no route-level parser
-- [ ] route `POST /api/v1/ingest/card-payment`: `authenticateIngestToken({ scope: 'ingest:transactions' })` (with the IP failure budget inside), `checkBaseCurrencyLock`, `ingestTokenRateLimit`, then the controller
-- [ ] `ingestCardPayment` with the three phases from Solution Overview → Ingest pipeline, up to and including the parking decision:
+- [x] `setup-middleware.ts`: an `'8kb'` entry for `${API_PREFIX}/ingest/card-payment` in the per-path limit map; no route-level parser
+- [x] route `POST /api/v1/ingest/card-payment`: `authenticateIngestToken({ scope: 'ingest:transactions' })` (with the IP failure budget inside), `checkBaseCurrencyLock`, `ingestTokenRateLimit`, then the controller
+- [x] `ingestCardPayment` with the three phases from Solution Overview → Ingest pipeline, up to and including the parking decision (⚠️ the happy path and the idempotency cases need a logged row, so this task also ships a minimal `processCardPayment` that logs a payment in the account's currency on the user's default category; a payment in another currency is parked as `processingFailed` until Task 6 adds the conversion, payee, history category and rate parking; a request with no usable idempotency key has nothing to key a row on and is answered 422 unrecorded; a reused key with a different body is a 409 for every open status, not only `logged`):
   1. a dry run (`dryRun: true`, or no `idempotencyKey` with `dryRun`) only parses and looks up the mapping, then answers; it writes nothing, not even a request row;
   2. tx 1: insert the request (`ON CONFLICT DO NOTHING`), committed;
   3. tx 2 (`processIngestRequest({ requestId })`): lock the row, replay or 409, the repeat window, parse (→ `rejected`, returned), look up the mapping (none → `parked`/`unknownCard`, returned);
   4. tx 3 on a throw: record `parked` with `rateUnavailable` or `processingFailed`;
   5. the controller maps the returned outcome to 200/202/409/422 after commit; nothing in the pipeline throws `ValidationError` for a rejection
-- [ ] guard coverage: the ingest route carries the guard (the invariant passes without an exemption); a sanity case asserts the ingest route is discovered with `authenticateIngestToken`
-- [ ] un-skip the Task 1 ingest-auth and password-reset cases
-- [ ] i18n `ingest.*` messages in `en` + `uk`
-- [ ] gate: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='(ingest/card-payment/ingest-card-payment|ingest-tokens/(session-isolation|password-reset)|routes/base-currency-guard-coverage).e2e'`
+- [x] guard coverage: the ingest route carries the guard (the invariant passes without an exemption); a sanity case asserts the ingest route is discovered with `authenticateIngestToken`
+- [x] un-skip the Task 1 ingest-auth and password-reset cases
+- [x] i18n `ingest.*` messages in `en` + `uk`
+- [x] gate (passed: unit 11 suites, 263 tests; e2e 4 suites, 48 passed, none skipped; typecheck, lint and oxfmt clean): `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='(ingest/card-payment/ingest-card-payment|ingest-tokens/(session-isolation|password-reset)|routes/base-currency-guard-coverage).e2e'`
 
 ### Task 6: Processing: payee, category, currency, planned rows
 
 **Files:**
 
 - Modify: `packages/backend/src/services/payees/extraction.service.ts`, `resolve-payee-for-incoming-row.ts` (optional `promotionThreshold`)
-- Create: `packages/backend/src/services/ingest/card-payment/{pick-history-category,convert-to-account-currency,process-card-payment}.ts`
+- Create: `packages/backend/src/services/ingest/card-payment/{pick-history-category,convert-to-account-currency}.ts`; extend `process-card-payment.ts` (⚠️ Task 5 ships a minimal version: same-currency payments on the default category, other currencies parked as `processingFailed`; `park-failed-request.ts` writes the generic `processingFailed` text for a `rateUnavailable` throw, so the pair-specific summary is this task's)
 - Modify: `packages/backend/src/services/ingest/card-payment/ingest-card-payment.ts`
 - Create: `packages/backend/src/services/ingest/card-payment/processing.e2e.ts`
 

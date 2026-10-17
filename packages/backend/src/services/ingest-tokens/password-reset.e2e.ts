@@ -26,8 +26,7 @@ describe('password reset revokes ingest tokens', () => {
     expect(await listOtherTokens()).toHaveLength(1);
   });
 
-  // The 401 on the ingest route needs Task 5's route; it passes once that exists.
-  it.skip('answers 401 to a token whose owner reset their password (passes at Task 5)', async () => {
+  it('answers 401 to a token whose owner reset their password', async () => {
     const { secret } = await ingestHelpers.createTestIngestToken();
     await helpers.resetPasswordForTests({ authUserId: TEST_AUTH_USER_ID });
 

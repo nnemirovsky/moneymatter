@@ -203,6 +203,17 @@ describe('Base-currency guard coverage', () => {
     expect(createTransaction!.middlewares).toContain(GUARD_MIDDLEWARE);
   });
 
+  it('discovers the ingest route behind authenticateIngestToken and guards it without an exemption', () => {
+    const ingest = collectRoutes().find(
+      (route) => route.method === 'POST' && route.path === '/api/v1/ingest/card-payment',
+    );
+
+    expect(ingest).toBeDefined();
+    expect(ingest!.middlewares).toContain('authenticateIngestToken');
+    expect(ingest!.middlewares).toContain(GUARD_MIDDLEWARE);
+    expect(GUARD_EXEMPT_ROUTES.has('POST /api/v1/ingest/card-payment')).toBe(false);
+  });
+
   it('guards every authenticated mutating route (or allowlists it)', () => {
     const offenders = collectRoutes()
       .filter((route) => MUTATING_METHODS.has(route.method))

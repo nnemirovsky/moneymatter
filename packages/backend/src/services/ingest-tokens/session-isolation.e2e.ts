@@ -40,9 +40,8 @@ describe('ingest tokens are not sessions', () => {
     });
   });
 
-  // The cases below exercise the ingest middleware through Task 5's route; they pass once it exists.
   describe('the ingest middleware', () => {
-    it.skip('refuses a revoked token with 401 (passes at Task 5)', async () => {
+    it('refuses a revoked token with 401', async () => {
       const { token, secret } = await helpers.createIngestToken({ payload: { name: 'Revoked' }, raw: true });
       await helpers.revokeIngestToken({ id: token.id, raw: true });
 
@@ -56,7 +55,7 @@ describe('ingest tokens are not sessions', () => {
       expect(res.status).toBe(401);
     });
 
-    it.skip('refuses an expired token with 401 (passes at Task 5)', async () => {
+    it('refuses an expired token with 401', async () => {
       const { secret } = await ingestHelpers.createTestIngestToken({ expiresAt: new Date(Date.now() - 60_000) });
 
       const res = await ingestHelpers.requestWithoutSession({
@@ -69,7 +68,7 @@ describe('ingest tokens are not sessions', () => {
       expect(res.status).toBe(401);
     });
 
-    it.skip('refuses a token without the ingest:transactions scope with 403 (passes at Task 5)', async () => {
+    it('refuses a token without the ingest:transactions scope with 403', async () => {
       const { secret } = await ingestHelpers.createTestIngestToken({ scopes: [] });
 
       const res = await ingestHelpers.requestWithoutSession({

@@ -1,4 +1,4 @@
-import type { IngestScope, IngestTokenDto, IngestTokenPurpose } from '@bt/shared/types';
+import type { IngestScope, IngestTokenDto, IngestTokenPurpose, RecordId } from '@bt/shared/types';
 import { hashToken } from '@common/lib/hash-token';
 import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
 import { t } from '@i18n/index';
@@ -98,7 +98,7 @@ const revokeIngestTokensImpl = ({ userId, purpose }: { userId: number; purpose?:
 export const revokeIngestTokens = withTransaction(revokeIngestTokensImpl);
 
 export interface VerifiedIngestToken {
-  id: string;
+  id: RecordId;
   userId: number;
   authUserId: string;
   scopes: IngestScope[];

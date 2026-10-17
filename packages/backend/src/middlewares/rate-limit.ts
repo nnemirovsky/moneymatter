@@ -373,3 +373,14 @@ export const ingestSettingsWriteRateLimit = createRateLimit({
     return `ingest-settings-write:user:${user.id}`;
   },
 });
+
+/**
+ * Ingest endpoint limit (per token, 30 requests per minute). A shortcut sends one request per
+ * payment, so this only stops a runaway client; the budget is the token's, not the IP's, because
+ * several phones can share one address.
+ */
+export const ingestTokenRateLimit = createRateLimit({
+  windowSeconds: 60,
+  maxAttempts: 30,
+  keyGenerator: (req: Request) => `ingest-token:${req.ingestToken?.id ?? req.ip}`,
+});

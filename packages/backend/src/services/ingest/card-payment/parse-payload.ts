@@ -14,7 +14,7 @@ export const CARD_PAYMENT_TIME_BEHIND_MS = 30 * 24 * 60 * 60 * 1000;
 
 // Printable ASCII without spaces: a 64-character SHA-256 hex or a UUID fits.
 const IDEMPOTENCY_KEY_PATTERN = /^[\x21-\x7E]{8,128}$/;
-const SOURCE_PATTERN = /^[a-z0-9-]{1,32}$/;
+export const CARD_PAYMENT_SOURCE_PATTERN = /^[a-z0-9-]{1,32}$/;
 // ISO 8601 date and time with an offset (`Z`, `+04:00`, `+0400` or `+04`).
 const TIME_PATTERN =
   /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?(Z|[+-]\d{2}(?::?\d{2})?)$/i;
@@ -135,7 +135,7 @@ export const parsePayload = ({ body, receivedAt }: { body: unknown; receivedAt: 
   }
 
   const source = fields.source === undefined || fields.source === null ? CARD_PAYMENT_DEFAULT_SOURCE : fields.source;
-  if (typeof source !== 'string' || !SOURCE_PATTERN.test(source)) {
+  if (typeof source !== 'string' || !CARD_PAYMENT_SOURCE_PATTERN.test(source)) {
     return reject({ reason: 'invalidSource', field: 'source' });
   }
 
