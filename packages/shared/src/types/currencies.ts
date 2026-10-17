@@ -27,6 +27,8 @@ export const CURRENCY_CODE_PATTERN = new RegExp(`^[A-Z0-9]{${CURRENCY_CODE_MIN_L
 
 export const CUSTOM_CURRENCY_NAME_MAX_LENGTH = 255;
 export const CUSTOM_CURRENCY_SYMBOL_MAX_LENGTH = 8;
+/** Longest logo URL a custom currency stores. */
+export const CUSTOM_CURRENCY_LOGO_URL_MAX_LENGTH = 2048;
 export const CUSTOM_CURRENCY_DECIMALS_MIN = 0;
 export const CUSTOM_CURRENCY_DECIMALS_MAX = 18;
 
@@ -60,6 +62,8 @@ export interface CustomCurrencyModel extends CurrencyMeta {
   code: string;
   name: string;
   isCustom: true;
+  /** https URL of the image the user picked for the currency; `null` draws a monogram instead. */
+  logoUrl: string | null;
 }
 
 export interface CreateCustomCurrencyBody {
@@ -75,6 +79,8 @@ export interface UpdateCustomCurrencyBody {
   /** Changing it is allowed only while none of the user's rows use the currency. */
   decimals?: number;
   symbol?: string | null;
+  /** An https URL, or `null` to clear the logo; absent keeps the stored one. */
+  logoUrl?: string | null;
 }
 
 /**
@@ -174,7 +180,12 @@ export type TestCurrencyRateSourceResponse =
 export type UpdateCurrencyRateSourceBody =
   | { rateSource: 'provider' | 'manual' }
   | { rateSource: 'peg'; config: PegRateSourceConfig }
-  | { rateSource: 'coingecko'; config: Omit<CoingeckoRateSourceConfig, 'quoteCurrency'> & { quoteCurrency?: string } }
+  | {
+      rateSource: 'coingecko';
+      config: Omit<CoingeckoRateSourceConfig, 'quoteCurrency'> & { quoteCurrency?: string };
+      /** The picked coin's https logo; absent keeps the currency's logo, `null` clears it. */
+      logoUrl?: string | null;
+    }
   | { rateSource: 'http'; config: HttpRateSourceInput };
 
 /** A currency's saved rate source; the config is `null` for `provider` and `manual`. */
@@ -186,6 +197,26 @@ export type CurrencyRateSourceSetting =
 
 /** Response of `PUT /user/currencies/:code/rate-source`. */
 export type CurrencyRateSourceResponse = CurrencyRateSourceSetting & { currencyCode: string };
+
+/** One stored rate of a custom currency, as listed by `GET /user/currencies/:code/rate-history`. */
+export interface CurrencyRateHistoryItem {
+  /** The currency the rate is quoted in: one unit of the custom currency is worth `rate` of it. */
+  quoteCode: string;
+  rate: number;
+  /** Calendar day (YYYY-MM-DD) the rate starts to apply. */
+  effectiveDate: string;
+  source: UserExchangeRateSource;
+  /** ISO instant the row was written. */
+  writtenAt: string;
+  /** Whether this is the rate that values the currency in the base currency today. */
+  isInForce: boolean;
+}
+
+/** Response of `GET /user/currencies/:code/rate-history`; `totalCount` is set on the first page only. */
+export interface CurrencyRateHistoryResponse {
+  items: CurrencyRateHistoryItem[];
+  totalCount: number | null;
+}
 
 export interface UserCurrencyModel {
   id: RecordId;
@@ -204,6 +235,8 @@ export interface UserCurrencyModel {
   rateSource: CurrencyRateSource;
   /** Settings of the source; `null` for `provider` and `manual`. */
   rateSourceConfig: PegRateSourceConfig | CoingeckoRateSourceConfig | HttpRateSourceConfig | null;
+  /** https URL of the image the user picked for a custom currency; always `null` on an ISO currency. */
+  logoUrl: string | null;
   currency?: CurrencyModel;
   user?: UserModel;
 }
