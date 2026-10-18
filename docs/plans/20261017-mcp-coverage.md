@@ -1435,15 +1435,15 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 - Create: `tools/{list-import-batches,delete-import-batch,get-import-batch-delete-status}.ts`, `tools/import-batch-tools.unit.ts`, `services/import-export/delete-or-queue-batch.service.ts`
 - Modify: the batch delete controller (calls the new service), the four metafiles
 
-- [ ] read first: `routes/import-export/batches.route.ts` and its controllers, `services/import-export/{get-batches-history.service,delete-batch.service,delete-batch-queue}.ts`
-- [ ] e2e first, before the move (test-first): no e2e case covers the queued fallback (only `delete-batch.service.unit.ts` asserts `ImportBatchTooLargeError`; the sync cap is 1000 rows). Add a REST case to the batch-delete suite: `DELETE /import/batch/:batchId` on a batch above the cap returns the job reply (`jobId`), and `GET /import/batch-delete/status` then reports its progress. Build the batch through the cheapest HTTP path the suite already uses. If a batch above the cap cannot be built over HTTP in reasonable time, stop and ask the owner. Run the case green against the unmoved controller.
-- [ ] `delete-or-queue-batch.service.ts`: `deleteImportBatch`, falling back to `queueImportBatchDelete` on `ImportBatchTooLargeError`. It returns `{ deletedCount, deletedIds }` or `{ jobId }`, and the controller uses it.
-- [ ] `list_import_batches` (read): `limit` (1–100), `offset`.
-- [ ] `delete_import_batch` (`finance:delete`): `batchId`, `deleteLinkedTransfers?`. The description says it undoes an import and that large batches run as a job.
-- [ ] `get_import_batch_delete_status` (read).
-- [ ] unit test `import-batch-tools.unit.ts`: both delete outcomes.
-- [ ] metafiles under a new `// Imports` group.
-- [ ] gate:
+- [x] read first: `routes/import-export/batches.route.ts` and its controllers, `services/import-export/{get-batches-history.service,delete-batch.service,delete-batch-queue}.ts`
+- [x] e2e first, before the move (test-first): ⚠️ the premise was wrong: `delete-batch.e2e.ts` (`background delete for batches above the sync cap`) already covers the queued fallback over HTTP, with a 1001-row CSV import through `runCsvImport({ extraRows })`: `DELETE` answers 202 with `jobId`, `GET /import/batch-delete/status` reports the job to `completed`, a second delete answers 423, and the bank-linked oversized batch answers 422 without queueing. No new e2e case was added; the suite (31 cases) ran green against the unmoved controller before the move. Original text: no e2e case covers the queued fallback (only `delete-batch.service.unit.ts` asserts `ImportBatchTooLargeError`; the sync cap is 1000 rows). Add a REST case to the batch-delete suite: `DELETE /import/batch/:batchId` on a batch above the cap returns the job reply (`jobId`), and `GET /import/batch-delete/status` then reports its progress. Build the batch through the cheapest HTTP path the suite already uses. If a batch above the cap cannot be built over HTTP in reasonable time, stop and ask the owner. Run the case green against the unmoved controller.
+- [x] `delete-or-queue-batch.service.ts`: `deleteImportBatch`, falling back to `queueImportBatchDelete` on `ImportBatchTooLargeError`. It returns `{ deletedCount, deletedIds }` or `{ jobId }`, and the controller uses it. The `delete_import_batch` tool reports `{ queued: false, deletedCount }` or `{ queued: true, jobId, message }` (the ids of up to 1000 deleted rows are no use to an assistant). `list_import_batches` defaults to `limit` 30, as REST does, and returns `total` only on the first page (null after).
+- [x] `list_import_batches` (read): `limit` (1–100), `offset`.
+- [x] `delete_import_batch` (`finance:delete`): `batchId`, `deleteLinkedTransfers?`. The description says it undoes an import and that large batches run as a job.
+- [x] `get_import_batch_delete_status` (read).
+- [x] unit test `import-batch-tools.unit.ts`: both delete outcomes.
+- [x] metafiles under a new `// Imports` group.
+- [x] gate:
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/import-export/(delete-batch|get-batches-history)|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
