@@ -605,6 +605,8 @@ Recount from the tables:
 
 Without a tool today: 298 routes, of which 175 get one and 123 stay out.
 
+**Added since this plan (Task 28 re-audit):** `/push` (`web-push.route.ts`, 7 routes: GET /config, GET /subscriptions, POST /subscriptions, POST /subscriptions/sync, POST /subscriptions/unsubscribe, DELETE /subscriptions/:id, POST /test), which came in with the `feat/web-push` merge into `dev`. All 7 are ⛔ `device` (see "Excluded routes"); the REST API now has 408 routes in 47 router files, and every other mount matches the counts above.
+
 Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in Group D. The server grows from 103 to about 250 tools.
 
 ### Excluded routes (reasons)
@@ -621,6 +623,7 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 | import    | csv, text-source, ynab, budget-bakers-wallet, ms-money, ofx, investment statement import, ai-map-categories, resource leases                                                                                                     | These are interactive wizards (parse, map, review duplicates, execute) built around a file. Some spend the server's AI on extraction. An agent records rows through `create_transaction` / `create_investment_transaction`, and can undo an import through T25.                   |
 | share     | invitation create, accept, decline, resend, cancel, back-invite; member update and revoke; leave                                                                                                                                 | They grant or revoke another person's access to financial data, and send email. That stays a deliberate in-app action. The reads are in T24.                                                                                                                                      |
 | ai        | `/user/settings/ai/*`, `/user/ai/categorization/*`                                                                                                                                                                               | They configure the app's own AI providers (API keys, models, CLI sign-in) and its built-in categorizer. Keys must not pass through a third-party client, and the client categorizes through `bulk_update_transactions`.                                                           |
+| device    | `/push/*` (web push: config, subscription list, enable, rotate, sync, unsubscribe, delete, test)                                                                                                                                 | A browser or phone registers its own push endpoint and keys. An agent has no device to register, and a test push would only ping the user's own devices.                                                                                                                          |
 | ui        | onboarding checklist                                                                                                                                                                                                             | UI state with no data meaning.                                                                                                                                                                                                                                                    |
 | cosmetic  | logo search, payee and subscription logo reset                                                                                                                                                                                   | Visual pickers an agent cannot see. Logo fields stay settable through the update tools.                                                                                                                                                                                           |
 | redundant | `GET /investments/securities`                                                                                                                                                                                                    | The full global securities list. `search_securities` covers lookup.                                                                                                                                                                                                               |
@@ -1518,19 +1521,19 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 
 **Worktree:** `/Users/nemirovsky/Developer/moneymatter-mcp`
 
-- [ ] `git merge dev` (brings in Group D if it has landed).
-- [ ] re-run the route audit:
-  - the route extraction over `packages/backend/src/routes/**/*.ts`;
-  - every ➕ route in the matrix has its tool registered;
-  - no route was added since this plan without a status (if one was, add a ➕ task or a ⛔ reason here).
-- [ ] the tool count in `server-card.json` equals the registered tools (`server-registration-drift`), and equals 103 + the new tools of the landed groups.
-- [ ] the guards match the REST routes, tool by tool:
-  - every write tool passes the lock rule or is in `LOCK_EXEMPT_TOOLS` with a matching REST route that has no `checkBaseCurrencyLock`;
-  - every non-GET route in `routes/*.ts` that carries `checkBaseCurrencyLock` and has a tool maps to a tool that calls the lock, including read-named ones (`LOCK_GUARDED_READ_TOOLS`: `preview_transaction_automation`, `list_transfer_suggestions`);
-  - every `READ_ONLY_ROUTES` entry that has a tool maps to a tool in `READ_ONLY_ROUTE_TOOLS`, and no other tool passes `allowReadOnly`;
-  - every rate-limited route that has a tool maps to a tool that calls `enforceUserRateLimit` (`grep -n RateLimit routes/*.ts`);
-  - every `delete_*` and `DESTRUCTIVE_TOOLS` tool requires `finance:delete`.
-- [ ] measure the `tools/list` size and record it here.
+- [x] `git merge dev` (brings in Group D if it has landed). `dev` equals this branch's head, so the merge was a no-op; Group D (Tasks 26–27) is still deferred ⏸.
+- [x] re-run the route audit (route extraction script in the scratchpad, not committed: parses `setup-routes.ts` mounts and every `router.<verb>(` in the mounted files):
+  - the route extraction over `packages/backend/src/routes/**/*.ts`: 408 routes in 47 router files, per-mount counts equal the matrix for every mount except the new `/push`;
+  - every ➕ route in the matrix has its tool registered: all 196 tool names the matrix cites on ➕ and ✅ rows are in `server-card.json` and registered;
+  - no route was added since this plan without a status: one was, `/push` (7 web push routes from the `feat/web-push` merge). They are ⛔ `device` (new reason row under "Excluded routes", note under "Totals"). The totals above stay as written; the REST API now has 408 routes.
+- [x] the tool count in `server-card.json` equals the registered tools (`server-registration-drift`), and equals 103 + the new tools of the landed groups: 250 tools = 103 + 147 (Groups A, B and C; Group D's Apple Pay tools are deferred ⏸, so 26–27 are not counted). `tools/list` over the real SDK also returns 250.
+- [x] the guards match the REST routes, tool by tool (`tool-scopes-drift.unit.ts` enforces each rule; the route side was re-read by hand):
+  - every write tool passes the lock rule or is in `LOCK_EXEMPT_TOOLS` with a matching REST route that has no `checkBaseCurrencyLock`: 7 exempt tools, each re-checked against its route (`POST /transactions/:id/attachments`, `DELETE /attachments/:id`, `POST /user/currencies/:code/rate-source/test`, `POST /user/currencies/change-base`, `POST /notifications/read-all` and `/:id/read`, `PUT`/`PATCH /user/settings`; `detect_subscription_candidates` is a GET);
+  - every non-GET route in `routes/*.ts` that carries `checkBaseCurrencyLock` and has a tool maps to a tool that calls the lock, including read-named ones (`LOCK_GUARDED_READ_TOOLS`: `preview_transaction_automation`, `list_transfer_suggestions`): the matrix maps no other write-verb route to a read-named tool;
+  - every `READ_ONLY_ROUTES` entry that has a tool maps to a tool in `READ_ONLY_ROUTE_TOOLS`, and no other tool passes `allowReadOnly`: of the 6 entries, `POST /user/currencies/base`, `POST /notifications/read-all` and `PUT`/`PATCH /user/settings` have tools (`change_base_currency`, `mark_notifications_read`, `update_user_settings`); data export and account delete have none;
+  - every rate-limited route that has a tool maps to a tool that calls `enforceUserRateLimit` (`grep -n RateLimit routes/*.ts`): only the two rate-source routes have both a limiter and a tool (`set_currency_rate_source`, `test_currency_rate_source` call it); every other limiter, the new web push ones included, sits on a ⛔ route;
+  - every `delete_*` and `DESTRUCTIVE_TOOLS` tool requires `finance:delete` (drift test green).
+- [x] measure the `tools/list` size and record it here.
   - Use a one-off script under the scratchpad, not committed: `captureTools` over every register function, `z.toJSONSchema(z.object(shape))` per tool, plus name and description.
   - Record the tool count, total bytes, and the five largest tools.
   - Write the figures under this task as a short note (the Overview's lazy-loading assumption for ~250 tools rests on them).
@@ -1539,9 +1542,22 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
     1. cut the descriptions and `.describe()` texts of the five largest tools and any field description that repeats the tool description;
     2. add the smallest toolset switch the installed SDK supports: `createMcpServer({ toolset })`, called at session start in `routes/mcp.route.ts` (the server is built per session, with `mcpAuthInfo` in hand). With `?tools=core` on `/mcp` it calls `RegisteredTool.disable()` on every tool outside a hand-kept `CORE_TOOLS` list; `McpServer` (SDK 1.31, `^1.29` in `package.json`) omits disabled tools from `tools/list` and answers a call to one with "Tool … disabled". The default stays the full set, so existing connections do not change. Add a unit case for the switch and a server-card note.
   - Record which step was needed, or that none was.
-- [ ] unit: `npm run test:unit -- --testPathPattern='services/mcp/'`.
-- [ ] e2e: one batched run of every gate pattern of Tasks 1–25 (and 26–27 if landed) as a single `--testPathPattern` alternation under `lockf -t 7200 /tmp/mm-e2e.lock`. This is not the full suite.
-- [ ] backend typecheck, lint, oxfmt.
+
+  **Measured** with the real MCP SDK 1.31 (`McpServer` + `Client` over `InMemoryTransport`, `listTools()` serialized as compact JSON). 250 tools.
+
+  |        | Bytes   | Of which                                                                |
+  | ------ | ------- | ----------------------------------------------------------------------- |
+  | Before | 350,096 | input schemas 236,016; descriptions 87,484; names and envelope the rest |
+  | After  | 281,068 |                                                                         |
+
+  Five largest before: `update_user_settings` 9,111, `update_transaction_automation` 8,375, `create_transaction_automation` 8,154, `bulk_delete_transactions` 7,230, `preview_transaction_automation` 6,245. After: `update_user_settings` 7,764, `update_transaction_automation` 6,943, `create_transaction_automation` 6,901, `preview_transaction_automation` 5,529, `bulk_delete_transactions` 5,082.
+
+  **Over budget, so a step was needed. Step 1 only, in a different form:** 344 uuid fields carry a 150-character `pattern` (the generated regular expression for the format; 52k) and 25 date fields a 430-character one (11k). Trimming the five largest descriptions would save about 4k, so the patterns went instead. `tool-list-slimming.ts` wraps the `tools/list` handler in `createMcpServer` and drops a `pattern` that sits next to a `uuid`, `date` or `date-time` `format`; the format stays, and a call is still validated with the full schema. `tool-list-size.unit.ts` keeps the budget as a test, so the Apple Pay tools (about 10, roughly 15k) must fit in the 19k left. Step 2 (`?tools=core`) was not needed and is not built.
+
+- [x] unit: `npm run test:unit -- --testPathPattern='services/mcp/'`: 35 suites, 1,134 tests green (with the slimming and size tests).
+- [x] e2e: the owner asked for the full backend suite in this task, so one full run under `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e` replaced the batched alternation: 312 suites passed, 2 skipped; 4,212 tests passed, 52 skipped, 7 todo; no failure, no re-run (the known flaky `get-net-worth-drivers.e2e.ts` passed). Tasks 26–27 gates skipped ⏸ (deferred).
+- [x] backend typecheck, lint, oxfmt: typecheck clean, lint exit 0 (baseline warnings only), `oxfmt --check` clean on `packages/backend/src` and `docs/plans`.
+- [x] root `npm run format:check`: 56 findings, all in the untracked, gitignored `.revmux/` run archive (none in a file this branch touches); nothing to fix. Root `npm run knip`: the backend run reported 6 unused exports and 25 unused types; 5 sat in files this branch created (`reminderSettingsSchema`, `RecommendationQuery`, `BulkScanMatch`, `BulkScanItem`, `BulkScanResult`) and are fixed (un-exported or removed); the rest are in files the branch does not touch (the custom-currency, rate-source and backup work already on `dev`). The frontend run lists only unused types in frontend sources the branch does not touch.
 
 ### Task 29: [Final] Update documentation
 
