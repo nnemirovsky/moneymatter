@@ -1,7 +1,11 @@
 import { PAYMENT_TYPES, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES } from '@bt/shared/types';
 import { currencyCode, recordId } from '@common/lib/zod/custom-types';
 import { Money } from '@common/types/money';
-import { nonNegativeAmountSchema, positiveAmountSchema } from '@controllers/transactions.controller/schemas';
+import {
+  nonNegativeAmountSchema,
+  payeeIdSchema,
+  positiveAmountSchema,
+} from '@controllers/transactions.controller/schemas';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { serializeTransactionTuple } from '@root/serializers/transactions.serializer';
@@ -74,6 +78,7 @@ const inputSchema = {
     .nullable()
     .optional()
     .describe('Replace tags. Pass null or empty array to clear all tags'),
+  payeeId: payeeIdSchema().describe('ID of an existing payee to link (from get_payees). Pass null to clear the payee'),
   originalAmount: z
     .number()
     .nonnegative()
@@ -96,7 +101,7 @@ export function registerUpdateTransaction(server: McpServer) {
     'update_transaction',
     {
       description:
-        'Update an existing transaction by ID. All fields except id are optional — only provide what you want to change. Pass tagIds: null to clear all tags, or tagIds: [] to do the same. Pass splits: null to clear all splits. Use originalAmount + originalCurrencyCode to record what the purchase cost in its invoice currency when that differs from the account currency.',
+        'Update an existing transaction by ID. All fields except id are optional — only provide what you want to change. Pass tagIds: null to clear all tags, or tagIds: [] to do the same. Pass splits: null to clear all splits. Use payeeId to link an existing payee, or payeeId: null to clear it. Use originalAmount + originalCurrencyCode to record what the purchase cost in its invoice currency when that differs from the account currency.',
       inputSchema,
     },
     async (args, extra) => {
@@ -132,6 +137,8 @@ export function registerUpdateTransaction(server: McpServer) {
         tagIds: args.tagIds,
         originalAmount: args.originalAmount != null ? Money.fromDecimal(args.originalAmount) : args.originalAmount,
         originalCurrencyCode: args.originalCurrencyCode,
+        // null clears the link, so only an omitted payeeId is left out
+        ...(args.payeeId !== undefined ? { payeeId: args.payeeId } : {}),
       });
 
       return jsonContent({ data: serializeTransactionTuple(result) });

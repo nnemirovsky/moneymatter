@@ -1,5 +1,6 @@
 import { BULK_UPDATE_TAG_MODES } from '@bt/shared/types';
 import { recordId } from '@common/lib/zod/custom-types';
+import { payeeIdSchema } from '@controllers/transactions.controller/schemas';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { bulkUpdate } from '@services/transactions/bulk-update';
@@ -16,6 +17,9 @@ const inputSchema = {
     .optional()
     .describe('How to apply tagIds: add (default) appends, replace overwrites, remove removes those tags'),
   note: z.string().optional().describe('Note to set on all transactions'),
+  payeeId: payeeIdSchema().describe(
+    'ID of an existing payee to link to all transactions (from get_payees). Pass null to clear the payee',
+  ),
 };
 
 export function registerBulkUpdateTransactions(server: McpServer) {
@@ -23,7 +27,7 @@ export function registerBulkUpdateTransactions(server: McpServer) {
     'bulk_update_transactions',
     {
       description:
-        'Update multiple transactions at once. Provide transactionIds plus at least one of categoryId, tagIds, or note. Tags can be added to, removed from, or replaced on all specified transactions.',
+        'Update multiple transactions at once. Provide transactionIds plus at least one of categoryId, tagIds, note, or payeeId (null clears the payee). Tags can be added to, removed from, or replaced on all specified transactions.',
       inputSchema,
     },
     async (args, extra) => {
@@ -39,6 +43,7 @@ export function registerBulkUpdateTransactions(server: McpServer) {
         tagIds: args.tagIds,
         tagMode: args.tagMode,
         note: args.note,
+        payeeId: args.payeeId,
       });
 
       return jsonContent({ data: result });
