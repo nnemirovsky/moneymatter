@@ -888,33 +888,33 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
   - the four metafiles;
   - `tool-scopes-drift.unit.ts`: `DESTRUCTIVE_TOOLS` gets `bulk_delete_transactions`; `LOCK_EXEMPT_TOOLS` gets `delete_attachment` (its REST route has no lock).
 
-- [ ] read first: `controllers/transactions.controller.ts` (`getTransactionById`, `getTransactionsByTransferId`), `get-transactions-by-ids.ts`, `get-transactions-summary.ts` and `get-planned-summary.ts` on `dev` (summary sums in base minor units), `bulk-delete.ts`, `update-transaction.ts`, `services/transactions/update-transaction.ts` (planned guards), `frontend/src/pages/records/components/upcoming-section.vue`, `controllers/attachments.controller.ts`
-- [ ] `get_transactions` (read):
+- [x] read first: `controllers/transactions.controller.ts` (`getTransactionById`, `getTransactionsByTransferId`), `get-transactions-by-ids.ts`, `get-transactions-summary.ts` and `get-planned-summary.ts` on `dev` (summary sums in base minor units), `bulk-delete.ts`, `update-transaction.ts`, `services/transactions/update-transaction.ts` (planned guards), `frontend/src/pages/records/components/upcoming-section.vue`, `controllers/attachments.controller.ts`
+- [x] `get_transactions` (read):
   - `ids` (1–50, the service's `MAX_IDS`) or `transferId`, and `includeSplits?`;
   - `getTransactionsByIds`, `getTransactionById` or `getTransactionsByTransferId`;
   - serialized like `search_transactions`;
   - exactly one of `ids` and `transferId`.
-- [ ] `get_transactions_summary` (read): the transaction filter fields (dates, types, account, category, tag and payee ids, the amount range, `isPlanned`, …) through `toServiceFilters` → `getTransactionsSummary`.
-- [ ] `get_planned_summary` (read): `getPlannedSummary({ userId })`.
-- [ ] `confirm_planned_transaction` (`finance:write`):
+- [x] `get_transactions_summary` (read): the transaction filter fields (dates, types, account, category, tag and payee ids, the amount range, `isPlanned`, …) through `toServiceFilters` → `getTransactionsSummary`.
+- [x] `get_planned_summary` (read): `getPlannedSummary({ userId })`.
+- [x] `confirm_planned_transaction` (`finance:write`):
   - `transactionId`, `time?` → `updateTransaction({ isPlanned: false, time })`;
   - when `time` is absent and the plan is in the future, it sets now, as the web app does;
   - the service's refusal on bank-connected accounts passes through with its message;
   - the description says bank plans are confirmed by sync, and that confirming settles a linked subscription period.
-- [ ] `search_transactions`: optional `isPlanned` boolean passed to `getTransactions`, and an optional `payeeIds` array (`recordId()` items) passed to `getTransactions` as `payeeIds` (the query already filters on it). A live check of the deployed server showed that the merchant appears only in a transaction's note, because `slimTransactionsForMcp` drops the payee.
-- [ ] payee on every MCP transaction:
+- [x] `search_transactions`: optional `isPlanned` boolean passed to `getTransactions`, and an optional `payeeIds` array (`recordId()` items) passed to `getTransactions` as `payeeIds` (the query already filters on it). A live check of the deployed server showed that the merchant appears only in a transaction's note, because `slimTransactionsForMcp` drops the payee.
+- [x] payee on every MCP transaction:
   - `services/payees/get-payee-names.ts`: `getPayeeNames({ userId, payeeIds })` returns `Map<id, name>` in one query, scoped to the caller as `get_payees` is;
   - `slimTransactionsForMcp` takes the map and adds `payeeId` and `payee: { id, name }` (`null` when the transaction has no payee or the payee is not the caller's);
   - `search_transactions`, `get_transactions` and `get_transaction_groups` fetch the names for the page of results and pass them in, so no tool serializes a transaction without its payee;
   - the descriptions say the result carries the payee, and that `payeeIds` filters by it (`get_payees` resolves a name to an id);
   - tests: `serializers.unit.ts` (payee present, absent, unknown id), `transaction-read-tools.unit.ts` (`search_transactions` passes `payeeIds` to `getTransactions` and returns `payee`; `get_transactions` returns `payee`), and a unit case for `getPayeeNames` (one query, other users' payees excluded).
-- [ ] `bulk_delete_transactions` (`finance:delete`): `transactionIds` or `filters` (+ `excludedIds`), not both → `resolveBulkTargetIds` + `bulkDelete`. The service's refusals (bank rows, the max count) pass through.
-- [ ] `get_transaction_links` (read): `transactionId` → `{ portfolioLink, ventureLink }` from `getTransactionPortfolioLink` and `getTransactionVentureLink`.
-- [ ] `list_transaction_attachments` (read): `transactionId` → `listAttachments`.
-- [ ] `delete_attachment` (`finance:delete`, lock-exempt, `requireFeatureAccess` `attachments`): `attachmentId` → `deleteAttachment`.
-- [ ] unit test `transaction-read-tools.unit.ts`: the `get_transactions` modes, the confirm time rule (past plan keeps its time, future plan gets now), the bulk-delete either-or, the attachment feature gate, the `isPlanned` passthrough.
-- [ ] metafiles under `// Transactions`.
-- [ ] gate:
+- [x] `bulk_delete_transactions` (`finance:delete`): `transactionIds` or `filters` (+ `excludedIds`), not both → `resolveBulkTargetIds` + `bulkDelete`. The service's refusals (bank rows, the max count) pass through.
+- [x] `get_transaction_links` (read): `transactionId` → `{ portfolioLink, ventureLink }` from `getTransactionPortfolioLink` and `getTransactionVentureLink`.
+- [x] `list_transaction_attachments` (read): `transactionId` → `listAttachments`.
+- [x] `delete_attachment` (`finance:delete`, lock-exempt, `requireFeatureAccess` `attachments`): `attachmentId` → `deleteAttachment`.
+- [x] unit test `transaction-read-tools.unit.ts`: the `get_transactions` modes, the confirm time rule (past plan keeps its time, future plan gets now), the bulk-delete either-or, the attachment feature gate, the `isPlanned` passthrough.
+- [x] metafiles under `// Transactions`.
+- [x] gate (unit `services/mcp/` + payees: 16 suites, 312 tests; e2e: 10 suites, 141 tests; typecheck, lint, oxfmt clean):
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/transactions/(bulk-delete|planned-summary|planned-transactions)|controllers/transactions.controller/update-transaction|services/attachments/attachments|services/subscriptions/subscription-planned-rows|services/investments/portfolios/transfers/transaction-portfolio-link|services/venture/linking/get-transaction-venture-link|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
