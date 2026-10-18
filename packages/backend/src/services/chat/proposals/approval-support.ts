@@ -15,24 +15,38 @@ import { compareSnapshots } from './snapshot';
 
 /** A card the snapshot check found stale; thrown inside the approval transaction so it rolls back. */
 export class StaleRefusal extends Error {
-  constructor(
-    readonly row: { id: string; revision: number; snapshot: ChatProposalSnapshot | null },
-    readonly reasonKey: string,
-    readonly before: unknown,
-    readonly after: unknown,
-  ) {
+  readonly row: { id: string; revision: number; snapshot: ChatProposalSnapshot | null };
+  readonly reasonKey: string;
+  readonly before: unknown;
+  readonly after: unknown;
+
+  constructor({
+    row,
+    reasonKey,
+    before,
+    after,
+  }: {
+    row: { id: string; revision: number; snapshot: ChatProposalSnapshot | null };
+    reasonKey: string;
+    before: unknown;
+    after: unknown;
+  }) {
     super(reasonKey);
+    this.row = row;
+    this.reasonKey = reasonKey;
+    this.before = before;
+    this.after = after;
   }
 }
 
 /** A handler (or the validation just before it) failed inside the approval transaction. */
 export class ApplyFailure extends Error {
-  constructor(
-    message: string,
-    /** The cards the approval was about to apply, with the revision it checked for each. */
-    readonly rows: Array<{ id: string; revision: number }>,
-  ) {
+  /** The cards the approval was about to apply, with the revision it checked for each. */
+  readonly rows: Array<{ id: string; revision: number }>;
+
+  constructor({ message, rows }: { message: string; rows: Array<{ id: string; revision: number }> }) {
     super(message);
+    this.rows = rows;
   }
 }
 
@@ -85,16 +99,23 @@ export async function assertFresh({
   const state = await computeCardState({ userId: row.userId, policy, args: row.args, parents: parentStatuses });
 
   if (policy.previewResolver && state.error) {
-    throw new StaleRefusal(
-      identity,
-      state.error.messageKey ?? 'chat.cards.previewFailed',
-      null,
-      state.error.message ?? null,
-    );
+    throw new StaleRefusal({
+      row: identity,
+      reasonKey: state.error.messageKey ?? 'chat.cards.previewFailed',
+      before: null,
+      after: state.error.message ?? null,
+    });
   }
 
   const comparison = compareSnapshots({ stored: row.snapshot ?? { baseCurrencyCode: '' }, current: state.snapshot });
-  if (comparison.stale) throw new StaleRefusal(identity, comparison.reasonKey, comparison.before, comparison.after);
+  if (comparison.stale) {
+    throw new StaleRefusal({
+      row: identity,
+      reasonKey: comparison.reasonKey,
+      before: comparison.before,
+      after: comparison.after,
+    });
+  }
 
   return state;
 }

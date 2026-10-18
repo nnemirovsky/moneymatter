@@ -192,7 +192,7 @@ const applyChain = withTransaction(
         });
       } catch (error) {
         const message = error instanceof z.ZodError ? describeInputError({ error }) : errorMessage({ error });
-        throw new ApplyFailure(message, checked);
+        throw new ApplyFailure({ message, rows: checked });
       }
     }
 

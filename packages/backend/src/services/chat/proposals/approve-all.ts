@@ -38,8 +38,16 @@ async function approveOne({
   card: ChatProposalCard;
   revisions: Record<string, number>;
 }): Promise<{ result: ChatApproveAllResult; appliedIds: string[] }> {
-  const outcome = (outcomeOf: ChatApproveAllOutcome, reasonKey?: string, appliedIds: string[] = []) => ({
-    result: { proposalId: card.id, outcome: outcomeOf, ...(reasonKey ? { reasonKey } : {}) },
+  const outcome = ({
+    kind,
+    reasonKey,
+    appliedIds = [],
+  }: {
+    kind: ChatApproveAllOutcome;
+    reasonKey?: string;
+    appliedIds?: string[];
+  }) => ({
+    result: { proposalId: card.id, outcome: kind, ...(reasonKey ? { reasonKey } : {}) },
     appliedIds,
   });
 
@@ -50,20 +58,19 @@ async function approveOne({
       revision: revisions[card.id]!,
       parentRevisions: revisions,
     });
-    return outcome(
-      'applied',
-      undefined,
-      response.cards.filter((applied) => applied.status === 'applied').map((applied) => applied.id),
-    );
+    return outcome({
+      kind: 'applied',
+      appliedIds: response.cards.filter((applied) => applied.status === 'applied').map((applied) => applied.id),
+    });
   } catch (error) {
     if (error instanceof ConflictError) {
       const details = error.details as { reason?: string; stale?: { reasonKey: string } } | undefined;
       return details?.reason === 'stale'
-        ? outcome('stale', details.stale?.reasonKey)
-        : outcome('conflict', `chat.cards.${details?.reason ?? 'notPending'}`);
+        ? outcome({ kind: 'stale', reasonKey: details.stale?.reasonKey })
+        : outcome({ kind: 'conflict', reasonKey: `chat.cards.${details?.reason ?? 'notPending'}` });
     }
     // A handler that failed rolled the whole chain back and marked its cards; the pass goes on.
-    if (error instanceof ValidationError) return outcome('failed', 'chat.cards.applyFailed');
+    if (error instanceof ValidationError) return outcome({ kind: 'failed', reasonKey: 'chat.cards.applyFailed' });
     throw error;
   }
 }
