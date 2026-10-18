@@ -47,6 +47,9 @@ const findEntry = ({ name }: { name: string }): ToolCatalogEntry | undefined => 
   return entriesByName.get(name);
 };
 
+/** Arguments and stored rows are JSON, so equal values serialize alike. */
+const isSameValue = ({ a, b }: { a: unknown; b: unknown }) => JSON.stringify(a) === JSON.stringify(b);
+
 const titleOf = ({ row }: { row: Pick<ChatProposalRow, 'cardKind' | 'entity'> }): ChatCardTitle => ({
   key: chatCardTitleKey({ kind: row.cardKind }),
   params: { entity: row.entity },
@@ -88,6 +91,8 @@ export function toChatProposalCard({
   const properties = (entry ? getModelSchema({ entry }).properties : undefined) as Record<string, unknown> | undefined;
   const uncertain = new Map((row.uncertainFields ?? []).map((field) => [field.field, field]));
 
+  const rowBefore = row.preview?.before ?? null;
+
   const fields = Object.entries(row.args).map(([path, value]) => {
     const unsure = uncertain.get(path);
     return {
@@ -95,6 +100,9 @@ export function toChatProposalCard({
       labelKey: CHAT_FIELD_LABEL_KEYS[path] ?? `chat.fields.${path}`,
       value,
       ...describeField({ key: path, value, node: properties?.[path], entityKind: policy?.entityFields[path] }),
+      ...(rowBefore && path in rowBefore && !isSameValue({ a: rowBefore[path], b: value })
+        ? { before: rowBefore[path] }
+        : {}),
       ...(unsure ? { uncertain: { reason: unsure.reason, alternatives: unsure.alternatives } } : {}),
     };
   });

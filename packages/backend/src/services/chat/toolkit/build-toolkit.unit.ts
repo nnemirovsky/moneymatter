@@ -152,6 +152,8 @@ describe('buildChatToolkit', () => {
     })) as never);
     jest.mocked(findForeignEntities).mockReset();
     jest.mocked(findForeignEntities).mockResolvedValue([]);
+    // The toolkit is tested against an empty registry; the real resolvers have their own suites.
+    for (const key of Object.keys(PREVIEW_RESOLVERS)) delete (PREVIEW_RESOLVERS as Record<string, unknown>)[key];
     jest.spyOn(ChatProposals, 'create').mockImplementation((async (values: any) => ({
       ...values,
       createdAt: new Date(),
@@ -719,7 +721,7 @@ describe('buildChatToolkit', () => {
       expect((await call({ toolkit, name: 'get_categories' })).isError).toBe(false);
     });
 
-    it('keeps a red card unapplicable until a preview resolver exists', async () => {
+    it('keeps a red card unapplicable while its preview resolver is not registered', async () => {
       const { toolkit, events } = setup();
 
       await call({ toolkit, name: 'bulk_delete_transactions', input: { transactionIds: [ACCOUNT] } });

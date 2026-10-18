@@ -5,7 +5,7 @@ import {
   chatCardTitleKey,
   chatEntityLabelKey,
 } from '@bt/shared/types';
-import { describe, expect, it, jest } from '@jest/globals';
+import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import fs from 'fs';
 import path from 'path';
 
@@ -13,10 +13,15 @@ import path from 'path';
 jest.mock('@services/categories.service', () => ({ getCategories: jest.fn() }));
 jest.mock('@services/accounts.service', () => ({ getAccounts: jest.fn() }));
 
+import ChatProposals from '@models/chat-proposals.model';
+import * as usersCurrencies from '@models/users-currencies.model';
 import { makeChatRun } from '@tests/helpers/chat-toolkit';
 
 import { getToolCatalog, type ToolCatalogEntry } from '../../mcp/tool-catalog';
 import { CONDITIONAL_DELETE_TOOLS, DESTRUCTIVE_TOOLS, READ_TOOL_NAME } from '../../mcp/tool-classification';
+import { createProposal } from '../proposals/create-proposal';
+import { PREVIEW_RESOLVERS } from '../proposals/previews';
+import { ENTITY_LOADERS } from '../proposals/previews/entity-loaders';
 import { buildChatToolkit } from '../toolkit/build-toolkit';
 import { CHAT_CORE_TOOL_REASONS, CHAT_CORE_TOOLS } from './core-tools';
 import { UNMAPPED_ID_FIELDS } from './entity-fields';
@@ -42,6 +47,13 @@ const CONDITIONAL_DELETE_FIXTURES: Record<string, unknown> = {
   ignore_payee_name: { rawName: 'ACME', force: true },
   revert_subscription_period: { subscriptionId: 'x', periodId: 'y' },
 };
+
+/** Arguments that take each conditional-delete tool down its delete path, in the shape cards are built from. */
+const CONDITIONAL_DELETE_FIXTURES_ARGS: Record<string, Record<string, unknown>> = {
+  ignore_payee_name: { rawName: 'ACME', force: true },
+};
+
+const uuid = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
 
 const catalog = (): readonly ToolCatalogEntry[] => getToolCatalog();
 const writeTools = () => catalog().filter((tool) => tool.access === 'write');
@@ -135,6 +147,17 @@ describe('chat capability drift', () => {
       .toSorted();
 
     expect([...CHAT_ARGS_ONLY_TOOLS].toSorted()).toEqual(declared);
+  });
+
+  it('has a resolver function in the registry for every name a policy declares, and for no other', () => {
+    expect(Object.keys(PREVIEW_RESOLVERS).toSorted()).toEqual([...PREVIEW_RESOLVER_NAMES].toSorted());
+
+    for (const tool of capabilities()) {
+      const { previewResolver } = policyOf({ name: tool.name });
+      if (previewResolver === null) continue;
+
+      expect([tool.name, typeof PREVIEW_RESOLVERS[previewResolver]]).toEqual([tool.name, 'function']);
+    }
   });
 
   it('declares only resolver names the resolver registry lists, and uses each of them', () => {
@@ -342,5 +365,136 @@ describe('chat capability drift', () => {
 
     expect([...kinds.keys()].toSorted()).toEqual([...CHAT_CARD_KINDS].toSorted());
     expect(capabilities().length).toBe(writeTools().length - Object.keys(CHAT_EXCLUDED_TOOLS).length);
+  });
+
+  describe('cards', () => {
+    const EGRESS_ARGS: Record<string, unknown> = {
+      set_currency_rate_source: {
+        code: 'PTS',
+        rateSource: 'http',
+        config: { urlTemplate: 'https://rates.example.com/{date}.json' },
+      },
+    };
+
+    /** Arguments that take a tool down its most dangerous path. */
+    const fixtureArgs = ({ name }: { name: string }): Record<string, unknown> => {
+      const policy = policyOf({ name });
+      const targets = Object.fromEntries(policy.targetFields.map((field, index) => [field, uuid(index + 1)]));
+      return { ...targets, ...CONDITIONAL_DELETE_FIXTURES_ARGS[name], ...(EGRESS_ARGS[name] as object) };
+    };
+
+    /** A card for every write capability, made by the real proposal path, the entity resolver and the policies. */
+    async function buildCards(): Promise<
+      Array<{ name: string; card: Awaited<ReturnType<typeof createProposal>>['card'] }>
+    > {
+      const original = { ...PREVIEW_RESOLVERS };
+      const loaders = { ...ENTITY_LOADERS };
+      jest.spyOn(usersCurrencies, 'getBaseCurrency').mockResolvedValue({ currencyCode: 'USD' } as never);
+      jest.spyOn(ChatProposals, 'findAll').mockResolvedValue([]);
+      jest.spyOn(ChatProposals, 'create').mockImplementation((async (values: any) => ({
+        ...values,
+        createdAt: new Date('2026-10-18T09:00:00.000Z'),
+        updatedAt: new Date('2026-10-18T09:00:00.000Z'),
+      })) as never);
+
+      // The services behind the loaders and the explicit resolvers are replaced; the entity resolver,
+      // the proposal path, the policies and the card builder are the real ones.
+      for (const kind of Object.keys(ENTITY_LOADERS)) {
+        (ENTITY_LOADERS as Record<string, unknown>)[kind] = async () => ({
+          row: { id: uuid(1) },
+          updatedAt: new Date('2026-10-18T09:00:00.000Z'),
+          counts: {},
+          removes: 0,
+        });
+      }
+      for (const name of Object.keys(PREVIEW_RESOLVERS)) {
+        if (name === 'entity') continue;
+        (PREVIEW_RESOLVERS as Record<string, unknown>)[name] = async () => ({
+          preview: { affected: { count: 5, columns: [], rows: [], truncated: false } },
+          snapshot: { targetCount: 5 },
+          affectedCount: 5,
+        });
+      }
+
+      try {
+        const { run } = makeChatRun();
+        const cards: Array<{ name: string; card: Awaited<ReturnType<typeof createProposal>>['card'] }> = [];
+        for (const tool of capabilities()) {
+          const args = fixtureArgs({ name: tool.name });
+          const policy = resolveToolPolicy({ name: tool.name, args })!;
+          const { card } = await createProposal({
+            run,
+            policy,
+            args,
+            meta: {},
+            refs: [],
+            sources: [],
+          });
+          cards.push({ name: tool.name, card });
+        }
+        return cards;
+      } finally {
+        Object.assign(PREVIEW_RESOLVERS, original);
+        Object.assign(ENTITY_LOADERS, loaders);
+      }
+    }
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    // Check 8
+    it('makes an egress card amber: the URL and host, a confirm, and never safe', async () => {
+      const cards = await buildCards();
+
+      for (const name of Object.keys(EGRESS_TOOLS)) {
+        const { card } = cards.find((entry) => entry.name === name)!;
+
+        expect([name, card.egress]).toEqual([
+          name,
+          { url: 'https://rates.example.com/{date}.json', host: 'rates.example.com' },
+        ]);
+        expect([name, card.confirmation.mode]).toEqual([name, 'confirm']);
+        expect([name, card.safe]).toEqual([name, false]);
+        expect([name, card.warnings.map((warning) => warning.key)]).toEqual([name, ['chat.warnings.egress']]);
+      }
+    });
+
+    // Check 9
+    it('never makes a red, egress, standalone or settings card safe, however perfect it is otherwise', async () => {
+      const cards = await buildCards();
+      expect(cards).toHaveLength(capabilities().length);
+
+      for (const { name, card } of cards) {
+        const policy = policyOf({ name });
+        const unsafe =
+          card.danger !== 'none' || card.egress !== undefined || policy.standalone || card.kind === 'settings';
+        if (!unsafe) continue;
+
+        expect([name, card.canApply.ok, card.safe]).toEqual([name, true, false]);
+      }
+      expect(cards.filter(({ card }) => card.danger !== 'none').length).toBeGreaterThan(30);
+    });
+
+    it('gives every red card a confirmation, and every high-impact and multi-record red card a typed one', async () => {
+      const cards = await buildCards();
+
+      for (const { name, card } of cards) {
+        if (card.danger === 'none') continue;
+
+        expect([name, card.confirmation.mode !== 'none']).toEqual([name, true]);
+        if (card.danger === 'highImpact') expect([name, card.confirmation.mode]).toEqual([name, 'typed']);
+      }
+    });
+
+    it('gives every capability with a resolver a stored preview, so no card is waiting for one', async () => {
+      const cards = await buildCards();
+
+      for (const { name, card } of cards) {
+        if (policyOf({ name }).previewResolver === null) continue;
+
+        expect([name, card.canApply]).toEqual([name, { ok: true }]);
+      }
+    });
   });
 });

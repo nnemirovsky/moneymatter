@@ -1,31 +1,38 @@
-import type { ChatCardWarning, ChatProposalPreview, ChatProposalSnapshot } from '@bt/shared/types';
-
-import type { PreviewResolverName, ResolvedToolPolicy } from '../../policies/rules';
-
-/** What a preview resolver computed: the card's preview and the part of the snapshot it owns. */
-export interface PreviewResolution {
-  preview: ChatProposalPreview;
-  /** Merged into the snapshot next to the base currency and the parents' statuses. */
-  snapshot: Partial<ChatProposalSnapshot>;
-  /** Rows the call affects; decides the typed confirmation of a red card. */
-  affectedCount?: number;
-  warnings?: ChatCardWarning[];
-}
-
-/**
- * Computes what a call will do, reading only: no handler runs and nothing is written. `args` are the
- * proposal's arguments with `$proposal:` refs still in place.
- */
-type PreviewResolver = (params: {
-  userId: number;
-  toolName: string;
-  args: Record<string, unknown>;
-  policy: ResolvedToolPolicy;
-}) => Promise<PreviewResolution>;
+import type { PreviewResolverName } from '../../policies/rules';
+import { resolveApplyTransactionAutomation } from './automation-apply';
+import { resolveBudgetPlanAssignment } from './budget-plan-assignment';
+import { resolveBulkDeletePayees } from './bulk-delete-payees';
+import { resolveBulkDeleteTransactions, resolveBulkUpdateTransactions } from './bulk-transactions';
+import { resolveChangeBaseCurrency } from './change-base-currency';
+import { resolveEntityPreview } from './entity';
+import { resolveDeleteExchangeRates } from './exchange-rates';
+import { resolveIgnorePayeeName } from './ignore-payee-name';
+import { resolveDeleteImportBatch } from './import-batch';
+import { resolveMergePayees } from './merge-payees';
+import { resolveApplyPayeeTags } from './payee-tags';
+import { resolveMergeDuplicateTransactions, resolveRemoveDuplicateTransactions } from './reconciliation';
+import { resolveRevertSubscriptionPeriod } from './revert-subscription-period';
+import type { PreviewResolver } from './types';
 
 /**
- * The resolver registry, keyed by the names the policies declare. A policy that declares a name with
- * no resolver here makes its cards unapplicable (`previewPending`), so no red card is ever approved
- * on its arguments alone.
+ * The resolver registry, a record over the names the policies declare: a name added to
+ * `PREVIEW_RESOLVER_NAMES` without a resolver here does not compile, and a resolver without a name
+ * does not either.
  */
-export const PREVIEW_RESOLVERS: Partial<Record<PreviewResolverName, PreviewResolver>> = {};
+export const PREVIEW_RESOLVERS: Record<PreviewResolverName, PreviewResolver> = {
+  entity: resolveEntityPreview,
+  bulkUpdateTransactions: resolveBulkUpdateTransactions,
+  bulkDeleteTransactions: resolveBulkDeleteTransactions,
+  bulkDeletePayees: resolveBulkDeletePayees,
+  mergePayees: resolveMergePayees,
+  removeDuplicateTransactions: resolveRemoveDuplicateTransactions,
+  mergeDuplicateTransactions: resolveMergeDuplicateTransactions,
+  deleteImportBatch: resolveDeleteImportBatch,
+  changeBaseCurrency: resolveChangeBaseCurrency,
+  deleteExchangeRates: resolveDeleteExchangeRates,
+  applyTransactionAutomation: resolveApplyTransactionAutomation,
+  applyPayeeTags: resolveApplyPayeeTags,
+  ignorePayeeName: resolveIgnorePayeeName,
+  revertSubscriptionPeriod: resolveRevertSubscriptionPeriod,
+  budgetPlanAssignment: resolveBudgetPlanAssignment,
+};

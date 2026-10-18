@@ -3,11 +3,9 @@ import {
   type ChatCardError,
   type ChatProposalCard,
   type ChatProposalPreview,
-  type ChatProposalSnapshot,
   type ChatSource,
 } from '@bt/shared/types';
 import ChatProposals from '@models/chat-proposals.model';
-import { getBaseCurrency } from '@models/users-currencies.model';
 import { randomUUID } from 'crypto';
 
 import { getToolPolicy } from '../policies';
@@ -16,7 +14,10 @@ import type { ChatMeta } from '../toolkit/model-schema';
 import { errorMessage } from '../toolkit/result-text';
 import type { ChatToolkitRun } from '../toolkit/types';
 import { assertNoRefCycle, ToolInputError } from './placeholders';
-import { PREVIEW_RESOLVERS, type PreviewResolution } from './previews';
+import { PREVIEW_RESOLVERS } from './previews';
+import { PreviewError } from './previews/preview-helpers';
+import type { PreviewResolution, PreviewResolver } from './previews/types';
+import { buildSnapshot } from './snapshot';
 import { toChatProposalCard } from './to-chat-proposal-card';
 
 const loadParents = async ({ ids, run }: { ids: string[]; run: ChatToolkitRun }): Promise<ChatProposals[]> =>
@@ -83,12 +84,17 @@ async function runPreview({
   args: Record<string, unknown>;
   policy: ResolvedToolPolicy;
 }): Promise<{ resolution: PreviewResolution | null; error: ChatCardError | null }> {
-  const resolver = policy.previewResolver ? PREVIEW_RESOLVERS[policy.previewResolver] : undefined;
+  const resolver = policy.previewResolver
+    ? (PREVIEW_RESOLVERS as Partial<Record<string, PreviewResolver>>)[policy.previewResolver]
+    : undefined;
   if (!resolver) return { resolution: null, error: null };
 
   try {
     return { resolution: await resolver({ userId: run.user.id, toolName, args, policy }), error: null };
   } catch (error) {
+    if (error instanceof PreviewError) {
+      return { resolution: null, error: { messageKey: error.messageKey, message: error.message } };
+    }
     return { resolution: null, error: { message: errorMessage({ error }) } };
   }
 }
@@ -139,11 +145,11 @@ export async function createProposal({
   const preview: ChatProposalPreview | null = resolution
     ? { ...resolution.preview, ...(resolution.warnings ? { warnings: resolution.warnings } : {}) }
     : null;
-  const snapshot: ChatProposalSnapshot = {
-    baseCurrencyCode: (await getBaseCurrency({ userId: run.user.id }))?.currencyCode ?? '',
-    ...resolution?.snapshot,
-    parentStatuses: Object.fromEntries(parents.map((parent) => [parent.id as string, parent.status])),
-  };
+  const snapshot = await buildSnapshot({
+    userId: run.user.id,
+    resolved: resolution?.snapshot,
+    parents: parents.map((parent) => ({ id: parent.id as string, status: parent.status })),
+  });
 
   const row = await ChatProposals.create({
     id: proposalId,
