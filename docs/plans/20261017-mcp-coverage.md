@@ -974,20 +974,21 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 **Files:**
 
 - Create: `tools/{get-reconciliation-history,list-stuck-pending-transactions,remove-duplicate-transactions,restore-removed-transactions,merge-duplicate-transactions,keep-pending-as-booked}.ts`, `tools/reconciliation-tools.unit.ts`
-- Modify: the four metafiles, `tool-scopes-drift.unit.ts` (no list change: `merge_duplicate_transactions` is `finance:write`, not destructive)
+- Create also: `controllers/transactions.controller/reconciliation-schemas.ts` (the REST body schemas that the controller and the tools share)
+- Modify: `controllers/transactions.controller/reconciliation.ts` (uses the shared schemas), the four metafiles, `tool-scopes-drift.unit.ts` (no list change: `merge_duplicate_transactions` is `finance:write`, not destructive)
 
-- [ ] read first: `controllers/transactions.controller/reconciliation.ts`, `services/transactions/reconciliation/*`, `reconciliation.e2e.ts`
-- [ ] `get_reconciliation_history` (read): `getReconciliationHistory`.
-- [ ] `list_stuck_pending_transactions` (read): `getStuckPending`.
-- [ ] `remove_duplicate_transactions` (`finance:write`): `transactionIds` (REST bounds) → `removeTransactions`. The description says removed rows can be restored.
-- [ ] `restore_removed_transactions` (`finance:write`): `restoreTransactions`.
-- [ ] `merge_duplicate_transactions` (`finance:write`): `transactionIds` (REST min and max), `survivorId` → `mergeTransactions`.
+- [x] read first: `controllers/transactions.controller/reconciliation.ts`, `services/transactions/reconciliation/*`, `reconciliation.e2e.ts`
+- [x] `get_reconciliation_history` (read): `getReconciliationHistory`, rows slimmed with their payee; optional `limit` (default 50, max 200) keeps the newest events and the result carries `total`.
+- [x] `list_stuck_pending_transactions` (read): `getStuckPending`, returns `{ pending: [{ transaction, candidate, pendingDays }] }` with slim rows; `canCheckWithBank` is left out because the bank-check route has no tool.
+- [x] `remove_duplicate_transactions` (`finance:write`): `transactionIds` (REST bounds) → `removeTransactions`. The description says removed rows can be restored.
+- [x] `restore_removed_transactions` (`finance:write`): `restoreTransactions`.
+- [x] `merge_duplicate_transactions` (`finance:write`): `transactionIds` (REST min and max), `survivorId` → `mergeTransactions`.
   - Decision: `finance:write`, not `DESTRUCTIVE_TOOLS`. `mergeTransactions` soft-deletes the merged rows (`deletedAt` and `mergedIntoId`) and `restoreTransactions` clears both, so `restore_removed_transactions` undoes a merge. This matches Technical Details, "Tool conventions".
   - The description says merged rows are restorable, and that a restored row comes back without the budget, group and subscription links the merge moved to the survivor (`restoreTransactions` clears the two columns and moves no link back).
-- [ ] `keep_pending_as_booked` (`finance:write`): `transactionIds` → `keepAsBooked`.
-- [ ] unit test `reconciliation-tools.unit.ts`.
-- [ ] metafiles under a new `// Reconciliation` group.
-- [ ] gate:
+- [x] `keep_pending_as_booked` (`finance:write`): `transactionIds` → `keepAsBooked`.
+- [x] unit test `reconciliation-tools.unit.ts`.
+- [x] metafiles under a new `// Reconciliation` group.
+- [x] gate (unit `services/mcp/` + payees: 21 suites, 443 tests; e2e: 4 suites, 80 tests; typecheck, lint, oxfmt clean):
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/transactions/reconciliation/(reconciliation|notify-stuck-pending)|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
