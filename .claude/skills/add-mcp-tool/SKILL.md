@@ -23,8 +23,12 @@ Service (@services/...)
   ↓ called by
 MCP tool file (packages/backend/src/services/mcp/tools/<name>.ts)
   ↓ registered in
-createMcpServer() (packages/backend/src/services/mcp/server.ts)
+registerAllTools() (packages/backend/src/services/mcp/server.ts)
+  ↓ called by
+createMcpServer() and the chat's tool catalog (services/mcp/tool-catalog.ts)
 ```
+
+The classification lists (`DESTRUCTIVE_TOOLS`, `CONDITIONAL_DELETE_TOOLS`, `LOCK_EXEMPT_TOOLS`, `LOCK_GUARDED_READ_TOOLS`, `READ_ONLY_ROUTE_TOOLS`) live in `services/mcp/tool-classification.ts`; `tool-scopes-drift.unit.ts` checks every tool against them.
 
 Three metafiles stay in sync via drift tests (a fourth drift test checks that every tool file is registered in `server.ts`):
 
@@ -103,8 +107,8 @@ Rules:
 ### Naming, scopes and guards
 
 - **Names:** read tools start with `get_`, `list_`, `search_` or `preview_`, and nothing else does. Read tools call no scope helper (the `/mcp` route already requires `finance:read`).
-- **Scopes:** every other tool calls `requireScope`. `finance:write` is the default. `delete_*` tools, and tools that permanently remove data without `delete_` in the name (`merge_payees`, `bulk_delete_*`), use `finance:delete` and are listed in `DESTRUCTIVE_TOOLS` in `tool-scopes-drift.unit.ts` when the name lacks the prefix. A soft delete that a restore tool undoes is a `finance:write` tool. A tool whose delete path is optional (for example `ignore_payee_name` with `force`) uses `finance:write` normally and `finance:delete` on the delete path; list it in `CONDITIONAL_DELETE_TOOLS` in `tool-scopes-drift.unit.ts` (beside `DESTRUCTIVE_TOOLS`) instead.
-- **Read-only and demo users:** `requireScope` rejects both. The only exception is a tool on a route in `READ_ONLY_ROUTES` (`middlewares/entitlements.ts`), which REST lets a read-only user call: it passes `allowReadOnly: true`, and is listed in `READ_ONLY_ROUTE_TOOLS` (with the route in a comment) in `tool-scopes-drift.unit.ts`, so the exemption cannot spread.
+- **Scopes:** every other tool calls `requireScope`. `finance:write` is the default. `delete_*` tools, and tools that permanently remove data without `delete_` in the name (`merge_payees`, `bulk_delete_*`), use `finance:delete` and are listed in `DESTRUCTIVE_TOOLS` in `services/mcp/tool-classification.ts` when the name lacks the prefix. A soft delete that a restore tool undoes is a `finance:write` tool. A tool whose delete path is optional (for example `ignore_payee_name` with `force`) uses `finance:write` normally and `finance:delete` on the delete path; list it in `CONDITIONAL_DELETE_TOOLS` in `tool-classification.ts` (beside `DESTRUCTIVE_TOOLS`) instead.
+- **Read-only and demo users:** `requireScope` rejects both. The only exception is a tool on a route in `READ_ONLY_ROUTES` (`middlewares/entitlements.ts`), which REST lets a read-only user call: it passes `allowReadOnly: true`, and is listed in `READ_ONLY_ROUTE_TOOLS` (with the route in a comment) in `tool-classification.ts`, so the exemption cannot spread.
 - **Base-currency lock:** `assertBaseCurrencyUnlocked({ userId })` after `requireScope` and, when the tool is gated, after `requireFeatureAccess` mirrors `checkBaseCurrencyLock`. The lock follows the REST route, not the tool's name or scope:
   - a write tool whose route has no lock goes into `LOCK_EXEMPT_TOOLS` (with the route in a comment);
   - a read-named tool whose route carries the lock (`preview_transaction_automation`) calls `getUserId` → `assertBaseCurrencyUnlocked` → `trackMcpToolUsed`, and goes into `LOCK_GUARDED_READ_TOOLS`.
@@ -119,7 +123,7 @@ Every tool is a thin wrapper over the service its REST route uses. Parity with R
 
 ### 2. Register the tool in `server.ts`
 
-Add the import (alphabetical) and call it inside `createMcpServer()`:
+Add the import (alphabetical) and call it inside `registerAllTools()`:
 
 ```typescript
 import { registerMyNewTool } from './tools/my-new-tool';
@@ -203,8 +207,8 @@ It covers four drift suites and every tool unit test:
 
 - `server-card-drift` — tool names in the files equal `server-card.json`;
 - `agent-skills-drift` — the SKILL.md sha256;
-- `tool-scopes-drift` — scopes, `DESTRUCTIVE_TOOLS`, the lock lists and `READ_ONLY_ROUTE_TOOLS`;
-- `server-registration-drift` — every `registerX` is imported and called exactly once in `server.ts`.
+- `tool-scopes-drift` — checks scopes and the lock rules against the lists in `tool-classification.ts` (`DESTRUCTIVE_TOOLS`, the lock lists, `READ_ONLY_ROUTE_TOOLS`);
+- `server-registration-drift` — every `registerX` is imported and called exactly once in `registerAllTools` in `server.ts`.
 
 If any fail:
 
@@ -212,7 +216,7 @@ If any fail:
 - **`every tool has a non-empty description`** → description missing in `server-card.json`.
 - **`sha256 matches`** → re-run `shasum -a 256` and paste again.
 - **`every skill URL resolves`** → `SKILL.md` file path is wrong.
-- **lock or scope case** → the tool lacks `assertBaseCurrencyUnlocked` or `requireScope`; or it belongs in `LOCK_EXEMPT_TOOLS`, `LOCK_GUARDED_READ_TOOLS`, `DESTRUCTIVE_TOOLS` or `READ_ONLY_ROUTE_TOOLS` after you checked its route.
+- **lock or scope case** → the tool lacks `assertBaseCurrencyUnlocked` or `requireScope`; or it belongs in `LOCK_EXEMPT_TOOLS`, `LOCK_GUARDED_READ_TOOLS`, `DESTRUCTIVE_TOOLS` or `READ_ONLY_ROUTE_TOOLS` in `tool-classification.ts` after you checked its route.
 - **registration case** → `server.ts` lacks the import or the `registerX(server)` call.
 
 Delegate to the `test-runner` subagent (per CLAUDE.md rules).
