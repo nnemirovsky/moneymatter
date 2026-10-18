@@ -59,6 +59,23 @@ describe('cli env builders', () => {
     expect(buildClaudeEnv({ home: '/tmp/home' })).not.toHaveProperty('CLAUDE_CODE_OAUTH_TOKEN');
   });
 
+  it('hands the chat bridge token to a chat run through MM_CHAT_TOKEN and to nothing else', () => {
+    expect(buildClaudeEnv({ home: '/tmp/home', chatToken: 'mmchat_abc' })).toMatchObject({
+      MM_CHAT_TOKEN: 'mmchat_abc',
+      ENABLE_TOOL_SEARCH: 'false',
+    });
+    expect(buildCodexEnv({ codexHome: '/tmp/codex-home', chatToken: 'mmchat_abc' })).toMatchObject({
+      MM_CHAT_TOKEN: 'mmchat_abc',
+    });
+
+    process.env.MM_CHAT_TOKEN = 'mmchat_from_the_server_env';
+
+    for (const env of [buildClaudeEnv({ home: '/tmp/home' }), buildCodexEnv({ codexHome: '/tmp/codex-home' })]) {
+      expect(env).not.toHaveProperty('MM_CHAT_TOKEN');
+      expect(env).not.toHaveProperty('ENABLE_TOOL_SEARCH');
+    }
+  });
+
   it('builds the Codex env around CODEX_HOME', () => {
     expect(buildCodexEnv({ codexHome: '/tmp/codex-home' })).toMatchObject({
       CODEX_HOME: '/tmp/codex-home',
