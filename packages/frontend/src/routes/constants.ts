@@ -50,6 +50,8 @@ export const ROUTES_NAMES = Object.freeze({
   automations: `${ROUTER_LAYOUTS.dashboard}.automations`,
   automationCreate: `${ROUTER_LAYOUTS.dashboard}.automations.create`,
   automationDetails: `${ROUTER_LAYOUTS.dashboard}.automations.details`,
+  chat: `${ROUTER_LAYOUTS.dashboard}.chat`,
+  chatThread: `${ROUTER_LAYOUTS.dashboard}.chat.thread`,
   settings: `${ROUTER_LAYOUTS.dashboard}.settings`,
   settingsCurrencies: `${ROUTER_LAYOUTS.dashboard}.settings.currencies`,
   settingsCategories: `${ROUTER_LAYOUTS.dashboard}.settings.categories`,

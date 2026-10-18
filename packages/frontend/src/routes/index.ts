@@ -330,6 +330,20 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/automations/editor.vue'),
         meta: { navSection: 'transactions', i18nChunks: ['pages/automations'] },
       },
+      // One page for both records: the conversation is read from the `threadId` param, so moving between
+      // threads (or to a new chat) keeps the page and its thread list mounted.
+      {
+        path: '/chat',
+        name: ROUTES_NAMES.chat,
+        component: () => import('@/pages/chat/index.vue'),
+        meta: { navSection: 'chat', i18nChunks: ['pages/chat'] },
+      },
+      {
+        path: '/chat/:threadId',
+        name: ROUTES_NAMES.chatThread,
+        component: () => import('@/pages/chat/index.vue'),
+        meta: { navSection: 'chat', i18nChunks: ['pages/chat'] },
+      },
       {
         path: '/settings',
         name: ROUTES_NAMES.settings,
