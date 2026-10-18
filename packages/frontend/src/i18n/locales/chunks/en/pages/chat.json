@@ -291,6 +291,12 @@
         "settings": "Change {entity}",
         "action": "Run action: {entity}"
       }
+    },
+    "errors": {
+      "threadAction": "Could not update the conversation. Try again.",
+      "cardAction": "Could not complete that action. Try again.",
+      "sendFailed": "Could not send the message. Try again.",
+      "settingsFailed": "Could not save the chat settings. Try again."
     }
   }
 }
