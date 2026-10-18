@@ -1066,23 +1066,23 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 
 **Files:**
 
-- Create: `tools/{get-transaction-templates,create-transaction-template,update-transaction-template,delete-transaction-template,apply-transaction-automation,get-category-transaction-count}.ts`, `tools/template-tools.unit.ts`
-- Modify: `tools/get-transaction-groups.ts` (`groupId`), `tools/get-tags.ts` (`tagId`), the four metafiles
+- Create: `tools/template-output.ts`, `tools/{get-transaction-templates,create-transaction-template,update-transaction-template,delete-transaction-template,apply-transaction-automation,get-category-transaction-count}.ts`, `tools/template-tools.unit.ts`
+- Modify: `controllers/transaction-templates/{schema,update-transaction-template}.ts` (shared `updateTemplateBodySchema`), `tools/delete-category.ts` (points to the count tool), `tools/get-transaction-groups.ts` (`groupId`), `tools/get-tags.ts` (`tagId`), the four metafiles
 
-- [ ] read first: `controllers/transaction-templates/*` (`schema.ts`), `services/transaction-templates`, `controllers/transaction-automations/apply-to-history.ts`, `services/transaction-automations/zod-schemas`, `controllers/categories.controller/get-category-transaction-count.ts`
-- [ ] `get_transaction_templates` (read). The description says templates are named presets for new transactions.
-- [ ] `create_transaction_template` (`finance:write`):
+- [x] read first: `controllers/transaction-templates/*` (`schema.ts`), `services/transaction-templates`, `controllers/transaction-automations/apply-to-history.ts`, `services/transaction-automations/zod-schemas`, `controllers/categories.controller/get-category-transaction-count.ts`
+- [x] `get_transaction_templates` (read). The description says templates are named presets for new transactions.
+- [x] `create_transaction_template` (`finance:write`):
   - `name`, `transactionType`, plus optional `amount`, `accountId`, `categoryId`, `payeeId`, `paymentType`, `note`, `originalCurrencyCode`, `tagIds`, from the REST schema;
   - a pinned amount needs `accountId`, and duplicate names give the 409 message.
-- [ ] `update_transaction_template` (`finance:write`): `templateId` plus the partial fields. `null` clears, and `tagIds` replaces the set.
-- [ ] `delete_transaction_template` (`finance:delete`).
-- [ ] `apply_transaction_automation` (`finance:write`): `automationId`, `transactionIds` (1 to `AUTOMATION_LIMITS.maxApplyIds`) → `applyAutomationToHistory`.
-- [ ] `get_category_transaction_count` (read): `categoryId` → `countCategoryTransactions`. The description points to it before `delete_category`.
-- [ ] `get_transaction_groups`: optional `groupId` → `getTransactionGroupById`.
-- [ ] `get_tags`: optional `tagId` → `getTagById`.
-- [ ] unit test `template-tools.unit.ts`, covering the two extensions.
-- [ ] metafiles: templates under a new `// Transaction templates` group, the rest under their existing groups.
-- [ ] gate:
+- [x] `update_transaction_template` (`finance:write`): `templateId` plus the partial fields. `null` clears, and `tagIds` replaces the set.
+- [x] `delete_transaction_template` (`finance:delete`).
+- [x] `apply_transaction_automation` (`finance:write`): `automationId`, `transactionIds` (1 to `AUTOMATION_LIMITS.maxApplyIds`) → `applyAutomationToHistory`.
+- [x] `get_category_transaction_count` (read): `categoryId` → `countCategoryTransactions`. The description points to it before `delete_category`.
+- [x] `get_transaction_groups`: optional `groupId` → `getTransactionGroupById`.
+- [x] `get_tags`: optional `tagId` → `getTagById`.
+- [x] unit test `template-tools.unit.ts`, covering the two extensions (36 cases, seen red on assertions against stub tools first).
+- [x] metafiles: templates under a new `// Transaction templates` group, the rest under their existing groups.
+- [x] gate:
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/transaction-templates/transaction-templates|services/transaction-automations/apply-to-history|controllers/categories.controller/get-category-transaction-count|services/transaction-groups/transaction-groups|services/tags/tags|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
