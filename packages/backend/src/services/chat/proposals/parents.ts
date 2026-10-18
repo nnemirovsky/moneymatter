@@ -18,7 +18,8 @@ export const loadParentRows = ({
 /**
  * The cards a proposal refers to must exist, belong to this user and thread, and still be
  * pending; a standalone tool takes part in no chain; and the refs may not loop back. Used when a
- * card is made and again when it is edited.
+ * card is made and again when it is edited. A card being edited may keep a ref to a parent that was
+ * applied on its own since (`appliedParents`): the approval swaps that ref for the id the parent made.
  */
 export async function resolveParents({
   userId,
@@ -26,12 +27,15 @@ export async function resolveParents({
   proposalId,
   refs,
   policy,
+  appliedParents = [],
 }: {
   userId: number;
   threadId: string;
   proposalId: string;
   refs: string[];
   policy: ResolvedToolPolicy;
+  /** Refs the card already held, which may now point at an applied card. */
+  appliedParents?: readonly string[];
 }): Promise<ChatProposals[]> {
   if (refs.length === 0) return [];
   if (policy.standalone) {
@@ -48,7 +52,7 @@ export async function resolveParents({
         `Unknown proposal $proposal:${id}. Refer only to proposals you made in this conversation, with the ref a propose call returned.`,
       );
     }
-    if (parent.status !== 'pending') {
+    if (parent.status !== 'pending' && !(parent.status === 'applied' && appliedParents.includes(id))) {
       throw new ToolInputError(
         `Proposal $proposal:${id} is ${parent.status}, so it cannot be referred to. Use the real id of the ${parent.entity}, or propose it again.`,
       );

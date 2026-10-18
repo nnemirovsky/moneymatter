@@ -259,6 +259,32 @@ describe('Chat card actions', () => {
       expect(errorOf({ response: late }).details).toMatchObject({ reason: 'revision', card: { revision: 2 } });
     });
 
+    it('edits a card whose parent was approved on its own, and applies it with the parent’s real id', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const { cards } = await proposeCards({ turns: categoryAndTransaction({ accountId: account.id }) });
+      const category = cardFor({ cards, toolName: 'create_category' });
+      const tx = cardFor({ cards, toolName: 'create_transaction' });
+      const approvedParent = await helpers.approveChatProposal({ proposalId: category.id, payload: { revision: 1 } });
+      expect(approvedParent.statusCode).toBe(200);
+
+      // The child still holds the ref to its parent, and the frontend sends the whole argument set back.
+      const edited = await helpers.editChatProposal({
+        proposalId: tx.id,
+        payload: {
+          revision: 1,
+          args: transactionArgs({ accountId: account.id, categoryId: `$proposal:${category.id}`, note: 'Edited' }),
+        },
+      });
+
+      expect(edited.statusCode).toBe(200);
+      expect(edited.body.response).toMatchObject({ id: tx.id, status: 'pending', revision: 2, editedByUser: true });
+      const approved = await helpers.approveChatProposal({ proposalId: tx.id, payload: { revision: 2 } });
+      expect(approved.statusCode).toBe(200);
+      const [created] = await helpers.getTransactions({ raw: true });
+      const realCategory = (await helpers.getCategoriesList()).find((item) => item.name === 'Chat Dining')!;
+      expect(created).toMatchObject({ note: 'Edited', categoryId: realCategory.id });
+    });
+
     it('answers 422 for arguments that fail the tool schema, and for ones that fail its validator', async () => {
       const account = await helpers.createAccount({ raw: true });
       const { cards } = await proposeCards({

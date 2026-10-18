@@ -61,7 +61,14 @@ const editTransaction = withTransaction(
     let parents: ChatProposals[];
     try {
       ({ refs } = validateWithRefs({ entry, args }));
-      parents = await resolveParents({ userId, threadId: row.threadId, proposalId, refs, policy });
+      parents = await resolveParents({
+        userId,
+        threadId: row.threadId,
+        proposalId,
+        refs,
+        policy,
+        appliedParents: row.dependsOn,
+      });
     } catch (error) {
       if (error instanceof ToolInputError) throw new ValidationError({ message: error.message });
       throw error;
