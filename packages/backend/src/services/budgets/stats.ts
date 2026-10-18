@@ -319,7 +319,7 @@ const aggregateTransactionStats = ({
 };
 
 /** The stats with the `decimals` their minor units are at, which the serializer needs to turn them into decimals. */
-export interface BudgetStatsResult {
+interface BudgetStatsResult {
   stats: StatsResponse;
   decimals: number;
 }
