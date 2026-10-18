@@ -1,5 +1,6 @@
 import { withTransaction } from '@services/common/with-transaction';
 
+import { cancelRunsOfThread, findStreamingRunIds } from '../runs/cancel';
 import { findThreadOrThrow } from './find-thread';
 import { notifyThreadUpdated } from './thread-events';
 
@@ -7,11 +8,16 @@ import { notifyThreadUpdated } from './thread-events';
 const deleteThreadTransactional = withTransaction(
   async ({ userId, threadId }: { userId: number; threadId: string }) => {
     const thread = await findThreadOrThrow({ userId, threadId });
+    const runIds = await findStreamingRunIds({ threadId });
     await thread.destroy();
+
+    return runIds;
   },
 );
 
 export const deleteThread = async ({ userId, threadId }: { userId: number; threadId: string }): Promise<void> => {
-  await deleteThreadTransactional({ userId, threadId });
+  const runIds = await deleteThreadTransactional({ userId, threadId });
+  // A run that is still going has nothing left to write to; stop it so it stops spending tokens.
+  await cancelRunsOfThread({ runIds });
   notifyThreadUpdated({ userId, threadId });
 };

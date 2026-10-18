@@ -1,10 +1,14 @@
-import { API_ERROR_CODES } from '@bt/shared/types';
+import { AI_PROVIDER, API_ERROR_CODES } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
 import { PNG_1X1_BASE64 } from '@tests/fixtures/statement-parser-fixtures';
 import * as helpers from '@tests/helpers';
+import { createChatScript, failOnUnscriptedChatRequests } from '@tests/mocks/openai-compatible/chat-script';
+import { CUSTOM_ENDPOINT_MODEL, getCustomEndpointSuccessMock } from '@tests/mocks/openai-compatible/mock-api';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+failOnUnscriptedChatRequests();
 
 const becomeReadOnly = () => helpers.setUserBilling({ trialEndsAt: new Date(Date.now() - DAY_MS) });
 
@@ -48,6 +52,32 @@ describe('Chat for a read-only user (lapsed plan)', () => {
     expect(csv.statusCode).toBe(201);
     expect(image.statusCode).toBe(201);
     expect(served.statusCode).toBe(200);
+  });
+
+  it('lets a read-only user send a message and cancel a run', async () => {
+    // A plan lapses only in cloud mode, where the outbound URL guard admits public addresses alone.
+    const baseUrl = 'http://93.184.216.34/v1';
+    global.mswMockServer.use(getCustomEndpointSuccessMock({ baseUrl }));
+    await helpers.createAiConnection({
+      provider: AI_PROVIDER.custom,
+      name: 'Public endpoint',
+      baseUrl,
+      model: CUSTOM_ENDPOINT_MODEL,
+      raw: true,
+    });
+    global.mswMockServer.use(
+      createChatScript({ baseUrl, turns: [{ text: ['Working', ' on it'], pieceDelayMs: 8_000 }] }).handler,
+    );
+    const thread = await helpers.createChatThread({ raw: true });
+    await becomeReadOnly();
+
+    const sent = await helpers.sendChatMessage({ threadId: thread.id, payload: { text: 'Hello' } });
+    expect(sent.statusCode).toBe(202);
+    const cancelled = await helpers.cancelChatRun({ runId: sent.body.response.runId });
+    const stream = await helpers.getChatRunEvents({ runId: sent.body.response.runId });
+
+    expect(cancelled.statusCode).toBe(200);
+    expect(stream.events.at(-1)).toMatchObject({ type: 'run.finished', status: 'cancelled' });
   });
 
   it('lets a read-only user change retention', async () => {

@@ -6,6 +6,7 @@ import Users from '@models/users.model';
 import { RateLimitService } from '@services/common/rate-limit.service';
 import {
   CHAT_ATTACHMENT_LIMIT,
+  CHAT_MESSAGE_LIMIT,
   RATE_SOURCE_SAVE_LIMIT,
   RATE_SOURCE_TEST_LIMIT,
   type UserRateLimit,
@@ -353,6 +354,9 @@ const createUserRateLimit = ({ limit }: { limit: UserRateLimit }) =>
 
 /** Chat attachment upload limit; the budget and its reason are on `CHAT_ATTACHMENT_LIMIT`. */
 export const chatAttachmentRateLimit = createUserRateLimit({ limit: CHAT_ATTACHMENT_LIMIT });
+
+/** Chat message limit; the budget and its reason are on `CHAT_MESSAGE_LIMIT`. */
+export const chatMessageRateLimit = createUserRateLimit({ limit: CHAT_MESSAGE_LIMIT });
 
 /** Rate-source preview limit; the budget and its reason are on `RATE_SOURCE_TEST_LIMIT`. */
 export const rateSourceTestRateLimit = createUserRateLimit({ limit: RATE_SOURCE_TEST_LIMIT });

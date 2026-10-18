@@ -2,7 +2,11 @@ import {
   ATTACHMENT_FILENAME_HEADER,
   CHAT_DOCUMENT_PASSWORD_HEADER,
   type ChatAttachment,
+  type ChatCancelRunResponse,
   type ChatRetentionDays,
+  type ChatRunEvent,
+  type ChatSendMessageRequest,
+  type ChatSendMessageResponse,
   type ChatSettings,
   type ChatThread,
   type ChatThreadListPage,
@@ -195,3 +199,81 @@ export function buildTextPdf({ pages }: { pages: string[] }): Buffer {
   body += `trailer\n<< /Size ${size} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`;
   return Buffer.from(body, 'latin1');
 }
+
+export async function sendChatMessage<R extends boolean | undefined = undefined>({
+  threadId,
+  payload,
+  raw,
+}: {
+  threadId: string;
+  /** Typed wide so a test can send a body the API must refuse. */
+  payload: Partial<ChatSendMessageRequest> & Record<string, unknown>;
+  raw?: R;
+}) {
+  return makeRequest<ChatSendMessageResponse, R>({
+    method: 'post',
+    url: `/chat/threads/${threadId}/messages`,
+    payload,
+    raw,
+  });
+}
+
+export async function cancelChatRun<R extends boolean | undefined = undefined>({
+  runId,
+  raw,
+}: {
+  runId: string;
+  raw?: R;
+}) {
+  return makeRequest<ChatCancelRunResponse, R>({ method: 'post', url: `/chat/runs/${runId}/cancel`, raw });
+}
+
+/** A run event as the SSE stream delivered it: `streamId` is the frame's `id:` (absent on a synthetic event). */
+export type ReceivedChatRunEvent = ChatRunEvent & { streamId: string | null };
+
+const textParser = (res: NodeJS.ReadableStream, callback: (err: Error | null, body: string) => void) => {
+  let text = '';
+  res.setEncoding('utf8');
+  res.on('data', (chunk: string) => (text += chunk));
+  res.on('end', () => callback(null, text));
+};
+
+/**
+ * Reads a run's SSE stream to its end. The server closes the stream after `run.finished`, so for a
+ * live run this also waits for the run to finish.
+ */
+export async function getChatRunEvents({ runId, lastEventId }: { runId: string; lastEventId?: string }) {
+  const base = request(app).get(`${API_PREFIX}/chat/runs/${runId}/events`).buffer(true).parse(textParser);
+  if (global.APP_AUTH_COOKIES) base.set('Cookie', global.APP_AUTH_COOKIES);
+  if (lastEventId !== undefined) base.set('Last-Event-ID', lastEventId);
+
+  const result = await base;
+  const body: unknown = result.body;
+  const frames = typeof body === 'string' ? body.split('\n\n') : [];
+  const events: ReceivedChatRunEvent[] = [];
+
+  for (const frame of frames) {
+    const lines = frame.split('\n').filter((line) => !line.startsWith(':'));
+    const type = lines.find((line) => line.startsWith('event: '))?.slice('event: '.length);
+    if (!type) continue;
+
+    const streamId = lines.find((line) => line.startsWith('id: '))?.slice('id: '.length) ?? null;
+    const data = lines.find((line) => line.startsWith('data: '))?.slice('data: '.length) ?? '{}';
+    events.push({ type, ...(JSON.parse(data) as object), streamId } as ReceivedChatRunEvent);
+  }
+
+  return {
+    statusCode: result.status,
+    contentType: result.headers['content-type'] as string | undefined,
+    events,
+    /** The error message when the stream was refused. */
+    errorMessage:
+      result.status === 200
+        ? null
+        : ((JSON.parse(String(body)) as { response?: { message?: string } }).response?.message ?? null),
+  };
+}
+
+/** The text a run streamed, from its `text.delta` events. */
+export const streamedChatText = ({ events }: { events: ReceivedChatRunEvent[] }): string =>
+  events.flatMap((event) => (event.type === 'text.delta' ? [event.delta] : [])).join('');

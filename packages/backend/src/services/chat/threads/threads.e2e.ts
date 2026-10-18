@@ -7,13 +7,18 @@ import { app } from '@root/app';
 import { API_PREFIX } from '@root/config';
 import { sseManager } from '@services/common/sse';
 import * as helpers from '@tests/helpers';
+import { useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
 import type { ErrorResponse } from '@tests/helpers/common';
+import { createChatScript, failOnUnscriptedChatRequests } from '@tests/mocks/openai-compatible/chat-script';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Arranges a stored message the way a finished run leaves it; messages cannot be created over HTTP yet. */
+useSelfHostWithoutServerAiKeys();
+failOnUnscriptedChatRequests();
+
+/** Arranges a stored message the way a finished run leaves it, without a model run. */
 async function seedMessage({
   threadId,
   plainText,
@@ -404,6 +409,31 @@ describe('Chat threads', () => {
 
       const none = await helpers.listChatThreads({ q: 'espresso', raw: true });
       expect(none.threads).toEqual([]);
+    });
+
+    it('finds a thread by a word of an answer the model gave, by prefix, in English and in Ukrainian', async () => {
+      await helpers.createFirstConnection();
+      global.mswMockServer.use(
+        createChatScript({ turns: [{ text: 'About forty euros.' }, { text: 'Близько сорока євро.' }] }).handler,
+      );
+      const english = await helpers.createChatThread({ raw: true });
+      const ukrainian = await helpers.createChatThread({ raw: true });
+      for (const [threadId, text] of [
+        [english.id, 'How much did I spend on coffee?'],
+        [ukrainian.id, 'Скільки я витратив на каву?'],
+      ] as const) {
+        const { runId } = await helpers.sendChatMessage({ threadId, payload: { text }, raw: true });
+        await helpers.getChatRunEvents({ runId });
+      }
+
+      // Neither word is in a title: the hits come from the text of the answers.
+      const byEnglish = await helpers.listChatThreads({ q: 'fort', raw: true });
+      expect(byEnglish.threads.map((thread) => thread.id)).toEqual([english.id]);
+      expect(byEnglish.threads[0]!.snippet).toContain('forty');
+
+      const byUkrainian = await helpers.listChatThreads({ q: 'сорок', raw: true });
+      expect(byUkrainian.threads.map((thread) => thread.id)).toEqual([ukrainian.id]);
+      expect(byUkrainian.threads[0]!.snippet).toContain('сорока');
     });
 
     it('survives characters that are operators in a text-search query', async () => {

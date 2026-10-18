@@ -46,3 +46,11 @@ export const CHAT_ATTACHMENT_LIMIT = userRateLimit({
   windowSeconds: 10 * 60,
   maxAttempts: 30,
 });
+
+/**
+ * Chat message limit (30 messages per 10 minutes). Every message starts a model run that spends the
+ * user's own provider quota or subscription, so the budget bounds a runaway client or script; a
+ * conversation by hand stays far below it. Card comments draw from the same budget, since they start
+ * runs too.
+ */
+export const CHAT_MESSAGE_LIMIT = userRateLimit({ prefix: 'chat-message', windowSeconds: 10 * 60, maxAttempts: 30 });

@@ -8,6 +8,7 @@ import { attachmentsOrphanSweepCron } from './crons/attachments-orphan-sweep';
 import { balanceRevalueSweepCron } from './crons/balance-revalue-sweep';
 import { bankAccountsSyncCron } from './crons/bank-accounts-sync';
 import { budgetPlansPurgeCron } from './crons/budget-plans-purge';
+import { chatRunSweepCron } from './crons/chat-run-sweep';
 import { coingeckoRatesSyncCron } from './crons/coingecko-rates-sync';
 import { cryptoPricesSyncCron } from './crons/crypto-prices-sync';
 import { demoCleanupCron } from './crons/demo-cleanup';
@@ -23,6 +24,8 @@ import { subscriptionAutoRecordCron } from './crons/subscription-auto-record';
 import { subscriptionCandidateDetectionCron } from './crons/subscription-candidate-detection';
 import { subscriptionRemindersCron } from './crons/subscription-reminders-check';
 import { tagRemindersCron } from './crons/tag-reminders-check';
+import { shutdownChatRuns } from './services/chat/runs/run-manager';
+import { chatTailHub } from './services/chat/runs/tail-hub';
 import { initializeHistoricalRates } from './services/exchange-rates/initialize-historical-rates.service';
 
 const allEnvCrons = [demoCleanupCron, demoTemplateRefreshCron];
@@ -50,6 +53,13 @@ export function initializeBackgroundJobs() {
   const isOfflineMode = process.env.OFFLINE_MODE === 'true';
   const isTestMode = process.env.NODE_ENV === 'test';
 
+  // Chat runs need no internet (a local model is a normal setup), so recovering the ones a restart
+  // cut short does not wait for the online-only jobs. The first sweep runs now, the cron repeats it.
+  if (!isTestMode) {
+    chatRunSweepCron.startCron();
+    chatRunSweepCron.triggerManualSync().catch(() => undefined);
+  }
+
   if (isOfflineMode || isTestMode) {
     logger.info(`[${isTestMode ? 'Test' : 'Offline'} Mode] Skipping background jobs that require internet connection`);
     return;
@@ -68,13 +78,17 @@ export function initializeBackgroundJobs() {
 }
 
 export async function shutdownBackgroundJobs() {
-  for (const cron of [...allEnvCrons, ...prodOnlyCrons]) cron.stopCron();
+  for (const cron of [...allEnvCrons, ...prodOnlyCrons, chatRunSweepCron]) cron.stopCron();
   loadCurrencyRatesJob.stop();
   // Kills live CLI sign-in PTYs so they don't outlive the server with credentials in temp dirs
   resetCliAuthSessions();
   // Aborts in-flight CLI runs (killing their process groups) and lets the Codex home write-back and
   // temp dir removal finish, so no child or auth.json outlives the server. Bounded at ~3 s.
   await abortAllCliRuns();
+  // Interrupts the chat runs of this process (their messages end as interrupted), then closes the
+  // Redis connection their streams are tailed on.
+  await shutdownChatRuns();
+  await chatTailHub.close();
   await accountSyncWorker.close();
   // Flush remaining PostHog events before exit
   await shutdownPostHog();
