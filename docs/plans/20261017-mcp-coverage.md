@@ -1355,18 +1355,19 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 
 - Create: `tools/{create-budget-plan-line,update-budget-plan-line,delete-budget-plan-line,archive-budget-plan-line,add-suggested-budget-plan-lines,set-budget-plan-layout}.ts`, `tools/budget-plan-line-tools.unit.ts`
 - Modify: the four metafiles
+- Also (added): `services/budget-plans/zod-schemas.ts` gains the line create, patch and layout bodies, and the three matching controllers (`create-line`, `update-line`, `set-layout`) import them, so REST validation is unchanged
 
-- [ ] read first: `controllers/budget-plans/*` (the line, suggested-line and layout handlers), `services/budget-plans/{create-line,update-line,delete-line,line-groups,suggested-lines,suggested-lines-ai}.ts`
-- [ ] all writes call `requireFeatureAccess` `budget_plan`.
-- [ ] `create_budget_plan_line` (`finance:write`): `planId`, `name`, `categoryIds` (≥ 1), `sortOrder?`, `groupId?`, `activeFrom?`.
-- [ ] `update_budget_plan_line` (`finance:write`): `planId`, `lineId` + `name`, `sortOrder`, `groupId`, `categoryIds`, `effectiveFrom` (only with `categoryIds`).
-- [ ] `delete_budget_plan_line` (`finance:delete`).
-- [ ] `archive_budget_plan_line` (`finance:write`): `planId`, `lineId`, `archived` → `archiveLine` or `restoreLine`.
-- [ ] `add_suggested_budget_plan_lines` (`finance:write`): `planId`, `answers?` (`budgetSuggestionAnswers`). The description says it may use the server's AI and falls back to spending-based lines without it.
-- [ ] `set_budget_plan_layout` (`finance:write`): `planId`, `groups[{ id, lineIds }]`, `ungroupedLineIds`. The description says every group must be listed once.
-- [ ] unit test `budget-plan-line-tools.unit.ts`.
-- [ ] metafiles under `// Budget plans`.
-- [ ] gate:
+- [x] read first: `controllers/budget-plans/*` (the line, suggested-line and layout handlers), `services/budget-plans/{create-line,update-line,delete-line,line-groups,suggested-lines,suggested-lines-ai}.ts`
+- [x] all writes call `requireFeatureAccess` `budget_plan`.
+- [x] `create_budget_plan_line` (`finance:write`): `planId`, `name`, `categoryIds` (≥ 1), `sortOrder?`, `groupId?`, `activeFrom?`.
+- [x] `update_budget_plan_line` (`finance:write`): `planId`, `lineId` + `name`, `sortOrder`, `groupId`, `categoryIds`, `effectiveFrom` (only with `categoryIds`).
+- [x] `delete_budget_plan_line` (`finance:delete`).
+- [x] `archive_budget_plan_line` (`finance:write`): `planId`, `lineId`, `archived` → `archiveLine` or `restoreLine`.
+- [x] `add_suggested_budget_plan_lines` (`finance:write`): `planId`, `answers?` (`budgetSuggestionAnswers`). The description says it may use the server's AI and falls back to spending-based lines without it.
+- [x] `set_budget_plan_layout` (`finance:write`): `planId`, `groups[{ id, lineIds }]`, `ungroupedLineIds`. The description says every group must be listed once.
+- [x] unit test `budget-plan-line-tools.unit.ts`.
+- [x] metafiles under `// Budget plans`.
+- [x] gate:
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/budget-plans/(lines|line-groups|suggested-lines|merge-lines-on-category-delete)|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
