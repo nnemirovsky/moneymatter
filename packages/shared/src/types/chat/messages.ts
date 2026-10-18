@@ -1,4 +1,5 @@
 import type { ChatEntityRef } from './fields';
+import type { ChatProposalCard } from './proposals';
 import type { ChatThread, ChatUsage } from './threads';
 import type { ChatVisualSpec } from './visuals';
 
@@ -167,9 +168,13 @@ export interface ChatMessage {
   createdAt: string;
 }
 
-/** A thread with a page of its messages, oldest first. `hasMore` says older messages exist before the first one. */
+/**
+ * A thread with a page of its messages, oldest first. `hasMore` says older messages exist before the
+ * first one. `cards` holds, by id, the current card of every `proposal` part on the page.
+ */
 export interface ChatThreadWithMessages {
   thread: ChatThread;
   messages: ChatMessage[];
   hasMore: boolean;
+  cards: Record<string, ChatProposalCard>;
 }

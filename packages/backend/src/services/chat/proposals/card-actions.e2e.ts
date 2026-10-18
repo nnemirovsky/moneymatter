@@ -107,6 +107,64 @@ describe('Chat card actions', () => {
     });
   });
 
+  describe('GET /chat/threads/:id cards', () => {
+    it('returns the current card of every proposal part on the page, by id', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const { cards, threadId } = await proposeCards({ turns: categoryAndTransaction({ accountId: account.id }) });
+      const category = cardFor({ cards, toolName: 'create_category' });
+      const tx = cardFor({ cards, toolName: 'create_transaction' });
+      await helpers.rejectChatProposal({ proposalId: category.id });
+
+      const page = await helpers.getChatThread({ threadId, raw: true });
+
+      expect(Object.keys(page.cards).sort()).toEqual([category.id, tx.id].sort());
+      expect(page.cards[category.id]).toMatchObject({
+        id: category.id,
+        status: 'rejected',
+        toolName: 'create_category',
+      });
+      expect(page.cards[tx.id]).toMatchObject({ id: tx.id, status: 'blocked', toolName: 'create_transaction' });
+      expect(page.cards[tx.id]!.dependsOn.map((parent) => parent.id)).toEqual([category.id]);
+    });
+
+    it('returns only the cards of the messages on the requested page', async () => {
+      const first = await proposeCards({ turns: oneCategory({ name: 'Chat Page One' }) });
+      const second = await proposeCards({ turns: oneCategory({ name: 'Chat Page Two' }), threadId: first.threadId });
+      const firstCard = cardFor({ cards: first.cards, toolName: 'create_category' });
+      const secondCard = cardFor({ cards: second.cards, toolName: 'create_category' });
+
+      const latest = await helpers.getChatThread({ threadId: first.threadId, limit: 2, raw: true });
+      const older = await helpers.getChatThread({
+        threadId: first.threadId,
+        limit: 2,
+        before: latest.messages[0]!.id,
+        raw: true,
+      });
+
+      expect(Object.keys(latest.cards)).toEqual([secondCard.id]);
+      expect(Object.keys(older.cards)).toEqual([firstCard.id]);
+    });
+
+    it('shows a pending card past its lifetime as expired', async () => {
+      const { cards, threadId } = await proposeCards({ turns: oneCategory({ name: 'Chat Page Late' }) });
+      const category = cardFor({ cards, toolName: 'create_category' });
+      await ChatProposals.update({ expiresAt: new Date(Date.now() - DAY_MS) }, { where: { id: category.id } });
+
+      const page = await helpers.getChatThread({ threadId, raw: true });
+
+      expect(page.cards[category.id]).toMatchObject({ status: 'expired' });
+      expect(await ChatProposals.findByPk(category.id)).toMatchObject({ status: 'expired' });
+    });
+
+    it('returns no cards for a thread without proposals', async () => {
+      const thread = await helpers.createChatThread({ raw: true });
+
+      const page = await helpers.getChatThread({ threadId: thread.id, raw: true });
+
+      expect(page.cards).toEqual({});
+    });
+  });
+
   describe('POST /chat/proposals/:id/reject', () => {
     it('rejects a card and blocks the cards that depend on it', async () => {
       const account = await helpers.createAccount({ raw: true });
