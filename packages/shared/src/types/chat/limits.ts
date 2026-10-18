@@ -49,6 +49,7 @@ export const CHAT_SANDBOX_LIMITS = {
   stackBytes: 512 * 1024,
   cpuMs: 2_000,
   wallMs: 5_000,
+  codeBytes: 20 * 1024,
   inputBytes: 8 * 1024 * 1024,
   outputBytes: 256 * 1024,
 } as const;
