@@ -1,5 +1,5 @@
 import type { ChatEntityRef } from './fields';
-import type { ChatUsage } from './threads';
+import type { ChatThread, ChatUsage } from './threads';
 import type { ChatVisualSpec } from './visuals';
 
 export type ChatMessageRole = 'user' | 'assistant';
@@ -165,4 +165,11 @@ export interface ChatMessage {
   stepCount: number;
   error: ChatMessageError | null;
   createdAt: string;
+}
+
+/** A thread with a page of its messages, oldest first. `hasMore` says older messages exist before the first one. */
+export interface ChatThreadWithMessages {
+  thread: ChatThread;
+  messages: ChatMessage[];
+  hasMore: boolean;
 }

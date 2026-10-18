@@ -42,6 +42,10 @@
     "underOwnSubcategory": "Category cannot be moved under its own subcategory.",
     "nestingTooDeep": "Categories cannot be nested deeper than {{max}} levels."
   },
+  "chat": {
+    "threadNotFound": "Chat thread not found",
+    "messageNotFound": "Chat message not found"
+  },
   "transactions": {
     "notFound": "Transaction not found",
     "missingRequiredFields": "One of required fields are missing: destinationAmount, destinationAccountId.",

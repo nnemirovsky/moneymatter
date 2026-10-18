@@ -24,3 +24,9 @@ export interface ChatThread {
 export interface ChatThreadSearchHit extends ChatThread {
   snippet?: string;
 }
+
+/** One page of the thread list. `nextCursor` is the id of the last thread on the page, null on the last page. */
+export interface ChatThreadListPage {
+  threads: ChatThreadSearchHit[];
+  nextCursor: string | null;
+}

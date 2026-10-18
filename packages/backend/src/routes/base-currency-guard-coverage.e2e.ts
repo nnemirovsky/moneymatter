@@ -86,6 +86,13 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   'PUT /api/v1/user/settings/onboarding',
   'PUT /api/v1/user/update',
 
+  // Chat threads and retention: conversation metadata, no monetary data. Approving a card is the
+  // guarded route, and it lands with the cards.
+  'DELETE /api/v1/chat/threads/:id',
+  'PATCH /api/v1/chat/threads/:id',
+  'POST /api/v1/chat/threads',
+  'PUT /api/v1/chat/settings',
+
   // Invoice matching only ranks candidates; the one write is the non-monetary trial counter.
   'POST /api/v1/transactions/match-invoice',
   'POST /api/v1/transactions/match-invoice/candidates',
