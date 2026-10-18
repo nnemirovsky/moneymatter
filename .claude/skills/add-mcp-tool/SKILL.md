@@ -119,7 +119,7 @@ Rules:
 
 Every tool is a thin wrapper over the service its REST route uses. Parity with REST is the rule: the same service, validation, lock, feature gate, rate limit and read-only handling, and the same serializer (slimmed for MCP in `serializers.ts` where the output is large). When a controller holds logic a tool needs (validation, orchestration), move it into a service or a shared schema that both the controller and the tool call. Never copy it into the tool.
 
-**Refined inputs:** the SDK's `inputSchema` is a plain shape of Zod fields, so a rule that spans fields (an either-or, a mutually exclusive pair, a `superRefine`) cannot sit in it. Expose the shared schema's `.shape` as `inputSchema` and run the full shared schema (or an `assert…Args` helper like `assertOriginalCurrencyArgs`) in the handler, on the schema's own fields only: when the tool adds ids beside a strict body schema, destructure them off first (`const { planId, ...body } = args; schema.parse(body)`), or the strict parse rejects the ids. The unit test asserts that the **tool** rejects, not the shape.
+**Refined inputs:** the SDK's `inputSchema` is a plain shape of Zod fields, so a rule that spans fields (an either-or, a mutually exclusive pair, a `superRefine`) cannot sit in it. Expose the shared schema's `.shape` as `inputSchema` and put every check the handler runs on its args (the full shared schema, an `assert…Args` helper like `assertOriginalCurrencyArgs`, a refusal helper like `parseBulkTarget`) in an exported `validate<Pascal>Args({ args })` in the tool file, typed `args: ToolArgs<typeof inputSchema>` (from `./helpers`). It is pure: no guards (scope, feature, lock, rate limit), no I/O, and it returns what it parsed so the handler uses the result. The handler calls it at the point the inline check stood, so the handler body holds no `.parse(`, `.safeParse(`, `assert…Args(` or refusal-helper call of its own. When the tool adds ids beside a strict body schema, the validator destructures them off first (`const { planId, ...body } = args; return { planId, ...schema.parse(body) }`), or the strict parse rejects the ids. Register the validator in `services/mcp/tool-arg-validators.ts` under the tool's name (the chat runs it through the catalog's `validateArgs`); `tool-arg-validators-drift.unit.ts` fails a write tool that checks its args inline without an entry, an entry whose handler does not call the function, and a validator not named `validate<Pascal>Args`. A new refusal helper goes into `ARG_CHECK_HELPERS` in that suite. The unit test asserts that the **tool** rejects, not the shape.
 
 ### 2. Register the tool in `server.ts`
 
@@ -203,12 +203,13 @@ cd packages/backend
 npm run test:unit -- --testPathPattern='services/mcp/'
 ```
 
-It covers four drift suites and every tool unit test:
+It covers five drift suites and every tool unit test:
 
 - `server-card-drift` — tool names in the files equal `server-card.json`;
 - `agent-skills-drift` — the SKILL.md sha256;
 - `tool-scopes-drift` — checks scopes and the lock rules against the lists in `tool-classification.ts` (`DESTRUCTIVE_TOOLS`, the lock lists, `READ_ONLY_ROUTE_TOOLS`);
-- `server-registration-drift` — every `registerX` is imported and called exactly once in `registerAllTools` in `server.ts`.
+- `server-registration-drift` — every `registerX` is imported and called exactly once in `registerAllTools` in `server.ts`;
+- `tool-arg-validators-drift` — every write tool that checks its args inline has a validator registered in `tool-arg-validators.ts`, and its handler calls it.
 
 If any fail:
 
@@ -218,6 +219,7 @@ If any fail:
 - **`every skill URL resolves`** → `SKILL.md` file path is wrong.
 - **lock or scope case** → the tool lacks `assertBaseCurrencyUnlocked` or `requireScope`; or it belongs in `LOCK_EXEMPT_TOOLS`, `LOCK_GUARDED_READ_TOOLS`, `DESTRUCTIVE_TOOLS` or `READ_ONLY_ROUTE_TOOLS` in `tool-classification.ts` after you checked its route.
 - **registration case** → `server.ts` lacks the import or the `registerX(server)` call.
+- **`tool-arg-validators-drift` case** → move the inline check into an exported `validate<Pascal>Args` and register it in `tool-arg-validators.ts`; the handler calls it and holds no check of its own.
 
 Delegate to the `test-runner` subagent (per CLAUDE.md rules).
 
