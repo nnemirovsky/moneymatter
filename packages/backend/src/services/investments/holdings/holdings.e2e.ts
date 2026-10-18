@@ -636,6 +636,109 @@ describe('Investment holdings', () => {
       });
     });
 
+    describe('searchResult for a security that already exists', () => {
+      it("keeps the stored security's metadata when another user sends altered fields, and still adds the holding", async () => {
+        const attacker = await helpers.provisionSecondUserWithBaseCurrency();
+
+        const response = await helpers.asUser({
+          cookies: attacker.cookies,
+          fn: async () => {
+            const attackerPortfolio = await helpers.createPortfolio({
+              payload: helpers.buildPortfolioPayload({ name: 'Attacker portfolio' }),
+              raw: true,
+            });
+            return makeRequest({
+              method: 'post',
+              url: '/investments/holding',
+              payload: {
+                portfolioId: attackerPortfolio.id,
+                searchResult: {
+                  symbol: 'VOO',
+                  providerSymbol: 'VOO',
+                  priceSourceSymbol: 'NOT-A-REAL-SYMBOL',
+                  name: 'Altered name',
+                  assetClass: ASSET_CLASS.stocks,
+                  providerName: SECURITY_PROVIDER.fmp,
+                  currencyCode: 'USD',
+                  exchangeName: 'Altered exchange',
+                  exchangeAcronym: 'ALT',
+                  exchangeMic: 'ALTM',
+                  logoUrl: 'https://attacker.example/logo.png',
+                },
+              },
+            });
+          },
+        });
+
+        expect(response.statusCode).toBe(201);
+
+        const stored = await Securities.findAll({ where: { symbol: 'VOO' } });
+        expect(stored).toHaveLength(1);
+        expect(stored[0]!.id).toBe(vooSecurity.id);
+        expect(stored[0]!.name).toBe(vooSecurity.name);
+        expect(stored[0]!.priceSourceSymbol).toBeNull();
+        expect(stored[0]!.logoUrl).toBeNull();
+        expect(stored[0]!.exchangeName).toBe(vooSecurity.exchangeName);
+        expect(stored[0]!.exchangeAcronym).toBe(vooSecurity.exchangeAcronym);
+        expect(stored[0]!.exchangeMic).toBe(vooSecurity.exchangeMic);
+
+        const holdings = await Holdings.findAll({ where: { securityId: vooSecurity.id } });
+        expect(holdings).toHaveLength(1);
+      });
+
+      it("fetches the first price through the stored security's symbol, not the one in the request", async () => {
+        const mockedYahooQuote = jest.fn<any>().mockResolvedValue({
+          symbol: 'MEUD.PA',
+          regularMarketPreviousClose: 92.5,
+          regularMarketTime: Math.floor(Date.now() / 1000),
+        });
+        mockedYahooFinance.mockImplementation(
+          () =>
+            ({
+              search: jest.fn<any>().mockRejectedValue(new Error('not configured')),
+              quote: mockedYahooQuote,
+              chart: jest.fn<any>().mockResolvedValue({ quotes: [] }),
+            }) as any,
+        );
+        dataProviderFactory.clearCache();
+
+        const seeded = await Securities.create({
+          symbol: 'IE00B53L3W79.IR',
+          providerSymbol: 'IE00B53L3W79.IR',
+          priceSourceSymbol: 'MEUD.PA',
+          name: 'iShares Core EURO STOXX 50',
+          currencyCode: 'EUR',
+          providerName: SECURITY_PROVIDER.yahoo,
+          assetClass: ASSET_CLASS.stocks,
+        });
+
+        const response = await makeRequest({
+          method: 'post',
+          url: '/investments/holding',
+          payload: {
+            portfolioId: investmentPortfolio.id,
+            searchResult: {
+              symbol: 'IE00B53L3W79.IR',
+              providerSymbol: 'IE00B53L3W79.IR',
+              priceSourceSymbol: 'EVIL.PA',
+              name: 'iShares Core EURO STOXX 50',
+              assetClass: ASSET_CLASS.stocks,
+              providerName: SECURITY_PROVIDER.yahoo,
+              currencyCode: 'EUR',
+            },
+          },
+        });
+        expect(response.statusCode).toBe(201);
+
+        const quotedSymbols = mockedYahooQuote.mock.calls.map((call) => call[0]);
+        expect(quotedSymbols).toContain('MEUD.PA');
+        expect(quotedSymbols).not.toContain('EVIL.PA');
+
+        const reloaded = await Securities.findByPk(seeded.id);
+        expect(reloaded?.priceSourceSymbol).toBe('MEUD.PA');
+      });
+    });
+
     describe('cross-provider duplicate detection (symbol+currencyCode dedup)', () => {
       it('rejects adding an existing holding when the new searchResult comes from a different provider', async () => {
         // The duplicate-detection key must treat providerName='fmp' and

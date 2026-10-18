@@ -36,19 +36,15 @@ const addOrUpdateFromProviderImpl = async (
     `Found ${existingByKey.size} matching existing securities for ${securitiesFromProvider.length} incoming entries.`,
   );
 
-  // Partition incoming securities into new inserts vs updates in a single pass
-  const [newSecurities, existingToUpdate] = securitiesFromProvider.reduce<
-    [SecuritySearchResult[], SecuritySearchResult[]]
-  >(
-    (acc, sec) => {
-      (existingByKey.has(securityIdentityKey(sec)) ? acc[1] : acc[0]).push(sec);
-      return acc;
-    },
-    [[], []],
-  );
+  // A row that already stands for the security is left as stored: Securities rows are shared by
+  // every user, and the incoming results can come from a request body, so they never overwrite
+  // the name, logo, price source or exchange of an existing row.
+  const newSecurities = securitiesFromProvider.filter((sec) => !existingByKey.has(securityIdentityKey(sec)));
 
   const newCount = newSecurities.length;
-  logger.info(`New securities to add: ${newCount}. Records to update: ${existingToUpdate.length}.`);
+  logger.info(
+    `New securities to add: ${newCount}. Existing rows left unchanged: ${securitiesFromProvider.length - newCount}.`,
+  );
 
   // Prepare bulk insert payload for new securities
   const securitiesToCreate = newSecurities.map((security) => ({
@@ -71,47 +67,14 @@ const addOrUpdateFromProviderImpl = async (
     await Securities.bulkCreate(securitiesToCreate);
   }
 
-  // Update existing securities metadata where necessary. Update BY ID because
-  // the existing row's (providerName, providerSymbol) may differ from the
-  // incoming search result's – they were matched by symbol+currency for non-crypto.
-  // The row's canonical (providerName, providerSymbol) is preserved; only
-  // mutable metadata is refreshed.
-  if (existingToUpdate.length) {
-    const updatePromises = existingToUpdate.map((sec) => {
-      const existing = existingByKey.get(securityIdentityKey(sec))!;
-      return Securities.update(
-        {
-          symbol: sec.symbol,
-          name: sec.name,
-          assetClass: sec.assetClass,
-          currencyCode: sec.currencyCode.toUpperCase(),
-          cryptoCurrencyCode: sec.cryptoCurrencyCode ?? null,
-          exchangeMic: sec.exchangeMic,
-          exchangeAcronym: sec.exchangeAcronym || null,
-          exchangeName: sec.exchangeName || null,
-          // Preserve existing logoUrl when the incoming row doesn't carry one.
-          // Stock providers leave logoUrl undefined; overwriting would wipe a
-          // value another provider (e.g. CoinGecko) populated.
-          ...(sec.logoUrl !== undefined ? { logoUrl: sec.logoUrl } : {}),
-          // Preserve existing priceSourceSymbol when the incoming row doesn't
-          // carry one. The field is only set by the Yahoo ISIN-fallback path;
-          // ordinary search results would otherwise clear a previously chosen
-          // local-ticker source.
-          ...(sec.priceSourceSymbol != null ? { priceSourceSymbol: sec.priceSourceSymbol } : {}),
-        },
-        { where: { id: existing.id } },
-      );
-    });
-    await Promise.all(updatePromises);
-  }
-
-  logger.info(`Securities sync completed. New: ${newCount}, updated: ${existingToUpdate.length}.`);
+  logger.info(`Securities sync completed. New: ${newCount}.`);
 
   return { newCount };
 };
 
 /**
  * Takes a list of security search results from any provider, checks against
- * the local database, and saves any new securities within a DB transaction.
+ * the local database, and saves the securities it does not have yet within a DB
+ * transaction. A security that already exists is never modified.
  */
 export const addOrUpdateFromProvider = withTransaction(addOrUpdateFromProviderImpl);

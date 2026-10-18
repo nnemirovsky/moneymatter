@@ -31,7 +31,7 @@ const addSecurityFromSearchImpl = async ({
 }: AddSecurityFromSearchParams): Promise<AddSecurityFromSearchResult> => {
   logger.info(`Adding security from search: ${searchResult.symbol} - ${searchResult.name}`);
 
-  // Step 1: Create or update the security using existing service
+  // Step 1: Create the security when it does not exist yet. An existing row is left as stored.
   await addOrUpdateFromProvider([searchResult]);
 
   // Step 2: Resolve the created/updated row via the shared identity helper –
@@ -50,15 +50,16 @@ const addSecurityFromSearchImpl = async ({
   // Step 3: Fetch and store the latest price immediately (unless skipped)
   let latestPrice: AddSecurityFromSearchResult['latestPrice'];
 
-  // Route the latest-price call through `priceSourceSymbol` when set so the
-  // row's first stored price comes from a venue with dense data instead of
-  // the sparse ISIN-suffix listing (Yahoo ISIN-fallback path). Declared outside
-  // the try so the catch can reference it when annotating failure logs.
-  const priceQuerySymbol = searchResult.priceSourceSymbol ?? searchResult.providerSymbol;
+  // Route the latest-price call through the stored row's `priceSourceSymbol` when set so the
+  // row's first stored price comes from a venue with dense data instead of the sparse
+  // ISIN-suffix listing (Yahoo ISIN-fallback path). The stored row decides the provider and
+  // symbol, never the request: the price lands on a row that every user shares. Declared
+  // outside the try so the catch can reference it when annotating failure logs.
+  const priceQuerySymbol = security.priceQuerySymbol;
 
   if (!skipPriceFetch) {
     try {
-      const provider = dataProviderFactory.getProvider(searchResult.providerName);
+      const provider = dataProviderFactory.getProvider(security.providerName);
       // TODO: consider using composite provider here
       const priceData = await provider.getLatestPrice(toProviderSymbol(priceQuerySymbol));
 
@@ -88,7 +89,7 @@ const addSecurityFromSearchImpl = async ({
       // actionable — keep it visible in Loki via info, but never page Sentry.
       // Persistent provider breakage surfaces through the daily sync instead.
       const routedVia =
-        priceQuerySymbol !== searchResult.providerSymbol ? ` (routed via priceSourceSymbol=${priceQuerySymbol})` : '';
+        priceQuerySymbol !== security.providerSymbol ? ` (routed via priceSourceSymbol=${priceQuerySymbol})` : '';
       logger.info(
         `Failed to fetch latest price for ${searchResult.symbol}${routedVia} (will be backfilled by daily sync)`,
         {
