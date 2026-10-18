@@ -1274,17 +1274,18 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 
 - Create: `tools/{get-vehicles,create-vehicle,update-vehicle,delete-vehicle}.ts`, `tools/vehicle-tools.unit.ts`
 - Modify: the four metafiles
+- Also (added): `services/vehicles/zod-schemas.ts` (+ `zod-schemas.unit.ts`: the create and update bodies split into plain-number `createVehicleBodyFields` and `updateVehicleBodyFields` plus a `Money` transform, so the tools expose the fields and parse with the full schema; the four vehicle controllers use it); `tools/vehicle-output.ts` (slim presenter); request-validation cases in `services/vehicles/vehicles.e2e.ts`, run green on the unmoved controller schemas before the split
 
-- [ ] read first: `controllers/vehicles/*`, `serializers/vehicles.serializer.ts`
-- [ ] `get_vehicles` (read): `vehicleId?` → `getVehicles` or `getVehicle`.
-- [ ] `create_vehicle` (`finance:write`):
+- [x] read first: `controllers/vehicles/*`, `serializers/vehicles.serializer.ts`
+- [x] `get_vehicles` (read): `vehicleId?` → `getVehicles` or `getVehicle`.
+- [x] `create_vehicle` (`finance:write`):
   - `name`, `currencyCode`, `make`, `model`, `year`, `vehicleClass`, `purchasePrice`, `purchaseDate`;
   - optional `trim`, `depreciationPreset`, `customAnnualRatePct`, `salvageFloorPct`, `currentMileage`.
-- [ ] `update_vehicle` (`finance:write`): `vehicleId` + the editable fields. Purchase price, purchase date and currency are not editable, and the description says so.
-- [ ] `delete_vehicle` (`finance:delete`).
-- [ ] unit test `vehicle-tools.unit.ts`.
-- [ ] metafiles under `// Loans & vehicles`.
-- [ ] gate:
+- [x] `update_vehicle` (`finance:write`): `vehicleId` + the editable fields. Purchase price, purchase date and currency are not editable, and the description says so.
+- [x] `delete_vehicle` (`finance:delete`).
+- [x] unit test `vehicle-tools.unit.ts`.
+- [x] metafiles under `// Loans & vehicles`.
+- [x] gate:
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/vehicles/vehicles|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
