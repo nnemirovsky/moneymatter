@@ -816,20 +816,20 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 
 **Files:**
 
-- Create: `tools/{get-account-groups,create-account-group,update-account-group,delete-account-group,add-account-to-group,remove-accounts-from-group,move-account-group}.ts`, `tools/account-group-tools.unit.ts`
-- Modify: the four metafiles
+- Create: `controllers/account-groups/account-group-body.schema.ts` (shared create and update bodies), `tools/account-group-output.ts` (presenter), `tools/{get-account-groups,create-account-group,update-account-group,delete-account-group,add-account-to-group,remove-accounts-from-group,move-account-group}.ts`, `tools/account-group-tools.unit.ts`
+- Modify: `controllers/account-groups/{create-account-group,update-group}.ts` (use the shared schema), `services/mcp/serializers.ts` (`slimAccountGroupsForMcp`, `slimAccountGroupForMcp`) and its unit test, the four metafiles
 
-- [ ] read first: `routes/account-groups.ts`, `controllers/account-groups/*`, `services/account-groups/*`, `serializeAccountGroups`
-- [ ] `get_account_groups` (read): `includeArchived?`, `accountIds?` → `getAccountGroups`. With `groupId` it returns that group's accounts (`getAccountsInGroup`). Serialized as REST does.
-- [ ] `create_account_group` (`finance:write`): `name`, `parentGroupId?` (nullable), logo fields.
-- [ ] `update_account_group` (`finance:write`): `groupId` plus the same fields, optional. It returns the single group, not REST's one-element array.
-- [ ] `delete_account_group` (`finance:delete`): `groupId`.
-- [ ] `add_account_to_group` (`finance:write`): `groupId`, `accountId`.
-- [ ] `remove_accounts_from_group` (`finance:write`): `groupId`, `accountIds[]`.
-- [ ] `move_account_group` (`finance:write`): `groupId`, `newParentGroupId` (null for top level) → `moveAccountGroup`. A zero update count means not found. The description says it moves a group, not an account.
-- [ ] unit test `account-group-tools.unit.ts`.
-- [ ] metafiles under a new `// Account groups` group.
-- [ ] gate:
+- [x] read first: `routes/account-groups.ts`, `controllers/account-groups/*`, `services/account-groups/*`, `serializeAccountGroups`
+- [x] `get_account_groups` (read): `includeArchived?`, `accountIds?` → `getAccountGroups`. With `groupId` it returns that group's accounts (`getAccountsInGroup`). Serialized as REST does, then slimmed: a flat list where every group has `parentGroupId`, a `path` of names from the top ("Savings > Emergency"; a leading "…" means an ancestor is missing from the list because `accountIds` filtered it out), `childGroups` stubs (id, name) and slimmed accounts. With `groupId` it returns `{ groupId, accountIds }`; combining `groupId` with a list filter is refused instead of ignoring the filter.
+- [x] `create_account_group` (`finance:write`): `name`, `parentGroupId?` (nullable), logo fields.
+- [x] `update_account_group` (`finance:write`): `groupId` plus the same fields, optional. It returns the single group, not REST's one-element array.
+- [x] `delete_account_group` (`finance:delete`): `groupId`.
+- [x] `add_account_to_group` (`finance:write`): `groupId`, `accountId`.
+- [x] `remove_accounts_from_group` (`finance:write`): `groupId`, `accountIds[]`.
+- [x] `move_account_group` (`finance:write`): `groupId`, `newParentGroupId` (null for top level) → `moveAccountGroup`. A zero update count means not found. The description says it moves a group, not an account.
+- [x] unit test `account-group-tools.unit.ts`.
+- [x] metafiles under a new `// Account groups` group.
+- [x] gate:
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/account-groups/(account-groups|account-group-membership)|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
