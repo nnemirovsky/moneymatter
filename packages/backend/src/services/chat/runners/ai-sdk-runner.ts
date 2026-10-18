@@ -1,29 +1,13 @@
-import {
-  AI_FEATURE,
-  AI_PROVIDER,
-  CHAT_MAX_STEPS,
-  type ChatToolCallPart,
-  getModelNameFromModelId,
-} from '@bt/shared/types';
-import ChatAttachments from '@models/chat-attachments.model';
-import ChatMessages from '@models/chat-messages.model';
-import Users from '@models/users.model';
+import { AI_FEATURE, AI_PROVIDER, CHAT_MAX_STEPS, type ChatToolCallPart } from '@bt/shared/types';
 import { aiCallGuards } from '@services/ai/ai-call-guards';
 import { AI_MAX_OUTPUT_TOKENS } from '@services/ai/ai-output-limit';
-import { getModelProfile } from '@services/ai/model-catalog';
 import { trackAiUsage } from '@services/ai/track-ai-usage';
-import { getUserSettings } from '@services/user-settings/get-user-settings';
-import { getUserBaseCurrency } from '@services/user.service';
 import { hasToolCall, stepCountIs, streamText, type SystemModelMessage } from 'ai';
 import { randomUUID } from 'node:crypto';
 
-import { historyBudgetTokens, loadHistoryMessages } from '../prompt/history';
-import { renderPageContext, sanitizePageContext } from '../prompt/page-context';
-import { buildSystemPrompt } from '../prompt/system-prompt';
-import { createUntrustedWrapper } from '../prompt/untrusted';
-import { buildChatToolkit } from '../toolkit/build-toolkit';
 import { compactArgs, errorMessage } from '../toolkit/result-text';
 import { toAiSdkTools } from '../toolkit/to-ai-sdk-tools';
+import { prepareChatTurn } from './prepare-turn';
 import type { ChatRunner } from './types';
 
 const ABORTED = Symbol('aborted');
@@ -66,61 +50,9 @@ const toSystemMessage = ({ content, provider }: { content: string; provider: AI_
  * opens running and closes with its outcome, and every finished step reports usage and saves the
  * parts so far.
  */
-export const runAiSdkChat: ChatRunner = async ({
-  runId,
-  userId,
-  threadId,
-  messageId,
-  userMessageId,
-  aiClient,
-  signal,
-  emit,
-  textPolicy,
-  persist,
-}) => {
-  const [user, userMessage, attachments, settings, baseCurrency, profile] = await Promise.all([
-    Users.findByPk(userId, { attributes: ['id', 'username', 'authUserId', 'role'], rejectOnEmpty: true }),
-    ChatMessages.findByPk(userMessageId, { attributes: ['pageContext'], rejectOnEmpty: true }),
-    ChatAttachments.findAll({ where: { messageId: userMessageId, userId }, attributes: ['id', 'fileName'] }),
-    getUserSettings({ userId }),
-    getUserBaseCurrency({ userId }),
-    getModelProfile({
-      provider: aiClient.provider,
-      model: getModelNameFromModelId({ modelId: aiClient.modelId }),
-    }),
-  ]);
-
-  const untrusted = createUntrustedWrapper();
-  const pageContext = await sanitizePageContext({ userId, context: userMessage.pageContext });
-  const toolkit = buildChatToolkit({
-    run: {
-      user,
-      threadId,
-      messageId,
-      runId,
-      pageContext,
-      attachments: attachments.map(({ id, fileName }) => ({ id, fileName })),
-      emit,
-      textPolicy,
-      wrapUntrusted: untrusted.wrap,
-    },
-  });
-
-  const system = buildSystemPrompt({
-    now: new Date(),
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    locale: settings.locale,
-    baseCurrency: baseCurrency?.currencyCode ?? null,
-    pageContext: pageContext ? renderPageContext({ context: pageContext, wrap: untrusted.wrap }) : null,
-  });
-  const messages = await loadHistoryMessages({
-    threadId,
-    userId,
-    currentUserMessageId: userMessageId,
-    excludeMessageId: messageId,
-    budgetTokens: historyBudgetTokens({ contextWindow: profile.contextWindow }),
-    wrap: untrusted.wrap,
-  });
+export const runAiSdkChat: ChatRunner = async (input) => {
+  const { userId, aiClient, signal, emit, textPolicy, persist } = input;
+  const { toolkit, system, messages } = await prepareChatTurn({ input, toolkitRun: {} });
 
   const { abortSignal: callSignal, maxRetries } = aiCallGuards({ provider: aiClient.provider });
 
