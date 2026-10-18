@@ -5,11 +5,17 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-/** The chat services of the backend, which emit i18n keys that cards, notices and warnings carry to the client. */
+/** The chat services of the backend, which emit i18n keys that cards, notices, warnings and run errors carry to the client. */
 const BACKEND_CHAT_DIR = `${resolve(import.meta.dirname, '../../../../../backend/src/services/chat')}/`;
 
-/** The families a card (and the parts around it) renders. Run errors and thread messages belong to the page. */
-const EMITTED_KEY = /['"`](chat\.(?:cards|stale|warnings|notices)\.[A-Za-z0-9_.]+)['"`]/g;
+/** The families the client renders: a card and the parts around it, a failed run, and the CLI bridge refusals. */
+const EMITTED_KEY = /['"`](chat\.(?:(?:cards|stale|warnings|notices|errors)\.[A-Za-z0-9_.]+|cli[A-Za-z]+))['"`]/g;
+
+/** `describeRunFailure` builds `chat.errors.${code}` from the code it passes to `failure({ code })`. */
+const RUN_FAILURE_CODE = /failure\(\{ code: '([A-Za-z]+)' \}\)/g;
+
+/** Keys the chat services name without a literal this scan can see. */
+const NAMED_ELSEWHERE_KEYS = ['chat.cliBusy'];
 
 const isTestFile = ({ path }: { path: string }) => /\.(unit|e2e|test|spec)\.ts$/.test(path);
 
@@ -22,10 +28,14 @@ const sourceFiles = ({ dir }: { dir: string }): string[] =>
 
 const readEmittedKeys = (): Map<string, string> => {
   const found = new Map<string, string>();
+  const remember = ({ key, path }: { key: string; path: string }) => {
+    if (!found.has(key)) found.set(key, path.replace(BACKEND_CHAT_DIR, ''));
+  };
+
   for (const path of sourceFiles({ dir: BACKEND_CHAT_DIR })) {
-    for (const match of readFileSync(path, 'utf8').matchAll(EMITTED_KEY)) {
-      if (!found.has(match[1]!)) found.set(match[1]!, path.replace(BACKEND_CHAT_DIR, ''));
-    }
+    const source = readFileSync(path, 'utf8');
+    for (const match of source.matchAll(EMITTED_KEY)) remember({ key: match[1]!, path });
+    for (const match of source.matchAll(RUN_FAILURE_CODE)) remember({ key: `chat.errors.${match[1]!}`, path });
   }
   return found;
 };
@@ -55,7 +65,11 @@ const missingFrom = ({ messages, keys }: { messages: unknown; keys: string[] }) 
 describe('keys the backend emits for cards', () => {
   const emitted = readEmittedKeys();
   const keys = [
-    ...new Set([...emitted.keys(), ...Object.keys(CONFLICT_REASON_KEYS).map((reason) => `chat.cards.${reason}`)]),
+    ...new Set([
+      ...emitted.keys(),
+      ...Object.keys(CONFLICT_REASON_KEYS).map((reason) => `chat.cards.${reason}`),
+      ...NAMED_ELSEWHERE_KEYS,
+    ]),
   ].sort();
 
   it('finds the keys in the backend source', () => {
@@ -68,13 +82,16 @@ describe('keys the backend emits for cards', () => {
         'chat.stale.updated',
         'chat.warnings.egress',
         'chat.notices.stepLimit',
+        'chat.errors.timeout',
+        'chat.errors.rateLimited',
+        'chat.cliBridgeUnavailable',
       ]),
     );
   });
 
   it('has every key in the en locale', () => {
     const missing = missingFrom({ messages: enChat, keys }).map(
-      (key) => `${key} (${emitted.get(key) ?? 'conflict reason'})`,
+      (key) => `${key} (${emitted.get(key) ?? 'built or named outside a literal'})`,
     );
 
     expect(missing).toEqual([]);

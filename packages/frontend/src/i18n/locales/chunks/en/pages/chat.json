@@ -463,7 +463,17 @@
       "threadAction": "Could not update the conversation. Try again.",
       "cardAction": "Could not complete that action. Try again.",
       "sendFailed": "Could not send the message. Try again.",
-      "settingsFailed": "Could not save the chat settings. Try again."
+      "settingsFailed": "Could not save the chat settings. Try again.",
+      "blockedAddress": "The address of the model endpoint is not allowed. Check the connection in Settings → AI.",
+      "endpointDown": "The model endpoint did not answer. Check that it is running, then try again.",
+      "unsupportedRequest": "This model could not handle the request. Pick another model for Chat in Settings → AI.",
+      "modelNotFound": "The model is not available on this connection. Pick another model for Chat in Settings → AI.",
+      "auth": "The provider rejected your credentials. Update the connection in Settings → AI.",
+      "rateLimited": "The provider is limiting requests. Wait a minute and try again.",
+      "temporary": "The provider had a temporary problem. Try again in a moment.",
+      "unknown": "Something went wrong while answering. Try again.",
+      "timeout": "The answer took too long and was stopped. Try a smaller request.",
+      "loadThread": "Could not load this conversation."
     },
     "visuals": {
       "others": "Others",
@@ -531,6 +541,121 @@
         "fromCall": "Result of an earlier lookup",
         "tool": "Read with {tool}"
       }
+    },
+    "title": "Chat",
+    "cliBridgeUnavailable": "Chat does not run on Claude Code or Codex connections yet. Pick an API-key or custom model for Chat in Settings → AI.",
+    "cliBusy": "All CLI slots on this instance are busy; try again in a minute.",
+    "page": {
+      "newChat": "New chat",
+      "history": "History"
+    },
+    "threads": {
+      "searchPlaceholder": "Search conversations",
+      "pinned": "Pinned",
+      "recent": "Recent",
+      "results": "Results",
+      "untitled": "New conversation",
+      "emptyTitle": "No conversations yet",
+      "emptyDescription": "Start one with a question or a request.",
+      "noResults": "Nothing found for “{query}”.",
+      "loadMore": "Show more",
+      "loadError": "Could not load your conversations.",
+      "renamePlaceholder": "Conversation name",
+      "renameLabel": "Conversation name",
+      "actions": {
+        "rename": "Rename",
+        "pin": "Pin",
+        "unpin": "Unpin",
+        "delete": "Delete"
+      },
+      "toasts": {
+        "renamed": "Conversation renamed",
+        "pinned": "Conversation pinned",
+        "unpinned": "Conversation unpinned",
+        "deleted": "Conversation deleted"
+      },
+      "delete": {
+        "title": "Delete this conversation?",
+        "description": "Its messages, cards and the record of applied changes are deleted. Changes already made to your data stay.",
+        "confirm": "Delete"
+      },
+      "expiresOn": "Deleted automatically on {date}",
+      "neverExpires": "Kept until you delete it"
+    },
+    "usage": {
+      "chip": "{count} tokens",
+      "tooltip": "In: {input} · Out: {output} · Cached: {cached}",
+      "label": "Tokens used in this conversation"
+    },
+    "composer": {
+      "label": "Message",
+      "placeholder": "Ask about your money or describe a change",
+      "send": "Send",
+      "stop": "Stop",
+      "attach": "Attach files",
+      "removeAttachment": "Remove {name}",
+      "dropToAttach": "Drop files to attach",
+      "hint": "Enter to send, Shift+Enter for a new line",
+      "attachments": {
+        "tooMany": "You can attach up to {max} files to one message.",
+        "tooLarge": "{name} is larger than {max} MB.",
+        "totalTooLarge": "Attachments can be up to {max} MB in total.",
+        "unsupported": "{name} is not a supported file. Attach an image, PDF, CSV or text file.",
+        "uploadFailed": "{name} could not be attached.",
+        "uploading": "Uploading {name}",
+        "passwordPlaceholder": "PDF password",
+        "unlock": "Unlock"
+      },
+      "context": {
+        "remove": "Remove page context",
+        "label": "From this page: {label}"
+      }
+    },
+    "context": {
+      "pages": {
+        "transactions": "Transactions",
+        "dashboard": "Dashboard",
+        "accounts": "Accounts",
+        "budget": "Budget",
+        "analytics": "Analytics"
+      },
+      "entity": "{kind}: {name}",
+      "period": "{from} to {to}",
+      "filtered": "filtered"
+    },
+    "empty": {
+      "title": "Ask anything about your money",
+      "description": "Chat reads your accounts and transactions, answers with charts and tables, and turns every change into a card you approve first.",
+      "promptsTitle": "Try asking",
+      "prompts": {
+        "spending": "Where did my money go last month?",
+        "biggest": "Show my biggest expenses this year",
+        "subscriptions": "Which subscriptions am I paying for?",
+        "duplicates": "Find transactions that look like duplicates"
+      },
+      "notConfigured": {
+        "title": "Connect a model to start",
+        "description": "Chat runs on your own AI connection. Choose one for Chat in Settings → AI.",
+        "cta": "Open AI settings"
+      }
+    },
+    "conversation": {
+      "loadOlder": "Load earlier messages",
+      "thinking": "Thinking",
+      "loadError": "Could not load this conversation."
+    },
+    "message": {
+      "proposedChanges": "{count} proposed change | {count} proposed changes",
+      "attachment": "Attachment",
+      "cardUnavailable": "This card is no longer available.",
+      "comment": "Comment on a card"
+    },
+    "panel": {
+      "title": "Chat",
+      "close": "Close the chat panel",
+      "resize": "Resize the chat panel",
+      "openInPage": "Open in the Chat page",
+      "newChat": "New chat"
     }
   }
 }

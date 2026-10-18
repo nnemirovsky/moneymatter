@@ -333,6 +333,36 @@
         "save": "Save",
         "saved": "Saved!",
         "saveFailed": "Failed to save custom instructions. Please try again."
+      },
+      "chat": {
+        "retention": {
+          "title": "Conversation history",
+          "description": "Conversations are deleted automatically this long after their last message.",
+          "label": "Keep conversations for",
+          "placeholder": "Choose how long",
+          "options": {
+            "days7": "7 days",
+            "days30": "30 days",
+            "days90": "90 days",
+            "days365": "1 year",
+            "never": "Never delete automatically"
+          },
+          "pinnedNote": "Pinned conversations are never deleted automatically. Cards you have not approved expire after 24 hours, pinned or not.",
+          "saved": "History retention updated"
+        },
+        "applied": {
+          "link": "Applied changes",
+          "linkDescription": "Every change you approved in chat. Each record goes with its conversation.",
+          "title": "Applied changes",
+          "description": "Changes you approved in chat. A record is deleted together with its conversation.",
+          "emptyTitle": "Nothing applied yet",
+          "emptyDescription": "Changes you approve in chat will appear here.",
+          "openThread": "Open conversation",
+          "appliedAt": "Applied {date}",
+          "loadMore": "Show more",
+          "loadError": "Could not load the applied changes.",
+          "back": "Back to AI settings"
+        }
       }
     }
   }
