@@ -3,6 +3,7 @@ import {
   AIFeatureStatus,
   AI_FEATURE,
   AI_PROVIDER,
+  type ChatRetentionDays,
   CreateAIConnectionBody,
   FireSettings,
   ListAIConnectionModelsBody,
@@ -335,6 +336,28 @@ export async function patchStoredConnection({
 export async function readStoredFeatureConfigs({ userId }: { userId: number }) {
   const settings = await UserSettings.findOne({ where: { userId } });
   return settings?.settings?.ai?.featureConfigs ?? [];
+}
+
+/** Arranges a stored retention the way `PUT /chat/settings` leaves it. The settings row has to exist already. */
+export async function seedStoredChatRetention({
+  retentionDays,
+}: {
+  retentionDays: ChatRetentionDays | null;
+}): Promise<void> {
+  const userId = await getTestUserId();
+  const settings = await UserSettings.findOne({ where: { userId } });
+  if (!settings) throw new Error('Expected the test user to have a settings row by now');
+
+  settings.settings = {
+    ...settings.settings,
+    ai: { ...settings.settings.ai, chat: { retentionDays } },
+  };
+  await settings.save();
+}
+
+export async function readStoredChatRetention({ userId }: { userId: number }) {
+  const settings = await UserSettings.findOne({ where: { userId } });
+  return settings?.settings?.ai?.chat?.retentionDays;
 }
 
 export const FIRST_CONNECTION_NAME = 'Home Ollama';
