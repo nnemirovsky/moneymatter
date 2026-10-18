@@ -1040,22 +1040,23 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 - Create: `tools/{set-payees-categorization-mode,bulk-delete-payees,get-ignored-payee-names,ignore-payee-name,unignore-payee-name,apply-payee-tags-to-transactions,create-payee-alias,delete-payee-alias}.ts`, `tools/payee-tools.unit.ts`
 - Modify: `tools/update-payee.ts`, the four metafiles, `tool-scopes-drift.unit.ts` (`DESTRUCTIVE_TOOLS` gets `bulk_delete_payees`; new `CONDITIONAL_DELETE_TOOLS` gets `ignore_payee_name`)
 
-- [ ] read first: `controllers/payees/*`, `services/payees/*`
-- [ ] `update_payee`: add the `PATCH /payees/:id` fields it lacks (`categorizationMode`, `defaultTagIds`, `defaultLocation`, logo fields), with the REST schema.
-- [ ] `set_payees_categorization_mode` (`finance:write`): `mode` (`CATEGORIZATION_MODE`) → `bulkUpdateCategorizationMode`. The description says it applies to every payee.
-- [ ] `bulk_delete_payees` (`finance:delete`): `ids` (1–2000), `ignoreFuture?` → `bulkDeletePayees`.
-- [ ] `get_ignored_payee_names` (read): `listPayeeIgnoredNames`.
-- [ ] `ignore_payee_name` (`finance:write`, plus `finance:delete` when `force` is set): `rawName`, `force?` → `addPayeeIgnoredName`. With `force` the service deletes the matching payee for good, so the handler calls `requireScope({ extra, scope: 'finance:delete' })` before the service. Without `force` only `finance:write` applies and the 409 message passes through. This is a deliberate conditional-scope tool: it cannot sit in `DESTRUCTIVE_TOOLS`, because that rule demands `finance:delete` on every call and the drift check refuses a source with `scope: 'finance:write'`. It goes in a hand-kept `CONDITIONAL_DELETE_TOOLS` list in `tool-scopes-drift.unit.ts` instead, and that case asserts its source holds both scope checks; the unit test below proves the `force` path.
-- [ ] `unignore_payee_name` (`finance:write`): `ignoredNameId` → `removePayeeIgnoredName`.
-- [ ] `apply_payee_tags_to_transactions` (`finance:write`): `payeeId` → `applyPayeeTagsToExisting`.
-- [ ] `create_payee_alias` (`finance:write`): `payeeId`, `rawName`.
-- [ ] `delete_payee_alias` (`finance:delete`): `payeeId`, `aliasId`.
-- [ ] unit test `payee-tools.unit.ts`: the `force` scope rule (write-only token: `force: false` passes, `force: true` throws and the service mock is not called), the new `update_payee` fields, args.
-- [ ] metafiles under `// Payees`. Add the missing rows for the six existing payee tools to SKILL.md while there.
-- [ ] gate:
+- [x] read first: `controllers/payees/*`, `services/payees/*`
+- [x] `update_payee`: add the `PATCH /payees/:id` fields it lacks (`categorizationMode`, `defaultTagIds`, `defaultLocation`, logo fields), with the REST schema.
+- [x] `set_payees_categorization_mode` (`finance:write`): `mode` (`CATEGORIZATION_MODE`) → `bulkUpdateCategorizationMode`. The description says it applies to every payee.
+- [x] `bulk_delete_payees` (`finance:delete`): `ids` (1–2000), `ignoreFuture?` → `bulkDeletePayees`.
+- [x] `get_ignored_payee_names` (read): `listPayeeIgnoredNames`.
+- [x] `ignore_payee_name` (`finance:write`, plus `finance:delete` when `force` is set): `rawName`, `force?` → `addPayeeIgnoredName`. With `force` the service deletes the matching payee for good, so the handler calls `requireScope({ extra, scope: 'finance:delete' })` before the service. Without `force` only `finance:write` applies and the 409 message passes through. This is a deliberate conditional-scope tool: it cannot sit in `DESTRUCTIVE_TOOLS`, because that rule demands `finance:delete` on every call and the drift check refuses a source with `scope: 'finance:write'`. It goes in a hand-kept `CONDITIONAL_DELETE_TOOLS` list in `tool-scopes-drift.unit.ts` instead, and that case asserts its source holds both scope checks; the unit test below proves the `force` path.
+- [x] `unignore_payee_name` (`finance:write`): `ignoredNameId` → `removePayeeIgnoredName`.
+- [x] `apply_payee_tags_to_transactions` (`finance:write`): `payeeId` → `applyPayeeTagsToExisting`.
+- [x] `create_payee_alias` (`finance:write`): `payeeId`, `rawName`.
+- [x] `delete_payee_alias` (`finance:delete`): `payeeId`, `aliasId`.
+- [x] unit test `payee-tools.unit.ts`: the `force` scope rule (write-only token: `force: false` passes, `force: true` throws and the service mock is not called), the new `update_payee` fields, args.
+- [x] metafiles under `// Payees`. Add the missing rows for the six existing payee tools to SKILL.md while there.
+- [x] gate (unit `services/mcp/` + payees: 23 suites, 522 tests; e2e: 8 suites, 77 tests; typecheck, lint, oxfmt clean):
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/payees/(payees|bulk-delete-payees|ignored-names|ignore-list-api-and-curation|payee-tags|payee-default-location)|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
+- [x] extras done: REST bodies moved into `controllers/payees/shared-schemas.ts`; e2e validation cases (update payload rejections, alias and ignored name over 500 characters, more than 2000 bulk-delete ids) added first and seen green against the unmoved controllers (3 suites, 50 tests).
 
 ### Task 12: Transaction templates, automation apply and detail lookups
 
