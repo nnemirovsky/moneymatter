@@ -5,6 +5,7 @@ import {
   FINANCIAL_DATA_GUIDE_DESCRIPTION,
   FINANCIAL_DATA_GUIDE_NAME,
 } from './prompts/financial-data-guide';
+import { registerAddAccountToGroup } from './tools/add-account-to-group';
 import { registerAddTransactionsToBudget } from './tools/add-transactions-to-budget';
 import { registerAddTransactionsToGroup } from './tools/add-transactions-to-group';
 import { registerAdjustAccountBalance } from './tools/adjust-account-balance';
@@ -13,6 +14,7 @@ import { registerArchiveBudget } from './tools/archive-budget';
 import { registerAssignTagsToTransaction } from './tools/assign-tags-to-transaction';
 import { registerBulkUpdateTransactions } from './tools/bulk-update-transactions';
 import { registerCreateAccount } from './tools/create-account';
+import { registerCreateAccountGroup } from './tools/create-account-group';
 import { registerCreateAttachmentUploadUrl } from './tools/create-attachment-upload-url';
 import { registerCreateBudget } from './tools/create-budget';
 import { registerCreateCategory } from './tools/create-category';
@@ -27,6 +29,7 @@ import { registerCreateTransaction } from './tools/create-transaction';
 import { registerCreateTransactionAutomation } from './tools/create-transaction-automation';
 import { registerCreateTransactionGroup } from './tools/create-transaction-group';
 import { registerDeleteAccount } from './tools/delete-account';
+import { registerDeleteAccountGroup } from './tools/delete-account-group';
 import { registerDeleteBudget } from './tools/delete-budget';
 import { registerDeleteCategory } from './tools/delete-category';
 import { registerDeleteCustomCurrency } from './tools/delete-custom-currency';
@@ -43,6 +46,7 @@ import { registerDeleteTransactionGroup } from './tools/delete-transaction-group
 import { registerDetectSubscriptionCandidates } from './tools/detect-subscription-candidates';
 import { registerDismissSubscriptionCandidate } from './tools/dismiss-subscription-candidate';
 import { registerGetAccount } from './tools/get-account';
+import { registerGetAccountGroups } from './tools/get-account-groups';
 import { registerGetAccounts } from './tools/get-accounts';
 import { registerGetBalanceHistory } from './tools/get-balance-history';
 import { registerGetBudgetSpendingStats } from './tools/get-budget-spending-stats';
@@ -75,7 +79,9 @@ import { registerListCustomCurrencies } from './tools/list-custom-currencies';
 import { registerListPortfolioTransfers } from './tools/list-portfolio-transfers';
 import { registerListSubscriptionCandidates } from './tools/list-subscription-candidates';
 import { registerMergePayees } from './tools/merge-payees';
+import { registerMoveAccountGroup } from './tools/move-account-group';
 import { registerPreviewTransactionAutomation } from './tools/preview-transaction-automation';
+import { registerRemoveAccountsFromGroup } from './tools/remove-accounts-from-group';
 import { registerRemoveTagsFromTransaction } from './tools/remove-tags-from-transaction';
 import { registerRemoveTransactionsFromBudget } from './tools/remove-transactions-from-budget';
 import { registerRemoveTransactionsFromGroup } from './tools/remove-transactions-from-group';
@@ -96,6 +102,7 @@ import { registerUnlinkTransactionFromPortfolio } from './tools/unlink-transacti
 import { registerUnlinkTransactionsFromSubscription } from './tools/unlink-transactions-from-subscription';
 import { registerUnlinkTransfer } from './tools/unlink-transfer';
 import { registerUpdateAccount } from './tools/update-account';
+import { registerUpdateAccountGroup } from './tools/update-account-group';
 import { registerUpdateBudget } from './tools/update-budget';
 import { registerUpdateCategory } from './tools/update-category';
 import { registerUpdateCustomCurrency } from './tools/update-custom-currency';
@@ -170,6 +177,15 @@ export function createMcpServer(): McpServer {
   registerArchiveAccount(server);
   registerDeleteAccount(server);
   registerUnlinkAccountFromBankConnection(server);
+
+  // Account groups (nested folders of accounts)
+  registerGetAccountGroups(server);
+  registerCreateAccountGroup(server);
+  registerUpdateAccountGroup(server);
+  registerMoveAccountGroup(server);
+  registerDeleteAccountGroup(server);
+  registerAddAccountToGroup(server);
+  registerRemoveAccountsFromGroup(server);
 
   // Transactions (read + CRUD + splits + refunds + transfer linking)
   registerSearchTransactions(server);
