@@ -1410,15 +1410,16 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 - Create: `tools/{list-share-invitations,list-share-members,list-shared-with-me,list-bank-connections,get-bank-sync-status}.ts`, `tools/share-bank-status-tools.unit.ts`
 - Modify: the four metafiles
 
-- [ ] read first: `controllers/share/*` (the four reads and `_zod.ts`), `services/sharing/{invitations/list-invitations,members/list-members,members/list-shared-with-me}.service.ts`, `controllers/bank-data-providers/*` (the connections and status reads), `services/bank-data-providers/connection/{list-user-connections,get-connection-details}.ts`
-- [ ] `list_share_invitations` (read): `direction` (`sent` | `received` | `both`, default `both`).
-- [ ] `list_share_members` (read): `resourceType` (account | household | budget), `resourceId`.
-- [ ] `list_shared_with_me` (read).
-- [ ] `list_bank_connections` (read): `connectionId?` → `listUserConnections` or `getConnectionDetails`. Confirm the output carries no credential or consent token; strip one if it does, with a unit case.
-- [ ] `get_bank_sync_status` (read): `getUserAccountsSyncStatus` + `getActiveJobsForUser`, and `getJobGroupProgress` when `jobGroupId` is given. The description says syncing is done in the app.
-- [ ] unit test `share-bank-status-tools.unit.ts`.
-- [ ] metafiles under a new `// Sharing & bank connections (read-only)` group.
-- [ ] gate:
+- [x] read first: `controllers/share/*` (the four reads and `_zod.ts`), `services/sharing/{invitations/list-invitations,members/list-members,members/list-shared-with-me}.service.ts`, `controllers/bank-data-providers/*` (the connections and status reads), `services/bank-data-providers/connection/{list-user-connections,get-connection-details}.ts`
+- [x] `list_share_invitations` (read): `direction` (`sent` | `received` | `both`, default `both`).
+- [x] `list_share_members` (read): `resourceType` (account | household | budget), `resourceId`.
+- [x] `list_shared_with_me` (read).
+- [x] `list_bank_connections` (read): `connectionId?` → `listUserConnections` or `getConnectionDetails`. Confirm the output carries no credential or consent token; strip one if it does, with a unit case.
+- [x] `get_bank_sync_status` (read): `getUserAccountsSyncStatus` + `getActiveJobsForUser`, and `getJobGroupProgress` when `jobGroupId` is given. The description says syncing is done in the app.
+- [x] unit test `share-bank-status-tools.unit.ts`.
+- [x] `services/mcp/tools/helpers.ts` gains `assertNotDemoUser` (used by `requireScope` and by `get_bank_sync_status`, because `GET /bank-data-providers/sync/status` carries `blockDemoUsers`); presenters in `share-output.ts` and `bank-connection-output.ts` copy fields by name, so no credential, token, invitation accept-link or provider session can pass; list tools take `limit` (default 50, max 200) and return `total`
+- [x] metafiles under a new `// Sharing & bank connections (read-only)` group.
+- [x] gate:
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/sharing/(invitations/lifecycle|members/membership|shared-resource-visibility)|services/bank-data-providers/(sync/sync-status-tracker|connection/sync-job-progress-idor)|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
