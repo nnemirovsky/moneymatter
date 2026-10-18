@@ -229,7 +229,8 @@
     "transactionAlreadyLinkedToPortfolio": "Transaction is already linked to a portfolio transfer.",
     "transactionAlreadyLinkedToVenture": "Transaction is already linked to a venture deal",
     "portfolioTransferNotFound": "Portfolio transfer not found",
-    "exchangeCurrenciesMustDiffer": "Exchange currencies must be different"
+    "exchangeCurrenciesMustDiffer": "Exchange currencies must be different",
+    "importNoTransactionsFound": "No transactions found in the file."
   },
   "landingFaq": {
     "unavailable": "The assistant is unavailable right now. Please try again later or email support@moneymatter.app."
@@ -379,7 +380,8 @@
     "fileContentRequired": "File content is required",
     "pdfPasswordRequired": "This PDF is password-protected. Enter the document password to continue.",
     "pdfPasswordInvalid": "The password you entered is incorrect. Check it and try again.",
-    "pdfParseFailed": "Could not read this PDF. The file may be corrupted or use an unsupported format."
+    "pdfParseFailed": "Could not read this PDF. The file may be corrupted or use an unsupported format.",
+    "noTransactionsFound": "No transactions found in the file. It may not be a bank statement, receipt or banking app screenshot."
   },
   "currencies": {
     "notSupportedForBaseCurrency": "Changing base currency to {{currency}} is not supported. Only these currencies are supported: {{supportedCurrencies}}.",
