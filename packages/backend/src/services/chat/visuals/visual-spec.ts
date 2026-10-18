@@ -96,7 +96,7 @@ const donutChartSchema = z
   })
   .strict();
 
-const chartSchema = z.discriminatedUnion('kind', [seriesChartSchema, donutChartSchema]);
+export const chatChartSpecSchema = z.discriminatedUnion('kind', [seriesChartSchema, donutChartSchema]);
 
 const entityCellSchema = z.object({
   kind: z.enum(CHAT_ENTITY_KINDS),
@@ -147,7 +147,7 @@ const isCellOfKind = ({
   }
 };
 
-const tableSchema = z
+export const chatTableSpecSchema = z
   .object({
     type: z.literal('table'),
     title: label({ max: LIMITS.titleMaxChars }),
@@ -207,15 +207,17 @@ const kpiItemSchema = z
     }
   });
 
-const kpisSchema = z
+export const chatKpisSpecSchema = z
   .object({
     type: z.literal('kpis'),
     items: z.array(kpiItemSchema).min(1).max(LIMITS.maxKpis),
   })
   .strict();
 
-export const chatVisualSpecSchema = z.union([chartSchema, tableSchema, kpisSchema]).superRefine((spec, ctx) => {
-  if (Buffer.byteLength(JSON.stringify(spec)) > LIMITS.maxBytes) {
-    ctx.addIssue({ code: 'custom', message: `A visual is limited to ${LIMITS.maxBytes} bytes` });
-  }
-});
+export const chatVisualSpecSchema = z
+  .union([chatChartSpecSchema, chatTableSpecSchema, chatKpisSpecSchema])
+  .superRefine((spec, ctx) => {
+    if (Buffer.byteLength(JSON.stringify(spec)) > LIMITS.maxBytes) {
+      ctx.addIssue({ code: 'custom', message: `A visual is limited to ${LIMITS.maxBytes} bytes` });
+    }
+  });

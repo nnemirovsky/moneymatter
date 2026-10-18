@@ -115,6 +115,8 @@ export interface ChatProposalPreview {
   affected?: ChatCardAffected;
   /** Related counts, such as the transactions an account holds. */
   counts?: Record<string, number>;
+  /** What the resolver wants the user to see before approving, such as the transfer twin a delete also removes. */
+  warnings?: ChatCardWarning[];
 }
 
 /**
