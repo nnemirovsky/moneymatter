@@ -116,6 +116,26 @@ The backend image carries the Claude Code and Codex programs to do this, so it i
 
 Subscription sign-ins are stored encrypted in the database like API keys, and, like API keys, are not part of a backup: after a restore, sign in again.
 
+## AI chat
+
+The in-app [Chat](https://docs.moneymatter.app/ai/chat/) needs no new environment variable: it uses the AI models users already set up in Settings → AI, and it ships in the published images. These existing variables apply to it:
+
+| Variable                     | Effect on Chat                                                                                                                                                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ADMIN_USERS`                | Chat on a Claude Code or Codex subscription is available to these admins only. Users with an API key or local model connection need nothing                                                                   |
+| `AI_CLI_MAX_CONCURRENT_RUNS` | Chat answers on a subscription take one of these slots, like every other subscription AI run (default `4`). A chat that finds no free slot for 2 minutes stops with "All CLI slots on this instance are busy" |
+| `IS_SELF_HOST`               | Already set to `true` by the self-host compose stack. The subscription bridge below only starts when it is `true`                                                                                             |
+
+`AI_CLI_CHAT_RUN_TIMEOUT_MS` and `AI_CLI_CHAT_SLOT_WAIT_MS` also exist, but are read only when `NODE_ENV=test`, to shorten the chat timeouts in the test suite. They do nothing in a running install, so leave them unset.
+
+**Subscription bridge (self-hosted only).** To let Claude Code or Codex use MoneyMatter's tools during a chat, the backend opens a plain-HTTP listener on `127.0.0.1` with a random port, the first time a chat on a subscription needs it. Nothing connects to it from outside the container, so it needs no published port, proxy rule, firewall rule or Cloudflare Access policy, and it can't be reached by setting `MCP_BASE_URL`. It accepts only a per-answer key that the backend creates and revokes, and the public `/mcp` address refuses that key. The CLI program is started with that key in its environment as `MM_CHAT_TOKEN`, which the backend sets for the child process itself. Don't set `MM_CHAT_TOKEN` in `.env`. On a hosted instance the listener is never started.
+
+**Sandbox.** Calculations the chat runs (QuickJS in WebAssembly, in two worker threads) have no setting. Each run is capped at 64 MB of heap growth, 2 s of compute time and 5 s in total. The pool of two workers needs about 128 MB in normal use, and up to about 640 MB at the hard ceiling, which matters only on a very small server. Worker code is in `dist/sandbox-worker.js` of the backend image.
+
+**History and backups.** Conversations are deleted after the retention time each user picks (default 30 days) by a background job that runs on every install, offline ones included. They are not part of backups, and a restore removes them.
+
+**Operators.** Chat has no included server model. To offer one, add an entry for the `chat` feature to `SERVER_MODELS` (and `PLUS_SERVER_MODELS`) in `packages/backend/src/services/ai/resolution-ladder.ts` and rebuild; users with the operator AI feature then get it, with no other change.
+
 ## Frontend runtime (optional)
 
 Interpolated into the frontend container's `environment:` block. Change and
