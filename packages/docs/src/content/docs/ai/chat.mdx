@@ -198,7 +198,7 @@ One message is bounded so that a mistake can't run away:
 
 | What | Limit |
 | --- | --- |
-| Model steps per message | 25 |
+| Model steps per message | 25 (not on Codex, which stops at the tool-call limit or the time limit) |
 | Tool calls per message | 60 |
 | Cards per message | 100 |
 | Lookups in outside services per message (security and crypto searches) | 10 |
@@ -208,7 +208,7 @@ One message is bounded so that a mistake can't run away:
 | Messages | 30 per 10 minutes |
 | Answers running at once | 1 per conversation, 3 per person |
 
-When a message hits a limit, the answer ends with a note, such as "Stopped after 25 steps. Ask again to continue." Ask again to carry on from there. There is no spending cap in MoneyMatter: your provider's own limits and billing apply.
+When a message hits a limit, the answer ends with a note, such as "Stopped after 25 steps. Ask again to continue." Ask again to carry on from there. A Codex run has no step limit, so it never shows this note. There is no spending cap in MoneyMatter: your provider's own limits and billing apply.
 
 Approving cards has its own limit of 120 approvals per minute, far above what a person clicks.
 

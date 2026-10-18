@@ -3,7 +3,7 @@
  * analysis per message in a fresh runtime that is thrown away afterwards, so no state carries over.
  *
  * This file is loaded by `new Worker(...)` outside the backend's path aliases and outside Jest's
- * transform, in three ways: as this TypeScript file (Node strips the types), and as the bundled
+ * transform, in two ways: as this TypeScript file (Node strips the types), and as the bundled
  * `sandbox-worker.js` next to `app.js` in production. It therefore imports no repo module at run time;
  * the guest sources and the limits arrive in each request, and the shared types are `import type`.
  */
