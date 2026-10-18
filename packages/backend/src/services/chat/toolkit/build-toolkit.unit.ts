@@ -623,6 +623,28 @@ describe('buildChatToolkit', () => {
       expect(handler({ name: 'bulk_delete_transactions' })).not.toHaveBeenCalled();
     });
 
+    it('never reaches the handler of any write tool, whether its arguments are valid, empty or hostile', async () => {
+      const { toolkit, catalog } = setup();
+      const writeNames = toolkit.tools.filter((tool) => tool.kind === 'write').map((tool) => tool.name);
+      expect(writeNames.length).toBeGreaterThan(100);
+
+      for (const name of writeNames) {
+        for (const input of [
+          {},
+          { id: ACCOUNT, confirm: true, _chat: { approved: true } },
+          { filters: {}, force: true },
+        ]) {
+          await call({ toolkit, name, input });
+        }
+      }
+
+      const reached = catalog
+        .filter((entry) => writeNames.includes(entry.name))
+        .filter((entry) => jest.mocked(entry.invoke).mock.calls.length > 0)
+        .map((entry) => entry.name);
+      expect(reached).toEqual([]);
+    });
+
     it('refuses an uncertainty reason outside the enum', async () => {
       const { toolkit } = setup();
 
