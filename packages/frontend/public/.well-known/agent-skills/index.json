@@ -5,7 +5,7 @@
       "type": "task",
       "description": "Help a user connect an AI agent (Claude, ChatGPT, or any MCP-compatible client) to their MoneyMatter account so the agent can answer natural-language questions about their finances.",
       "url": "https://moneymatter.app/skills/connect-moneymatter/SKILL.md",
-      "sha256": "85334813eec41221b7255b8c9a29e5bfa048012856f3e58f1c95afc0bce44a1f"
+      "sha256": "ff996e1203b374edf02a77b55776aeb66daf8979e09144359aef7704171d2e39"
     }
   ]
 }
