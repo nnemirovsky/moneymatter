@@ -848,26 +848,26 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
   - `services/currencies/start-base-currency-change.service.ts`.
 - Modify: `controllers/currencies/change-base-currency.controller.ts`, `services/currencies/change-base-currency.service.e2e.ts` (new unsupported-currency case), the four metafiles, `tool-scopes-drift.unit.ts` (`LOCK_EXEMPT_TOOLS`: `change_base_currency`, which is exempt only in its change branch; `READ_ONLY_ROUTE_TOOLS`: `change_base_currency`, for its first-base branch)
 
-- [ ] read first: `controllers/user.controller.ts` (the currency handlers), `controllers/currencies/add-user-currencies.ts`, `change-base-currency.controller.ts`, `change-base-currency-status.controller.ts`, `controllers/exchange-rates/{pair-rate,rates-for-date}.controller.ts`, `controllers/currencies.controller.ts`
-- [ ] e2e first, before the move (test-first): no e2e case asserts the `currencies.notSupportedForBaseCurrency` refusal (the existing "rejects a trivially-invalid change" case covers only a same-currency change). Add a REST case to `change-base-currency.service.e2e.ts`: `POST /user/currencies/change-base` with an ISO code the registry does not support for historical data returns 422 with that message and takes no lock. Pick the code from `exchangeRateProviderRegistry.getSupportedCurrenciesForHistoricalData()`. Run it green against the unmoved controller.
-- [ ] `start-base-currency-change.service.ts`: move the controller's `isCurrencySupportedForHistoricalData` check and `enqueueBaseCurrencyChange` behind one function. The controller calls it.
-- [ ] `get_user_currencies` (read): `getUserCurrencies`, `getUserBaseCurrency` and `getUserExchangeRates` in one result, with custom-currency metadata as the REST list returns it.
-- [ ] `list_supported_currencies` (read): `getAllSystemCurrencies()`.
-- [ ] `get_exchange_rate` (read): `date` (YYYY-MM-DD), `from?`, `to?`.
+- [x] read first: `controllers/user.controller.ts` (the currency handlers), `controllers/currencies/add-user-currencies.ts`, `change-base-currency.controller.ts`, `change-base-currency-status.controller.ts`, `controllers/exchange-rates/{pair-rate,rates-for-date}.controller.ts`, `controllers/currencies.controller.ts`
+- [x] e2e first, before the move (test-first): no e2e case asserts the `currencies.notSupportedForBaseCurrency` refusal (the existing "rejects a trivially-invalid change" case covers only a same-currency change). Add a REST case to `change-base-currency.service.e2e.ts`: `POST /user/currencies/change-base` with an ISO code the registry does not support for historical data returns 422 with that message and takes no lock. Pick the code from `exchangeRateProviderRegistry.getSupportedCurrenciesForHistoricalData()`. Run it green against the unmoved controller. Done: the case is "rejects an ISO code without historical rate coverage with the supported list, and takes no lock"; it passed against the unmoved controller (8 passed), then stayed green after the move.
+- [x] `start-base-currency-change.service.ts`: move the controller's `isCurrencySupportedForHistoricalData` check and `enqueueBaseCurrencyChange` behind one function. The controller calls it. (Also moved the add, edit and delete user-currency bodies into `controllers/currencies/user-currency-body.schema.ts`, so REST and the tools accept the same input.)
+- [x] `get_user_currencies` (read): `getUserCurrencies`, `getUserBaseCurrency` and `getUserExchangeRates` in one result, with custom-currency metadata as the REST list returns it.
+- [x] `list_supported_currencies` (read): `getAllSystemCurrencies()`.
+- [x] `get_exchange_rate` (read): `date` (YYYY-MM-DD), `from?`, `to?`.
   - With both codes: `assertCurrencyCodesVisible`, then `getExchangeRate({ requireUserConnection: false })`. `ExchangeRateUnavailableError` becomes a clear "no rate" error.
   - With neither: `getExchangeRatesForDate`, the global rates.
   - One code alone is a schema error.
-- [ ] `add_user_currencies` (`finance:write`): `currencies[]` of `{ currencyCode, exchangeRate?, liveRateUpdate? }`.
-- [ ] `update_user_currency` (`finance:write`): `currencyCode`, `exchangeRate?`, `liveRateUpdate?` → `editUserCurrency`.
-- [ ] `delete_user_currency` (`finance:delete`): `currencyCode` → `deleteUserCurrency`.
-- [ ] `change_base_currency` (`finance:write`): `newCurrencyCode` (ISO). The two branches follow two different REST routes, so their guards differ. Resolve the branch first (a read of the user's base currency), then guard:
+- [x] `add_user_currencies` (`finance:write`): `currencies[]` of `{ currencyCode, exchangeRate?, liveRateUpdate? }`.
+- [x] `update_user_currency` (`finance:write`): `currencyCode`, `exchangeRate?`, `liveRateUpdate?` → `editUserCurrency`.
+- [x] `delete_user_currency` (`finance:delete`): `currencyCode` → `deleteUserCurrency`.
+- [x] `change_base_currency` (`finance:write`): `newCurrencyCode` (ISO). The two branches follow two different REST routes, so their guards differ. Resolve the branch first (a read of the user's base currency), then guard:
   - A user without a base (`POST /user/currencies/base`, which is in `READ_ONLY_ROUTES` and carries `checkBaseCurrencyLock`): `requireScope` with `allowReadOnly: true`, then `assertBaseCurrencyUnlocked`, then `setBaseUserCurrency`. A read-only user can set the first base, as REST allows for onboarding.
   - Otherwise (`POST /user/currencies/change-base`, not in `READ_ONLY_ROUTES`, no lock because the enqueue owns its own NX lock): plain `requireScope` (a read-only user is refused), no lock check, then the new service, which returns `{ jobId, state }`.
   - The description warns that the change recalculates all history and blocks other edits until it finishes. It points to `get_base_currency_change_status`.
-- [ ] `get_base_currency_change_status` (read): `getBaseCurrencyChangeStatus`.
-- [ ] unit test `currency-settings-tools.unit.ts`: the `get_exchange_rate` modes, both `change_base_currency` branches, and per branch the guards: first base passes for a read-only user and throws while the lock is set; change-base throws for a read-only user and does not check the lock.
-- [ ] metafiles under `// Currencies`.
-- [ ] gate:
+- [x] `get_base_currency_change_status` (read): `getBaseCurrencyChangeStatus`.
+- [x] unit test `currency-settings-tools.unit.ts`: the `get_exchange_rate` modes, both `change_base_currency` branches, and per branch the guards: first base passes for a read-only user and throws while the lock is set; change-base throws for a read-only user and does not check the lock.
+- [x] metafiles under `// Currencies`.
+- [x] gate (done: 260 unit tests in 14 suites, 57 e2e tests in 8 suites, backend typecheck, lint and oxfmt clean):
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/currencies/(add-user-currency|change-base-currency\.service|change-base-currency-status|currency-code-validation)|services/user-exchange-rate/(get-exchange-rate-pair|get-user-exchange-rates)|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
