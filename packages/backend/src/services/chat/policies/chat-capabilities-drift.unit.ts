@@ -12,6 +12,10 @@ import path from 'path';
 // The import chains of these services open Redis connections.
 jest.mock('@services/categories.service', () => ({ getCategories: jest.fn() }));
 jest.mock('@services/accounts.service', () => ({ getAccounts: jest.fn() }));
+// Storing a card opens a transaction; a unit test has no database, so the body just runs.
+jest.mock('@services/common/with-transaction', () => ({
+  withTransaction: <T extends unknown[], R>(fn: (...args: T) => Promise<R>) => fn,
+}));
 
 import ChatProposals from '@models/chat-proposals.model';
 import * as usersCurrencies from '@models/users-currencies.model';

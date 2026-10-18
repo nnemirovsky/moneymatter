@@ -15,6 +15,10 @@ import { CHAT_TEST_USER_ID, makeChatRun, stubCatalog } from '@tests/helpers/chat
 // The import chains of the services behind the catalog's tools open Redis connections.
 jest.mock('@services/categories.service', () => ({ getCategories: jest.fn() }));
 jest.mock('@services/accounts.service', () => ({ getAccounts: jest.fn() }));
+// Storing a card opens a transaction; a unit test has no database, so the body just runs.
+jest.mock('@services/common/with-transaction', () => ({
+  withTransaction: <T extends unknown[], R>(fn: (...args: T) => Promise<R>) => fn,
+}));
 jest.mock('../../mcp/auth', () => ({ buildMcpAuthInfo: jest.fn() }));
 jest.mock('../visuals/resolve-entity-labels', () => ({ resolveEntityLabels: jest.fn() }));
 jest.mock('../sandbox/run-sandboxed-analysis', () => ({ runSandboxedAnalysis: jest.fn() }));
