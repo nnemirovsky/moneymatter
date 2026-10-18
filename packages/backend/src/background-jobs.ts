@@ -8,6 +8,7 @@ import { attachmentsOrphanSweepCron } from './crons/attachments-orphan-sweep';
 import { balanceRevalueSweepCron } from './crons/balance-revalue-sweep';
 import { bankAccountsSyncCron } from './crons/bank-accounts-sync';
 import { budgetPlansPurgeCron } from './crons/budget-plans-purge';
+import { chatRetentionCron } from './crons/chat-retention';
 import { chatRunSweepCron } from './crons/chat-run-sweep';
 import { coingeckoRatesSyncCron } from './crons/coingecko-rates-sync';
 import { cryptoPricesSyncCron } from './crons/crypto-prices-sync';
@@ -55,9 +56,11 @@ export function initializeBackgroundJobs() {
 
   // Chat runs need no internet (a local model is a normal setup), so recovering the ones a restart
   // cut short does not wait for the online-only jobs. The first sweep runs now, the cron repeats it.
+  // The same goes for the retention sweep: an offline install must still delete expired history.
   if (!isTestMode) {
     chatRunSweepCron.startCron();
     chatRunSweepCron.triggerManualSync().catch(() => undefined);
+    chatRetentionCron.startCron();
   }
 
   if (isOfflineMode || isTestMode) {
@@ -78,7 +81,7 @@ export function initializeBackgroundJobs() {
 }
 
 export async function shutdownBackgroundJobs() {
-  for (const cron of [...allEnvCrons, ...prodOnlyCrons, chatRunSweepCron]) cron.stopCron();
+  for (const cron of [...allEnvCrons, ...prodOnlyCrons, chatRunSweepCron, chatRetentionCron]) cron.stopCron();
   loadCurrencyRatesJob.stop();
   // Kills live CLI sign-in PTYs so they don't outlive the server with credentials in temp dirs
   resetCliAuthSessions();
