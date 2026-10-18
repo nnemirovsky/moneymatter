@@ -1,6 +1,4 @@
 import type { ChatProposalCard, ChatProposalStatus } from '@bt/shared/types';
-import { t } from '@i18n/index';
-import { NotFoundError } from '@js/errors';
 import ChatProposals from '@models/chat-proposals.model';
 import { withTransaction } from '@services/common/with-transaction';
 
@@ -8,7 +6,7 @@ import { resolveToolPolicy } from '../policies';
 import { notifyThreadUpdated } from '../threads/thread-events';
 import { cardConflict } from './card-conflict';
 import { expireDueCards, isExpiryDue } from './card-expiry';
-import { loadCards } from './card-load';
+import { findOwnedProposal, loadCards } from './card-load';
 import { computeCardState } from './card-state';
 import { loadParentRows } from './parents';
 
@@ -21,8 +19,7 @@ type RefreshOutcome =
 
 const refreshTransaction = withTransaction(
   async ({ userId, proposalId }: { userId: number; proposalId: string }): Promise<RefreshOutcome> => {
-    const [row] = await ChatProposals.findAll({ where: { id: proposalId, userId }, lock: true });
-    if (!row) throw new NotFoundError({ message: t({ key: 'chat.proposalNotFound' }) });
+    const row = await findOwnedProposal({ userId, proposalId, lock: true });
     if (isExpiryDue({ row })) {
       await expireDueCards({ ids: [proposalId] });
       return { kind: 'conflict', reason: 'expired' };

@@ -5,16 +5,21 @@ import ChatProposals from '@models/chat-proposals.model';
 
 import { toChatProposalCard } from './to-chat-proposal-card';
 
-/** The caller's own card. Another user's card answers the same 404 as a missing one. */
+/**
+ * The caller's own card. Another user's card answers the same 404 as a missing one. With `lock` the
+ * row is held `FOR UPDATE` until the surrounding transaction ends.
+ */
 export const findOwnedProposal = ({
   userId,
   proposalId,
+  lock = false,
 }: {
   userId: number;
   proposalId: string;
+  lock?: boolean;
 }): Promise<ChatProposals> =>
   findOrThrowNotFound({
-    query: ChatProposals.findOne({ where: { id: proposalId, userId } }),
+    query: ChatProposals.findOne({ where: { id: proposalId, userId }, ...(lock ? { lock: true } : {}) }),
     message: t({ key: 'chat.proposalNotFound' }),
   });
 

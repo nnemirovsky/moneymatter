@@ -1,6 +1,4 @@
 import type { ChatCardActionResponse } from '@bt/shared/types';
-import { t } from '@i18n/index';
-import { NotFoundError } from '@js/errors';
 import ChatProposals from '@models/chat-proposals.model';
 import { runWithBalanceRevalueBatch } from '@services/balances/revalue-balance-history.service';
 import { withTransaction } from '@services/common/with-transaction';
@@ -25,7 +23,7 @@ import {
 import type { ApproveParams } from './approve';
 import { cardConflict, cardFailure } from './card-conflict';
 import { expireDueCards, isExpiryDue } from './card-expiry';
-import { loadCards } from './card-load';
+import { findOwnedProposal, loadCards } from './card-load';
 import { describeInputError } from './placeholders';
 import { findRevisionMismatch } from './plan-chain';
 
@@ -41,11 +39,7 @@ type Claim =
  * a card left in `applying` by a crash is never run again.
  */
 const claim = withTransaction(async ({ params }: { params: ApproveParams }): Promise<Claim> => {
-  const [row] = await ChatProposals.findAll({
-    where: { id: params.proposalId, userId: params.user.id },
-    lock: true,
-  });
-  if (!row) throw new NotFoundError({ message: t({ key: 'chat.proposalNotFound' }) });
+  const row = await findOwnedProposal({ userId: params.user.id, proposalId: params.proposalId, lock: true });
   if (row.status === 'applied') return { kind: 'idempotent' };
   if (isExpiryDue({ row })) {
     await expireDueCards({ ids: [row.id as string] });
