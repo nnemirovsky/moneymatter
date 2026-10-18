@@ -34,6 +34,7 @@ import { registerCreatePortfolio } from './tools/create-portfolio';
 import { registerCreatePortfolioCashTransaction } from './tools/create-portfolio-cash-transaction';
 import { registerCreateSubscription } from './tools/create-subscription';
 import { registerCreateTag } from './tools/create-tag';
+import { registerCreateTagReminder } from './tools/create-tag-reminder';
 import { registerCreateTransaction } from './tools/create-transaction';
 import { registerCreateTransactionAutomation } from './tools/create-transaction-automation';
 import { registerCreateTransactionGroup } from './tools/create-transaction-group';
@@ -52,6 +53,7 @@ import { registerDeletePortfolio } from './tools/delete-portfolio';
 import { registerDeleteSplit } from './tools/delete-split';
 import { registerDeleteSubscription } from './tools/delete-subscription';
 import { registerDeleteTag } from './tools/delete-tag';
+import { registerDeleteTagReminder } from './tools/delete-tag-reminder';
 import { registerDeleteTransaction } from './tools/delete-transaction';
 import { registerDeleteTransactionAutomation } from './tools/delete-transaction-automation';
 import { registerDeleteTransactionGroup } from './tools/delete-transaction-group';
@@ -65,7 +67,9 @@ import { registerGetAccountGroups } from './tools/get-account-groups';
 import { registerGetAccounts } from './tools/get-accounts';
 import { registerGetBalanceHistory } from './tools/get-balance-history';
 import { registerGetBaseCurrencyChangeStatus } from './tools/get-base-currency-change-status';
+import { registerGetBudget } from './tools/get-budget';
 import { registerGetBudgetSpendingStats } from './tools/get-budget-spending-stats';
+import { registerGetBudgetTransactions } from './tools/get-budget-transactions';
 import { registerGetBudgets } from './tools/get-budgets';
 import { registerGetCashFlow } from './tools/get-cash-flow';
 import { registerGetCategories } from './tools/get-categories';
@@ -90,6 +94,7 @@ import { registerGetSubscriptionById } from './tools/get-subscription-by-id';
 import { registerGetSubscriptionPeriods } from './tools/get-subscription-periods';
 import { registerGetSubscriptions } from './tools/get-subscriptions';
 import { registerGetSubscriptionsSummary } from './tools/get-subscriptions-summary';
+import { registerGetTagReminders } from './tools/get-tag-reminders';
 import { registerGetTags } from './tools/get-tags';
 import { registerGetTransactionAutomations } from './tools/get-transaction-automations';
 import { registerGetTransactionGroups } from './tools/get-transaction-groups';
@@ -158,6 +163,7 @@ import { registerUpdatePayee } from './tools/update-payee';
 import { registerUpdatePortfolio } from './tools/update-portfolio';
 import { registerUpdateSubscription } from './tools/update-subscription';
 import { registerUpdateTag } from './tools/update-tag';
+import { registerUpdateTagReminder } from './tools/update-tag-reminder';
 import { registerUpdateTransaction } from './tools/update-transaction';
 import { registerUpdateTransactionAutomation } from './tools/update-transaction-automation';
 import { registerUpdateTransactionGroup } from './tools/update-transaction-group';
@@ -283,6 +289,10 @@ export function createMcpServer(): McpServer {
   registerDeleteTag(server);
   registerAssignTagsToTransaction(server);
   registerRemoveTagsFromTransaction(server);
+  registerGetTagReminders(server);
+  registerCreateTagReminder(server);
+  registerUpdateTagReminder(server);
+  registerDeleteTagReminder(server);
 
   // Payees
   registerGetPayees(server);
@@ -302,6 +312,8 @@ export function createMcpServer(): McpServer {
 
   // Trackers: the tool ids keep the "budget" name
   registerGetBudgets(server);
+  registerGetBudget(server);
+  registerGetBudgetTransactions(server);
   registerCreateBudget(server);
   registerUpdateBudget(server);
   registerDeleteBudget(server);

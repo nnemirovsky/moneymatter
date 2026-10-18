@@ -357,4 +357,31 @@ describe('Get budget stats', () => {
       expect(stats.summary.utilizationRate?.toFixed(2)).toBe(((123 / 1012) * 100).toFixed(2));
     });
   });
+
+  describe('Cross-user isolation', () => {
+    it('answers 404 to a user with no claim on the tracker, on every read route', async () => {
+      const category = await helpers.addCustomCategory({ name: 'Isolation', color: '#AABBCC', raw: true });
+      const categoryBudget = await helpers.createCustomBudget({
+        name: 'isolated-category',
+        type: BUDGET_TYPES.category,
+        categoryIds: [category.id],
+        raw: true,
+      });
+      const manualBudget = await helpers.createCustomBudget({ name: 'isolated-manual', raw: true });
+
+      const stranger = await helpers.signUpSecondUser();
+      await helpers.asUser({
+        cookies: stranger.cookies,
+        fn: async () => {
+          for (const id of [categoryBudget.id, manualBudget.id]) {
+            expect((await helpers.getCustomBudgetById({ id, raw: false })).statusCode).toBe(ERROR_CODES.NotFoundError);
+            expect((await helpers.getStats({ id, raw: false })).statusCode).toBe(ERROR_CODES.NotFoundError);
+          }
+          expect((await helpers.getCategoryBudgetTransactions({ id: categoryBudget.id, raw: false })).statusCode).toBe(
+            ERROR_CODES.NotFoundError,
+          );
+        },
+      });
+    });
+  });
 });
