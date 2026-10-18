@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { type Page, expect, test } from '@playwright/test';
 
 import { completeOnboarding, signInViaApi } from '../../helpers/api-client';
 import { loginViaUI } from '../../helpers/auth';
@@ -6,6 +6,19 @@ import { type ChatStub, buildCard, stubChatApi } from '../../helpers/chat-stubs'
 import { buildTestCredentials, signUpAndVerify } from '../../helpers/test-setup';
 
 const creds = buildTestCredentials({ prefix: 'chat-settings' });
+
+/** The chat settings live inside the Chat card of the AI features list, which starts collapsed. */
+/** Picks an option by typing its label: the list opens below the fold of a short window, out of a pointer's reach. */
+const pickOption = async ({ page, label }: { page: Page; label: string }) => {
+  await expect(page.getByRole('option', { name: label })).toBeAttached();
+  await page.keyboard.type(label);
+  await page.keyboard.press('Enter');
+};
+
+const openChatFeature = async ({ page }: { page: Page }) => {
+  await page.goto('/settings/ai/features');
+  await page.getByRole('heading', { name: 'Chat', exact: true, level: 4 }).click();
+};
 
 test.describe('Settings → AI → Chat', () => {
   test.beforeAll(async ({ playwright }) => {
@@ -22,7 +35,7 @@ test.describe('Settings → AI → Chat', () => {
   });
 
   test('changes how long conversations are kept', async ({ page }) => {
-    await page.goto('/settings/ai/features');
+    await openChatFeature({ page });
 
     const section = page
       .getByRole('heading', { name: 'Conversation history' })
@@ -33,7 +46,7 @@ test.describe('Settings → AI → Chat', () => {
     await expect(section.getByRole('combobox')).toContainText('30 days');
 
     await section.getByRole('combobox').click();
-    await page.getByRole('option', { name: '90 days' }).click();
+    await pickOption({ page, label: '90 days' });
 
     await expect(page.getByText('History retention updated')).toBeVisible();
     await expect(section.getByRole('combobox')).toContainText('90 days');
@@ -42,13 +55,13 @@ test.describe('Settings → AI → Chat', () => {
   });
 
   test('can keep conversations until they are deleted', async ({ page }) => {
-    await page.goto('/settings/ai/features');
+    await openChatFeature({ page });
 
     const section = page
       .getByRole('heading', { name: 'Conversation history' })
       .locator('xpath=ancestor::div[contains(@class, "border-t")][1]');
     await section.getByRole('combobox').click();
-    await page.getByRole('option', { name: 'Never delete automatically' }).click();
+    await pickOption({ page, label: 'Never delete automatically' });
 
     await expect.poll(() => stub.calls.find((call) => call.method === 'PUT')?.body).toEqual({ retentionDays: null });
   });
@@ -64,7 +77,7 @@ test.describe('Settings → AI → Chat', () => {
         result: { refs: [], executedArgs: {}, appliedAt: '2026-03-05T10:00:00.000Z' },
       }),
     });
-    await page.goto('/settings/ai/features');
+    await openChatFeature({ page });
 
     await page.getByRole('link', { name: /Applied changes/ }).click();
 

@@ -174,21 +174,42 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
     return { runId, messageId, userMessageId };
   };
 
-  await page.route('**/api/v1/user/settings/ai/features', async (route) => {
-    const response = await route.fetch();
-    const body = await response.json();
-    const features = (body.response?.features ?? []) as Json[];
-    const chat = features.find((feature) => feature.feature === 'chat');
-    if (chat) Object.assign(chat, { isConfigured: true, servedBy: 'connection', modelId: 'custom/test-model' });
-    await route.fulfill({ response, json: body });
-  });
+  /**
+   * Fetches the real answer and rewrites it. A test can end while this request is still in flight, and
+   * the closed page then rejects the fetch; that is not a failure of the test.
+   */
+  const rewriteRealResponse = async ({ route, rewrite }: { route: Route; rewrite: (body: Json) => void }) => {
+    try {
+      const response = await route.fetch();
+      const body = await response.json();
+      rewrite(body);
+      await route.fulfill({ response, json: body });
+    } catch (error) {
+      if (page.isClosed() || /closed/i.test(String(error))) return;
+      throw error;
+    }
+  };
+
+  await page.route('**/api/v1/user/settings/ai/features', (route) =>
+    rewriteRealResponse({
+      route,
+      rewrite: (body) => {
+        const features = ((body.response as Json | undefined)?.features ?? []) as Json[];
+        const chat = features.find((feature) => feature.feature === 'chat');
+        if (chat) Object.assign(chat, { isConfigured: true, servedBy: 'connection', modelId: 'custom/test-model' });
+      },
+    }),
+  );
 
   await page.route('**/api/v1/user/settings', async (route) => {
     if (route.request().method() !== 'GET') return route.fallback();
-    const response = await route.fetch();
-    const body = await response.json();
-    body.response = { ...body.response, ai: { ...body.response?.ai, chat: { retentionDays: stub.retentionDays } } };
-    await route.fulfill({ response, json: body });
+    return rewriteRealResponse({
+      route,
+      rewrite: (body) => {
+        const response = (body.response ?? {}) as Json & { ai?: Json };
+        body.response = { ...response, ai: { ...response.ai, chat: { retentionDays: stub.retentionDays } } };
+      },
+    });
   });
 
   await page.route('**/api/v1/chat/**', async (route) => {
