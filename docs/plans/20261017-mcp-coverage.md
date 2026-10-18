@@ -1098,18 +1098,19 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 - Create: `tools/{get-budget,get-budget-transactions,get-tag-reminders,create-tag-reminder,update-tag-reminder,delete-tag-reminder}.ts`, `tools/tracker-reminder-tools.unit.ts`
 - Modify: the four metafiles
 
-- [ ] read first, on `dev` after Task 3's merge: `controllers/budgets/{get-budgets,get-stats,get-category-budget-transactions}.ts` (tracker stats in base minor units), `controllers/tag-reminders/*`, `serializers/tag-reminders.serializer.ts`
-- [ ] `get_budget` (read): `budgetId` → `getBudgetById` + `serializeBudget` and `getBudgetStats` (which returns `{ stats, decimals }`) + `serializeBudgetStats({ stats, decimals })`. On `dev` the two controllers hold nothing beyond that service-plus-serializer pair, so there is no orchestration to move; the tool calls the same functions.
-- [ ] `get_budget_transactions` (read): `budgetId`, `from` (≥ 0), `limit` (1–100) → `getCategoryBudgetTransactions`. The description says it works for category trackers, and manual trackers use `search_transactions` with `budgetIds`.
-- [ ] `get_tag_reminders` (read): `tagId?`, `reminderId?` (needs `tagId`) → `getAllReminders`, `getRemindersForTag` or `getReminderById`, serialized.
-- [ ] `create_tag_reminder` (`finance:write`):
+- [x] read first, on `dev` after Task 3's merge: `controllers/budgets/{get-budgets,get-stats,get-category-budget-transactions}.ts` (tracker stats in base minor units), `controllers/tag-reminders/*`, `serializers/tag-reminders.serializer.ts`
+- [x] `get_budget` (read): `budgetId` → `getBudgetById` + `serializeBudget` and `getBudgetStats` (which returns `{ stats, decimals }`) + `serializeBudgetStats({ stats, decimals })`. On `dev` the two controllers hold nothing beyond that service-plus-serializer pair, so there is no orchestration to move; the tool calls the same functions.
+- [x] `get_budget_transactions` (read): `budgetId`, `from` (≥ 0), `limit` (1–100) → `getCategoryBudgetTransactions`. The description says it works for category trackers, and manual trackers use `search_transactions` with `budgetIds`.
+- [x] `get_tag_reminders` (read): `tagId?`, `reminderId?` (needs `tagId`) → `getAllReminders`, `getRemindersForTag` or `getReminderById`, serialized.
+- [x] `create_tag_reminder` (`finance:write`):
   - `tagId`, `type` (`amountThreshold` | `existenceCheck`), `frequency?`, `dayOfMonth?`, `amountThreshold?` (base currency), `isEnabled?`;
   - through `deserializeCreateTagReminder`, then `createReminder`.
-- [ ] `update_tag_reminder` (`finance:write`): `tagId`, `reminderId` and the partial fields, through `deserializeUpdateTagReminder`.
-- [ ] `delete_tag_reminder` (`finance:delete`).
-- [ ] unit test `tracker-reminder-tools.unit.ts`.
-- [ ] metafiles: trackers under `// Trackers`, reminders under `// Taxonomy`.
-- [ ] gate:
+- [x] `update_tag_reminder` (`finance:write`): `tagId`, `reminderId` and the partial fields, through `deserializeUpdateTagReminder`.
+- [x] `delete_tag_reminder` (`finance:delete`).
+- [x] unit test `tracker-reminder-tools.unit.ts` (36 cases, seen red on assertions against stub tools first).
+- [x] extras done: REST bodies of create/update reminder moved into `controllers/tag-reminders/shared-schemas.ts` (shared with the tools, parity tests); e2e added first and green on the unmoved controllers: reminder request validation, reminder cross-user isolation, tracker cross-user 404 on get/stats/category-transactions.
+- [x] metafiles: trackers under `// Trackers`, reminders under `// Taxonomy`.
+- [x] gate:
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/budgets/(stats|category-budgets|budget-crud)|services/tag-reminders/tag-reminders|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
