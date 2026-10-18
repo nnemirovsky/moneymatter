@@ -5,6 +5,7 @@ import {
   FINANCIAL_DATA_GUIDE_DESCRIPTION,
   FINANCIAL_DATA_GUIDE_NAME,
 } from './prompts/financial-data-guide';
+import { registerAcceptSubscriptionCandidate } from './tools/accept-subscription-candidate';
 import { registerAddAccountToGroup } from './tools/add-account-to-group';
 import { registerAddTransactionsToBudget } from './tools/add-transactions-to-budget';
 import { registerAddTransactionsToGroup } from './tools/add-transactions-to-group';
@@ -77,6 +78,7 @@ import { registerGetRefundRecommendations } from './tools/get-refund-recommendat
 import { registerGetRefunds } from './tools/get-refunds';
 import { registerGetSpendingByCategories } from './tools/get-spending-by-categories';
 import { registerGetSubscriptionById } from './tools/get-subscription-by-id';
+import { registerGetSubscriptionPeriods } from './tools/get-subscription-periods';
 import { registerGetSubscriptions } from './tools/get-subscriptions';
 import { registerGetSubscriptionsSummary } from './tools/get-subscriptions-summary';
 import { registerGetTags } from './tools/get-tags';
@@ -98,12 +100,15 @@ import { registerListCustomCurrencies } from './tools/list-custom-currencies';
 import { registerListPortfolioTransfers } from './tools/list-portfolio-transfers';
 import { registerListStuckPendingTransactions } from './tools/list-stuck-pending-transactions';
 import { registerListSubscriptionCandidates } from './tools/list-subscription-candidates';
+import { registerListSubscriptionMatchSuggestions } from './tools/list-subscription-match-suggestions';
 import { registerListSupportedCurrencies } from './tools/list-supported-currencies';
 import { registerListTransactionAttachments } from './tools/list-transaction-attachments';
 import { registerListTransferSuggestions } from './tools/list-transfer-suggestions';
 import { registerMergeDuplicateTransactions } from './tools/merge-duplicate-transactions';
 import { registerMergePayees } from './tools/merge-payees';
 import { registerMoveAccountGroup } from './tools/move-account-group';
+import { registerPaySubscriptionPeriod } from './tools/pay-subscription-period';
+import { registerPreviewSubscriptionPayment } from './tools/preview-subscription-payment';
 import { registerPreviewTransactionAutomation } from './tools/preview-transaction-automation';
 import { registerRemoveAccountsFromGroup } from './tools/remove-accounts-from-group';
 import { registerRemoveDuplicateTransactions } from './tools/remove-duplicate-transactions';
@@ -112,11 +117,13 @@ import { registerRemoveTransactionsFromBudget } from './tools/remove-transaction
 import { registerRemoveTransactionsFromGroup } from './tools/remove-transactions-from-group';
 import { registerReorderTransactionAutomations } from './tools/reorder-transaction-automations';
 import { registerRestoreRemovedTransactions } from './tools/restore-removed-transactions';
+import { registerRevertSubscriptionPeriod } from './tools/revert-subscription-period';
 import { registerSearchCoingeckoCoins } from './tools/search-coingecko-coins';
 import { registerSearchSecurities } from './tools/search-securities';
 import { registerSearchTransactions } from './tools/search-transactions';
 import { registerSetCurrencyRateSource } from './tools/set-currency-rate-source';
 import { registerSetExchangeRates } from './tools/set-exchange-rates';
+import { registerSkipSubscriptionPeriod } from './tools/skip-subscription-period';
 import { registerSplitTransaction } from './tools/split-transaction';
 import { registerTestCurrencyRateSource } from './tools/test-currency-rate-source';
 import { registerToggleSubscriptionActive } from './tools/toggle-subscription-active';
@@ -124,6 +131,7 @@ import { registerTransferAccountToPortfolio } from './tools/transfer-account-to-
 import { registerTransferPortfolioToAccount } from './tools/transfer-portfolio-to-account';
 import { registerUnlinkAccountFromBankConnection } from './tools/unlink-account-from-bank-connection';
 import { registerUnlinkRefund } from './tools/unlink-refund';
+import { registerUnlinkSubscriptionPeriodTransaction } from './tools/unlink-subscription-period-transaction';
 import { registerUnlinkTransactionFromPortfolio } from './tools/unlink-transaction-from-portfolio';
 import { registerUnlinkTransactionsFromSubscription } from './tools/unlink-transactions-from-subscription';
 import { registerUnlinkTransfer } from './tools/unlink-transfer';
@@ -329,6 +337,14 @@ export function createMcpServer(): McpServer {
   registerUnlinkTransactionsFromSubscription(server);
   registerGetUpcomingSubscriptionPayments(server);
   registerGetSubscriptionsSummary(server);
+  registerAcceptSubscriptionCandidate(server);
+  registerListSubscriptionMatchSuggestions(server);
+  registerGetSubscriptionPeriods(server);
+  registerPreviewSubscriptionPayment(server);
+  registerPaySubscriptionPeriod(server);
+  registerSkipSubscriptionPeriod(server);
+  registerUnlinkSubscriptionPeriodTransaction(server);
+  registerRevertSubscriptionPeriod(server);
 
   // Transaction automations (rules engine)
   registerGetTransactionAutomations(server);
