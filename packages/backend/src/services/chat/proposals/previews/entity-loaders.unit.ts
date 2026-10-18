@@ -186,7 +186,7 @@ describe('entity loaders', () => {
 
     await load({ kind: 'customCurrency', targets: ['PTS'] });
 
-    expect(whereOf(find).where).toEqual({ code: 'PTS', isCustom: true, userId: USER });
+    expect(whereOf(find).where).toEqual({ code: 'PTS', isCustom: true, createdByUserId: USER });
   });
 
   it('finds a user currency by code, and counts the accounts in it', async () => {

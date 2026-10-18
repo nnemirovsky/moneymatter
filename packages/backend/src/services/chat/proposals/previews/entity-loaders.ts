@@ -273,7 +273,7 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
   transactionTemplate: owned({ model: TransactionTemplates }),
 
   customCurrency: async ({ userId, targets }) => {
-    const record = await Currencies.findOne({ where: { code: targets[0]!, isCustom: true, userId } });
+    const record = await Currencies.findOne({ where: { code: targets[0]!, isCustom: true, createdByUserId: userId } });
     return record ? loaded({ record }) : null;
   },
 
