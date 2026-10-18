@@ -102,6 +102,22 @@ export function buildChatToolkit({
       state.records.push(record);
       const startedAt = Date.now();
 
+      // A runner without a model stream of its own (the CLI bridge) has the toolkit report each call.
+      const partId = run.announceToolCalls ? randomUUID() : null;
+      if (partId) {
+        await run.emit({
+          type: 'part.started',
+          part: {
+            type: 'toolCall',
+            id: partId,
+            callId,
+            toolName: definition.name,
+            args: record.args,
+            status: 'running',
+          },
+        });
+      }
+
       let result;
       try {
         result = await definition.execute({ input, callId });
@@ -114,6 +130,19 @@ export function buildChatToolkit({
       const summary = (result.summary ?? result.text).slice(0, RESULT_SUMMARY_CHARS);
       if (result.isError) record.error = summary;
       else record.resultSummary = summary;
+
+      if (partId) {
+        await run.emit({
+          type: 'part.updated',
+          partId,
+          patch: {
+            durationMs: record.durationMs,
+            status: record.status,
+            ...(result.isError ? { error: summary } : { resultSummary: summary }),
+          },
+        });
+      }
+
       return result;
     },
   });

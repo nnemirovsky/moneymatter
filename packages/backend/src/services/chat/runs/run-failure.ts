@@ -14,6 +14,19 @@ interface ChatRunFailure {
   messageKey: string;
 }
 
+/** A failure a runner names itself, with the key its message carries. */
+export class ChatRunFailureError extends Error {
+  readonly code: string;
+  readonly messageKey: string;
+
+  constructor({ code, messageKey }: { code: string; messageKey: string }) {
+    super(`Chat run failed: ${code}`);
+    this.name = 'ChatRunFailureError';
+    this.code = code;
+    this.messageKey = messageKey;
+  }
+}
+
 const failure = ({ code }: { code: string }): ChatRunFailure => ({ code, messageKey: `chat.errors.${code}` });
 
 /**
@@ -29,6 +42,8 @@ export async function describeRunFailure({
   userId: number;
   aiClient: AIClientResult;
 }): Promise<ChatRunFailure> {
+  if (error instanceof ChatRunFailureError) return { code: error.code, messageKey: error.messageKey };
+
   const { kind, cause } = classifyAiCallFailure({ error });
 
   switch (kind) {

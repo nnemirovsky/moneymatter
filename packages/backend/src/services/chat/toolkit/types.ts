@@ -55,6 +55,11 @@ export interface ChatToolkitRun {
   textPolicy: ChatTextPolicy;
   /** Called once, when the model asks the user a question and the run must stop. */
   onAwaitingClarification?: () => void;
+  /**
+   * Opens a `toolCall` part before each tool call and closes it with the outcome. The AI SDK runner
+   * leaves it off because it writes those parts from its own stream; the CLI bridge has no such stream.
+   */
+  announceToolCalls?: boolean;
   /** Wraps untrusted text (a tool result, an attachment) before the model sees it; identity when absent. */
   wrapUntrusted?: (params: { kind: 'toolResult' | 'attachment'; text: string }) => string;
 }

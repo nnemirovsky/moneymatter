@@ -134,6 +134,11 @@ const cardsIn = ({ events }: { events: ChatRunEvent[] }) =>
 const noticesIn = ({ events }: { events: ChatRunEvent[] }) =>
   events.flatMap((event) => (event.type === 'part.started' && event.part.type === 'notice' ? [event.part] : []));
 
+const toolCallEvents = ({ events }: { events: ChatRunEvent[] }) =>
+  events.filter(
+    (event) => (event.type === 'part.started' && event.part.type === 'toolCall') || event.type === 'part.updated',
+  );
+
 describe('buildChatToolkit', () => {
   beforeEach(() => {
     jest.mocked(buildMcpAuthInfo).mockReset();
@@ -211,6 +216,76 @@ describe('buildChatToolkit', () => {
       expect(active.has('find_capabilities')).toBe(true);
       expect(active.has('ask_clarification')).toBe(true);
       expect(active.has('delete_account')).toBe(false);
+    });
+  });
+
+  describe('tool call parts', () => {
+    it('emits no part for a call unless the run asks for them: the AI SDK runner writes its own', async () => {
+      const { toolkit, events } = setup({ implementations: { get_categories: () => [] } });
+
+      await call({ toolkit, name: 'get_categories' });
+
+      expect(toolCallEvents({ events })).toEqual([]);
+    });
+
+    it('opens a running part before the call and closes it with the outcome when the run asks for them', async () => {
+      const { toolkit, events } = setup({
+        implementations: { get_categories: () => [{ id: 'c1' }] },
+        runOverrides: { announceToolCalls: true },
+      });
+
+      await call({ toolkit, name: 'get_categories', callId: 'call-1' });
+
+      const [started, updated] = toolCallEvents({ events });
+      expect(started).toEqual({
+        type: 'part.started',
+        part: {
+          type: 'toolCall',
+          id: expect.any(String),
+          callId: 'call-1',
+          toolName: 'get_categories',
+          args: {},
+          status: 'running',
+        },
+      });
+      expect(updated).toEqual({
+        type: 'part.updated',
+        partId: started!.type === 'part.started' ? started!.part.id : 'missing',
+        patch: { durationMs: expect.any(Number), status: 'ok', resultSummary: expect.any(String) },
+      });
+    });
+
+    it('closes the part with the error when the call fails', async () => {
+      const { toolkit, events } = setup({
+        implementations: {
+          get_categories: () => {
+            throw new Error('no such thing');
+          },
+        },
+        runOverrides: { announceToolCalls: true },
+      });
+
+      await call({ toolkit, name: 'get_categories' });
+
+      expect(toolCallEvents({ events }).at(-1)).toMatchObject({
+        type: 'part.updated',
+        patch: { status: 'error', error: expect.stringContaining('no such thing') },
+      });
+    });
+
+    it('opens no part for a call refused while the run waits for an answer', async () => {
+      const { toolkit, events } = setup({ runOverrides: { announceToolCalls: true } });
+
+      await call({
+        toolkit,
+        name: 'ask_clarification',
+        input: { question: 'Which?', options: [{ label: 'A' }, { label: 'B' }] },
+      });
+      const before = toolCallEvents({ events }).length;
+      const refused = await call({ toolkit, name: 'get_categories' });
+
+      expect(refused.isError).toBe(true);
+      expect(toolCallEvents({ events })).toHaveLength(before);
     });
   });
 
