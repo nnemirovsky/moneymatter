@@ -47,28 +47,48 @@ type ChainAttempt =
   | { kind: 'idempotent'; chainIds: string[] }
   | { kind: 'conflict'; reason: 'revision' | 'notPending' | 'blocked' | 'expired' | 'unavailable'; chainIds: string[] };
 
-/**
- * Locks the target and every card it depends on, parents in ascending id order within each level.
- * Locks follow the refs from card to parent, so two approvals sharing a parent cannot deadlock.
- */
-async function lockChain({ userId, targetId }: { userId: number; targetId: string }) {
-  const locked = new Map<string, ChatProposals>();
+/** The cards a row's approval needs next: its parents, except that an applied parent is done (the target itself is looked at anyway). */
+const parentsToFollow = ({ row, targetId }: { row: ChatProposals; targetId: string }) =>
+  row.status === 'applied' && row.id !== targetId ? [] : row.dependsOn;
+
+/** The ids of the target and of every card it depends on, found level by level without locking anything. */
+async function findChainIds({ userId, targetId }: { userId: number; targetId: string }): Promise<Set<string>> {
+  const known = new Set([targetId]);
   let wanted = [targetId];
 
   while (wanted.length > 0) {
-    const rows = await ChatProposals.findAll({ where: { id: wanted, userId }, order: [['id', 'ASC']], lock: true });
-    for (const row of rows) locked.set(row.id as string, row);
-
-    wanted = [
-      ...new Set(
-        rows.flatMap((row) =>
-          row.status === 'applied' && row.id !== targetId ? [] : row.dependsOn.filter((id) => !locked.has(id)),
-        ),
-      ),
-    ];
+    const rows = await ChatProposals.findAll({
+      where: { id: wanted, userId },
+      attributes: ['id', 'status', 'dependsOn'],
+    });
+    wanted = [...new Set(rows.flatMap((row) => parentsToFollow({ row, targetId })))].filter((id) => !known.has(id));
+    for (const id of wanted) known.add(id);
   }
 
-  return locked;
+  return known;
+}
+
+/**
+ * Locks the target and every card it depends on with one query, in ascending id order. Every
+ * approval takes its locks in that one global order, so two approvals whose chains overlap queue up
+ * instead of waiting on each other. The chain was found without locks, so the locked rows are read
+ * again: a card edited meanwhile may depend on one more, which is then locked as well (the whole set
+ * again, in order).
+ */
+async function lockChain({ userId, targetId }: { userId: number; targetId: string }) {
+  const ids = await findChainIds({ userId, targetId });
+
+  for (;;) {
+    const rows = await ChatProposals.findAll({
+      where: { id: [...ids].toSorted(), userId },
+      order: [['id', 'ASC']],
+      lock: true,
+    });
+    const missing = rows.flatMap((row) => parentsToFollow({ row, targetId })).filter((id) => !ids.has(id));
+    if (missing.length === 0) return new Map(rows.map((row) => [row.id as string, row]));
+
+    for (const id of missing) ids.add(id);
+  }
 }
 
 const CONFLICT_REASON_OF_STATUS = ({ status }: { status: ChatProposals['status'] }) =>

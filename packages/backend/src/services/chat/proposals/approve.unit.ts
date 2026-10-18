@@ -236,6 +236,53 @@ describe('approveProposal', () => {
       expect(response.cards.map((card) => card.id).toSorted()).toEqual([CATEGORY, TAG, TX].toSorted());
     });
 
+    it('locks every card of the chain in one query in ascending id order, whatever the depth of each', async () => {
+      // A transaction on a subcategory of a category: three levels, whose ids sort the other way round.
+      const grandparent = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+      const parent = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+      const child = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+      seed(
+        row(grandparent, { toolName: 'create_category', args: { name: 'Food' } }),
+        row(parent, {
+          toolName: 'create_category',
+          args: { name: 'Coffee', parentId: `$proposal:${grandparent}` },
+          dependsOn: [grandparent],
+          snapshot: { baseCurrencyCode: 'USD', parentStatuses: { [grandparent]: 'pending' } },
+        }),
+        row(child, {
+          toolName: 'create_transaction',
+          entity: 'transaction',
+          args: {
+            accountId: ACCOUNT,
+            amount: 4.5,
+            transactionType: 'expense',
+            paymentType: 'creditCard',
+            transferNature: 'not_transfer',
+            categoryId: `$proposal:${parent}`,
+          },
+          dependsOn: [parent],
+          snapshot: { baseCurrencyCode: 'USD', parentStatuses: { [parent]: 'pending' } },
+        }),
+      );
+
+      await approve({ id: child, parentRevisions: { [grandparent]: 1, [parent]: 1 } });
+
+      const locked = jest
+        .mocked(ChatProposals.findAll)
+        .mock.calls.filter(([options]) => (options as { lock?: boolean }).lock)
+        .map(([options]) => (options as { where: { id: string | string[] } }).where.id);
+      expect(locked.flat()).toEqual([grandparent, parent, child]);
+    });
+
+    it('locks the whole chain with one query', async () => {
+      const { category, tag, tx } = chain();
+      seed(category, tag, tx);
+
+      await approve({ id: TX, parentRevisions: { [CATEGORY]: 1, [TAG]: 1 } });
+
+      expect(events.filter((event) => event === 'lock')).toHaveLength(1);
+    });
+
     it('applies the parents first and hands the child their real ids', async () => {
       const { category, tag, tx } = chain();
       seed(category, tag, tx);
