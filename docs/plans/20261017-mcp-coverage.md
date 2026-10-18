@@ -1126,18 +1126,19 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 - Create: `tools/{get-notifications,mark-notifications-read,dismiss-notification,get-user-settings,update-user-settings}.ts`, `tools/notification-settings-tools.unit.ts`
 - Modify: the four metafiles, `tool-scopes-drift.unit.ts` (`LOCK_EXEMPT_TOOLS`: `mark_notifications_read`, `update_user_settings`; `READ_ONLY_ROUTE_TOOLS`: the same two)
 
-- [ ] read first: `controllers/notifications.controller.ts`, `controllers/user-settings/{get-settings,patch-settings}.ts`, `models/user-settings.model.ts` (`ZodSettingsPatchSchema`), `middlewares/entitlements.ts#requireFireSettingsAccess`
-- [ ] `get_notifications` (read): `notificationId?`, or `status?`, `type?`, `limit` (1–100), `offset`. The list result includes `unreadCount` (`getUnreadCount`).
-- [ ] `mark_notifications_read` (`finance:write`, `allowReadOnly: true`, lock-exempt like REST): `notificationId?`. Without an id it marks all (`markAllAsRead`). Both REST routes (`POST /notifications/read-all`, `POST /notifications/:id/read`) are in `READ_ONLY_ROUTES`, so a read-only user keeps the inbox usable over MCP too.
-- [ ] `dismiss_notification` (`finance:write`): `notificationId`. `POST /notifications/:id/dismiss` is not in `READ_ONLY_ROUTES`, so a read-only user is refused, as in REST.
-- [ ] `get_user_settings` (read): `getUserSettings`, with the `ai` slice left out. That keeps AI configuration out of the client, matching the ai exclusion.
-- [ ] `update_user_settings` (`finance:write`, `allowReadOnly: true`, lock-exempt like REST; `PUT` and `PATCH /user/settings` are in `READ_ONLY_ROUTES`):
+- [x] read first: `controllers/notifications.controller.ts`, `controllers/user-settings/{get-settings,patch-settings}.ts`, `models/user-settings.model.ts` (`ZodSettingsPatchSchema`), `middlewares/entitlements.ts#requireFireSettingsAccess`
+- [x] `get_notifications` (read): `notificationId?`, or `status?`, `type?`, `limit` (1–100), `offset`. The list result includes `unreadCount` (`getUnreadCount`).
+- [x] `mark_notifications_read` (`finance:write`, `allowReadOnly: true`, lock-exempt like REST): `notificationId?`. Without an id it marks all (`markAllAsRead`). Both REST routes (`POST /notifications/read-all`, `POST /notifications/:id/read`) are in `READ_ONLY_ROUTES`, so a read-only user keeps the inbox usable over MCP too.
+- [x] `dismiss_notification` (`finance:write`): `notificationId`. `POST /notifications/:id/dismiss` is not in `READ_ONLY_ROUTES`, so a read-only user is refused, as in REST.
+- [x] `get_user_settings` (read): `getUserSettings`, with the `ai` slice left out. That keeps AI configuration out of the client, matching the ai exclusion.
+- [x] `update_user_settings` (`finance:write`, `allowReadOnly: true`, lock-exempt like REST; `PUT` and `PATCH /user/settings` are in `READ_ONLY_ROUTES`):
   - a deep-merge patch validated with `ZodSettingsPatchSchema` minus `ai` → `patchUserSettings`;
   - a `fire` key needs `requireFeatureAccess` `fire_planner`;
   - it covers `PUT /settings` too: the patch replaces arrays whole, as REST does.
-- [ ] unit test `notification-settings-tools.unit.ts`: `ai` rejected and stripped, the `fire` gate, mark all versus one, and read-only handling: `mark_notifications_read` and `update_user_settings` pass for a read-only user, `dismiss_notification` throws for one.
-- [ ] metafiles under a new `// Notifications & settings` group.
-- [ ] gate:
+- [x] unit test `notification-settings-tools.unit.ts` (36 cases, 35 seen red on assertions against stub tools first): `ai` rejected and stripped, the `fire` gate, mark all versus one, and read-only handling: `mark_notifications_read` and `update_user_settings` pass for a read-only user, `dismiss_notification` throws for one.
+- [x] extras done: the notification type and status enums moved into `controllers/notifications/shared-schemas.ts` (shared with `get_notifications`, parity tests); e2e added first and green on the unmoved controller: list query validation (bad status, type, limit, offset, bounds) and notification cross-user isolation (list, get by id, read, read-all, dismiss, unread count). `dev` has the web push settings keys; this branch does not, so `update_user_settings` takes its input shape from `ZodSettingsPatchSchema` (minus `ai`) and re-parses with it: the new keys arrive with the next `dev` merge, with no change to the tool.
+- [x] metafiles under a new `// Notifications & settings` group.
+- [x] gate:
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/notifications/notifications|services/user-settings/(patch-settings|update-settings|fire-settings|settings-service-owned-slices)|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
