@@ -205,6 +205,7 @@ When this plan is done, the server has about 250 tools (about 260 with Apple Pay
   - money as decimal numbers (investment amounts as the decimal strings their REST schemas use);
   - dates as ISO strings converted with `new Date()` where the service wants a `Date`.
 - **Pagination caps:** reuse the REST limits (for example notifications 1–100, batches 1–100, budget category transactions 1–100). `get_transactions` caps `ids` at 50, the limit of `getTransactionsByIds` (`MAX_IDS`).
+- **Deliberate deviations from REST (MCP only):** a REST route that is too dangerous for an AI client to call with a forgotten argument is tightened in the tool, never in the shared service. `bulk_delete_transactions` refuses empty filters (`filters: {}` or only no-op values), which REST accepts and which delete everything the caller owns; it needs explicit `transactionIds` or at least one narrowing filter. Each such deviation is stated in the tool's description and has a unit test.
 - **Write guard order:** `getUserId` → `requireScope` (`allowReadOnly: true` only for a `READ_ONLY_ROUTES` tool) → `assertBaseCurrencyUnlocked` (unless exempt) → `requireFeatureAccess` (when gated) → `enforceUserRateLimit` (when the REST route is rate-limited) → `trackMcpToolUsed` → service.
 - **Lock-carrying reads:** a read-named tool whose REST route carries `checkBaseCurrencyLock` calls `getUserId` → `assertBaseCurrencyUnlocked` → `trackMcpToolUsed` → service, and is listed in `LOCK_GUARDED_READ_TOOLS`.
 - **The four metafiles** each tool touches (skill steps 2–5):
@@ -930,23 +931,36 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 - Create:
   - `tools/{get-refunds,get-refund-recommendations,get-transfer-recommendations,list-transfer-suggestions,dismiss-transfer-suggestion}.ts`, `tools/refund-transfer-tools.unit.ts`;
   - `services/tx-refunds/get-refund-recommendations.service.ts`;
-  - `services/transactions/transactions-linking/{get-transfer-recommendations,bulk-scan-transfer-recommendations,dismiss-transfer-suggestion}.service.ts`.
-- Modify: `controllers/transactions.controller/refunds/get-refund-recommendations.ts`, `controllers/transactions.controller/transfer-linking/{get-transfer-recommendations,bulk-scan-transfer-recommendations,dismiss-transfer-suggestion}.ts` (they call the new services), the four metafiles, `tool-scopes-drift.unit.ts` (`LOCK_GUARDED_READ_TOOLS`: `list_transfer_suggestions`, whose route `POST /transactions/transfer-recommendations/bulk-scan` carries `checkBaseCurrencyLock`)
+  - `services/transactions/transactions-linking/{get-transfer-recommendations,bulk-scan-transfer-recommendations,dismiss-transfer-suggestion}.service.ts`;
+  - `services/transactions/transactions-linking/recommendation-schemas.ts` (the REST query and body schemas that the controllers and the tools share), `tools/recommendation-input.ts`, `tools/refund-output.ts`.
+- Modify:
+  - `services/mcp/serializers.ts` (+ `serializers.unit.ts`): the slim transaction carries `transferId`;
+  - `tools/bulk-delete-transactions.ts`, `tools/transaction-filter-input.ts` (+ `transaction-read-tools.unit.ts`): empty filters are refused;
+  - `controllers/transactions.controller/refunds/get-refund-recommendations.ts`, `controllers/transactions.controller/transfer-linking/{get-transfer-recommendations,bulk-scan-transfer-recommendations,dismiss-transfer-suggestion}.ts` (they call the new services), the four metafiles, `tool-scopes-drift.unit.ts` (`LOCK_GUARDED_READ_TOOLS`: `list_transfer_suggestions`, whose route `POST /transactions/transfer-recommendations/bulk-scan` carries `checkBaseCurrencyLock`)
 
-- [ ] read first: those four controllers, `transfer-linking/constants.ts`, `services/tx-refunds/*`, `@models/transfer-suggestion-dismissals.model`
-- [ ] e2e coverage check before the move: confirm each of the four routes has an e2e case for the logic that moves (windows, limits, scoring, sorting, the ownership check). The gate patterns below already name the refund-recommendation, transfer-recommendation, bulk-scan and dismiss suites; if a moved behaviour (for example the ownership check, or the dismissal filter on a scan) has no case, add one to those suites first and run it green against the unmoved controller.
-- [ ] move the inline logic of the four controllers into the four services unchanged: windows, limits, scoring, sorting, the ownership check. The controllers keep only validation and the response.
-- [ ] `get_refunds` (read): one tool with three modes.
+- [x] read first: those four controllers, `transfer-linking/constants.ts`, `services/tx-refunds/*`, `@models/transfer-suggestion-dismissals.model`
+- [x] e2e coverage check before the move: confirm each of the four routes has an e2e case for the logic that moves (windows, limits, scoring, sorting, the ownership check). The gate patterns below already name the refund-recommendation, transfer-recommendation, bulk-scan and dismiss suites; if a moved behaviour (for example the ownership check, or the dismissal filter on a scan) has no case, add one to those suites first and run it green against the unmoved controller.
+  - Existing cases covered the windows, limits, scoring, sorting, the dismissal filter on a scan and an unknown id.
+  - Four cases had none and were added first, green against the unmoved controllers: the refund 6-month window; another user's transaction or account (refund and transfer recommendations return `[]`); `includeOutOfWallet` on a scan; a dismissal with one unknown or foreign transaction (422).
+- [x] move the inline logic of the four controllers into the four services unchanged: windows, limits, scoring, sorting, the ownership check. The controllers keep only validation and the response.
+- [x] `get_refunds` (read): one tool with three modes.
   - `transactionId` → `getRefundsForTransactionById`;
   - `originalTxId` + `refundTxId` → `getRefund`;
   - otherwise `page`, `limit`, `categoryId?`, `accountId?`, `transactionType?` → `getRefundTransactions`.
-- [ ] `get_refund_recommendations` (read): `transactionId`, or `transactionType` + `originAmount` + `accountId`, as REST refines.
-- [ ] `get_transfer_recommendations` (read): the same two input shapes.
-- [ ] `list_transfer_suggestions` (read-named, lock-carrying): `from`, `to`, `limit` (≤ 50, default 20), `offset`, `includeOutOfWallet` → the bulk-scan service. Its REST route is a POST with `checkBaseCurrencyLock`, so the tool calls `getUserId` → `assertBaseCurrencyUnlocked` (no scope) and is listed in `LOCK_GUARDED_READ_TOOLS`. While moving the service, confirm it writes nothing; if it does, rename the tool to a write name and give it `finance:write`.
-- [ ] `dismiss_transfer_suggestion` (`finance:write`): `expenseTransactionId`, `incomeTransactionId`.
-- [ ] unit test `refund-transfer-tools.unit.ts`: the `get_refunds` modes, the recommendation input refinements (enforced in the handler by the shared validator), dismissal args, and `list_transfer_suggestions` throwing while the lock is set.
-- [ ] metafiles under `// Transactions`.
-- [ ] gate:
+- [x] `get_refund_recommendations` (read): `transactionId`, or `transactionType` + `originAmount` + `accountId`, as REST refines.
+- [x] `get_transfer_recommendations` (read): the same two input shapes.
+- [x] `list_transfer_suggestions` (read-named, lock-carrying): `from`, `to`, `limit` (≤ 50, default 20), `offset`, `includeOutOfWallet` → the bulk-scan service. Its REST route is a POST with `checkBaseCurrencyLock`, so the tool calls `getUserId` → `assertBaseCurrencyUnlocked` (no scope) and is listed in `LOCK_GUARDED_READ_TOOLS`. While moving the service, confirm it writes nothing; if it does, rename the tool to a write name and give it `finance:write`.
+- [x] `dismiss_transfer_suggestion` (`finance:write`): `expenseTransactionId`, `incomeTransactionId`.
+- [x] ➕ `transferId` on the slim transaction (follow-up from Task 7):
+  - `slimTransactionsForMcp` dropped `transferId`, so an agent could not use `get_transactions`' transferId mode or see which rows are paired transfers, and this task is about transfers;
+  - it now carries `transferId` (`transferNature` was already there); the `serializers.unit.ts` case that asserted the omission now asserts the field, and `transaction-read-tools.unit.ts` covers both legs of a transfer.
+- [x] ➕ `bulk_delete_transactions` refuses an unfiltered delete (follow-up from Task 7):
+  - REST accepts `filters: {}` and deletes everything the caller owns; for an AI client that is one forgotten argument away from wiping the account, so the tool requires explicit `transactionIds` or at least one narrowing filter and otherwise refuses with a clear message before resolving anything;
+  - a filter narrows unless it is absent, an empty list, `false` or the `all` operation (`hasNarrowingFilter`); a deliberate, documented MCP-only deviation from REST (see Tool conventions);
+  - unit tests: empty filters, all-empty lists, exclude flags off, `all` operations (each also with `excludedIds`) are refused; a date bound, an account, a note search, a type, a flag on and `only` still delete.
+- [x] unit test `refund-transfer-tools.unit.ts`: the `get_refunds` modes, the recommendation input refinements (enforced in the handler by the shared validator), dismissal args, and `list_transfer_suggestions` throwing while the lock is set.
+- [x] metafiles under `// Transactions`.
+- [x] gate (unit `services/mcp/` + payees: 20 suites, 400 tests; e2e: 9 suites, 106 tests + 1 todo; typecheck, lint, oxfmt clean):
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='controllers/transactions.controller/(refunds/get-refund-recommendations|transfer-linking/(get-transfer-recommendations|bulk-scan-transfer-recommendations|link-transactions))|services/tx-refunds/(create-single-refund|refund-links)|services/transactions/splits/splits-refunds|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
