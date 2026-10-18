@@ -14,7 +14,7 @@ const sum = (counts: Map<string, number>) => [...counts.values()].reduce((total,
 const countsByPayee = ({ rows }: { rows: CountRow[] }) => new Map(rows.map((row) => [row.payeeId, Number(row.count)]));
 
 /**
- * Deleting payees keeps their transactions (which lose the payee) and removes their aliases. All or
+ * Deleting payees keeps their transactions (which lose the payee, whoever wrote them) and removes their aliases. All or
  * nothing: one id that is not the user's refuses the whole call, as the service does.
  */
 export const resolveBulkDeletePayees: PreviewResolver = async ({ userId, args, lock }) => {
@@ -27,7 +27,7 @@ export const resolveBulkDeletePayees: PreviewResolver = async ({ userId, args, l
   const [transactionRows, aliasRows] = await Promise.all([
     findTransactions({
       planned: 'include',
-      access: { creator: userId },
+      access: { accessibleTo: userId },
       balanceAdjustments: 'include',
       completeness: 'all',
       where: { payeeId: ids },

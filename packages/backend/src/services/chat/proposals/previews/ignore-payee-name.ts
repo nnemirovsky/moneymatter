@@ -4,7 +4,7 @@ import Payees from '@models/payees.model';
 import { parsePayeeName, resolveNormalizedName } from '@services/payees/payee-namespace';
 
 import { hashTargetIds, latestUpdatedAt } from '../snapshot';
-import { countPayeeTransactions, forUpdate, PreviewError, serializeRow, targetNotFound } from './preview-helpers';
+import { countPayeeReferences, forUpdate, PreviewError, serializeRow, targetNotFound } from './preview-helpers';
 import type { PreviewResolver } from './types';
 
 /**
@@ -39,7 +39,7 @@ export const resolveIgnorePayeeName: PreviewResolver = async ({ userId, args, lo
   if (!payee) throw targetNotFound({ what: 'payee' });
 
   const [transactionCount, aliasCount] = await Promise.all([
-    countPayeeTransactions({ userId, payeeId: payee.id }),
+    countPayeeReferences({ userId, payeeId: payee.id }),
     PayeeAliases.count({ where: { payeeId: payee.id } }),
   ]);
 

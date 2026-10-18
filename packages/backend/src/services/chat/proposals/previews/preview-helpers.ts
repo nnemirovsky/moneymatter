@@ -1,6 +1,8 @@
 import type { ChatCardAffected, ChatTableColumn, ChatTableRow } from '@bt/shared/types';
 import { countTransactions, findTransactions } from '@models/transactions-query';
 import type Transactions from '@models/transactions.model';
+import { getAccessibleAccountIdsForUser } from '@services/sharing/auth/get-accessible-account-ids.service';
+import { Op } from 'sequelize';
 
 import { findProposalRefs } from '../placeholders';
 
@@ -40,7 +42,10 @@ export function assertConcreteTargets({ value, what }: { value: unknown; what: s
 /** The find option that holds the rows read `FOR UPDATE` when `lock` is set; nothing otherwise. */
 export const forUpdate = ({ lock }: { lock?: boolean }): { lock?: true } => (lock ? { lock: true } : {});
 
-/** Transactions on a payee, plans and balance adjustments included: a merge or a delete reaches every row. */
+/**
+ * Transactions the user wrote on a payee, plans and balance adjustments included: the rows a merge
+ * moves and a tag application stamps, which both services find by creator.
+ */
 export const countPayeeTransactions = ({ userId, payeeId }: { userId: number; payeeId: string }): Promise<number> =>
   countTransactions({
     planned: 'include',
@@ -48,6 +53,29 @@ export const countPayeeTransactions = ({ userId, payeeId }: { userId: number; pa
     balanceAdjustments: 'include',
     where: { payeeId },
   });
+
+/**
+ * Every transaction on a payee the user can access, whoever wrote it: deleting the payee unlinks all
+ * of them through the foreign key, not only the user's own.
+ */
+export const countPayeeReferences = ({ userId, payeeId }: { userId: number; payeeId: string }): Promise<number> =>
+  countTransactions({
+    planned: 'include',
+    access: { accessibleTo: userId },
+    balanceAdjustments: 'include',
+    where: { payeeId },
+  });
+
+/** Whether a transaction is on an account the user owns or has a share of: the access a read follows. */
+export async function canSeeTransaction({ userId, id }: { userId: number; id: string }): Promise<boolean> {
+  const count = await countTransactions({
+    planned: 'include',
+    access: { accessibleTo: userId },
+    balanceAdjustments: 'include',
+    where: { id },
+  });
+  return count > 0;
+}
 
 /** Columns the sample rows of a plain JSON round trip leave out: large, internal, and never on a card. */
 const OMITTED_COLUMNS = new Set(['externalData', 'creatorSnapshot', 'categorizationMeta', 'metaData']);
@@ -83,12 +111,17 @@ export const TRANSACTION_SAMPLE_ATTRIBUTES: Array<keyof Transactions> = [
   'payeeId',
   'note',
   'transferId',
+  'transferNature',
   'isPlanned',
   'refundLinked',
   'updatedAt',
 ];
 
-/** The user's transactions with these ids, newest first. */
+/**
+ * The transactions the user wrote with these ids, newest first. The bulk update and delete and the
+ * reconciliation services find their rows by creator, so this is the set they touch; show it only
+ * through `keepVisibleRows`, since the user may have lost the account a row is on.
+ */
 export const loadUserTransactions = ({
   userId,
   ids,
@@ -142,4 +175,59 @@ export function transactionsAffected({
     rows: rows.slice(0, SAMPLE_ROW_LIMIT).map((row) => toTransactionRow({ row })),
     truncated: count > SAMPLE_ROW_LIMIT,
   };
+}
+
+/** The rows on accounts the user can see now; the others still count, but their details are not shown. */
+export async function keepVisibleRows<Row extends Pick<Transactions, 'accountId'>>({
+  userId,
+  rows,
+}: {
+  userId: number;
+  rows: Row[];
+}): Promise<Row[]> {
+  if (rows.length === 0) return [];
+
+  const accountIds = new Set(await getAccessibleAccountIdsForUser({ userId }));
+  return rows.filter((row) => accountIds.has(row.accountId));
+}
+
+/**
+ * The other leg of each transfer among `legs`, outside `rows`, which a delete removes with its leg
+ * (or an import undo removes or unlinks). The services find the twins by `transferId` alone, because
+ * a transfer across a shared account has one leg per user, so this lookup is not limited to the
+ * creator or to the accounts the user can see.
+ */
+export async function loadTransferTwins({
+  rows,
+  legs = rows,
+  lock,
+}: {
+  rows: Transactions[];
+  legs?: Transactions[];
+  lock?: boolean;
+}): Promise<Transactions[]> {
+  const transferIds = [...new Set(legs.flatMap((row) => (row.transferId ? [row.transferId] : [])))];
+  if (transferIds.length === 0) return [];
+
+  return findTransactions({
+    ...forUpdate({ lock }),
+    planned: 'include',
+    access: 'unscoped-internal',
+    balanceAdjustments: 'include',
+    completeness: 'all',
+    attributes: TRANSACTION_SAMPLE_ATTRIBUTES,
+    where: { transferId: transferIds, id: { [Op.notIn]: rows.map((row) => row.id) } },
+  });
+}
+
+/** Each target followed by its twin, so the sample shows a transfer's two legs together. */
+export function withTwinsAfterTheirLeg({
+  rows,
+  twins,
+}: {
+  rows: Transactions[];
+  twins: Transactions[];
+}): Transactions[] {
+  const twinsByTransfer = Map.groupBy(twins, (twin) => twin.transferId);
+  return rows.flatMap((row) => [row, ...(row.transferId ? (twinsByTransfer.get(row.transferId) ?? []) : [])]);
 }

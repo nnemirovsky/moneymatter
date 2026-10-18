@@ -1,4 +1,4 @@
-import type { ChatEntityKind } from '@bt/shared/types';
+import { type ChatEntityKind, type RecordId, RESOURCE_TYPES, SHARE_PERMISSIONS } from '@bt/shared/types';
 import AccountGrouping from '@models/accounts-groups/account-grouping.model';
 import AccountGroups from '@models/accounts-groups/account-groups.model';
 import Accounts from '@models/accounts.model';
@@ -34,9 +34,11 @@ import VentureDeals from '@models/venture/venture-deals.model';
 import VentureEventLinks from '@models/venture/venture-event-links.model';
 import VentureEvents from '@models/venture/venture-events.model';
 import VenturePlatforms from '@models/venture/venture-platforms.model';
+import { countCategoryTransactions } from '@services/categories/count-category-transactions';
+import { canUserAccessResource } from '@services/sharing/auth/can-user-access-resource.service';
 import type { Model, ModelStatic, WhereOptions } from 'sequelize';
 
-import { forUpdate, serializeRow } from './preview-helpers';
+import { canSeeTransaction, countPayeeReferences, forUpdate, serializeRow } from './preview-helpers';
 
 /** An entity a card targets, read for its preview. */
 export interface LoadedEntity {
@@ -75,11 +77,11 @@ const loaded = ({ record, related }: { record: Model; related?: Related }): Load
   removes: related?.removes ?? 0,
 });
 
-/** Transactions the user wrote that match, counted at the transactions boundary. */
-const transactionsWhere = ({ userId, where }: { userId: number; where: Record<string, unknown> }) =>
+/** Transactions on the accounts the user can access that match, counted at the transactions boundary. */
+const accessibleTransactions = ({ userId, where }: { userId: number; where: Record<string, unknown> }) =>
   countTransactions({
     planned: 'include',
-    access: { creator: userId },
+    access: { accessibleTo: userId },
     balanceAdjustments: 'include',
     where: where as never,
   });
@@ -135,11 +137,12 @@ const lineOf = ({ targets }: { targets: string[] }) =>
   BudgetLines.findOne({ where: { id: targets[1]!, planId: targets[0]! } });
 
 export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
+  // The services authorize a transaction by the user's access to its account, not by who wrote it.
   transaction: async ({ userId, targets, lock }) => {
     const record = await findOneTransaction({
       ...forUpdate({ lock }),
       planned: 'include',
-      access: { creator: userId },
+      access: { accessibleTo: userId },
       balanceAdjustments: 'include',
       where: { id: targets[0]! },
     });
@@ -149,7 +152,7 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
   account: owned({
     model: Accounts,
     related: async ({ userId, id }) => {
-      const transactionCount = await transactionsWhere({ userId, where: { accountId: id } });
+      const transactionCount = await accessibleTransactions({ userId, where: { accountId: id } });
       return { counts: { transactionCount }, removes: transactionCount };
     },
   }),
@@ -168,7 +171,7 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
     model: Categories,
     related: async ({ userId, id }) => ({
       counts: {
-        transactionCount: await transactionsWhere({ userId, where: { categoryId: id } }),
+        transactionCount: await countCategoryTransactions({ categoryId: id as RecordId, userId }),
         subcategoryCount: await Categories.count({ where: { parentId: id, userId } }),
       },
     }),
@@ -193,7 +196,7 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
     model: Payees,
     related: async ({ userId, id }) => ({
       counts: {
-        transactionCount: await transactionsWhere({ userId, where: { payeeId: id } }),
+        transactionCount: await countPayeeReferences({ userId, payeeId: id }),
         aliasCount: await PayeeAliases.count({ where: { payeeId: id } }),
       },
     }),
@@ -205,12 +208,26 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
     where: (targets) => ({ id: targets[1]!, payeeId: targets[0]! }),
   }),
 
-  budget: owned({
-    model: Budgets,
-    related: async ({ id }) => ({
-      counts: { transactionCount: await BudgetTransactions.count({ where: { budgetId: id } }) },
-    }),
-  }),
+  // A shared budget is edited and archived by a recipient with write access, so the budget is found
+  // through the user's access to it and read as its owner's row.
+  budget: async ({ userId, targets, lock }) => {
+    const id = targets[0]!;
+    const access = await canUserAccessResource({
+      userId,
+      resourceType: RESOURCE_TYPES.budget,
+      resourceId: id,
+      requiredPermission: SHARE_PERMISSIONS.read,
+    });
+    if (!access.granted) return null;
+
+    const record = await Budgets.findOne({ where: { id, userId: access.ownerUserId }, ...forUpdate({ lock }) });
+    if (!record) return null;
+
+    return loaded({
+      record,
+      related: { counts: { transactionCount: await BudgetTransactions.count({ where: { budgetId: id } }) } },
+    });
+  },
 
   budgetPlan: owned({
     model: BudgetPlans,
@@ -320,9 +337,21 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
     where: (targets) => ({ id: targets[1]!, ventureEventId: targets[0]! }),
   }),
 
-  split: owned({ model: TransactionSplits }),
+  split: async ({ userId, targets, lock }) => {
+    const record = await TransactionSplits.findOne({ where: { id: targets[0]!, userId }, ...forUpdate({ lock }) });
+    if (!record || !(await canSeeTransaction({ userId, id: record.transactionId }))) return null;
+
+    return loaded({ record });
+  },
 
   portfolioTransfer: owned({ model: PortfolioTransfers }),
 
-  attachment: owned({ model: TransactionAttachments }),
+  // Attachments follow the access to their transaction: a recipient's upload on a shared account is
+  // theirs to read only while the share lasts, and the owner reads every upload on their account.
+  attachment: async ({ userId, targets, lock }) => {
+    const record = await TransactionAttachments.findOne({ where: { id: targets[0]! }, ...forUpdate({ lock }) });
+    if (!record || !(await canSeeTransaction({ userId, id: record.transactionId }))) return null;
+
+    return loaded({ record });
+  },
 };

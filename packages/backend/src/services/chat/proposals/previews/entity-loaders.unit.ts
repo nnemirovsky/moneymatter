@@ -3,6 +3,8 @@ import Accounts from '@models/accounts.model';
 import BudgetLineGoals from '@models/budget-line-goals.model';
 import BudgetLines from '@models/budget-lines.model';
 import BudgetPlans from '@models/budget-plans.model';
+import BudgetTransactions from '@models/budget-transactions.model';
+import Budgets from '@models/budget.model';
 import Categories from '@models/categories.model';
 import Currencies from '@models/currencies.model';
 import Holdings from '@models/investments/holdings.model';
@@ -12,6 +14,8 @@ import PayeeAliases from '@models/payee-aliases.model';
 import Payees from '@models/payees.model';
 import TagReminders from '@models/tag-reminders.model';
 import Tags from '@models/tags.model';
+import TransactionAttachments from '@models/transaction-attachments.model';
+import TransactionSplits from '@models/transaction-splits.model';
 import TransactionTags from '@models/transaction-tags.model';
 import UsersCurrencies from '@models/users-currencies.model';
 import VentureEventLinks from '@models/venture/venture-event-links.model';
@@ -25,7 +29,12 @@ jest.mock('@models/transactions-query', () => ({
   countTransactions: jest.fn(),
 }));
 
+jest.mock('@services/categories/count-category-transactions', () => ({ countCategoryTransactions: jest.fn() }));
+jest.mock('@services/sharing/auth/can-user-access-resource.service', () => ({ canUserAccessResource: jest.fn() }));
+
 import * as transactionsQuery from '@models/transactions-query';
+import { countCategoryTransactions } from '@services/categories/count-category-transactions';
+import { canUserAccessResource } from '@services/sharing/auth/can-user-access-resource.service';
 
 import { ENTITY_LOADERS } from './entity-loaders';
 
@@ -65,14 +74,14 @@ describe('entity loaders', () => {
     expect(Object.keys(ENTITY_LOADERS).toSorted()).toEqual([...ENTITY_LOADER_KINDS].toSorted());
   });
 
-  it('loads a transaction through the transactions boundary, scoped to the user', async () => {
+  it('loads a transaction through the transactions boundary, scoped to the accounts the user can access', async () => {
     jest.mocked(transactionsQuery.findOneTransaction).mockResolvedValue(record({ id: ID, note: 'Coffee' }) as never);
 
     const loaded = await load({ kind: 'transaction', targets: [ID] });
 
     expect(loaded).toMatchObject({ row: { id: ID, note: 'Coffee' }, updatedAt: UPDATED, removes: 0 });
     expect(jest.mocked(transactionsQuery.findOneTransaction).mock.calls[0]![0]).toMatchObject({
-      access: { creator: USER },
+      access: { accessibleTo: USER },
       where: { id: ID },
     });
   });
@@ -102,7 +111,8 @@ describe('entity loaders', () => {
 
     expect(whereOf(find).where).toEqual({ id: ID, userId: USER });
     expect(loaded).toMatchObject({ row: { name: 'Cash' }, counts: { transactionCount: 12 }, removes: 12 });
-    expect(jest.mocked(transactionsQuery.countTransactions).mock.calls[0]![0]).toMatchObject({
+    expect(jest.mocked(transactionsQuery.countTransactions).mock.calls.at(-1)![0]).toMatchObject({
+      access: { accessibleTo: USER },
       where: { accountId: ID },
     });
   });
@@ -113,13 +123,14 @@ describe('entity loaders', () => {
     expect(await load({ kind: 'account', targets: [ID] })).toBeNull();
   });
 
-  it('counts the transactions and subcategories of a category', async () => {
+  it('counts the transactions of a category the way the delete does, and its subcategories', async () => {
     const find = jest.spyOn(Categories, 'findOne').mockResolvedValue(record({ id: ID }) as never);
     const count = jest.spyOn(Categories, 'count').mockResolvedValue(3);
-    jest.mocked(transactionsQuery.countTransactions).mockResolvedValue(40);
+    jest.mocked(countCategoryTransactions).mockResolvedValue(40);
 
     const loaded = await load({ kind: 'category', targets: [ID] });
 
+    expect(countCategoryTransactions).toHaveBeenCalledWith({ categoryId: ID, userId: USER });
     expect(whereOf(find).where).toEqual({ id: ID, userId: USER });
     expect(whereOf(count).where).toEqual({ parentId: ID, userId: USER });
     expect(loaded).toMatchObject({ counts: { transactionCount: 40, subcategoryCount: 3 }, removes: 0 });
@@ -142,6 +153,10 @@ describe('entity loaders', () => {
 
     const loaded = await load({ kind: 'payee', targets: [ID] });
 
+    expect(jest.mocked(transactionsQuery.countTransactions).mock.calls.at(-1)![0]).toMatchObject({
+      access: { accessibleTo: USER },
+      where: { payeeId: ID },
+    });
     expect(whereOf(aliases).where).toEqual({ payeeId: ID });
     expect(loaded?.counts).toEqual({ transactionCount: 5, aliasCount: 2 });
   });
@@ -247,6 +262,69 @@ describe('entity loaders', () => {
     expect(loaded?.row).toMatchObject({ id: OTHER });
     expect(whereOf(event).where).toEqual({ id: ID, userId: USER });
     expect(whereOf(link).where).toEqual({ id: OTHER, ventureEventId: ID });
+  });
+
+  describe('shared entities', () => {
+    const RECIPIENT_OWNER = 99;
+
+    it('finds a budget through the access the user has to it, and reads the owner row', async () => {
+      jest
+        .mocked(canUserAccessResource)
+        .mockResolvedValue({ granted: true, isOwner: false, ownerUserId: RECIPIENT_OWNER } as never);
+      const find = jest.spyOn(Budgets, 'findOne').mockResolvedValue(record({ id: ID, name: 'Home' }) as never);
+      jest.spyOn(BudgetTransactions, 'count').mockResolvedValue(4);
+
+      const loaded = await load({ kind: 'budget', targets: [ID] });
+
+      expect(jest.mocked(canUserAccessResource).mock.calls[0]![0]).toMatchObject({
+        userId: USER,
+        resourceType: 'budget',
+        resourceId: ID,
+        requiredPermission: 'read',
+      });
+      expect(whereOf(find).where).toEqual({ id: ID, userId: RECIPIENT_OWNER });
+      expect(loaded).toMatchObject({ row: { name: 'Home' }, counts: { transactionCount: 4 } });
+    });
+
+    it('does not find a budget the user has no access to', async () => {
+      jest.mocked(canUserAccessResource).mockResolvedValue({ granted: false, ownerUserId: RECIPIENT_OWNER } as never);
+      const find = jest.spyOn(Budgets, 'findOne');
+
+      expect(await load({ kind: 'budget', targets: [ID] })).toBeNull();
+      expect(find).not.toHaveBeenCalled();
+    });
+
+    it('finds an attachment only when its transaction is on an account the user can access', async () => {
+      const find = jest
+        .spyOn(TransactionAttachments, 'findOne')
+        .mockResolvedValue(record({ id: ID, transactionId: OTHER, userId: 99 }) as never);
+      jest.mocked(transactionsQuery.countTransactions).mockResolvedValue(0);
+
+      expect(await load({ kind: 'attachment', targets: [ID] })).toBeNull();
+
+      jest.mocked(transactionsQuery.countTransactions).mockResolvedValue(1);
+      expect((await load({ kind: 'attachment', targets: [ID] }))?.row).toMatchObject({ id: ID });
+
+      expect(whereOf(find).where).toEqual({ id: ID });
+      expect(jest.mocked(transactionsQuery.countTransactions).mock.calls.at(-1)![0]).toMatchObject({
+        access: { accessibleTo: USER },
+        where: { id: OTHER },
+      });
+    });
+
+    it('finds a split of the user only while its transaction is on an account the user can access', async () => {
+      const find = jest
+        .spyOn(TransactionSplits, 'findOne')
+        .mockResolvedValue(record({ id: ID, transactionId: OTHER }) as never);
+      jest.mocked(transactionsQuery.countTransactions).mockResolvedValue(0);
+
+      expect(await load({ kind: 'split', targets: [ID] })).toBeNull();
+
+      jest.mocked(transactionsQuery.countTransactions).mockResolvedValue(1);
+      expect((await load({ kind: 'split', targets: [ID] }))?.row).toMatchObject({ id: ID });
+
+      expect(whereOf(find).where).toEqual({ id: ID, userId: USER });
+    });
   });
 
   it('leaves out the internal columns of a row', async () => {

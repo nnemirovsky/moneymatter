@@ -133,6 +133,10 @@ describe('payee previews', () => {
         args: { ids: [SOURCE, TARGET] },
       });
 
+      // The delete unlinks every row that carries the payee, whoever wrote it, so the count follows account access.
+      expect(jest.mocked(transactionsQuery.findTransactions).mock.calls[0]![0]).toMatchObject({
+        access: { accessibleTo: USER },
+      });
       expect(preview.counts).toEqual({ transactionCount: 6, aliasCount: 2 });
       expect(preview.affected!.rows).toEqual([
         { payee: { kind: 'payee', id: SOURCE }, transactions: 5, aliases: 2 },
@@ -222,6 +226,10 @@ describe('payee previews', () => {
         'destructive',
       );
       expect(preview.before).toEqual({ id: SOURCE, name: 'Acme Inc' });
+      expect(jest.mocked(transactionsQuery.countTransactions).mock.calls[0]![0]).toMatchObject({
+        access: { accessibleTo: USER },
+        where: { payeeId: SOURCE },
+      });
       expect(preview.counts).toEqual({ transactionCount: 8, aliasCount: 1 });
       expect(affectedCount).toBe(9);
       expect(snapshot).toMatchObject({ targetHash: hashTargetIds({ ids: [SOURCE] }), targetCount: 1 });

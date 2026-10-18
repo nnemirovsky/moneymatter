@@ -43,7 +43,7 @@ export const resolveRevertSubscriptionPeriod: PreviewResolver = async ({ userId,
       ? await findOneTransaction({
           ...forUpdate({ lock }),
           planned: 'include',
-          access: { creator: userId },
+          access: { accessibleTo: userId },
           balanceAdjustments: 'include',
           where: { id: period.transactionId },
         })
