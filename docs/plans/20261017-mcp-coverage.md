@@ -1382,18 +1382,19 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 
 - Create: `tools/{set-budget-plan-line-goal,delete-budget-plan-line-goal,snooze-budget-plan-line-goal,set-budget-plan-assignment}.ts`, `tools/budget-plan-goal-tools.unit.ts`, `services/budget-plans/line-goal-schema.ts`
 - Modify: the goal controller (imports the moved schema), the four metafiles
+- Also (added): `services/budget-plans/zod-schemas.ts` gains the assignment body (`setAssignmentBodyFields`, `setAssignmentBodySchema`, with the "amount or carryPolicy" refinement), and the `set-assignment` controller imports it, so REST validation is unchanged; the tool parses its body with the same schema in the handler
 
-- [ ] read first: the goal and assignment handlers in `controllers/budget-plans/*`, `services/budget-plans/{line-goals,set-assignment}.ts`
-- [ ] move the goal body schema and its `superRefine` (which fields each frequency and behaviour allows) from the controller into `line-goal-schema.ts`. The controller and the tool use it, and REST validation is unchanged (`line-goals.e2e.ts` already asserts the 422 for every rejected combination).
+- [x] read first: the goal and assignment handlers in `controllers/budget-plans/*`, `services/budget-plans/{line-goals,set-assignment}.ts`
+- [x] move the goal body schema and its `superRefine` (which fields each frequency and behaviour allows) from the controller into `line-goal-schema.ts`. The controller and the tool use it, and REST validation is unchanged (`line-goals.e2e.ts` already asserts the 422 for every rejected combination).
   - The tool's `inputSchema` is the schema's `.shape` (a plain shape, as the skill requires); a raw shape cannot carry the `superRefine`. The handler destructures the ids off first (`const { planId, lineId, ...goal } = args`) and runs `lineGoalSchema.parse(goal)` before the service call, so the strict body schema sees only its own fields and the refinements are enforced exactly as in REST; a refusal is an `Error` with the REST message.
-- [ ] all writes call `requireFeatureAccess` `budget_plan`.
-- [ ] `set_budget_plan_line_goal` (`finance:write`): `planId`, `lineId` + the moved schema's fields.
-- [ ] `delete_budget_plan_line_goal` (`finance:delete`).
-- [ ] `snooze_budget_plan_line_goal` (`finance:write`): `planId`, `lineId`, `periodId`.
-- [ ] `set_budget_plan_assignment` (`finance:write`): `planId`, `periodId`, `lineId`, `scope` (`BUDGET_ASSIGNMENT_SCOPES`), `amount?` and `carryPolicy?` (nullable).
-- [ ] unit test `budget-plan-goal-tools.unit.ts`: the moved refinements through the tool (one allowed and one refused combination per frequency; the handler rejects, the service mock is not called), and a normal call with `planId`, `lineId` and a valid goal passes and reaches `setLineGoal` with the goal fields only.
-- [ ] metafiles under `// Budget plans`.
-- [ ] gate:
+- [x] all writes call `requireFeatureAccess` `budget_plan`.
+- [x] `set_budget_plan_line_goal` (`finance:write`): `planId`, `lineId` + the moved schema's fields.
+- [x] `delete_budget_plan_line_goal` (`finance:delete`).
+- [x] `snooze_budget_plan_line_goal` (`finance:write`): `planId`, `lineId`, `periodId`.
+- [x] `set_budget_plan_assignment` (`finance:write`): `planId`, `periodId`, `lineId`, `scope` (`BUDGET_ASSIGNMENT_SCOPES`), `amount?` and `carryPolicy?` (nullable).
+- [x] unit test `budget-plan-goal-tools.unit.ts`: the moved refinements through the tool (one allowed and one refused combination per frequency; the handler rejects, the service mock is not called), and a normal call with `planId`, `lineId` and a valid goal passes and reaches `setLineGoal` with the goal fields only.
+- [x] metafiles under `// Budget plans`.
+- [x] gate:
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/budget-plans/(line-goals|set-assignment|pool|period-view-numbers)|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
