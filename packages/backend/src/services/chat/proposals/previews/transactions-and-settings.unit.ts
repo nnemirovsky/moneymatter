@@ -1,4 +1,4 @@
-import { TRANSACTION_TYPES } from '@bt/shared/types';
+import { TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES } from '@bt/shared/types';
 import { Money } from '@common/types/money';
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import Accounts from '@models/accounts.model';
@@ -22,8 +22,12 @@ jest.mock('@models/transactions-query', () => ({
   findOneTransaction: jest.fn(),
 }));
 jest.mock('@services/transaction-automations/preview', () => ({ scanAutomationMatches: jest.fn() }));
+jest.mock('@services/sharing/auth/get-accessible-account-ids.service', () => ({
+  getAccessibleAccountIdsForUser: jest.fn(),
+}));
 
 import * as transactionsQuery from '@models/transactions-query';
+import { getAccessibleAccountIdsForUser } from '@services/sharing/auth/get-accessible-account-ids.service';
 import { scanAutomationMatches } from '@services/transaction-automations/preview';
 
 import { resolveToolPolicy } from '../../policies';
@@ -40,6 +44,7 @@ import type { PreviewResolver } from './types';
 
 const USER = 7;
 const ACCOUNT = '3f1b9c2e-8d4a-4b6e-9c1d-2a7e5f0b8c11';
+const OTHER_ACCOUNT = '9a7c5e31-2b84-4d0f-8e66-1c3a5b7d9f20';
 const uuid = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
 
 const tx = (n: number, overrides: Record<string, unknown> = {}) => ({
@@ -81,6 +86,7 @@ describe('transaction and settings previews', () => {
       .mockResolvedValue([] as never);
     jest.mocked(transactionsQuery.findOneTransaction).mockReset().mockResolvedValue(null);
     jest.mocked(scanAutomationMatches).mockReset();
+    jest.mocked(getAccessibleAccountIdsForUser).mockReset().mockResolvedValue([ACCOUNT]);
   });
 
   afterEach(() => {
@@ -130,6 +136,37 @@ describe('transaction and settings previews', () => {
           args: { transactionIds: [uuid(1)] },
         }),
       ).rejects.toBeInstanceOf(PreviewError);
+    });
+
+    it('counts a duplicate on an account the user can no longer see but shows none of its details', async () => {
+      jest
+        .mocked(transactionsQuery.findTransactions)
+        .mockResolvedValue([tx(1), tx(2, { accountId: OTHER_ACCOUNT })] as never);
+
+      const { preview, affectedCount } = await run({
+        resolver: resolveRemoveDuplicateTransactions,
+        toolName: 'remove_duplicate_transactions',
+        args: { transactionIds: [uuid(1), uuid(2)] },
+      });
+
+      expect(affectedCount).toBe(2);
+      expect(preview.affected!.count).toBe(2);
+      expect(preview.affected!.rows.map((row) => (row.account as { id: string }).id)).toEqual([ACCOUNT]);
+    });
+
+    it('does not show a survivor on an account the user cannot see', async () => {
+      jest
+        .mocked(transactionsQuery.findTransactions)
+        .mockResolvedValue([tx(1), tx(2, { accountId: OTHER_ACCOUNT })] as never);
+
+      const { preview, affectedCount } = await run({
+        resolver: resolveMergeDuplicateTransactions,
+        toolName: 'merge_duplicate_transactions',
+        args: { transactionIds: [uuid(1), uuid(2)], survivorId: uuid(2) },
+      });
+
+      expect(preview.before).toBeUndefined();
+      expect(affectedCount).toBe(1);
     });
 
     it('refuses ids that are not the user transactions', async () => {
@@ -194,11 +231,15 @@ describe('transaction and settings previews', () => {
       expect(snapshot).toMatchObject({ targetHash: hashTargetIds({ ids: [uuid(1), uuid(2)] }), targetCount: 2 });
     });
 
+    const TWO_LEG = TRANSACTION_TRANSFER_NATURE.common_transfer;
+    const linked = (n: number, overrides: Record<string, unknown> = {}) =>
+      tx(n, { transferId: uuid(50), transferNature: TWO_LEG, ...overrides });
+
     it('counts the outside leg of a transfer only when the undo deletes it', async () => {
       jest.spyOn(ImportBatches, 'findOne').mockResolvedValue(batch as never);
       jest.spyOn(ImportBatchAccountEffects, 'findAll').mockResolvedValue([] as never);
-      jest.spyOn(transactionsModel, 'findWithFilters').mockResolvedValue([tx(1, { transferId: uuid(50) })] as never);
-      jest.mocked(transactionsQuery.findTransactions).mockResolvedValue([tx(2, { transferId: uuid(50) })] as never);
+      jest.spyOn(transactionsModel, 'findWithFilters').mockResolvedValue([linked(1)] as never);
+      jest.mocked(transactionsQuery.findTransactions).mockResolvedValue([linked(2)] as never);
 
       const kept = await remove();
       const deleted = await remove({ deleteLinkedTransfers: true });
@@ -207,6 +248,58 @@ describe('transaction and settings previews', () => {
       expect(kept.warnings).toBeUndefined();
       expect(deleted.affectedCount).toBe(2);
       expect(deleted.warnings).toEqual([{ key: 'chat.warnings.linkedTransfers', params: { count: 1 } }]);
+    });
+
+    it('finds the outside legs the way the service does, whoever created them', async () => {
+      jest.spyOn(ImportBatches, 'findOne').mockResolvedValue(batch as never);
+      jest.spyOn(ImportBatchAccountEffects, 'findAll').mockResolvedValue([] as never);
+      jest
+        .spyOn(transactionsModel, 'findWithFilters')
+        .mockResolvedValue([
+          linked(1),
+          tx(3, { transferId: uuid(51), transferNature: TRANSACTION_TRANSFER_NATURE.transfer_to_portfolio }),
+        ] as never);
+      jest.mocked(transactionsQuery.findTransactions).mockResolvedValue([linked(2)] as never);
+
+      await remove({ deleteLinkedTransfers: true });
+
+      expect(transactionsQuery.findTransactions).toHaveBeenCalledTimes(1);
+      expect(jest.mocked(transactionsQuery.findTransactions).mock.calls[0]![0]).toMatchObject({
+        access: 'unscoped-internal',
+        where: { transferId: [uuid(50)] },
+      });
+    });
+
+    it('counts an outside leg on an account the user cannot see, shows none of its details, and snapshots it', async () => {
+      jest.spyOn(ImportBatches, 'findOne').mockResolvedValue(batch as never);
+      jest.spyOn(ImportBatchAccountEffects, 'findAll').mockResolvedValue([] as never);
+      jest.spyOn(transactionsModel, 'findWithFilters').mockResolvedValue([linked(1)] as never);
+      const hidden = linked(2, { accountId: OTHER_ACCOUNT, updatedAt: new Date('2026-10-17T00:00:00Z') });
+      jest.mocked(transactionsQuery.findTransactions).mockResolvedValue([hidden] as never);
+
+      const { preview, affectedCount, warnings, snapshot } = await remove({ deleteLinkedTransfers: true });
+
+      expect(affectedCount).toBe(2);
+      expect(preview.affected!.count).toBe(2);
+      expect(preview.affected!.rows.map((row) => (row.account as { id: string }).id)).toEqual([ACCOUNT]);
+      expect(warnings).toEqual([{ key: 'chat.warnings.linkedTransfers', params: { count: 1 } }]);
+      expect(snapshot).toMatchObject({
+        targetHash: hashTargetIds({ ids: [uuid(1), uuid(2)] }),
+        targetCount: 2,
+        updatedAt: '2026-10-17T00:00:00.000Z',
+      });
+    });
+
+    it('snapshots an outside leg the undo unlinks, so one linked later makes the card stale', async () => {
+      jest.spyOn(ImportBatches, 'findOne').mockResolvedValue(batch as never);
+      jest.spyOn(ImportBatchAccountEffects, 'findAll').mockResolvedValue([] as never);
+      jest.spyOn(transactionsModel, 'findWithFilters').mockResolvedValue([linked(1)] as never);
+      jest.mocked(transactionsQuery.findTransactions).mockResolvedValue([linked(2)] as never);
+
+      const { affectedCount, snapshot } = await remove();
+
+      expect(affectedCount).toBe(1);
+      expect(snapshot).toMatchObject({ targetHash: hashTargetIds({ ids: [uuid(1), uuid(2)] }), targetCount: 2 });
     });
 
     it('warns about an import that is still running, and refuses a batch that is not there', async () => {
@@ -389,6 +482,10 @@ describe('transaction and settings previews', () => {
       const { preview, affectedCount, warnings, snapshot } = await revert();
 
       expect(preview.before).toEqual({ id: uuid(61), status: 'paid' });
+      // The revert deletes the payment through the share-aware service, so the lookup follows account access.
+      expect(jest.mocked(transactionsQuery.findOneTransaction).mock.calls[0]![0]).toMatchObject({
+        access: { accessibleTo: USER },
+      });
       expect(preview.affected).toMatchObject({ count: 1 });
       expect(affectedCount).toBe(2);
       expect(warnings).toEqual([{ key: 'chat.warnings.revertDeletesTransaction' }]);
