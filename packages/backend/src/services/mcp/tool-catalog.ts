@@ -3,6 +3,7 @@ import type { z } from 'zod';
 
 import type { McpAuthInfo } from './auth';
 import { registerAllTools } from './server';
+import { TOOL_ARG_VALIDATORS } from './tool-arg-validators';
 import { READ_TOOL_NAME } from './tool-classification';
 
 /** What a tool handler reads from the MCP SDK's `extra`: only the auth info. */
@@ -27,6 +28,13 @@ export interface ToolCatalogEntry {
    * still runs its own scope, feature, lock and rate-limit checks.
    */
   invoke: (params: { args?: unknown; extra: ToolInvokeExtra }) => Promise<ToolCallResult>;
+  /**
+   * Every argument check the handler runs before its service call, other than the guards: shared
+   * schemas, `assert…Args` helpers and refusal helpers (`tool-arg-validators.ts`). Pure: it throws
+   * the handler's own error on a bad input and does nothing for a tool with no such check. The
+   * caller runs it on args the tool's `inputShape` already accepted.
+   */
+  validateArgs: (params: { args: unknown }) => void;
 }
 
 type RegisteredHandler = (...params: unknown[]) => Promise<ToolCallResult>;
@@ -48,6 +56,7 @@ function buildEntry({
   handler: RegisteredHandler;
 }): ToolCatalogEntry {
   const inputShape = config.inputSchema ?? null;
+  const validator = TOOL_ARG_VALIDATORS[name];
 
   return Object.freeze({
     name,
@@ -56,6 +65,9 @@ function buildEntry({
     access: READ_TOOL_NAME.test(name) ? ('read' as const) : ('write' as const),
     invoke: ({ args, extra }: { args?: unknown; extra: ToolInvokeExtra }) =>
       inputShape === null ? handler(extra) : handler(args ?? {}, extra),
+    validateArgs: ({ args }: { args: unknown }) => {
+      validator?.({ args: args as never });
+    },
   });
 }
 

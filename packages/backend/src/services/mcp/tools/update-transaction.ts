@@ -18,6 +18,7 @@ import {
   getUserId,
   jsonContent,
   requireScope,
+  type ToolArgs,
 } from './helpers';
 
 const inputSchema = {
@@ -96,6 +97,11 @@ const inputSchema = {
     ),
 };
 
+/** The original-currency pair rule, which the plain input shape cannot hold. */
+export function validateUpdateTransactionArgs({ args }: { args: ToolArgs<typeof inputSchema> }) {
+  assertOriginalCurrencyArgs({ args });
+}
+
 export function registerUpdateTransaction(server: McpServer) {
   server.registerTool(
     'update_transaction',
@@ -110,7 +116,7 @@ export function registerUpdateTransaction(server: McpServer) {
       await assertBaseCurrencyUnlocked({ userId });
       trackMcpToolUsed({ userId, tool: 'update_transaction', clientId: extra.authInfo?.clientId });
 
-      assertOriginalCurrencyArgs({ args });
+      validateUpdateTransactionArgs({ args });
 
       const result = await updateTransaction({
         id: args.id,

@@ -127,6 +127,26 @@ describe('getToolCatalog', () => {
     );
   });
 
+  it('exposes validateArgs on every entry, backed by the validator registry', () => {
+    expect(getToolCatalog().every((entry) => typeof entry.validateArgs === 'function')).toBe(true);
+  });
+
+  it('refuses a bad input through validateArgs with the validator message, without any guard or I/O', () => {
+    const entry = findTool({ name: 'create_transaction' });
+
+    expect(() =>
+      entry.validateArgs({ args: { accountId: 'a', amount: 1, transactionType: 'expense', originalAmount: 5 } }),
+    ).toThrow(/"originalAmount" and "originalCurrencyCode" must be set, or cleared, together/);
+    expect(() => findTool({ name: 'bulk_delete_transactions' }).validateArgs({ args: { filters: {} } })).toThrow(
+      /Refusing to delete without a narrowing filter/,
+    );
+  });
+
+  it('accepts anything through validateArgs for a tool with no argument check', () => {
+    expect(() => findTool({ name: 'create_category' }).validateArgs({ args: { name: 'Food' } })).not.toThrow();
+    expect(() => findTool({ name: 'get_categories' }).validateArgs({ args: undefined })).not.toThrow();
+  });
+
   it('returns the same frozen array on every call', () => {
     const first = getToolCatalog();
     const second = getToolCatalog();
