@@ -720,7 +720,7 @@ const getCategoryBudgetSpendingStats = async ({
 };
 
 /** The stats with the `decimals` their minor units are at, which the serializer needs to turn them into decimals. */
-export interface BudgetSpendingStatsResult {
+interface BudgetSpendingStatsResult {
   stats: SpendingStatsResponse;
   decimals: number;
 }
