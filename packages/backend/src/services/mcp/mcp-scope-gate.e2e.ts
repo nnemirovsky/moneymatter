@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from '@jest/globals';
 import * as mcpHelpers from '@tests/helpers/mcp';
+import { createHash, randomUUID } from 'node:crypto';
 
 const METHODS = ['post', 'get', 'delete'] as const;
 
@@ -16,6 +17,33 @@ describe('/mcp scope gate', () => {
     const res = await mcpHelpers.requestMcp({ body: NON_INITIALIZE_BODY });
 
     expect(res.status).toBe(401);
+  });
+
+  it('rejects an mmchat_ bearer on every method with 401', async () => {
+    for (const method of METHODS) {
+      const res = await mcpHelpers.requestMcp({
+        method,
+        token: 'mmchat_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-AbCdE',
+        body: NON_INITIALIZE_BODY,
+      });
+
+      expect(res.status).toBe(401);
+    }
+  });
+
+  it('rejects an mmchat_ bearer even when its value is a stored OAuth access token', async () => {
+    const token = `mmchat_${randomUUID()}`;
+    await mcpHelpers.createTestOAuthAccessToken({
+      id: `test-access-token-${token}`,
+      token: createHash('sha256').update(token).digest('base64url'),
+      scopes: JSON.stringify(['finance:read']),
+    });
+
+    for (const method of METHODS) {
+      const res = await mcpHelpers.requestMcp({ method, token, body: NON_INITIALIZE_BODY });
+
+      expect(res.status).toBe(401);
+    }
   });
 
   it.each([

@@ -1,5 +1,6 @@
 import { FEATURES, type RecordId, USER_ROLES } from '@bt/shared/types';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { Unauthorized } from '@js/errors';
 
 // Blocks the real modules, whose import chains open the auth pool and Redis connections.
 jest.mock('@config/auth', () => ({ authPool: { query: jest.fn() } }));
@@ -142,5 +143,35 @@ describe('buildMcpAuthInfo', () => {
 
     expect(info.expiresAt).toBeUndefined();
     expect(info.extra.readOnly).toBe(false);
+  });
+
+  it('carries the thread and run of a chat bridge token in extra.chat, and nothing for other tokens', async () => {
+    entitlements.mockResolvedValue({ readOnly: false, features: [] } as never);
+
+    const bridge = await buildMcpAuthInfo({
+      user,
+      clientId: 'moneymatter-chat-bridge',
+      scopes: ['finance:read', 'chat:propose'],
+      token: 'mmchat_x',
+      chat: { threadId: 'thread-1', runId: 'run-1' },
+    });
+    const plain = await buildMcpAuthInfo({ user, clientId: 'c', scopes: [], token: 't' });
+
+    expect(bridge.extra.chat).toEqual({ threadId: 'thread-1', runId: 'run-1' });
+    expect('chat' in plain.extra).toBe(false);
+  });
+});
+
+describe('verifyMcpToken chat bridge tokens', () => {
+  beforeEach(() => {
+    jest.resetAllMocks();
+  });
+
+  it('refuses an mmchat_ token before any query', async () => {
+    await expect(verifyMcpToken({ authorizationHeader: 'Bearer mmchat_AbCdEf' })).rejects.toBeInstanceOf(Unauthorized);
+
+    expect(query).not.toHaveBeenCalled();
+    expect(findUser).not.toHaveBeenCalled();
+    expect(entitlements).not.toHaveBeenCalled();
   });
 });

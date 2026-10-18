@@ -5,6 +5,7 @@ import { Unauthorized } from '@js/errors';
 import { CacheClient } from '@js/utils/cache';
 import { logger } from '@js/utils/logger';
 import Users from '@models/users.model';
+import { CHAT_BRIDGE_TOKEN_PREFIX } from '@services/chat/bridge/bridge-token-prefix';
 import { getEntitlementsByUserId } from '@services/entitlements/resolve-entitlements.service';
 import { parseScopes } from '@services/mcp/tools/helpers';
 
@@ -37,6 +38,8 @@ export interface McpAuthInfo {
     readOnly: boolean;
     /** Plan features, active feature trials included; what `requireFeatureAccess` checks. */
     features: readonly Feature[];
+    /** Set on a chat bridge token only: the thread and the run it belongs to. */
+    chat?: { threadId: string; runId: string };
   };
 }
 
@@ -51,12 +54,14 @@ export async function buildMcpAuthInfo({
   scopes,
   expiresAt,
   token,
+  chat,
 }: {
   user: AppUser;
   clientId: string;
   scopes: string[];
   expiresAt?: number;
   token: string;
+  chat?: { threadId: string; runId: string };
 }): Promise<McpAuthInfo> {
   const { readOnly, features } = await getEntitlementsByUserId({ userId: user.id });
 
@@ -72,6 +77,7 @@ export async function buildMcpAuthInfo({
       role: user.role,
       readOnly,
       features,
+      ...(chat ? { chat } : {}),
     },
   };
 }
@@ -146,6 +152,12 @@ export async function verifyMcpToken({ authorizationHeader }: { authorizationHea
   }
 
   const token = authorizationHeader.slice(7);
+
+  // A chat bridge token is minted for one run and honoured on the loopback listener only. Refusing
+  // it here, before any query, keeps the two token families apart even if a value ever collided.
+  if (token.startsWith(CHAT_BRIDGE_TOKEN_PREFIX)) {
+    throw new Unauthorized({ message: 'Chat bridge tokens are not accepted here' });
+  }
 
   try {
     return await verifyAccessToken({ token });
