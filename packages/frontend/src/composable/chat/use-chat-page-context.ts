@@ -36,7 +36,7 @@ const ROUTE_ENTITIES: Readonly<Record<string, { kind: ChatEntityKind; param: str
  * The pages that provided a context, last one wins. A registry in a store rather than provide/inject
  * because the reader (the panel in the layout) is not a descendant of the page.
  */
-export const useChatPageContextStore = defineStore('chat-page-context', () => {
+const useChatPageContextStore = defineStore('chat-page-context', () => {
   const providers = ref<ContextProvider[]>([]);
 
   const register = ({ provider }: { provider: ContextProvider }) => {

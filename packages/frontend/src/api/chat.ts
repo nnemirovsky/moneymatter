@@ -1,5 +1,4 @@
 import { api } from '@/api/_api';
-import { fetchBinaryDownload } from '@/api/_binary-download';
 import { API_HTTP, API_VER } from '@/api/api-base-url';
 import { getCurrentLocale } from '@/i18n';
 import {
@@ -86,17 +85,6 @@ export const uploadChatAttachment = ({
     },
   });
 
-/** The bytes of an image attachment; the endpoint needs the session cookie, so an `<img src>` cannot load it. */
-export const loadChatAttachmentImage = async ({ attachmentId }: { attachmentId: string }): Promise<Blob> => {
-  const { blob } = await fetchBinaryDownload({
-    path: `/chat/attachments/${attachmentId}/image`,
-    method: 'GET',
-    accept: 'image/*, application/json',
-    feature: 'chat-attachments',
-  });
-  return blob;
-};
-
 export const sendChatMessage = ({
   threadId,
   payload,
@@ -107,9 +95,6 @@ export const sendChatMessage = ({
 
 export const cancelChatRun = ({ runId }: { runId: string }): Promise<ChatCancelRunResponse> =>
   api.post(`/chat/runs/${runId}/cancel`);
-
-export const getChatProposal = ({ proposalId }: { proposalId: string }): Promise<ChatProposalCard> =>
-  api.get(`/chat/proposals/${proposalId}`);
 
 export const editChatProposal = ({
   proposalId,
@@ -169,7 +154,7 @@ const STREAM_MAX_RETRY_DELAY_MS = 8000;
 const STREAM_MAX_CONSECUTIVE_FAILURES = 6;
 
 /** How `streamChatRunEvents` ended. `failed` means the stream cannot be followed; the thread holds the truth. */
-export type ChatRunStreamOutcome = 'finished' | 'aborted' | 'failed';
+type ChatRunStreamOutcome = 'finished' | 'aborted' | 'failed';
 
 const waitFor = ({ ms, signal }: { ms: number; signal: AbortSignal }) =>
   new Promise<void>((resolve) => {

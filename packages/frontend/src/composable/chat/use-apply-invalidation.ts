@@ -10,7 +10,7 @@ interface InvalidationTarget {
   keys?: ReadonlyArray<readonly string[]>;
 }
 
-export type InvalidationPlan = { all: true } | { all: false; prefixes: string[]; keys: Array<readonly string[]> };
+type InvalidationPlan = { all: true } | { all: false; prefixes: string[]; keys: Array<readonly string[]> };
 
 const { transactionChange, securityPriceChange, ventureChange, bankConnectionChange, currencies, notifications } =
   VUE_QUERY_GLOBAL_PREFIXES;

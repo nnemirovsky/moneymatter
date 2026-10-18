@@ -1,6 +1,6 @@
 import type { ChatMessage, ChatProposalCard, ChatThreadWithMessages } from '@bt/shared/types';
 
-export interface MergedThread {
+interface MergedThread {
   messages: ChatMessage[];
   cards: Record<string, ChatProposalCard>;
   /** Messages older than the oldest one shown exist. */
