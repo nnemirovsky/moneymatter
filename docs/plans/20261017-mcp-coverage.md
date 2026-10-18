@@ -1154,10 +1154,10 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 - Create: `tools/{get-total-balance,get-net-worth-history,get-net-worth-drivers,get-investment-contributions,get-venture-contributions,get-pivot-report,get-cumulative-stats,get-earliest-transaction-date}.ts`, `tools/stats-tools.unit.ts`, `services/stats/reports/*.report.ts` (one per report)
 - Modify: `controllers/stats.controller.ts` (every report handler calls its report function), `tools/get-balance-history.ts`, `tools/get-expenses-for-period.ts`, `tools/get-spending-by-categories.ts`, `tools/get-cash-flow.ts` (the existing stats tools switch to the same report functions), the four metafiles
 
-- [ ] read first, on `dev` after Task 3's merge: `controllers/stats.controller.ts` and `serializers/stats.serializer.ts`. Every report now takes base `decimals` from `getBaseCurrencyDecimals`, and the serializers take `{ …, decimals }`. Some reports read `includeCreditLimitInStats` from `getUserSettings`.
-- [ ] `services/stats/reports/`: one function per report, for example `getTotalBalanceReport({ userId, date })`, that holds what each handler repeats today: the `getUserSettings` read (`includeCreditLimitInStats`), `getBaseCurrencyDecimals`, the stats service call, and the serializer with `{ …, decimals }`. It returns the API payload. `controllers/stats.controller.ts` handlers keep only validation and call the function; the tools call the same function. Cover the eight new reports and the existing ones (`getCombinedBalanceHistoryReport`, the expenses, spending-by-category and cash-flow reports). REST behaviour is unchanged.
+- [x] read first, on `dev` after Task 3's merge: `controllers/stats.controller.ts` and `serializers/stats.serializer.ts`. Every report now takes base `decimals` from `getBaseCurrencyDecimals`, and the serializers take `{ …, decimals }`. Some reports read `includeCreditLimitInStats` from `getUserSettings`.
+- [x] `services/stats/reports/`: one function per report, for example `getTotalBalanceReport({ userId, date })`, that holds what each handler repeats today: the `getUserSettings` read (`includeCreditLimitInStats`), `getBaseCurrencyDecimals`, the stats service call, and the serializer with `{ …, decimals }`. It returns the API payload. `controllers/stats.controller.ts` handlers keep only validation and call the function; the tools call the same function. Cover the eight new reports and the existing ones (`getCombinedBalanceHistoryReport`, the expenses, spending-by-category and cash-flow reports). REST behaviour is unchanged.
   - e2e coverage check before the move: the gate pattern below names the suites for every moved report (including cash flow, spendings by category, expenses amount and the foreign-currency history); `get_total_balance` has none of its own, so confirm `credit-limit-in-stats` exercises `/stats/total-balance` with and without the setting, and add a default-settings case there if it does not. Run any added case green against the unmoved controller.
-- [ ] each new tool maps its input and calls the report function (no controller logic in the tool):
+- [x] each new tool maps its input and calls the report function (no controller logic in the tool):
   - `get_total_balance` (`date`);
   - `get_net_worth_history` (`from`, `to`, `granularity`);
   - `get_net_worth_drivers` (`from`, `to`, `granularity`, `portfolioIds?`);
@@ -1169,13 +1169,13 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 
   All are read tools. Arrays are taken as arrays, not the comma strings REST uses.
 
-- [ ] `get_balance_history` bug fix, test first (the combined branch calls `getCombinedBalanceHistory` without `includeCreditLimit`, while `/stats/combined-balance-history` passes `settings.includeCreditLimitInStats`):
+- [x] `get_balance_history` bug fix, test first (the combined branch calls `getCombinedBalanceHistory` without `includeCreditLimit`, while `/stats/combined-balance-history` passes `settings.includeCreditLimitInStats`):
   - write the `stats-tools.unit.ts` case first: the settings mock returns `includeCreditLimitInStats: true`, and the combined branch must call the report with that setting applied (the combined service receives `includeCreditLimit: true`);
   - run it and confirm it fails on the current tool;
   - then switch the tool to `getCombinedBalanceHistoryReport`, which reads the setting, and confirm the case passes.
-- [ ] unit test `stats-tools.unit.ts`: the enum schemas, decimals passed through, the credit-limit case above, and `includeCreditLimit` false when the setting is off.
-- [ ] metafiles under `// Analytics`.
-- [ ] gate:
+- [x] unit test `stats-tools.unit.ts`: the enum schemas, decimals passed through, the credit-limit case above, and `includeCreditLimit` false when the setting is off.
+- [x] metafiles under `// Analytics`.
+- [x] gate:
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/stats/(get-net-worth-drivers|get-net-worth-history|get-investment-contributions|get-venture-contributions|get-pivot|get-cumulative-data|get-earliest-transaction-date|get-combined-balance-history|credit-limit-in-stats|get-cash-flow|get-spendings-by-categories/get-spendings-by-categories|exclude-planned|base-currency-precision|foreign-currency-balance-history)|services/sharing/shared-account-stats|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
