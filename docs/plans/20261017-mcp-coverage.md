@@ -1300,19 +1300,20 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 
 - Create: `tools/{list-budget-plans,get-budget-plan-suggestion-context,list-budget-plan-periods,get-budget-plan-period,get-budget-plan-scheduled,get-budget-plan-trends}.ts`, `tools/budget-plan-read-tools.unit.ts`
 - Modify: the four metafiles
+- Also (added): `tools/budget-plan-output.ts` (slim plan presenter: drops the owner id and audit timestamps)
 
-- [ ] read first, on `dev` after Task 3's merge (plan figures in minor units at the plan currency's decimals): `routes/budget-plans.route.ts`, `controllers/budget-plans/*` (the read handlers), `services/budget-plans/{get-plan,list-periods,get-period-view,get-scheduled,get-trends,suggested-lines}.ts`
-- [ ] the tools call the existing services directly (`listPlans`, `getPlan`, `getPeriodView`, `getTrends`, …): on `dev` each read controller is one service call returned as `{ data }`, with no decimals read and no serializer, so there is nothing to move into a new service.
-- [ ] `list_budget_plans` (read): `planId?`, `includeDeleted?` → `listPlans` or `getPlan`.
-- [ ] `get_budget_plan_suggestion_context` (read): `accountIds?`.
-- [ ] `list_budget_plan_periods` (read): `planId`.
-- [ ] `get_budget_plan_period` (read): `planId`, `periodId` → `getPeriodView`.
-- [ ] `get_budget_plan_scheduled` (read): `planId`, `periodId`.
-- [ ] `get_budget_plan_trends` (read): `planId`, `until?`, `count` (1–24, default 6).
-- [ ] Reads are not feature-gated, as in REST.
-- [ ] unit test `budget-plan-read-tools.unit.ts`.
-- [ ] metafiles under a new `// Budget plans` group. The SKILL.md data conventions gain a bullet distinguishing budget plans (period envelopes) from trackers ("budget" tools).
-- [ ] gate:
+- [x] read first, on `dev` after Task 3's merge (plan figures in minor units at the plan currency's decimals): `routes/budget-plans.route.ts`, `controllers/budget-plans/*` (the read handlers), `services/budget-plans/{get-plan,list-periods,get-period-view,get-scheduled,get-trends,suggested-lines}.ts`
+- [x] the tools call the existing services directly (`listPlans`, `getPlan`, `getPeriodView`, `getTrends`, …): on `dev` each read controller is one service call returned as `{ data }`, with no decimals read and no serializer, so there is nothing to move into a new service.
+- [x] `list_budget_plans` (read): `planId?`, `includeDeleted?` → `listPlans` or `getPlan`.
+- [x] `get_budget_plan_suggestion_context` (read): `accountIds?`.
+- [x] `list_budget_plan_periods` (read): `planId`, `limit?` (default 24, max 200), `offset?` → `{ periods, total }`, newest first (a plan keeps every past period and 12 future ones, so the list grows without a bound).
+- [x] `get_budget_plan_period` (read): `planId`, `periodId` → `getPeriodView`.
+- [x] `get_budget_plan_scheduled` (read): `planId`, `periodId`.
+- [x] `get_budget_plan_trends` (read): `planId`, `until?`, `count` (1–24, default 6).
+- [x] Reads are not feature-gated, as in REST.
+- [x] unit test `budget-plan-read-tools.unit.ts`.
+- [x] metafiles under a new `// Budget plans` group. The SKILL.md data conventions gain a bullet distinguishing budget plans (period envelopes) from trackers ("budget" tools).
+- [x] gate:
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/budget-plans/(get-trends|get-scheduled|list-periods|period-view-numbers|suggested-lines|guards)|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
