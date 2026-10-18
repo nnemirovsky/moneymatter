@@ -14,7 +14,12 @@ export type ChatProposalStatus =
   | 'expired'
   | 'unknown';
 
-export type ChatCardKind = 'create' | 'update' | 'delete' | 'bulk' | 'merge' | 'link' | 'settings' | 'action';
+export const CHAT_CARD_KINDS = ['create', 'update', 'delete', 'bulk', 'merge', 'link', 'settings', 'action'] as const;
+
+export type ChatCardKind = (typeof CHAT_CARD_KINDS)[number];
+
+/** The i18n key of a card's title; the entity name goes in as the `entity` param. */
+export const chatCardTitleKey = ({ kind }: { kind: ChatCardKind }): string => `chat.cards.title.${kind}`;
 
 export type ChatCardDanger = 'none' | 'destructive' | 'highImpact';
 
