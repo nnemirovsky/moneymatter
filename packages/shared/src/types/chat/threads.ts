@@ -30,3 +30,6 @@ export interface ChatThreadListPage {
   threads: ChatThreadSearchHit[];
   nextCursor: string | null;
 }
+
+/** Characters of a thread title. */
+export const CHAT_THREAD_TITLE_MAX_CHARS = 120;

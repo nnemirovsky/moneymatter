@@ -100,3 +100,33 @@ export interface ChatKpisSpec {
 }
 
 export type ChatVisualSpec = ChatChartSpec | ChatTableSpec | ChatKpisSpec;
+
+/** Bounds of the display tools (`render_chart`, `render_table`, `render_kpis`). */
+export const CHAT_VISUAL_LIMITS = {
+  /** Title of a chart or table. */
+  titleMaxChars: 120,
+  /** Points on a chart's x axis. */
+  maxPoints: 400,
+  /** Series on a line, area or bar chart. */
+  maxSeries: 12,
+  /** Series name, slice label, category label. */
+  seriesNameMaxChars: 60,
+  /** Slices of a donut; the frontend folds the rest into "Others". */
+  maxSlices: 12,
+  /** Columns of a table. */
+  maxColumns: 8,
+  /** Table column label. */
+  columnLabelMaxChars: 60,
+  /** Table rows. */
+  maxRows: 200,
+  /** Characters of a text cell. */
+  textCellMaxChars: 500,
+  /** KPI tiles. */
+  maxKpis: 6,
+  /** KPI label. */
+  kpiLabelMaxChars: 40,
+  /** Serialized size of one visual. */
+  maxBytes: 64 * 1024,
+  /** Visuals per message. */
+  maxPerMessage: 8,
+} as const;

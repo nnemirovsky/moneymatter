@@ -183,3 +183,6 @@ export interface ChatThreadWithMessages {
   hasMore: boolean;
   cards: Record<string, ChatProposalCard>;
 }
+
+/** Characters of one user message. */
+export const CHAT_MESSAGE_MAX_CHARS = 8_000;

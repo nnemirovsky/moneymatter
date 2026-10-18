@@ -173,3 +173,6 @@ export interface ChatProposalCard {
   createdAt: string;
   expiresAt: string;
 }
+
+/** An unapproved card expires this long after it was proposed, pinned threads included. */
+export const CHAT_PROPOSAL_LIFETIME_MS = 24 * 60 * 60 * 1000;
