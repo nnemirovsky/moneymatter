@@ -1247,18 +1247,19 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 
 - Create: `tools/{get-loans,get-loan-balance-history,create-loan,update-loan,delete-loan,add-loan-note,link-loan-payments,unlink-loan-payment}.ts`, `tools/loan-tools.unit.ts`, `services/loans/get-loan-views.service.ts`
 - Modify: `controllers/loans/{get-loans,get-loan-by-id}.ts` (call the new service), the four metafiles
+- Also (added): the other five loan controllers that repeat the assembly (`create-loan`, `update-loan`, `append-note-event`, `link-payments`, `unlink-payment`) call the service too; `services/loans/zod-schemas.ts` (the two body schemas split into plain-number `createLoanBodyFields` and `updateLoanBodyFields` plus a transform to `Money`, so the tools expose the fields and parse with the full schema); `tools/loan-output.ts` (slim presenter); `zod-schemas.unit.ts`; negative-amount cases in `services/loans/loans.e2e.ts`, run green on the unmoved schemas before the split
 
-- [ ] read first, on `dev` after Task 3's merge (loans compute in minor units at the loan currency's decimals): `controllers/loans/*`, `services/loans/zod-schemas.ts`, `serializers/loans.serializer.ts`
-- [ ] `get-loan-views.service.ts`: the `projectLoan` + payment count + `serializeLoan(s)` assembly the two read controllers repeat. The controllers call it.
-- [ ] `get_loans` (read): `loanId?` → a list or one loan view.
-- [ ] `get_loan_balance_history` (read): `loanId` → `getLoanBalanceHistory`.
-- [ ] `create_loan` (`finance:write`): `createLoanBodySchema`. `update_loan` (`finance:write`): `loanId` + `updateLoanBodySchema`.
-- [ ] `delete_loan` (`finance:delete`).
-- [ ] `add_loan_note` (`finance:write`): `loanId`, `text` (1–2000) → `updateLoan({ appendNote })`.
-- [ ] `link_loan_payments` (`finance:write`): `loanId`, `transactionIds` (1–500), `confirmOverpay?`. `unlink_loan_payment` (`finance:write`): `loanId`, `transactionId`.
-- [ ] unit test `loan-tools.unit.ts`.
-- [ ] metafiles under a new `// Loans & vehicles` group.
-- [ ] gate:
+- [x] read first, on `dev` after Task 3's merge (loans compute in minor units at the loan currency's decimals): `controllers/loans/*`, `services/loans/zod-schemas.ts`, `serializers/loans.serializer.ts`
+- [x] `get-loan-views.service.ts`: the `projectLoan` + payment count + `serializeLoan(s)` assembly the two read controllers repeat. The controllers call it.
+- [x] `get_loans` (read): `loanId?` → a list or one loan view.
+- [x] `get_loan_balance_history` (read): `loanId`, `limit?` (default 120, max 500, newest points kept) → `getLoanBalanceHistory`; returns `{ points, total }`.
+- [x] `create_loan` (`finance:write`): `createLoanBodySchema`. `update_loan` (`finance:write`): `loanId` + `updateLoanBodySchema`.
+- [x] `delete_loan` (`finance:delete`).
+- [x] `add_loan_note` (`finance:write`): `loanId`, `text` (1–2000) → `updateLoan({ appendNote })`.
+- [x] `link_loan_payments` (`finance:write`): `loanId`, `transactionIds` (1–500), `confirmOverpay?`. `unlink_loan_payment` (`finance:write`): `loanId`, `transactionId`.
+- [x] unit test `loan-tools.unit.ts`.
+- [x] metafiles under a new `// Loans & vehicles` group.
+- [x] gate:
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/loans/(loans|loan-balance-history|loan-payment-linking|balance-anchor|planned-payment-legs)|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
