@@ -1190,18 +1190,19 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 
 - Create: `tools/{get-portfolio,get-portfolios-overview,transfer-between-portfolios,exchange-portfolio-currency,set-portfolio-transfer-adjustment,delete-portfolio-transfer,restore-portfolio}.ts`, `tools/portfolio-transfer-tools.unit.ts`
 - Modify: `controllers/investments/portfolios/serialize-transfer.ts` (export for reuse if local), the four metafiles
+- Also (added): `controllers/investments/portfolios/schemas.ts` (the three REST body schemas the controllers and tools share), `tools/portfolio-output.ts`, `get-portfolios.ts` (uses the shared presenter), `services/stats/get-investment-contributions.e2e.ts` (422 case for the adjustment route)
 
-- [ ] read first: `controllers/investments/portfolios/{get-portfolio,get-portfolio-summaries.controller,get-portfolios-annualized-returns.controller,create-portfolio-transfer,exchange-currency,set-transfer-adjustment,delete-portfolio-transfer,restore-portfolio}.ts`, `serializers.ts#slimPortfolioTransferForMcp`
-- [ ] `get_portfolio` (read): `portfolioId` → `getPortfolio`.
-- [ ] `get_portfolios_overview` (read): `{ summaries, annualizedReturns }` from `getPortfolioSummaries` and `getPortfoliosAnnualizedReturns`.
-- [ ] `transfer_between_portfolios` (`finance:write`): `fromPortfolioId`, `toPortfolioId`, `currencyCode`, `amount` (positive decimal string), `date`, `description?` → `createPortfolioTransfer`.
-- [ ] `exchange_portfolio_currency` (`finance:write`): `portfolioId`, `fromCurrencyCode`, `toCurrencyCode`, `fromAmount`, `toAmount`, `date`, `description?`.
-- [ ] `set_portfolio_transfer_adjustment` (`finance:write`): `transferId`, `isAdjustment`.
-- [ ] `delete_portfolio_transfer` (`finance:delete`): `transferId`, `deleteLinkedTransaction?`.
-- [ ] `restore_portfolio` (`finance:write`): `portfolioId`.
-- [ ] unit test `portfolio-transfer-tools.unit.ts`.
-- [ ] metafiles under `// Portfolio cash transfers` and `// Investments`.
-- [ ] gate:
+- [x] read first: `controllers/investments/portfolios/{get-portfolio,get-portfolio-summaries.controller,get-portfolios-annualized-returns.controller,create-portfolio-transfer,exchange-currency,set-transfer-adjustment,delete-portfolio-transfer,restore-portfolio}.ts`, `serializers.ts#slimPortfolioTransferForMcp`
+- [x] `get_portfolio` (read): `portfolioId` → `getPortfolio`.
+- [x] `get_portfolios_overview` (read): `{ summaries, annualizedReturns }` from `getPortfolioSummaries` and `getPortfoliosAnnualizedReturns`.
+- [x] `transfer_between_portfolios` (`finance:write`): `fromPortfolioId`, `toPortfolioId`, `currencyCode`, `amount` (positive decimal string), `date`, `description?` → `createPortfolioTransfer`.
+- [x] `exchange_portfolio_currency` (`finance:write`): `portfolioId`, `fromCurrencyCode`, `toCurrencyCode`, `fromAmount`, `toAmount`, `date`, `description?`.
+- [x] `set_portfolio_transfer_adjustment` (`finance:write`): `transferId`, `isAdjustment`.
+- [x] `delete_portfolio_transfer` (`finance:delete`): `transferId`, `deleteLinkedTransaction?`.
+- [x] `restore_portfolio` (`finance:write`): `portfolioId`.
+- [x] unit test `portfolio-transfer-tools.unit.ts`.
+- [x] metafiles under `// Portfolio cash transfers` and `// Investments`.
+- [x] gate:
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/investments/portfolios/(get-portfolio-summaries|get-portfolios-annualized-returns|list\.service|delete\.service|transfers/(create-portfolio-transfer|exchange-currency|delete-portfolio-transfer|list-portfolio-transfers))|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
