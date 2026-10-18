@@ -1,4 +1,4 @@
-import { RecordId } from '@bt/shared/types';
+import { ChatThreadTitleSource, RecordId } from '@bt/shared/types';
 import { IdColumn } from '@common/types/id-column';
 import { Table, Column, Model, ForeignKey, BelongsTo, HasMany, DataType } from 'sequelize-typescript';
 
@@ -32,7 +32,7 @@ export default class ChatThreads extends Model {
   title!: string;
 
   @Column({ type: DataType.STRING(16), allowNull: false, defaultValue: 'auto' })
-  titleSource!: 'auto' | 'user';
+  titleSource!: ChatThreadTitleSource;
 
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   pinned!: boolean;

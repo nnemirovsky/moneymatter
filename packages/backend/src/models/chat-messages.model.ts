@@ -1,4 +1,12 @@
-import { RecordId } from '@bt/shared/types';
+import {
+  ChatMessageError,
+  ChatMessagePart,
+  ChatMessageRole,
+  ChatMessageStatus,
+  ChatPageContext,
+  ChatUsage,
+  RecordId,
+} from '@bt/shared/types';
 import { IdColumn } from '@common/types/id-column';
 import { Table, Column, Model, ForeignKey, BelongsTo, DataType } from 'sequelize-typescript';
 
@@ -32,20 +40,20 @@ export default class ChatMessages extends Model {
   userId!: number;
 
   @Column({ type: DataType.STRING(16), allowNull: false })
-  role!: 'user' | 'assistant';
+  role!: ChatMessageRole;
 
   @Column({ type: DataType.STRING(16), allowNull: false, defaultValue: 'complete' })
-  status!: 'complete' | 'streaming' | 'cancelled' | 'failed' | 'interrupted' | 'stepLimit';
+  status!: ChatMessageStatus;
 
   @Column({ type: DataType.JSONB, allowNull: false, defaultValue: [] })
-  parts!: Array<Record<string, unknown>>;
+  parts!: ChatMessagePart[];
 
   @Column({ type: DataType.TEXT, allowNull: true })
   plainText!: string | null;
 
   // Set on user messages: the page the panel was opened on.
   @Column({ type: DataType.JSONB, allowNull: true })
-  pageContext!: Record<string, unknown> | null;
+  pageContext!: ChatPageContext | null;
 
   // Set on assistant messages: the run that produced the message.
   @Column({ type: DataType.UUID, allowNull: true })
@@ -61,14 +69,13 @@ export default class ChatMessages extends Model {
   promptVersion!: string | null;
 
   @Column({ type: DataType.JSONB, allowNull: true })
-  usage!: Record<string, unknown> | null;
+  usage!: ChatUsage | null;
 
   @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 0 })
   stepCount!: number;
 
-  // `{ code, messageKey }`
   @Column({ type: DataType.JSONB, allowNull: true })
-  error!: { code: string; messageKey: string } | null;
+  error!: ChatMessageError | null;
 
   declare createdAt: Date;
   declare updatedAt: Date;

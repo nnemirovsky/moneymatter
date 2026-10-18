@@ -1,4 +1,4 @@
-import { RecordId } from '@bt/shared/types';
+import { ChatAttachmentKind, RecordId } from '@bt/shared/types';
 import { IdColumn } from '@common/types/id-column';
 import { Table, Column, Model, ForeignKey, BelongsTo, DataType } from 'sequelize-typescript';
 
@@ -41,7 +41,7 @@ export default class ChatAttachments extends Model {
   mimeType!: string;
 
   @Column({ type: DataType.STRING(16), allowNull: false })
-  kind!: 'image' | 'pdf' | 'csv' | 'text';
+  kind!: ChatAttachmentKind;
 
   @Column({ type: DataType.INTEGER, allowNull: false })
   sizeBytes!: number;

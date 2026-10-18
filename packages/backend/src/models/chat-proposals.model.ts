@@ -1,4 +1,17 @@
-import { RecordId } from '@bt/shared/types';
+import {
+  ChatCardDanger,
+  ChatCardError,
+  ChatCardKind,
+  ChatConfirmationMode,
+  ChatEntityKind,
+  ChatProposalPreview,
+  ChatProposalResult,
+  ChatProposalSnapshot,
+  ChatProposalStatus,
+  ChatSource,
+  ChatUncertainField,
+  RecordId,
+} from '@bt/shared/types';
 import { IdColumn } from '@common/types/id-column';
 import { Table, Column, Model, ForeignKey, BelongsTo, DataType } from 'sequelize-typescript';
 
@@ -51,32 +64,32 @@ export default class ChatProposals extends Model {
   editedFields!: string[];
 
   @Column({ type: DataType.STRING(16), allowNull: false })
-  cardKind!: 'create' | 'update' | 'delete' | 'bulk' | 'merge' | 'link' | 'settings' | 'action';
+  cardKind!: ChatCardKind;
 
   @Column({ type: DataType.STRING(48), allowNull: false })
-  entity!: string;
+  entity!: ChatEntityKind;
 
   @Column({ type: DataType.STRING(16), allowNull: false, defaultValue: 'none' })
-  danger!: 'none' | 'destructive' | 'highImpact';
+  danger!: ChatCardDanger;
 
   @Column({ type: DataType.STRING(16), allowNull: false, defaultValue: 'none' })
-  confirmation!: 'none' | 'confirm' | 'typed';
+  confirmation!: ChatConfirmationMode;
 
   // The affected count the user types for a `typed` confirmation.
   @Column({ type: DataType.STRING(64), allowNull: true })
   confirmationPhrase!: string | null;
 
   @Column({ type: DataType.JSONB, allowNull: true })
-  preview!: Record<string, unknown> | null;
+  preview!: ChatProposalPreview | null;
 
   @Column({ type: DataType.JSONB, allowNull: true })
-  uncertainFields!: Array<Record<string, unknown>> | null;
+  uncertainFields!: ChatUncertainField[] | null;
 
   @Column({ type: DataType.JSONB, allowNull: true })
-  sources!: Array<Record<string, unknown>> | null;
+  sources!: ChatSource[] | null;
 
   @Column({ type: DataType.JSONB, allowNull: true })
-  snapshot!: Record<string, unknown> | null;
+  snapshot!: ChatProposalSnapshot | null;
 
   // Ids of the cards whose results this card refers to through `$proposal:<id>`.
   @Column({ type: DataType.ARRAY(DataType.UUID), allowNull: false, defaultValue: [] })
@@ -88,17 +101,7 @@ export default class ChatProposals extends Model {
 
   // `applying` and `unknown` occur only for standalone tools, whose effects escape the approval transaction.
   @Column({ type: DataType.STRING(16), allowNull: false, defaultValue: 'pending' })
-  status!:
-    | 'pending'
-    | 'applying'
-    | 'applied'
-    | 'rejected'
-    | 'failed'
-    | 'stale'
-    | 'blocked'
-    | 'superseded'
-    | 'expired'
-    | 'unknown';
+  status!: ChatProposalStatus;
 
   @Column({ type: DataType.STRING(200), allowNull: true })
   statusReason!: string | null;
@@ -114,10 +117,10 @@ export default class ChatProposals extends Model {
   chainId!: RecordId | null;
 
   @Column({ type: DataType.JSONB, allowNull: true })
-  result!: Record<string, unknown> | null;
+  result!: ChatProposalResult | null;
 
   @Column({ type: DataType.JSONB, allowNull: true })
-  error!: Record<string, unknown> | null;
+  error!: ChatCardError | null;
 
   // An unapproved card expires 24 hours after it was proposed, pinned thread or not.
   @Column({ type: DataType.DATE, allowNull: false })
