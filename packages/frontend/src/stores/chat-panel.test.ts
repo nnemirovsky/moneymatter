@@ -85,4 +85,17 @@ describe('chat panel store', () => {
     expect(store.isOpen).toBe(true);
     expect(store.width).toBe(400);
   });
+
+  it('remembers the conversation it shows for the session, without storing it', () => {
+    const store = useChatPanelStore();
+    expect(store.threadId).toBeNull();
+
+    store.setThread({ threadId: 'thread-1' });
+
+    expect(store.threadId).toBe('thread-1');
+    expect(localStorage.getItem(CHAT_PANEL_STORAGE_KEY) ?? '').not.toContain('thread-1');
+
+    store.setThread({ threadId: null });
+    expect(store.threadId).toBeNull();
+  });
 });

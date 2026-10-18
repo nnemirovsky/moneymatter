@@ -42,6 +42,8 @@ export const useChatPanelStore = defineStore('chat-panel', () => {
   const stored = readStoredState();
   const isOpen = ref(stored.isOpen);
   const width = ref(stored.width);
+  /** The conversation the panel shows. It lasts for the session only: a reload starts a new chat. */
+  const threadId = ref<string | null>(null);
 
   const persist = () => {
     try {
@@ -71,5 +73,9 @@ export const useChatPanelStore = defineStore('chat-panel', () => {
     persist();
   };
 
-  return { isOpen, width, open, close, toggle, setWidth };
+  const setThread = ({ threadId: id }: { threadId: string | null }) => {
+    threadId.value = id;
+  };
+
+  return { isOpen, width, threadId, open, close, toggle, setWidth, setThread };
 });
