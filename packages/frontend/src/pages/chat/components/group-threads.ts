@@ -1,6 +1,6 @@
 import type { ChatThreadSearchHit } from '@bt/shared/types';
 
-export interface ThreadGroup {
+interface ThreadGroup {
   key: 'pinned' | 'recent' | 'results';
   threads: ChatThreadSearchHit[];
 }
