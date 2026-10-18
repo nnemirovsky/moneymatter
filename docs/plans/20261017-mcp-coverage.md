@@ -1565,22 +1565,22 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 
 **Worktree:** `/Users/nemirovsky/Developer/moneymatter-mcp`
 
-- [ ] `packages/frontend/public/skills/connect-moneymatter/SKILL.md`:
+- [x] `packages/frontend/public/skills/connect-moneymatter/SKILL.md` (the table is now 21 `###` sections in `server.ts` order, 250 rows including the 16 venture rows that were missing; intro, scopes row and Data conventions updated; sha256 recomputed):
   - group the "Available tools" table by the same sections as `server.ts`;
   - every tool has a row, including the venture tools missing today;
   - "Data conventions" covers planned transactions (confirm through `confirm_planned_transaction`; `search_transactions` needs a future `endDate` to see future plans), budget plans versus trackers, and the base-currency lock (writes fail while a base-currency change runs);
   - recompute the sha256 in `agent-skills/index.json`.
-- [ ] `prompts/financial-data-guide.ts`:
+- [x] `prompts/financial-data-guide.ts` (the "not available" sentence had already gone in an earlier task; this task added the planned-transaction and base-currency-change notes):
   - replace "the period-based Budget plan is not available through these tools" with how budget plans differ from trackers;
   - add the planned-transaction and base-currency-change notes;
   - the prompt name is unchanged, so the server card's prompts stay as they are.
-- [ ] `packages/docs/src/content/docs/ai/connect-claude-chatgpt-mcp.mdx`:
+- [x] `packages/docs/src/content/docs/ai/connect-claude-chatgpt-mcp.mdx` (screenshots: none needed, text-only changes; the dev stack is down, so none were taken - skipped; `npm run build` passes, "All internal links are valid"):
   - "What you can ask": the new areas (account groups, budget plans, loans, vehicles, currencies and rates, notifications, settings, reconciliation, import undo), with two or three new example prompts;
   - the permissions table's examples;
   - a short "What the assistant can't do" list matching the exclusions (bank connections and syncs, sharing, file imports and downloads, AI settings, account deletion);
   - `cd packages/docs && npm run build` passes and the link check is clean.
-- [ ] `.claude/skills/add-mcp-tool/SKILL.md`: the reference examples point at one tool per pattern added here (a consolidated read, a gated write, a lock-exempt write).
-- [ ] move this plan to `docs/plans/completed/`, unless Group D is still open; then leave it in place with a note.
+- [x] `.claude/skills/add-mcp-tool/SKILL.md` (also step 4 now names the `server.ts` group): the reference examples point at one tool per pattern added here (a consolidated read, a gated write, a lock-exempt write).
+- [x] move this plan to `docs/plans/completed/`, unless Group D is still open; then leave it in place with a note. **Not moved:** Group D (Tasks 26–27, the Apple Pay tools) is still deferred ⏸ until the Apple Pay plan finishes, so this plan stays in `docs/plans/`. Move it to `completed/` when Tasks 26–27 are done.
 
 **Merge:** once Tasks 28–29 pass, merge `feat/mcp-coverage` into `dev` in the main checkout (`git switch dev` with a clean tree, then `git merge feat/mcp-coverage`). Run the unit gate on `dev`.
 
