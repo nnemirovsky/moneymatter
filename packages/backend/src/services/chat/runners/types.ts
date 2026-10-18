@@ -29,3 +29,12 @@ export interface ChatRunnerResult {
 }
 
 export type ChatRunner = (input: ChatRunnerInput) => Promise<ChatRunnerResult>;
+
+/** What one CLI chat process reports back to the runner that spawned it. */
+export interface CliChatOutcome {
+  /** `stepLimit`: the CLI ran out of model turns. */
+  status: 'complete' | 'stepLimit';
+  stepCount: number;
+  /** Absent when the CLI never got to report it (the process was ended after a clarification). */
+  usage?: { inputTokens: number; outputTokens: number; cachedInputTokens: number };
+}

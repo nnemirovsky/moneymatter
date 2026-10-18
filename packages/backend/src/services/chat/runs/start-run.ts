@@ -7,6 +7,7 @@ import {
   type ChatPageContext,
   type ChatSendMessageResponse,
   type ChatUserPart,
+  isAiCliProvider,
 } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { ConflictError, NotFoundError, TooManyRequests, ValidationError } from '@js/errors';
@@ -14,6 +15,7 @@ import ChatAttachments from '@models/chat-attachments.model';
 import ChatMessages from '@models/chat-messages.model';
 import { connection } from '@models/index';
 import { createAIClient } from '@services/ai';
+import { assertCliAiAllowed } from '@services/ai/cli/cli-access';
 import { describeMissingAiConfiguration } from '@services/ai/connection-failure';
 import { withTransaction } from '@services/common/with-transaction';
 import { randomUUID } from 'node:crypto';
@@ -249,7 +251,10 @@ export async function startChatRun({
 
   const aiClient = await createAIClient({ userId: user.id, feature: AI_FEATURE.chat });
   if (!aiClient) throw new ValidationError({ message: await describeMissingAiConfiguration({ userId: user.id }) });
-  // Refuses a connection chat cannot run on (a CLI one, until the bridge exists) before a slot is taken.
+  // A CLI connection runs vendor binaries under the server's uid: admins of a self-hosted instance only.
+  // Runs on one CLI connection are parallel, so there is no per-connection claim; the global CLI slots
+  // are taken when the run starts.
+  if (isAiCliProvider({ provider: aiClient.provider })) await assertCliAiAllowed({ userId: user.id });
   const runner = selectChatRunner({ provider: aiClient.provider });
 
   const runId = randomUUID();

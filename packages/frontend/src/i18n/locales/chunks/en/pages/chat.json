@@ -506,6 +506,7 @@
     "notices": {
       "stepLimit": "Stopped after {limit} steps. Ask again to continue.",
       "cancelled": "Stopped at your request.",
+      "waitingForCli": "Waiting for a free Claude Code or Codex slot on this server. Your message will start as soon as one is free.",
       "interrupted": "The server restarted, so this answer was cut short.",
       "toolCallLimit": "This message reached its limit of {limit} tool calls.",
       "proposalLimit": "This message reached its limit of {limit} proposed changes.",
@@ -543,7 +544,6 @@
       }
     },
     "title": "Chat",
-    "cliBridgeUnavailable": "Chat does not run on Claude Code or Codex connections yet. Pick an API-key or custom model for Chat in Settings → AI.",
     "cliBusy": "All CLI slots on this instance are busy; try again in a minute.",
     "page": {
       "newChat": "New chat",

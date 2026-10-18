@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 /** The chat services of the backend, which emit i18n keys that cards, notices, warnings and run errors carry to the client. */
 const BACKEND_CHAT_DIR = `${resolve(import.meta.dirname, '../../../../../backend/src/services/chat')}/`;
 
-/** The families the client renders: a card and the parts around it, a failed run, and the CLI bridge refusals. */
+/** The families the client renders: a card and the parts around it, a failed run, and the CLI bridge's busy refusal. */
 const EMITTED_KEY = /['"`](chat\.(?:(?:cards|stale|warnings|notices|errors)\.[A-Za-z0-9_.]+|cli[A-Za-z]+))['"`]/g;
 
 /** `describeRunFailure` builds `chat.errors.${code}` from the code it passes to `failure({ code })`. */
@@ -84,7 +84,7 @@ describe('keys the backend emits for cards', () => {
         'chat.notices.stepLimit',
         'chat.errors.timeout',
         'chat.errors.rateLimited',
-        'chat.cliBridgeUnavailable',
+        'chat.notices.waitingForCli',
       ]),
     );
   });

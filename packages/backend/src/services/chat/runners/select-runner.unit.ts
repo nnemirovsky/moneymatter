@@ -1,11 +1,11 @@
 import { AI_PROVIDER } from '@bt/shared/types';
-import { t } from '@i18n/index';
 import { describe, expect, it, jest } from '@jest/globals';
-import { ValidationError } from '@js/errors';
 
 jest.mock('./ai-sdk-runner', () => ({ runAiSdkChat: jest.fn() }));
+jest.mock('./cli-bridge-runner', () => ({ runCliBridgeChat: jest.fn() }));
 
 import { runAiSdkChat } from './ai-sdk-runner';
+import { runCliBridgeChat } from './cli-bridge-runner';
 import { selectChatRunner } from './select-runner';
 
 describe('selectChatRunner', () => {
@@ -16,11 +16,7 @@ describe('selectChatRunner', () => {
     },
   );
 
-  it.each([AI_PROVIDER.claudeCode, AI_PROVIDER.codex])(
-    'refuses a %s connection until the CLI bridge exists',
-    (provider) => {
-      expect(() => selectChatRunner({ provider })).toThrow(ValidationError);
-      expect(() => selectChatRunner({ provider })).toThrow(t({ key: 'chat.cliBridgeUnavailable' }));
-    },
-  );
+  it.each([AI_PROVIDER.claudeCode, AI_PROVIDER.codex])('runs a %s connection on the CLI bridge runner', (provider) => {
+    expect(selectChatRunner({ provider })).toBe(runCliBridgeChat);
+  });
 });

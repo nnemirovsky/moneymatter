@@ -52,7 +52,6 @@
     "runNotFound": "Chat run not found",
     "runInProgress": "The assistant is still answering in this conversation. Wait for it to finish or stop it first.",
     "tooManyRuns": "Too many answers are in progress at once. Wait for one to finish and try again.",
-    "cliBridgeUnavailable": "Chat does not run on Claude Code or Codex connections yet. Pick an API-key or custom model for chat in Settings → AI.",
     "attachmentsTooLarge": "The attachments of one message can be up to 25 MB in total. Send fewer or smaller files.",
     "attachmentsTextTooLong": "The attachments of one message can hold up to 300,000 characters of text in total. Send fewer or shorter files.",
     "clarificationNotFound": "This question was not found in the conversation",
