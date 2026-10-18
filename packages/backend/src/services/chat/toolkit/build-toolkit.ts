@@ -111,8 +111,9 @@ export function buildChatToolkit({
 
       record.status = result.isError ? 'error' : 'ok';
       record.durationMs = Date.now() - startedAt;
-      if (result.isError) record.error = result.text.slice(0, RESULT_SUMMARY_CHARS);
-      else record.resultSummary = result.text.slice(0, RESULT_SUMMARY_CHARS);
+      const summary = (result.summary ?? result.text).slice(0, RESULT_SUMMARY_CHARS);
+      if (result.isError) record.error = summary;
+      else record.resultSummary = summary;
       return result;
     },
   });

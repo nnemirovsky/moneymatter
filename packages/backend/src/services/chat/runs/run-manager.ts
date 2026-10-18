@@ -11,7 +11,7 @@ import { type AIClientResult } from '@services/ai/ai-client-factory';
 import { randomUUID } from 'node:crypto';
 
 import { createTextPolicy } from '../prompt/text-policy';
-import { runAiSdkChat } from '../runners/ai-sdk-runner';
+import type { ChatRunner } from '../runners/types';
 import { notifyThreadUpdated } from '../threads/thread-events';
 import { touchThread } from '../threads/touch-thread';
 import { isRunCancelRequested } from './cancel';
@@ -30,9 +30,13 @@ interface ChatRunInput {
   runId: string;
   /** The assistant message the run fills. */
   messageId: string;
+  /** The user message the run answers. */
+  userMessageId: string;
   threadId: string;
   userId: number;
   aiClient: AIClientResult;
+  /** The runner for the connection's provider, chosen by the caller before it took the run slots. */
+  runner: ChatRunner;
   /** Held by the caller from before the message existed; the run releases it when it ends. */
   lease: RunLease;
 }
@@ -89,7 +93,7 @@ interface RunEnd {
 }
 
 async function executeRun(input: ChatRunInput): Promise<void> {
-  const { runId, messageId, threadId, userId, aiClient, lease } = input;
+  const { runId, messageId, userMessageId, threadId, userId, aiClient, runner, lease } = input;
   const control = createRunControl({ runId });
   const recorder = createRunRecorder();
 
@@ -115,10 +119,11 @@ async function executeRun(input: ChatRunInput): Promise<void> {
   try {
     await emit({ type: 'run.started', runId, messageId, provider: aiClient.provider, modelId: aiClient.modelId });
 
-    const result = await runAiSdkChat({
+    const result = await runner({
       runId,
       threadId,
       messageId,
+      userMessageId,
       userId,
       aiClient,
       signal: control.signal,

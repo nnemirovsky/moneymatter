@@ -1,0 +1,85 @@
+import { describe, expect, it } from '@jest/globals';
+
+import { FINANCIAL_DATA_GUIDE_CONTENT } from '../../mcp/prompts/financial-data-guide';
+import { buildSystemPrompt, CHAT_PROMPT_VERSION } from './system-prompt';
+
+const params = {
+  now: new Date('2026-10-18T14:30:00Z'),
+  timeZone: 'UTC',
+  locale: 'uk',
+  baseCurrency: 'EUR',
+  pageContext: null,
+};
+
+describe('buildSystemPrompt', () => {
+  it('names a prompt version', () => {
+    expect(CHAT_PROMPT_VERSION).toMatch(/^chat-\d+$/);
+  });
+
+  it('has the role and the two modes, and never lets the model claim a change is done', () => {
+    const prompt = buildSystemPrompt(params);
+
+    expect(prompt).toContain('MoneyMatter');
+    expect(prompt).toMatch(/Acting/);
+    expect(prompt).toMatch(/Answering/);
+    expect(prompt).toMatch(/never (say|claim)[^.]*(done|applied|made)/i);
+    expect(prompt).toMatch(/cards are the only way/i);
+  });
+
+  it('has the card rules: one call per change, refs, uncertain fields, clarification', () => {
+    const prompt = buildSystemPrompt(params);
+
+    expect(prompt).toContain('$proposal:');
+    expect(prompt).toContain('_chat.uncertain');
+    expect(prompt).toContain('_chat.replaces');
+    expect(prompt).toContain('_chat.sourceCallIds');
+    expect(prompt).toContain('ask_clarification');
+    expect(prompt).toContain('find_capabilities');
+    expect(prompt).toMatch(/one (tool )?call per change/i);
+  });
+
+  it('forbids text in acting turns', () => {
+    expect(buildSystemPrompt(params)).toMatch(/no text in acting turns|write no text in an acting turn/i);
+  });
+
+  it('has the answering rules: numbers from results, visuals through the render tools', () => {
+    const prompt = buildSystemPrompt(params);
+
+    expect(prompt).toMatch(/numbers? (come|must come|only)[^.]*(tool|analysis) results?/i);
+    for (const tool of ['render_chart', 'render_table', 'render_kpis']) expect(prompt).toContain(tool);
+    expect(prompt).toMatch(/plain text/i);
+  });
+
+  it('includes the financial data guide the MCP server serves', () => {
+    expect(buildSystemPrompt(params)).toContain(FINANCIAL_DATA_GUIDE_CONTENT);
+  });
+
+  it('states the date, time zone, locale and base currency', () => {
+    const prompt = buildSystemPrompt(params);
+
+    expect(prompt).toContain('2026-10-18');
+    expect(prompt).toContain('UTC');
+    expect(prompt).toContain('uk');
+    expect(prompt).toContain('Ukrainian');
+    expect(prompt).toContain('EUR');
+  });
+
+  it('says the base currency is unknown when the user has none yet', () => {
+    expect(buildSystemPrompt({ ...params, baseCurrency: null })).toMatch(/base currency[^.]*not (set|chosen)/i);
+  });
+
+  it('has the untrusted-data rule', () => {
+    const prompt = buildSystemPrompt(params);
+
+    expect(prompt).toContain('<<<UNTRUSTED');
+    expect(prompt).toMatch(/never (follow|obey)[^.]*instructions/i);
+  });
+
+  it('adds the page context only when there is one', () => {
+    const without = buildSystemPrompt(params);
+    const withContext = buildSystemPrompt({ ...params, pageContext: 'PAGE-CONTEXT-BLOCK' });
+
+    expect(without).not.toContain('PAGE-CONTEXT-BLOCK');
+    expect(withContext).toContain('PAGE-CONTEXT-BLOCK');
+  });
+});

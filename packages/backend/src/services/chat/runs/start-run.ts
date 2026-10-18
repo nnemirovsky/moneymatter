@@ -7,7 +7,6 @@ import {
   type ChatPageContext,
   type ChatSendMessageResponse,
   type ChatUserPart,
-  isAiCliProvider,
 } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { ConflictError, NotFoundError, TooManyRequests, ValidationError } from '@js/errors';
@@ -20,6 +19,8 @@ import { withTransaction } from '@services/common/with-transaction';
 import { randomUUID } from 'node:crypto';
 import { QueryTypes, col, fn } from 'sequelize';
 
+import { CHAT_PROMPT_VERSION } from '../prompt/system-prompt';
+import { selectChatRunner } from '../runners/select-runner';
 import { findThreadOrThrow } from '../threads/find-thread';
 import { notifyThreadUpdated } from '../threads/thread-events';
 import { deriveThreadTitle } from '../threads/thread-title';
@@ -190,6 +191,7 @@ const createRunMessages = withTransaction(
       runId,
       provider,
       modelId,
+      promptVersion: CHAT_PROMPT_VERSION,
       createdAt: new Date(now + 1),
     });
 
@@ -238,10 +240,8 @@ export async function startChatRun({
 
   const aiClient = await createAIClient({ userId: user.id, feature: AI_FEATURE.chat });
   if (!aiClient) throw new ValidationError({ message: await describeMissingAiConfiguration({ userId: user.id }) });
-  // The CLI bridge arrives with the subscription runners; until then a CLI connection cannot chat.
-  if (isAiCliProvider({ provider: aiClient.provider })) {
-    throw new ValidationError({ message: t({ key: 'chat.cliBridgeUnavailable' }) });
-  }
+  // Refuses a connection chat cannot run on (a CLI one, until the bridge exists) before a slot is taken.
+  const runner = selectChatRunner({ provider: aiClient.provider });
 
   const runId = randomUUID();
   const slots = await acquireRunSlots({ userId: user.id, threadId, runId });
@@ -267,7 +267,16 @@ export async function startChatRun({
       modelId: aiClient.modelId,
     });
 
-    launchChatRun({ runId, messageId: assistantMessageId, threadId, userId: user.id, aiClient, lease });
+    launchChatRun({
+      runId,
+      messageId: assistantMessageId,
+      userMessageId,
+      threadId,
+      userId: user.id,
+      aiClient,
+      runner,
+      lease,
+    });
     notifyThreadUpdated({ userId: user.id, threadId });
 
     return { runId, messageId: assistantMessageId, userMessageId };

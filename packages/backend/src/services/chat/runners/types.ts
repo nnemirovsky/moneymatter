@@ -9,6 +9,8 @@ export interface ChatRunnerInput {
   threadId: string;
   /** The assistant message the run fills. */
   messageId: string;
+  /** The user message the run answers. */
+  userMessageId: string;
   userId: number;
   aiClient: AIClientResult;
   /** Aborts on cancel, shutdown and the run's wall-time ceiling. */

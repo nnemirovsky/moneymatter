@@ -18,6 +18,8 @@ export type ChatToolKind = 'read' | 'write' | 'native';
 export interface ChatToolResult {
   isError: boolean;
   text: string;
+  /** What the stored tool-call record keeps when the text is wrapped or long; defaults to the start of `text`. */
+  summary?: string;
 }
 
 export type ChatToolValidation = { success: true; value: unknown } | { success: false; error: Error };

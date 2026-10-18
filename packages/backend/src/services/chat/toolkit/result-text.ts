@@ -2,7 +2,11 @@ import { CHAT_READ_RESULT_MAX_CHARS } from '@bt/shared/types';
 
 import type { ChatToolResult } from './types';
 
-export const toolSuccess = ({ text }: { text: string }): ChatToolResult => ({ isError: false, text });
+export const toolSuccess = ({ text, summary }: { text: string; summary?: string }): ChatToolResult => ({
+  isError: false,
+  text,
+  ...(summary === undefined ? {} : { summary }),
+});
 
 export const toolFailure = ({ text }: { text: string }): ChatToolResult => ({ isError: true, text });
 

@@ -53,6 +53,7 @@ export function createReadAttachmentTool({ ctx }: { ctx: ChatToolContext }) {
           text: ctx.run.wrapUntrusted?.({ kind: 'attachment', text: slice }) ?? slice,
           hasMore: offset + slice.length < full.length,
         }),
+        summary: `${attachment.fileName}: ${slice.length} of ${full.length} characters from ${offset}`,
       });
     },
   });

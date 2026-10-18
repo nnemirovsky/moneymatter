@@ -47,7 +47,7 @@ export async function runCatalogRead({
     ctx.state.sources.push({ type: 'toolCall', callId, toolName: entry.name, args: compactArgs({ args: input }) });
 
     const text = capForModel({ text: fullText });
-    return toolSuccess({ text: ctx.run.wrapUntrusted?.({ kind: 'toolResult', text }) ?? text });
+    return toolSuccess({ text: ctx.run.wrapUntrusted?.({ kind: 'toolResult', text }) ?? text, summary: fullText });
   } catch (error) {
     return toolFailure({ text: errorMessage({ error }) });
   }
