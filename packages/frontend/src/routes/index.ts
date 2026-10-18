@@ -536,7 +536,7 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/pages/settings/subpages/ai/index.vue'),
             redirect: { name: ROUTES_NAMES.settingsAiFeatures },
             // Chunk names match the Crowdin files, so the merged page keeps both.
-            meta: { i18nChunks: ['settings/ai', 'settings/ai-integrations'] },
+            meta: { i18nChunks: ['settings/ai', 'settings/ai-integrations', 'pages/chat'] },
             children: [
               {
                 path: 'features',
@@ -552,6 +552,11 @@ const routes: RouteRecordRaw[] = [
                 path: 'connected-apps',
                 name: ROUTES_NAMES.settingsAiConnectedApps,
                 component: () => import('@/pages/settings/subpages/ai/pages/connected-apps.vue'),
+              },
+              {
+                path: 'chat-applied',
+                name: ROUTES_NAMES.settingsAiChatApplied,
+                component: () => import('@/pages/settings/subpages/ai/pages/chat-applied-changes.vue'),
               },
               { path: 'keys', redirect: { name: ROUTES_NAMES.settingsAiModels } },
               { path: 'endpoints', redirect: { name: ROUTES_NAMES.settingsAiModels } },

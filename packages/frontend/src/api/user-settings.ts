@@ -10,6 +10,7 @@ import type {
   SavedTransactionView,
   CurrencyDisplayPreference,
   PushGroup,
+  ChatRetentionDays,
 } from '@bt/shared/types';
 
 export interface DashboardWidgetConfig {
@@ -155,6 +156,16 @@ export interface UserSettingsSchema {
   incomeCategoryIds?: string[];
   currencyDisplay?: CurrencyDisplayPreference;
   fire?: FireSettings;
+  /**
+   * Read-only here: the chat's history retention is written by `PUT /chat/settings`, which also
+   * recomputes the thread expiries, and the server drops it from settings writes.
+   */
+  ai?: {
+    chat?: {
+      /** `null` keeps conversations until the user deletes them; unset is the 30-day default. */
+      retentionDays?: ChatRetentionDays | null;
+    };
+  };
   notifications?: {
     push?: {
       /** Web Push groups the user switched. A group that was never set takes `PUSH_GROUP_DEFAULTS`. */
