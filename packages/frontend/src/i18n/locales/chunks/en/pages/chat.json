@@ -297,6 +297,15 @@
       "cardAction": "Could not complete that action. Try again.",
       "sendFailed": "Could not send the message. Try again.",
       "settingsFailed": "Could not save the chat settings. Try again."
+    },
+    "visuals": {
+      "others": "Others",
+      "emptyChart": "Nothing to chart yet.",
+      "emptyTable": "No rows to show.",
+      "deltaUp": "Up",
+      "deltaDown": "Down",
+      "deltaFlat": "No change",
+      "noValue": "No value"
     }
   }
 }
