@@ -61,6 +61,8 @@ export interface HistoryProposal {
   toolName: string;
   status: ChatProposalStatus;
   statusReason: string | null;
+  /** The card's current arguments; shown to the model only for the card a comment is about. */
+  args?: Record<string, unknown>;
 }
 
 type Wrap = UntrustedWrapper['wrap'];
@@ -107,9 +109,19 @@ function renderUserText({ message, ctx }: { message: HistoryMessage; ctx: Render
       case 'text':
         blocks.push(part.text);
         break;
-      case 'cardComment':
-        blocks.push(`Comment on proposal ${part.proposalId}: ${part.text}`);
+      case 'cardComment': {
+        const proposal = ctx.proposals.get(part.proposalId);
+        blocks.push(
+          proposal
+            ? [
+                `Comment on proposal ${proposal.id} (${proposal.toolName}, ${proposal.status}): ${part.text}`,
+                `The arguments of that proposal:`,
+                ctx.wrap({ kind: 'toolResult', text: JSON.stringify(proposal.args ?? {}) }),
+              ].join('\n')
+            : `Comment on proposal ${part.proposalId}: ${part.text}`,
+        );
         break;
+      }
       case 'clarificationAnswer': {
         const clarification = ctx.clarifications.get(part.clarificationId);
         const labels = part.optionIds.map(
@@ -375,7 +387,7 @@ export async function loadHistoryMessages({
     }),
     ChatProposals.findAll({
       where: { threadId, userId },
-      attributes: ['id', 'toolName', 'status', 'statusReason'],
+      attributes: ['id', 'toolName', 'status', 'statusReason', 'args'],
       raw: true,
     }),
   ]);

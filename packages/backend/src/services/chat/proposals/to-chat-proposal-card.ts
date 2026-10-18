@@ -38,7 +38,8 @@ type ChatProposalRow = Pick<
   | 'createdAt'
   | 'expiresAt'
   | 'appliedAt'
->;
+> &
+  Partial<Pick<ChatProposals, 'snapshot'>>;
 
 let entriesByName: Map<string, ToolCatalogEntry> | null = null;
 
@@ -136,9 +137,25 @@ export function toChatProposalCard({
     warnings,
     sources: row.sources ?? [],
     canApply: canApplyOf({ row, needsPreview: policy !== null && policy.previewResolver !== null }),
-    ...(row.status === 'stale' ? { stale: { reasonKey: row.statusReason ?? 'chat.cards.stale' } } : {}),
+    ...(row.status === 'stale'
+      ? {
+          stale: {
+            reasonKey: row.statusReason ?? 'chat.cards.stale',
+            ...row.snapshot?.staleDiff,
+          },
+        }
+      : {}),
     ...(row.result && row.appliedAt
-      ? { result: { refs: row.result.refs, executedArgs: row.executedArgs, appliedAt: row.appliedAt.toISOString() } }
+      ? {
+          result: {
+            refs: row.result.refs,
+            executedArgs: row.executedArgs,
+            appliedAt: row.appliedAt.toISOString(),
+            ...(row.result.alsoApplied && row.result.alsoApplied.length > 0
+              ? { alsoApplied: row.result.alsoApplied }
+              : {}),
+          },
+        }
       : {}),
     ...(row.error ? { error: row.error } : {}),
     editedByUser: row.editedFields.length > 0,

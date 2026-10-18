@@ -105,3 +105,16 @@ export function assertNoRefCycle({
     stack.push(...(dependsOnById.get(id) ?? []));
   }
 }
+
+/** Replaces each `$proposal:<id>` with the real id of the entity that card created. A ref with no id yet is left in place. */
+export function substituteRefs({ value, ids }: { value: unknown; ids: Map<string, string> }): unknown {
+  if (typeof value === 'string') {
+    const id = PROPOSAL_REF_PATTERN.exec(value)?.[1];
+    return (id && ids.get(id)) || value;
+  }
+  if (Array.isArray(value)) return value.map((item) => substituteRefs({ value: item, ids }));
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, substituteRefs({ value: item, ids })]));
+  }
+  return value;
+}

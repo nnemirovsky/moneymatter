@@ -54,3 +54,10 @@ export const CHAT_ATTACHMENT_LIMIT = userRateLimit({
  * runs too.
  */
 export const CHAT_MESSAGE_LIMIT = userRateLimit({ prefix: 'chat-message', windowSeconds: 10 * 60, maxAttempts: 30 });
+
+/**
+ * Chat approval limit (120 approvals per minute), shared by approving one card and "approve all".
+ * An approval runs the real write handlers of the tools, so the budget bounds a runaway client; a
+ * person clicking through cards, or one approve-all call, stays far below it.
+ */
+export const CHAT_APPROVAL_LIMIT = userRateLimit({ prefix: 'chat-approval', windowSeconds: 60, maxAttempts: 120 });

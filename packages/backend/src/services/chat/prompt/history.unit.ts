@@ -434,4 +434,25 @@ describe('historyBudgetTokens', () => {
   it('assumes a small window when the catalog does not know the model', () => {
     expect(historyBudgetTokens({ contextWindow: null })).toBe(19_200);
   });
+
+  it('shows the card a comment is about: its tool, state and arguments, wrapped as untrusted data', () => {
+    const result = build({
+      messages: [
+        {
+          id: 'u1',
+          role: 'user',
+          status: 'complete',
+          plainText: null,
+          parts: [{ type: 'cardComment', id: 'cc', proposalId: 'p-1', text: 'Call it Groceries' }],
+        },
+      ],
+      proposals: [
+        { id: 'p-1', toolName: 'create_category', status: 'pending', statusReason: null, args: { name: 'Food' } },
+      ],
+    });
+
+    const content = contentOf(result[0]);
+    expect(content).toContain('Comment on proposal p-1 (create_category, pending): Call it Groceries');
+    expect(content).toContain('<<toolResult>>{"name":"Food"}<</toolResult>>');
+  });
 });

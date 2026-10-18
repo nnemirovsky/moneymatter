@@ -4,11 +4,10 @@ import { describe, expect, it } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
 import ChatAttachments from '@models/chat-attachments.model';
 import ChatMessages from '@models/chat-messages.model';
-import Users from '@models/users.model';
 import { redisClient } from '@root/redis-client';
 import * as helpers from '@tests/helpers';
 import { useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
-import { registerMockSession } from '@tests/mocks/better-auth';
+import { provisionDemoUser } from '@tests/helpers/chat-cards';
 import { createChatScript, failOnUnscriptedChatRequests } from '@tests/mocks/openai-compatible/chat-script';
 import type { ChatScriptTurn } from '@tests/mocks/openai-compatible/chat-script';
 
@@ -24,24 +23,6 @@ async function arrange({ turns }: { turns: ChatScriptTurn[] }) {
   const script = createChatScript({ turns });
   global.mswMockServer.use(script.handler);
   return { script, threadId: (await helpers.createChatThread({ raw: true })).id };
-}
-
-/** A demo user from `POST /demo`, with its session registered in the auth mock. */
-async function provisionDemoUser(): Promise<{ cookies: string }> {
-  const savedCookies = global.APP_AUTH_COOKIES;
-  global.APP_AUTH_COOKIES = null;
-  try {
-    const res = await helpers.makeAuthRequest({ method: 'post', url: '/demo' });
-    expect(res.statusCode).toBe(200);
-    const userId = res.body.response.user.id as number;
-    const cookies = helpers.extractCookies(res);
-    const sessionToken = cookies.match(/bt_auth\.session_token=([^;]+)/)?.[1];
-    const demoUser = await Users.findByPk(userId);
-    registerMockSession(sessionToken!, { id: demoUser!.authUserId, email: `demo-${userId}@demo.local` });
-    return { cookies };
-  } finally {
-    global.APP_AUTH_COOKIES = savedCookies;
-  }
 }
 
 const HOLD: ChatScriptTurn = { text: ['Working', ' on it', ' still'], pieceDelayMs: 8_000 };

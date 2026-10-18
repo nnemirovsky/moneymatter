@@ -132,12 +132,16 @@ export interface ChatProposalSnapshot {
   targetHash?: string;
   targetCount?: number;
   parentStatuses?: Record<string, ChatProposalStatus>;
+  /** Set when an approval found the card stale: what moved, so the card can show it after a reload. */
+  staleDiff?: { before?: unknown; after?: unknown };
 }
 
 /** The slimmed handler output and the entities it created or touched. */
 export interface ChatProposalResult {
   refs: ChatEntityRef[];
   output?: unknown;
+  /** The pending parents the same approval applied first. */
+  alsoApplied?: string[];
 }
 
 export interface ChatProposalCard {
@@ -163,7 +167,7 @@ export interface ChatProposalCard {
   sources: ChatSource[];
   canApply: { ok: true } | { ok: false; reasonKey: string };
   stale?: { reasonKey: string; before?: unknown; after?: unknown };
-  result?: { refs: ChatEntityRef[]; executedArgs: unknown; appliedAt: string };
+  result?: { refs: ChatEntityRef[]; executedArgs: unknown; appliedAt: string; alsoApplied?: string[] };
   error?: ChatCardError;
   editedByUser: boolean;
   createdAt: string;

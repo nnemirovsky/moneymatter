@@ -80,6 +80,65 @@ describe('Chat for a read-only user (lapsed plan)', () => {
     expect(stream.events.at(-1)).toMatchObject({ type: 'run.finished', status: 'cancelled' });
   });
 
+  it('lets a read-only user refresh, reject and comment on a card, and answers 402 to approve, approve-all and edit', async () => {
+    const baseUrl = 'http://93.184.216.34/v1';
+    global.mswMockServer.use(getCustomEndpointSuccessMock({ baseUrl }));
+    await helpers.createAiConnection({
+      provider: AI_PROVIDER.custom,
+      name: 'Public endpoint',
+      baseUrl,
+      model: CUSTOM_ENDPOINT_MODEL,
+      raw: true,
+    });
+    global.mswMockServer.use(
+      createChatScript({
+        baseUrl,
+        turns: [
+          {
+            toolCalls: [
+              { name: 'create_category', arguments: { name: 'Read-only Refresh', color: '#4CAF50' } },
+              { name: 'create_category', arguments: { name: 'Read-only Reject', color: '#4CAF50' } },
+              { name: 'create_category', arguments: { name: 'Read-only Comment', color: '#4CAF50' } },
+            ],
+          },
+          { text: 'Done.' },
+          { text: 'Noted.' },
+        ],
+      }).handler,
+    );
+    const thread = await helpers.createChatThread({ raw: true });
+    const sent = await helpers.sendChatMessage({ threadId: thread.id, payload: { text: 'Add categories' }, raw: true });
+    const { events } = await helpers.getChatRunEvents({ runId: sent.runId });
+    const cards = events.flatMap((event) => (event.type === 'proposal.upserted' ? [event.card] : []));
+    expect(cards).toHaveLength(3);
+    const [toRefresh, toReject, toComment] = cards;
+    await becomeReadOnly();
+
+    const refreshed = await helpers.refreshChatProposal({ proposalId: toRefresh!.id });
+    const rejected = await helpers.rejectChatProposal({ proposalId: toReject!.id });
+    const commented = await helpers.commentOnChatProposal({ proposalId: toComment!.id, text: 'Rename it' });
+    await helpers.getChatRunEvents({ runId: commented.body.response.runId });
+
+    expect(refreshed.statusCode).toBe(200);
+    expect(rejected.statusCode).toBe(200);
+    expect(commented.statusCode).toBe(202);
+
+    const approve = await helpers.approveChatProposal({ proposalId: toComment!.id, payload: { revision: 1 } });
+    const approveAll = await helpers.approveAllChatMessage({
+      messageId: sent.messageId,
+      payload: { revisions: { [toComment!.id]: 1 } },
+    });
+    const edit = await helpers.editChatProposal({
+      proposalId: toComment!.id,
+      payload: { revision: 1, args: { name: 'Renamed' } },
+    });
+    for (const refused of [approve, approveAll, edit]) {
+      expect(refused.statusCode).toBe(ERROR_CODES.PaymentRequired);
+      expect((refused.body.response as unknown as { code: string }).code).toBe(API_ERROR_CODES.planRequired);
+    }
+    expect((await helpers.getChatProposal({ proposalId: toComment!.id, raw: true })).status).toBe('pending');
+  });
+
   it('lets a read-only user change retention', async () => {
     await becomeReadOnly();
 

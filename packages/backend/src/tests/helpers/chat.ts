@@ -1,8 +1,15 @@
 import {
   ATTACHMENT_FILENAME_HEADER,
   CHAT_DOCUMENT_PASSWORD_HEADER,
+  type ChatAppliedPage,
+  type ChatApproveAllRequest,
+  type ChatApproveAllResponse,
+  type ChatApproveRequest,
   type ChatAttachment,
   type ChatCancelRunResponse,
+  type ChatCardActionResponse,
+  type ChatEditProposalRequest,
+  type ChatProposalCard,
   type ChatRetentionDays,
   type ChatRunEvent,
   type ChatSendMessageRequest,
@@ -277,3 +284,109 @@ export async function getChatRunEvents({ runId, lastEventId }: { runId: string; 
 /** The text a run streamed, from its `text.delta` events. */
 export const streamedChatText = ({ events }: { events: ReceivedChatRunEvent[] }): string =>
   events.flatMap((event) => (event.type === 'text.delta' ? [event.delta] : [])).join('');
+
+export async function getChatProposal<R extends boolean | undefined = undefined>({
+  proposalId,
+  raw,
+}: {
+  proposalId: string;
+  raw?: R;
+}) {
+  return makeRequest<ChatProposalCard, R>({ method: 'get', url: `/chat/proposals/${proposalId}`, raw });
+}
+
+export async function editChatProposal<R extends boolean | undefined = undefined>({
+  proposalId,
+  payload,
+  raw,
+}: {
+  proposalId: string;
+  /** Typed wide so a test can send a body the API must refuse. */
+  payload: Partial<ChatEditProposalRequest> & Record<string, unknown>;
+  raw?: R;
+}) {
+  return makeRequest<ChatProposalCard, R>({ method: 'patch', url: `/chat/proposals/${proposalId}`, payload, raw });
+}
+
+export async function refreshChatProposal<R extends boolean | undefined = undefined>({
+  proposalId,
+  raw,
+}: {
+  proposalId: string;
+  raw?: R;
+}) {
+  return makeRequest<ChatProposalCard, R>({ method: 'post', url: `/chat/proposals/${proposalId}/refresh`, raw });
+}
+
+export async function approveChatProposal<R extends boolean | undefined = undefined>({
+  proposalId,
+  payload,
+  raw,
+}: {
+  proposalId: string;
+  payload: Partial<ChatApproveRequest> & Record<string, unknown>;
+  raw?: R;
+}) {
+  return makeRequest<ChatCardActionResponse, R>({
+    method: 'post',
+    url: `/chat/proposals/${proposalId}/approve`,
+    payload,
+    raw,
+  });
+}
+
+export async function rejectChatProposal<R extends boolean | undefined = undefined>({
+  proposalId,
+  raw,
+}: {
+  proposalId: string;
+  raw?: R;
+}) {
+  return makeRequest<ChatCardActionResponse, R>({ method: 'post', url: `/chat/proposals/${proposalId}/reject`, raw });
+}
+
+export async function commentOnChatProposal<R extends boolean | undefined = undefined>({
+  proposalId,
+  text,
+  raw,
+}: {
+  proposalId: string;
+  text: string;
+  raw?: R;
+}) {
+  return makeRequest<ChatSendMessageResponse, R>({
+    method: 'post',
+    url: `/chat/proposals/${proposalId}/comment`,
+    payload: { text },
+    raw,
+  });
+}
+
+export async function approveAllChatMessage<R extends boolean | undefined = undefined>({
+  messageId,
+  payload,
+  raw,
+}: {
+  messageId: string;
+  payload: Partial<ChatApproveAllRequest> & Record<string, unknown>;
+  raw?: R;
+}) {
+  return makeRequest<ChatApproveAllResponse, R>({
+    method: 'post',
+    url: `/chat/messages/${messageId}/approve-all`,
+    payload,
+    raw,
+  });
+}
+
+export async function getChatAppliedCards<R extends boolean | undefined = undefined>({
+  cursor,
+  limit,
+  raw,
+}: { cursor?: string; limit?: number; raw?: R } = {}) {
+  return makeRequest<ChatAppliedPage, R>({
+    method: 'get',
+    url: `/chat/applied${buildQuery({ params: { cursor, limit } })}`,
+    raw,
+  });
+}

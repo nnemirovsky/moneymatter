@@ -136,6 +136,7 @@ const createRunMessages = withTransaction(
     attachments,
     pageContext,
     clarificationAnswer,
+    cardComment,
     provider,
     modelId,
   }: {
@@ -146,6 +147,7 @@ const createRunMessages = withTransaction(
     attachments: SendableAttachment[];
     pageContext: ChatPageContext | null;
     clarificationAnswer: ChatClarificationAnswerInput | undefined;
+    cardComment: { proposalId: string } | undefined;
     provider: string;
     modelId: string;
   }) => {
@@ -154,7 +156,11 @@ const createRunMessages = withTransaction(
       : '';
 
     const parts: ChatUserPart[] = [
-      ...(text ? [{ type: 'text' as const, id: randomUUID(), text }] : []),
+      // A comment on a card carries its text in the comment part, so the history shows it once.
+      ...(text && !cardComment ? [{ type: 'text' as const, id: randomUUID(), text }] : []),
+      ...(cardComment
+        ? [{ type: 'cardComment' as const, id: randomUUID(), proposalId: cardComment.proposalId, text }]
+        : []),
       ...attachments.map(({ id }) => ({ type: 'attachment' as const, id: randomUUID(), attachmentId: id })),
       ...(pageContext ? [{ type: 'pageContext' as const, id: randomUUID(), context: pageContext }] : []),
       ...(clarificationAnswer
@@ -227,6 +233,7 @@ export async function startChatRun({
   attachmentIds,
   pageContext,
   clarificationAnswer,
+  cardComment,
 }: {
   user: { id: number };
   threadId: string;
@@ -234,6 +241,8 @@ export async function startChatRun({
   attachmentIds: string[];
   pageContext: ChatPageContext | null;
   clarificationAnswer?: ChatClarificationAnswerInput;
+  /** Set when the message is a comment on a card: the card it is about. */
+  cardComment?: { proposalId: string };
 }): Promise<ChatSendMessageResponse> {
   await findThreadOrThrow({ userId: user.id, threadId });
   const attachments = await loadSendableAttachments({ userId: user.id, threadId, attachmentIds });
@@ -263,6 +272,7 @@ export async function startChatRun({
       attachments,
       pageContext,
       clarificationAnswer,
+      cardComment,
       provider: aiClient.provider,
       modelId: aiClient.modelId,
     });

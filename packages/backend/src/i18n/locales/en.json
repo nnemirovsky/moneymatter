@@ -57,7 +57,17 @@
     "attachmentsTextTooLong": "The attachments of one message can hold up to 300,000 characters of text in total. Send fewer or shorter files.",
     "clarificationNotFound": "This question was not found in the conversation",
     "clarificationAnswered": "This question has already been answered",
-    "clarificationAnswerInvalid": "The answer does not match the question's options"
+    "clarificationAnswerInvalid": "The answer does not match the question's options",
+    "proposalNotFound": "Chat card not found",
+    "cardRevisionMoved": "This card changed since you opened it. Review the new version and try again.",
+    "cardNotPending": "This card is no longer waiting for a decision.",
+    "cardBlocked": "A card this one depends on is no longer waiting for a decision.",
+    "cardExpired": "This card expired. Ask again to get a new one.",
+    "cardStale": "The data behind this card changed. Refresh the card to see the current preview.",
+    "cardUnavailable": "This card cannot be applied: its preview is missing or the change is not available in chat.",
+    "cardNotChangeable": "This card can no longer be changed.",
+    "confirmationRequired": "Confirm this change the way the card asks.",
+    "cardApplyFailed": "The change could not be applied."
   },
   "transactions": {
     "notFound": "Transaction not found",
