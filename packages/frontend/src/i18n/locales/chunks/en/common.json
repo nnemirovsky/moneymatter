@@ -137,6 +137,10 @@
       "receiptParsing": {
         "name": "Invoice matching",
         "description": "Reads an uploaded invoice or receipt and finds the transaction it belongs to."
+      },
+      "chat": {
+        "name": "Chat",
+        "description": "Ask about your money, attach receipts and statements, and approve the changes the AI proposes."
       }
     },
     "transactions": {
