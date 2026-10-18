@@ -9,19 +9,15 @@ import { describe, expect, it, jest } from '@jest/globals';
 import fs from 'fs';
 import path from 'path';
 
-// The unit suite maps the MCP SDK to a stub; the core-schema budget needs the real server and its
-// real `tools/list` handler, so the stub is swapped for the SDK's own CommonJS build. The catalog
-// registers through a capture shim and does not care.
-const SDK_DIST = '../../../../../../node_modules/@modelcontextprotocol/sdk/dist/cjs';
-jest.mock('@modelcontextprotocol/sdk/server/mcp.js', () =>
-  jest.requireActual('../../../../../../node_modules/@modelcontextprotocol/sdk/dist/cjs/server/mcp.js'),
-);
 // The import chains of these services open Redis connections.
 jest.mock('@services/categories.service', () => ({ getCategories: jest.fn() }));
 jest.mock('@services/accounts.service', () => ({ getAccounts: jest.fn() }));
 
+import { makeChatRun } from '@tests/helpers/chat-toolkit';
+
 import { getToolCatalog, type ToolCatalogEntry } from '../../mcp/tool-catalog';
 import { CONDITIONAL_DELETE_TOOLS, DESTRUCTIVE_TOOLS, READ_TOOL_NAME } from '../../mcp/tool-classification';
+import { buildChatToolkit } from '../toolkit/build-toolkit';
 import { CHAT_CORE_TOOL_REASONS, CHAT_CORE_TOOLS } from './core-tools';
 import { UNMAPPED_ID_FIELDS } from './entity-fields';
 import { CHAT_ARGS_ONLY_TOOLS, CHAT_EXCLUDED_TOOLS } from './excluded';
@@ -253,22 +249,19 @@ describe('chat capability drift', () => {
     }
   });
 
-  it('keeps the schemas of the core tools within 60 KB', async () => {
-    const { createMcpServer } = await import('../../mcp/server');
-    const { InMemoryTransport } = jest.requireActual(`${SDK_DIST}/inMemory.js`) as any;
-    const { Client } = jest.requireActual(`${SDK_DIST}/client/index.js`) as any;
+  it('keeps the model-facing schemas of the tools every step offers within 60 KB', () => {
+    const toolkit = buildChatToolkit({ run: makeChatRun().run });
+    const active = new Set(toolkit.activeToolNames());
+    const offered = toolkit.tools.filter((tool) => active.has(tool.name));
+    const bytes = Buffer.byteLength(
+      JSON.stringify(
+        offered.map((tool) => ({ name: tool.name, description: tool.description, inputSchema: tool.modelSchema })),
+      ),
+      'utf8',
+    );
 
-    const server = createMcpServer();
-    const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
-    const client = new Client({ name: 'core-budget', version: '1.0.0' });
-    await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
-    const { tools } = (await client.listTools()) as { tools: Array<{ name: string }> };
-    await client.close();
-
-    const core = new Set<string>(CHAT_CORE_TOOLS);
-    const bytes = Buffer.byteLength(JSON.stringify(tools.filter((tool) => core.has(tool.name))), 'utf8');
-
-    expect(tools.filter((tool) => core.has(tool.name)).length).toBe(core.size);
+    for (const name of CHAT_CORE_TOOLS) expect([name, active.has(name)]).toEqual([name, true]);
+    expect(offered.length).toBe(CHAT_CORE_TOOLS.length + offered.filter((tool) => tool.kind === 'native').length);
     expect(bytes).toBeGreaterThan(5_000);
     expect(bytes).toBeLessThanOrEqual(CORE_SCHEMA_BUDGET_BYTES);
   });
