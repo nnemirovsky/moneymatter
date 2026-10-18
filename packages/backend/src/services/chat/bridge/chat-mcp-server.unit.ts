@@ -110,6 +110,7 @@ describe('chat-mode MCP server', () => {
         'render_table',
         'render_kpis',
         'read_attachment',
+        'run_analysis',
       ];
       expect(new Set(names).size).toBe(names.length);
       expect(names).toEqual(expect.arrayContaining([...CHAT_CORE_TOOLS, ...native, 'use_capability']));

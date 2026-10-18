@@ -14,6 +14,7 @@ import { proposeToolCall } from './propose';
 import { createReadAttachmentTool } from './read-attachment';
 import { createRenderTools } from './render-visual';
 import { compactArgs, errorMessage, toolFailure } from './result-text';
+import { createRunAnalysisTool } from './run-analysis';
 import type { ChatToolContext, ChatToolDefinition, ChatToolkit, ChatToolkitRun, ChatToolkitState } from './types';
 
 const RESULT_SUMMARY_CHARS = 200;
@@ -53,6 +54,7 @@ export function buildChatToolkit({
     sources: [],
     limits: createRunLimits(),
     visuals: 0,
+    analyses: new Map(),
     noticed: new Set(),
     records: [],
   };
@@ -76,6 +78,7 @@ export function buildChatToolkit({
     createAskClarificationTool({ ctx }),
     ...createRenderTools({ ctx }),
     createReadAttachmentTool({ ctx }),
+    createRunAnalysisTool({ ctx }),
   ];
 
   const guard = (definition: InnerToolDefinition): ChatToolDefinition => ({

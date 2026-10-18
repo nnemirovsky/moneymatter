@@ -100,8 +100,13 @@ export interface ChatVisualPart {
   spec: ChatVisualSpec;
 }
 
-/** Where an analysis input came from: an earlier call of the run, or a catalog read the server ran. */
-export type ChatAnalysisInputSource = { fromCall: string } | { tool: string; args: Record<string, unknown> };
+/**
+ * Where an analysis input came from: an earlier call of the run, or a catalog read the server ran
+ * (`allPages`: every page of it, up to the row cap, joined into one result).
+ */
+export type ChatAnalysisInputSource =
+  | { fromCall: string }
+  | { tool: string; args: Record<string, unknown>; allPages?: boolean };
 
 export interface ChatAnalysisPart {
   type: 'analysis';

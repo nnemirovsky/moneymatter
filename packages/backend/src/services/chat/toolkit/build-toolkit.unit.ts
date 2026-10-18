@@ -191,10 +191,11 @@ describe('buildChatToolkit', () => {
         'render_table',
         'render_kpis',
         'read_attachment',
+        'run_analysis',
       ]) {
         expect([native, names.has(native)]).toEqual([native, true]);
       }
-      expect(toolkit.tools.length).toBe(catalog.length - 2 + 6);
+      expect(toolkit.tools.length).toBe(catalog.length - 2 + 7);
     });
 
     it('classifies a tool as a read, a write or a chat-native tool, with the model schema of the catalog', () => {
@@ -339,6 +340,18 @@ describe('buildChatToolkit', () => {
       expect(result.text).toMatch(/truncated/i);
       expect(toolkit.getReadResult({ callId: 'call-big' })).toBe(JSON.stringify(big));
       expect(toolkit.getReadResult({ callId: 'other' })).toBeNull();
+    });
+
+    it('tells a run that reports its own tool calls the id of each read, so an analysis can name it', async () => {
+      const { toolkit } = setup({
+        implementations: { get_categories: () => ['a'] },
+        runOverrides: { announceToolCalls: true },
+      });
+
+      const result = await call({ toolkit, name: 'get_categories', callId: 'call-id-7' });
+
+      expect(result.text).toContain('["a"]');
+      expect(result.text).toMatch(/call id: call-id-7\]$/);
     });
 
     it('leaves a result under the cap whole', async () => {

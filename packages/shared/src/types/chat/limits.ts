@@ -14,6 +14,12 @@ export const CHAT_MAX_PROPOSALS = 100;
 export const CHAT_MAX_THIRD_PARTY_READS = 10;
 /** Sandbox analyses per message. */
 export const CHAT_MAX_ANALYSES = 5;
+
+/** Rows `run_analysis` collects from one paged read, across all its pages. */
+export const CHAT_ANALYSIS_MAX_ROWS = 5_000;
+
+/** Named inputs one analysis takes. */
+export const CHAT_ANALYSIS_MAX_INPUTS = 5;
 /** Characters of one read result sent to the model; the full result stays available for the run. */
 export const CHAT_READ_RESULT_MAX_CHARS = 40_000;
 /** Wall time of one run. */

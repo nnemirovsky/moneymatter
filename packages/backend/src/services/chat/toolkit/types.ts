@@ -3,6 +3,7 @@ import type Users from '@models/users.model';
 
 import type { ToolCatalogEntry, ToolInvokeExtra } from '../../mcp/tool-catalog';
 import type { ChatTextPolicy } from '../prompt/text-policy';
+import type { AnalysisOutput } from '../sandbox/run-sandboxed-analysis';
 import type { ChatRunLimits } from './limits';
 
 /** A JSON Schema object, as the providers and the bridge's `tools/list` receive it. */
@@ -80,6 +81,8 @@ export interface ChatToolkitState {
   sources: ChatSource[];
   limits: ChatRunLimits;
   visuals: number;
+  /** The output of every analysis of the run that succeeded, by analysis id, for `render_*` to show. */
+  analyses: Map<string, AnalysisOutput>;
   /** Notices already shown, so a cap is announced once. */
   noticed: Set<string>;
   records: Array<Omit<ChatToolCallPart, 'type' | 'id'>>;

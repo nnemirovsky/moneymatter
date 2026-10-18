@@ -137,7 +137,8 @@ export async function waitForMarker({ name, timeoutMs = 10_000 }) {
 //   { sleep }                         waits that many milliseconds
 //   { hang }                          never moves on
 // An argument that is the string "@ref:<n>" is replaced by the `ref` of the n-th earlier call's answer, so a
-// script can point a card at the card an earlier call proposed. Every call is logged to `<state dir>/calls.jsonl`.
+// script can point a card at the card an earlier call proposed; "@ref:<n>.<field>" takes that field of the answer
+// instead (the `analysisId` of a `run_analysis` call, for a later `render_chart`). Every call is logged to `<state dir>/calls.jsonl`.
 // ---------------------------------------------------------------------------------------------------------
 
 function parseRpcMessage({ text, contentType, id }) {
@@ -229,13 +230,22 @@ function appendCallLog({ entry }) {
   fs.appendFileSync(path.join(dir, 'calls.jsonl'), `${JSON.stringify({ pid: process.pid, ...entry })}\n`);
 }
 
+// A read-style answer arrives wrapped in an untrusted block; the JSON object is what lies between its braces.
+function answerJson({ text }) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));
+  }
+}
+
 function substituteRefs({ value, results }) {
   if (typeof value === 'string') {
-    const match = /^@ref:(\d+)$/.exec(value);
+    const match = /^@ref:(\d+)(?:\.(\w+))?$/.exec(value);
 
     if (!match) return value;
 
-    return JSON.parse(results[Number(match[1])].text).ref;
+    return answerJson({ text: results[Number(match[1])].text })[match[2] ?? 'ref'];
   }
 
   if (Array.isArray(value)) return value.map((item) => substituteRefs({ value: item, results }));

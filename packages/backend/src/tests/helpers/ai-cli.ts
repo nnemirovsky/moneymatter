@@ -18,7 +18,8 @@ const MANAGED_ENV_VARS = [
 
 /**
  * One step of a `chat-mcp` script, played by the fake CLI against the chat bridge (see `fake-cli-common.mjs`).
- * An argument that is the string `"@ref:<n>"` becomes the `ref` of the n-th earlier call's answer.
+ * An argument that is the string `"@ref:<n>"` becomes the `ref` of the n-th earlier call's answer, and
+ * `"@ref:<n>.<field>"` that field of it.
  */
 export type FakeChatStep =
   | { text: string }

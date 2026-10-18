@@ -39,8 +39,19 @@ import { HIGH_IMPACT_TOOLS, PREVIEW_RESOLVER_NAMES } from './rules';
 
 const EN_CHAT_PATH = path.resolve(__dirname, '../../../../../frontend/src/i18n/locales/chunks/en/pages/chat.json');
 
-/** The schema budget for the tools every chat step sends; the rest is found through `find_capabilities`. */
+/** The schema budget for the core catalog tools every chat step sends; the rest is found through `find_capabilities`. */
 const CORE_SCHEMA_BUDGET_BYTES = 60 * 1024;
+
+/** The chat-native tools (find_capabilities, ask_clarification, render_*, read_attachment, run_analysis) have a budget of their own. */
+const NATIVE_SCHEMA_BUDGET_BYTES = 12 * 1024;
+
+const schemaBytes = ({ tools }: { tools: ReadonlyArray<{ name: string; description: string; modelSchema: object }> }) =>
+  Buffer.byteLength(
+    JSON.stringify(
+      tools.map((tool) => ({ name: tool.name, description: tool.description, inputSchema: tool.modelSchema })),
+    ),
+    'utf8',
+  );
 
 /** Arguments that take each conditional-delete tool down its delete path. */
 const CONDITIONAL_DELETE_FIXTURES: Record<string, unknown> = {
@@ -272,21 +283,29 @@ describe('chat capability drift', () => {
     }
   });
 
-  it('keeps the model-facing schemas of the tools every step offers within 60 KB', () => {
+  it('keeps the model-facing schemas of the core tools within 60 KB, and those of the chat-native tools within their own budget', () => {
     const toolkit = buildChatToolkit({ run: makeChatRun().run });
     const active = new Set(toolkit.activeToolNames());
     const offered = toolkit.tools.filter((tool) => active.has(tool.name));
-    const bytes = Buffer.byteLength(
-      JSON.stringify(
-        offered.map((tool) => ({ name: tool.name, description: tool.description, inputSchema: tool.modelSchema })),
-      ),
-      'utf8',
-    );
+    const core = offered.filter((tool) => CHAT_CORE_TOOLS.includes(tool.name));
+    const native = offered.filter((tool) => tool.kind === 'native');
 
     for (const name of CHAT_CORE_TOOLS) expect([name, active.has(name)]).toEqual([name, true]);
-    expect(offered.length).toBe(CHAT_CORE_TOOLS.length + offered.filter((tool) => tool.kind === 'native').length);
-    expect(bytes).toBeGreaterThan(5_000);
-    expect(bytes).toBeLessThanOrEqual(CORE_SCHEMA_BUDGET_BYTES);
+    expect(offered.length).toBe(core.length + native.length);
+    expect(core).toHaveLength(CHAT_CORE_TOOLS.length);
+    expect(native.map((tool) => tool.name).toSorted()).toEqual([
+      'ask_clarification',
+      'find_capabilities',
+      'read_attachment',
+      'render_chart',
+      'render_kpis',
+      'render_table',
+      'run_analysis',
+    ]);
+    expect(schemaBytes({ tools: core })).toBeGreaterThan(5_000);
+    expect(schemaBytes({ tools: core })).toBeLessThanOrEqual(CORE_SCHEMA_BUDGET_BYTES);
+    expect(schemaBytes({ tools: native })).toBeGreaterThan(1_000);
+    expect(schemaBytes({ tools: native })).toBeLessThanOrEqual(NATIVE_SCHEMA_BUDGET_BYTES);
   });
 
   // Check 6

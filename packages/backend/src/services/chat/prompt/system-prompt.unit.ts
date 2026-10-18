@@ -50,6 +50,15 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toMatch(/plain text/i);
   });
 
+  it('tells the model when to run an analysis and that its numbers count as results', () => {
+    const prompt = buildSystemPrompt(params);
+
+    expect(prompt).toContain('run_analysis');
+    expect(prompt).toMatch(/run_analysis[^.]*(read|tool) results?/i);
+    expect(prompt).toMatch(/source[^.]*analysisId/);
+    expect(prompt).toMatch(/at most 5 analyses|5 analyses/i);
+  });
+
   it('includes the financial data guide the MCP server serves', () => {
     expect(buildSystemPrompt(params)).toContain(FINANCIAL_DATA_GUIDE_CONTENT);
   });

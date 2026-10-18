@@ -12,7 +12,11 @@ import type { ChatToolContext, ChatToolResult } from './types';
 /** The reads of the run the card rests on, the message's attachments and the page the panel was opened on. */
 function sourcesFor({ ctx, sourceCallIds }: { ctx: ChatToolContext; sourceCallIds?: string[] }): ChatSource[] {
   const reads = sourceCallIds
-    ? ctx.state.sources.filter((source) => source.type === 'toolCall' && sourceCallIds.includes(source.callId))
+    ? ctx.state.sources.filter(
+        (source) =>
+          (source.type === 'toolCall' && sourceCallIds.includes(source.callId)) ||
+          (source.type === 'analysis' && sourceCallIds.includes(source.partId)),
+      )
     : ctx.state.sources;
 
   return [
