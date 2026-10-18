@@ -17,7 +17,7 @@ import * as transactionsQuery from '@models/transactions-query';
 import { parsePayeeName, resolveNormalizedName } from '@services/payees/payee-namespace';
 
 import { resolveToolPolicy } from '../../policies';
-import { hashTargetIds } from '../snapshot';
+import { compareSnapshots, hashTargetIds } from '../snapshot';
 import { resolveBulkDeletePayees } from './bulk-delete-payees';
 import { resolveIgnorePayeeName } from './ignore-payee-name';
 import { resolveMergePayees } from './merge-payees';
@@ -233,6 +233,33 @@ describe('payee previews', () => {
       const { warnings } = await ignore({});
 
       expect(warnings).toEqual([{ key: 'chat.warnings.alreadyIgnored' }]);
+    });
+
+    it('snapshots an empty target set when no payee matches, so a payee that appears later makes the card stale', async () => {
+      const { snapshot: stored } = await ignore({ force: true });
+
+      expect(stored).toMatchObject({ targetHash: hashTargetIds({ ids: [] }), targetCount: 0 });
+
+      jest.mocked(resolveNormalizedName).mockResolvedValue({ payeeId: SOURCE, name: 'Acme Inc', via: 'canonical' });
+      jest.spyOn(Payees, 'findOne').mockResolvedValue(payee(SOURCE, 'Acme Inc') as never);
+      jest.spyOn(PayeeAliases, 'count').mockResolvedValue(0);
+      jest.mocked(transactionsQuery.countTransactions).mockResolvedValue(3);
+      const { snapshot: current } = await ignore({ force: true });
+
+      expect(
+        compareSnapshots({
+          stored: { baseCurrencyCode: 'USD', ...stored },
+          current: { baseCurrencyCode: 'USD', ...current },
+        }),
+      ).toMatchObject({ stale: true, reasonKey: 'chat.stale.targets', before: 0, after: 1 });
+    });
+
+    it('snapshots an empty target set for a name that is already ignored', async () => {
+      jest.spyOn(PayeeIgnoredNames, 'findOne').mockResolvedValue({ id: 'x' } as never);
+
+      const { snapshot } = await ignore({});
+
+      expect(snapshot).toMatchObject({ targetHash: hashTargetIds({ ids: [] }), targetCount: 0 });
     });
   });
 
