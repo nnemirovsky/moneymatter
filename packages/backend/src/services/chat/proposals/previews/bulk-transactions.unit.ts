@@ -7,8 +7,12 @@ jest.mock('@models/transactions-query', () => ({
   findTransactions: jest.fn(),
 }));
 jest.mock('@services/transactions/matching-transactions', () => ({ resolveBulkTargetIds: jest.fn() }));
+jest.mock('@services/sharing/auth/get-accessible-account-ids.service', () => ({
+  getAccessibleAccountIdsForUser: jest.fn(),
+}));
 
 import * as transactionsQuery from '@models/transactions-query';
+import { getAccessibleAccountIdsForUser } from '@services/sharing/auth/get-accessible-account-ids.service';
 import { resolveBulkTargetIds } from '@services/transactions/matching-transactions';
 
 import { resolveToolPolicy } from '../../policies';
@@ -51,6 +55,7 @@ describe('bulk transaction previews', () => {
   beforeEach(() => {
     find().mockReset();
     jest.mocked(resolveBulkTargetIds).mockReset();
+    jest.mocked(getAccessibleAccountIdsForUser).mockReset().mockResolvedValue([ACCOUNT, OTHER_ACCOUNT]);
   });
 
   afterEach(() => {
@@ -209,6 +214,53 @@ describe('bulk transaction previews', () => {
       // The frozen ids are the ones the handler gets; the twin goes with its leg.
       expect(snapshot.targetIds).toEqual([leg.id, plain.id].toSorted());
       expect(snapshot.targetCount).toBe(2);
+    });
+
+    it('counts a twin the deletion removes even when another user created it', async () => {
+      const leg = tx(1, { transferId: uuid(100) });
+      const twin = tx(2, {
+        transferId: uuid(100),
+        accountId: OTHER_ACCOUNT,
+        updatedAt: new Date('2026-10-17T00:00:00Z'),
+      });
+      jest.mocked(resolveBulkTargetIds).mockResolvedValue([leg.id]);
+      find()
+        .mockResolvedValueOnce([leg] as never)
+        .mockResolvedValueOnce([twin] as never);
+
+      const { affectedCount, snapshot } = await run({
+        toolName: 'bulk_delete_transactions',
+        args: { transactionIds: [leg.id] },
+      });
+
+      // The deletion finds both legs by `transferId` alone, so the lookup is not limited to the creator.
+      expect(find().mock.calls[1]![0]).toMatchObject({
+        access: 'unscoped-internal',
+        where: { transferId: [uuid(100)] },
+      });
+      expect(affectedCount).toBe(2);
+      expect(snapshot.updatedAt).toBe('2026-10-17T00:00:00.000Z');
+    });
+
+    it('counts a twin on an account the user cannot see but shows none of its details', async () => {
+      const leg = tx(1, { transferId: uuid(100) });
+      const hidden = tx(2, { transferId: uuid(100), accountId: OTHER_ACCOUNT });
+      jest.mocked(getAccessibleAccountIdsForUser).mockResolvedValue([ACCOUNT]);
+      jest.mocked(resolveBulkTargetIds).mockResolvedValue([leg.id]);
+      find()
+        .mockResolvedValueOnce([leg] as never)
+        .mockResolvedValueOnce([hidden] as never);
+
+      const { preview, affectedCount, warnings } = await run({
+        toolName: 'bulk_delete_transactions',
+        args: { transactionIds: [leg.id] },
+      });
+
+      expect(affectedCount).toBe(2);
+      expect(preview.affected!.count).toBe(2);
+      expect(preview.affected!.rows.map((row) => (row.account as { id: string }).id)).toEqual([ACCOUNT]);
+      expect(preview.counts).toEqual({ transactionCount: 1, transferTwinCount: 1 });
+      expect(warnings).toEqual([{ key: 'chat.warnings.transferTwins', params: { count: 1 } }]);
     });
 
     it('does not list a twin twice when both legs are selected', async () => {

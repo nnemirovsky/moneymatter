@@ -1,5 +1,6 @@
 import { findTransactions } from '@models/transactions-query';
 import type Transactions from '@models/transactions.model';
+import { getAccessibleAccountIdsForUser } from '@services/sharing/auth/get-accessible-account-ids.service';
 import { resolveBulkTargetIds } from '@services/transactions/matching-transactions';
 import { Op } from 'sequelize';
 
@@ -49,19 +50,31 @@ export const resolveBulkUpdateTransactions: PreviewResolver = async ({ userId, a
   };
 };
 
-/** The other leg of each transfer among the rows, which the delete removes with its leg. */
-async function loadTransferTwins({ userId, rows }: { userId: number; rows: Transactions[] }): Promise<Transactions[]> {
+/**
+ * The other leg of each transfer among the rows, which the delete removes with its leg. The delete
+ * finds the legs by `transferId` alone, because a transfer across a shared account has one leg per
+ * user, so this lookup is not limited to the creator either.
+ */
+async function loadTransferTwins({ rows }: { rows: Transactions[] }): Promise<Transactions[]> {
   const transferIds = [...new Set(rows.flatMap((row) => (row.transferId ? [row.transferId] : [])))];
   if (transferIds.length === 0) return [];
 
   return findTransactions({
     planned: 'include',
-    access: { creator: userId },
+    access: 'unscoped-internal',
     balanceAdjustments: 'include',
     completeness: 'all',
     attributes: TRANSACTION_SAMPLE_ATTRIBUTES,
     where: { transferId: transferIds, id: { [Op.notIn]: rows.map((row) => row.id) } },
   });
+}
+
+/** The twins on accounts the user can see; the others count, but their details are not shown. */
+async function visibleTwins({ userId, twins }: { userId: number; twins: Transactions[] }): Promise<Transactions[]> {
+  if (twins.length === 0) return [];
+
+  const accountIds = new Set(await getAccessibleAccountIdsForUser({ userId }));
+  return twins.filter((twin) => accountIds.has(twin.accountId));
 }
 
 /** Each target followed by its twin, so the sample shows a transfer's two legs together. */
@@ -84,12 +97,15 @@ export const resolveBulkDeleteTransactions: PreviewResolver = async ({ userId, a
   if (ids.length === 0) throw noTargets();
 
   const rows = await loadUserTransactions({ userId, ids });
-  const twins = await loadTransferTwins({ userId, rows });
+  const twins = await loadTransferTwins({ rows });
   const total = rows.length + twins.length;
 
   return {
     preview: {
-      affected: transactionsAffected({ rows: withTwinsAfterTheirLeg({ rows, twins }), count: total }),
+      affected: transactionsAffected({
+        rows: withTwinsAfterTheirLeg({ rows, twins: await visibleTwins({ userId, twins }) }),
+        count: total,
+      }),
       counts: { transactionCount: rows.length, transferTwinCount: twins.length },
     },
     snapshot: {
