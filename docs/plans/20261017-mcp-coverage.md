@@ -957,6 +957,7 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 - [x] ➕ `bulk_delete_transactions` refuses an unfiltered delete (follow-up from Task 7):
   - REST accepts `filters: {}` and deletes everything the caller owns; for an AI client that is one forgotten argument away from wiping the account, so the tool requires explicit `transactionIds` or at least one narrowing filter and otherwise refuses with a clear message before resolving anything;
   - a filter narrows unless it is absent, an empty list, `false` or the `all` operation (`hasNarrowingFilter`); a deliberate, documented MCP-only deviation from REST (see Tool conventions);
+  - ⚠️ review fix (round 1): the check runs on the filters the REST schema parsed (`parseBulkTarget`), not on the raw arguments, so `noteSearch: ""` / `","` (the schema drops them), a lone `keepRefundsForTxId` (only read with `excludeRefundTxs`), an `all` operation that overrides a legacy `excludeTransfer`/`excludeRefunds` flag and an empty `transferNatures` list no longer count;
   - unit tests: empty filters, all-empty lists, exclude flags off, `all` operations (each also with `excludedIds`) are refused; a date bound, an account, a note search, a type, a flag on and `only` still delete.
 - [x] unit test `refund-transfer-tools.unit.ts`: the `get_refunds` modes, the recommendation input refinements (enforced in the handler by the shared validator), dismissal args, and `list_transfer_suggestions` throwing while the lock is set.
 - [x] metafiles under `// Transactions`.
@@ -1078,6 +1079,7 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 - [x] `delete_transaction_template` (`finance:delete`).
 - [x] `apply_transaction_automation` (`finance:write`): `automationId`, `transactionIds` (1 to `AUTOMATION_LIMITS.maxApplyIds`) → `applyAutomationToHistory`.
 - [x] `get_category_transaction_count` (read): `categoryId` → `countCategoryTransactions`. The description points to it before `delete_category`.
+  - ⚠️ review fix (round 1): `countCategoryTransactions` now throws not-found for a category outside the caller's accessible owners (own, plus owners of accounts or budgets shared with them), because the split count is not creator-scoped and leaked another user's count. REST gets the same 404 (an unknown id no longer counts 0).
 - [x] `get_transaction_groups`: optional `groupId` → `getTransactionGroupById`.
 - [x] `get_tags`: optional `tagId` → `getTagById`.
 - [x] unit test `template-tools.unit.ts`, covering the two extensions (36 cases, seen red on assertions against stub tools first).
@@ -1227,6 +1229,7 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 - [x] `create_holding` (`finance:write`): `portfolioId` plus exactly one of `securityId` and `searchResult` (a result from `search_securities`, validated with the same `SecuritySearchResultSchema`).
 - [x] `delete_holding` (`finance:delete`): `portfolioId`, `securityId`, `force?`.
 - [x] `get_security_prices` (read): `securityId` (required in MCP; the price table is global and large), `from?`, `to?` → `getPrices`.
+  - ⚠️ review fix (round 1): the output is bounded. `from` defaults to 365 days before `to` (or before now), `limit?` (default 500, max 5000) keeps the newest rows, and the result is `{ prices, total }` with the count before the limit.
 - [x] `link_transactions_to_venture_event` (`finance:write`): `eventId`, `transactionIds` (≥ 1) → `linkTxsToEvent`. The description gives the rules: same currency, not linked elsewhere, the sum equals the event's `lpNetAmount`.
 - [x] `replace_venture_event_links` (`finance:write`): `eventId`, `transactionIds` (may be empty) → `replaceEventLinks`.
 - [x] `delete_venture_event_link` (`finance:delete`): `eventId`, `linkId` → `unlinkTxFromEvent`. It restores the transaction.
