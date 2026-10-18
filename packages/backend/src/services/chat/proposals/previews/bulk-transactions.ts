@@ -8,6 +8,7 @@ import { validateBulkDeleteTransactionsArgs } from '../../../mcp/tools/bulk-dele
 import { hashTargetIds, latestUpdatedAt } from '../snapshot';
 import {
   assertConcreteTargets,
+  forUpdate,
   loadUserTransactions,
   PreviewError,
   TRANSACTION_SAMPLE_ATTRIBUTES,
@@ -25,11 +26,11 @@ const noTargets = () =>
  * Updates the given ids: loads them, shows the count and up to 10 sample rows. The changed fields are
  * the card's own fields (the arguments), so the preview holds only what the call touches.
  */
-export const resolveBulkUpdateTransactions: PreviewResolver = async ({ userId, args }) => {
+export const resolveBulkUpdateTransactions: PreviewResolver = async ({ userId, args, lock }) => {
   const requested = [...new Set((args.transactionIds ?? []) as string[])];
   assertConcreteTargets({ value: requested, what: 'transactions' });
 
-  const rows = await loadUserTransactions({ userId, ids: requested });
+  const rows = await loadUserTransactions({ userId, ids: requested, lock });
   if (rows.length === 0) throw noTargets();
 
   const missing = requested.length - rows.length;
@@ -55,11 +56,12 @@ export const resolveBulkUpdateTransactions: PreviewResolver = async ({ userId, a
  * finds the legs by `transferId` alone, because a transfer across a shared account has one leg per
  * user, so this lookup is not limited to the creator either.
  */
-async function loadTransferTwins({ rows }: { rows: Transactions[] }): Promise<Transactions[]> {
+async function loadTransferTwins({ rows, lock }: { rows: Transactions[]; lock?: boolean }): Promise<Transactions[]> {
   const transferIds = [...new Set(rows.flatMap((row) => (row.transferId ? [row.transferId] : [])))];
   if (transferIds.length === 0) return [];
 
   return findTransactions({
+    ...forUpdate({ lock }),
     planned: 'include',
     access: 'unscoped-internal',
     balanceAdjustments: 'include',
@@ -89,15 +91,15 @@ function withTwinsAfterTheirLeg({ rows, twins }: { rows: Transactions[]; twins: 
  * and are what the approval deletes. The count, the sample and the typed phrase also cover the
  * transfer twins the delete removes.
  */
-export const resolveBulkDeleteTransactions: PreviewResolver = async ({ userId, args }) => {
+export const resolveBulkDeleteTransactions: PreviewResolver = async ({ userId, args, lock }) => {
   assertConcreteTargets({ value: args, what: 'transactions' });
   const target = validateBulkDeleteTransactionsArgs({ args: args as never });
 
   const ids = [...new Set(await resolveBulkTargetIds({ userId, ...target }))];
   if (ids.length === 0) throw noTargets();
 
-  const rows = await loadUserTransactions({ userId, ids });
-  const twins = await loadTransferTwins({ rows });
+  const rows = await loadUserTransactions({ userId, ids, lock });
+  const twins = await loadTransferTwins({ rows, lock });
   const total = rows.length + twins.length;
 
   return {

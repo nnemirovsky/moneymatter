@@ -3,7 +3,7 @@ import TransactionAutomations from '@models/transaction-automations.model';
 import { scanAutomationMatches } from '@services/transaction-automations/preview';
 
 import { hashTargetIds, latestUpdatedAt } from '../snapshot';
-import { assertConcreteTargets, targetNotFound, transactionsAffected } from './preview-helpers';
+import { assertConcreteTargets, forUpdate, targetNotFound, transactionsAffected } from './preview-helpers';
 import type { PreviewResolver } from './types';
 
 /**
@@ -11,12 +11,12 @@ import type { PreviewResolver } from './types';
  * (and are eligible), so the card lists those rows, found by the same scan the apply re-runs, and
  * counts the ids it will skip.
  */
-export const resolveApplyTransactionAutomation: PreviewResolver = async ({ userId, args }) => {
+export const resolveApplyTransactionAutomation: PreviewResolver = async ({ userId, args, lock }) => {
   const automationId = args.automationId as string;
   const requested = [...new Set(args.transactionIds as RecordId[])];
   assertConcreteTargets({ value: [automationId, ...requested], what: 'automation or transactions' });
 
-  const rule = await TransactionAutomations.findOne({ where: { id: automationId, userId } });
+  const rule = await TransactionAutomations.findOne({ where: { id: automationId, userId }, ...forUpdate({ lock }) });
   if (!rule) throw targetNotFound({ what: 'automation' });
 
   const { rows } = await scanAutomationMatches({ userId, conditions: rule.conditions, transactionIds: requested });

@@ -4,7 +4,7 @@ import { findTransactions } from '@models/transactions-query';
 import { col, fn } from 'sequelize';
 
 import { hashTargetIds, latestUpdatedAt } from '../snapshot';
-import { assertConcreteTargets, SAMPLE_ROW_LIMIT, targetNotFound } from './preview-helpers';
+import { assertConcreteTargets, forUpdate, SAMPLE_ROW_LIMIT, targetNotFound } from './preview-helpers';
 import type { PreviewResolver } from './types';
 
 type CountRow = { payeeId: string; count: string | number };
@@ -17,11 +17,11 @@ const countsByPayee = ({ rows }: { rows: CountRow[] }) => new Map(rows.map((row)
  * Deleting payees keeps their transactions (which lose the payee) and removes their aliases. All or
  * nothing: one id that is not the user's refuses the whole call, as the service does.
  */
-export const resolveBulkDeletePayees: PreviewResolver = async ({ userId, args }) => {
+export const resolveBulkDeletePayees: PreviewResolver = async ({ userId, args, lock }) => {
   const ids = [...new Set(args.ids as string[])];
   assertConcreteTargets({ value: ids, what: 'payee' });
 
-  const payees = await Payees.findAll({ where: { userId, id: ids } });
+  const payees = await Payees.findAll({ where: { userId, id: ids }, ...forUpdate({ lock }) });
   if (payees.length !== ids.length) throw targetNotFound({ what: 'payee' });
 
   const [transactionRows, aliasRows] = await Promise.all([

@@ -36,7 +36,7 @@ import VentureEvents from '@models/venture/venture-events.model';
 import VenturePlatforms from '@models/venture/venture-platforms.model';
 import type { Model, ModelStatic, WhereOptions } from 'sequelize';
 
-import { serializeRow } from './preview-helpers';
+import { forUpdate, serializeRow } from './preview-helpers';
 
 /** An entity a card targets, read for its preview. */
 export interface LoadedEntity {
@@ -52,9 +52,10 @@ export interface LoadedEntity {
 /**
  * Reads the entity the targets name, scoped to the user. The targets come in the order the policy's
  * `targetFields` list them: a parent id first where the entity lives under one. `null` is a target
- * that is not there (or not the user's).
+ * that is not there (or not the user's). With `lock` the entity's own row is held `FOR UPDATE`; the
+ * parent that scopes it and the related counts are read as they are.
  */
-type EntityLoader = (params: { userId: number; targets: string[] }) => Promise<LoadedEntity | null>;
+type EntityLoader = (params: { userId: number; targets: string[]; lock?: boolean }) => Promise<LoadedEntity | null>;
 
 type AnyModel = ModelStatic<Model>;
 type Where = WhereOptions;
@@ -94,9 +95,9 @@ const owned =
     key?: string;
     related?: (params: { userId: number; id: string }) => Promise<Related>;
   }): EntityLoader =>
-  async ({ userId, targets }) => {
+  async ({ userId, targets, lock }) => {
     const id = targets[0]!;
-    const record = await model.findOne({ where: { [key]: id, userId } as Where });
+    const record = await model.findOne({ where: { [key]: id, userId } as Where, ...forUpdate({ lock }) });
     if (!record) return null;
 
     return loaded({ record, related: await related?.({ userId, id }) });
@@ -115,10 +116,10 @@ const under =
     where: (targets: string[]) => Where;
     optional?: boolean;
   }): EntityLoader =>
-  async ({ userId, targets }) => {
+  async ({ userId, targets, lock }) => {
     if (!(await parent({ userId, targets }))) return null;
 
-    const record = await model.findOne({ where: where(targets) });
+    const record = await model.findOne({ where: where(targets), ...forUpdate({ lock }) });
     if (!record) return optional ? { row: null, updatedAt: null, counts: {}, removes: 0 } : null;
 
     return loaded({ record });
@@ -134,8 +135,9 @@ const lineOf = ({ targets }: { targets: string[] }) =>
   BudgetLines.findOne({ where: { id: targets[1]!, planId: targets[0]! } });
 
 export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
-  transaction: async ({ userId, targets }) => {
+  transaction: async ({ userId, targets, lock }) => {
     const record = await findOneTransaction({
+      ...forUpdate({ lock }),
       planned: 'include',
       access: { creator: userId },
       balanceAdjustments: 'include',
@@ -179,8 +181,11 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
     }),
   }),
 
-  tagReminder: async ({ userId, targets }) => {
-    const record = await TagReminders.findOne({ where: { id: targets[1]!, tagId: targets[0]!, userId } });
+  tagReminder: async ({ userId, targets, lock }) => {
+    const record = await TagReminders.findOne({
+      where: { id: targets[1]!, tagId: targets[0]!, userId },
+      ...forUpdate({ lock }),
+    });
     return record ? loaded({ record }) : null;
   },
 
@@ -253,8 +258,8 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
     where: (targets) => ({ portfolioId: targets[0]!, securityId: targets[1]! }),
   }),
 
-  investmentTransaction: async ({ userId, targets }) => {
-    const record = await InvestmentTransactions.findOne({ where: { id: targets[0]! } });
+  investmentTransaction: async ({ userId, targets, lock }) => {
+    const record = await InvestmentTransactions.findOne({ where: { id: targets[0]! }, ...forUpdate({ lock }) });
     if (!record) return null;
 
     const portfolio = await Portfolios.findOne({ where: { id: record.portfolioId, userId } });
@@ -272,8 +277,11 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
 
   transactionTemplate: owned({ model: TransactionTemplates }),
 
-  customCurrency: async ({ userId, targets }) => {
-    const record = await Currencies.findOne({ where: { code: targets[0]!, isCustom: true, createdByUserId: userId } });
+  customCurrency: async ({ userId, targets, lock }) => {
+    const record = await Currencies.findOne({
+      where: { code: targets[0]!, isCustom: true, createdByUserId: userId },
+      ...forUpdate({ lock }),
+    });
     return record ? loaded({ record }) : null;
   },
 

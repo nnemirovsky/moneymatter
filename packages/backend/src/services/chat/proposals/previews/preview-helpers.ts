@@ -37,6 +37,9 @@ export function assertConcreteTargets({ value, what }: { value: unknown; what: s
   });
 }
 
+/** The find option that holds the rows read `FOR UPDATE` when `lock` is set; nothing otherwise. */
+export const forUpdate = ({ lock }: { lock?: boolean }): { lock?: true } => (lock ? { lock: true } : {});
+
 /** Transactions on a payee, plans and balance adjustments included: a merge or a delete reaches every row. */
 export const countPayeeTransactions = ({ userId, payeeId }: { userId: number; payeeId: string }): Promise<number> =>
   countTransactions({
@@ -86,8 +89,17 @@ export const TRANSACTION_SAMPLE_ATTRIBUTES: Array<keyof Transactions> = [
 ];
 
 /** The user's transactions with these ids, newest first. */
-export const loadUserTransactions = ({ userId, ids }: { userId: number; ids: string[] }): Promise<Transactions[]> =>
+export const loadUserTransactions = ({
+  userId,
+  ids,
+  lock,
+}: {
+  userId: number;
+  ids: string[];
+  lock?: boolean;
+}): Promise<Transactions[]> =>
   findTransactions({
+    ...forUpdate({ lock }),
     planned: 'include',
     access: { creator: userId },
     balanceAdjustments: 'include',

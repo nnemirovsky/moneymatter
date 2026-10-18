@@ -3,14 +3,20 @@ import PayeeAliases from '@models/payee-aliases.model';
 import Payees from '@models/payees.model';
 
 import { hashTargetIds, latestUpdatedAt } from '../snapshot';
-import { assertConcreteTargets, countPayeeTransactions, PreviewError, targetNotFound } from './preview-helpers';
+import {
+  assertConcreteTargets,
+  countPayeeTransactions,
+  forUpdate,
+  PreviewError,
+  targetNotFound,
+} from './preview-helpers';
 import type { PreviewResolver } from './types';
 
 /**
  * A merge moves the source's transactions and aliases to the target and deletes the source. The
  * card lists the source with those counts; the typed phrase is what moves.
  */
-export const resolveMergePayees: PreviewResolver = async ({ userId, args }) => {
+export const resolveMergePayees: PreviewResolver = async ({ userId, args, lock }) => {
   const sourceId = args.sourceId as string;
   const targetId = args.targetId as string;
   assertConcreteTargets({ value: [sourceId, targetId], what: 'payee' });
@@ -19,8 +25,8 @@ export const resolveMergePayees: PreviewResolver = async ({ userId, args }) => {
     throw new PreviewError({ messageKey: 'chat.cards.mergeSelf', message: 'A payee cannot be merged into itself' });
   }
 
-  const source = await Payees.findOne({ where: { id: sourceId, userId } });
-  const target = source ? await Payees.findOne({ where: { id: targetId, userId } }) : null;
+  const source = await Payees.findOne({ where: { id: sourceId, userId }, ...forUpdate({ lock }) });
+  const target = source ? await Payees.findOne({ where: { id: targetId, userId }, ...forUpdate({ lock }) }) : null;
   if (!source || !target) throw targetNotFound({ what: 'payee' });
 
   const [transactionCount, aliasCount] = await Promise.all([

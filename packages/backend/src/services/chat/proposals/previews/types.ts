@@ -21,4 +21,9 @@ export type PreviewResolver = (params: {
   toolName: string;
   args: Record<string, unknown>;
   policy: ResolvedToolPolicy;
+  /**
+   * Hold the rows the card targets `FOR UPDATE`, so nothing changes them between this read and the
+   * write that follows in the same transaction. Set by the approval, never by a proposal or an edit.
+   */
+  lock?: boolean;
 }) => Promise<PreviewResolution>;

@@ -283,6 +283,37 @@ describe('approveProposal', () => {
       expect(events.filter((event) => event === 'lock')).toHaveLength(1);
     });
 
+    it('asks the preview resolver to lock the rows it reads, so no edit slips in before the write', async () => {
+      seed(
+        row(CATEGORY, {
+          toolName: 'update_account',
+          entity: 'account',
+          cardKind: 'update',
+          args: { accountId: ACCOUNT, name: 'Wallet' },
+          preview: {},
+          snapshot: {
+            baseCurrencyCode: 'USD',
+            updatedAt: '2026-10-18T09:00:00.000Z',
+            targetHash: hashTargetIds({ ids: [ACCOUNT] }),
+            targetCount: 1,
+          },
+        }),
+      );
+      const resolver = jest.fn<(typeof PREVIEW_RESOLVERS)['entity']>(async () => ({
+        preview: {},
+        snapshot: {
+          updatedAt: '2026-10-18T09:00:00.000Z',
+          targetHash: hashTargetIds({ ids: [ACCOUNT] }),
+          targetCount: 1,
+        },
+      }));
+      PREVIEW_RESOLVERS.entity = resolver;
+
+      await approve({ id: CATEGORY });
+
+      expect(resolver).toHaveBeenCalledWith(expect.objectContaining({ lock: true }));
+    });
+
     it('applies the parents first and hands the child their real ids', async () => {
       const { category, tag, tx } = chain();
       seed(category, tag, tx);

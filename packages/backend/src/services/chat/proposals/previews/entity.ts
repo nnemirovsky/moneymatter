@@ -9,7 +9,7 @@ import type { PreviewResolver } from './types';
  * that takes other rows with it (an account's transactions) counts them, so the typed phrase covers
  * everything that goes; a high-impact card always types the count.
  */
-export const resolveEntityPreview: PreviewResolver = async ({ userId, args, policy }) => {
+export const resolveEntityPreview: PreviewResolver = async ({ userId, args, policy, lock }) => {
   const loader = ENTITY_LOADERS[policy.entity];
   if (!loader) throw new Error(`No entity loader for ${policy.entity}`);
 
@@ -25,7 +25,7 @@ export const resolveEntityPreview: PreviewResolver = async ({ userId, args, poli
     return value;
   });
 
-  const entity = await loader({ userId, targets });
+  const entity = await loader({ userId, targets, lock });
   if (!entity) throw targetNotFound({ what: policy.entity });
 
   const existing = entity.row !== null;

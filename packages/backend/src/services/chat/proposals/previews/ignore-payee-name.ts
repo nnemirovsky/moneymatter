@@ -4,7 +4,7 @@ import Payees from '@models/payees.model';
 import { parsePayeeName, resolveNormalizedName } from '@services/payees/payee-namespace';
 
 import { hashTargetIds, latestUpdatedAt } from '../snapshot';
-import { countPayeeTransactions, PreviewError, serializeRow, targetNotFound } from './preview-helpers';
+import { countPayeeTransactions, forUpdate, PreviewError, serializeRow, targetNotFound } from './preview-helpers';
 import type { PreviewResolver } from './types';
 
 /**
@@ -18,7 +18,7 @@ const NO_TARGETS = { targetHash: hashTargetIds({ ids: [] }), targetCount: 0 };
  * the service refuses without it. The preview does the same, and with `force` shows the payee that
  * goes and the transactions that lose it.
  */
-export const resolveIgnorePayeeName: PreviewResolver = async ({ userId, args }) => {
+export const resolveIgnorePayeeName: PreviewResolver = async ({ userId, args, lock }) => {
   const { normalized } = parsePayeeName({ raw: args.rawName as string, emptyMessageKey: 'payees.nameRequired' });
 
   if (await PayeeIgnoredNames.findOne({ where: { userId, normalizedName: normalized } })) {
@@ -35,7 +35,7 @@ export const resolveIgnorePayeeName: PreviewResolver = async ({ userId, args }) 
     });
   }
 
-  const payee = await Payees.findOne({ where: { id: hit.payeeId, userId } });
+  const payee = await Payees.findOne({ where: { id: hit.payeeId, userId }, ...forUpdate({ lock }) });
   if (!payee) throw targetNotFound({ what: 'payee' });
 
   const [transactionCount, aliasCount] = await Promise.all([

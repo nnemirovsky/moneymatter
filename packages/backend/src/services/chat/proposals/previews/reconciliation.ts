@@ -14,10 +14,18 @@ import type { PreviewResolver } from './types';
 /** Planned rows, transfers and refund-linked rows are refused by both reconciliation services. */
 const isRefused = ({ row }: { row: Transactions }) => row.isPlanned || Boolean(row.transferId) || row.refundLinked;
 
-async function loadDuplicates({ userId, ids }: { userId: number; ids: string[] }): Promise<Transactions[]> {
+async function loadDuplicates({
+  userId,
+  ids,
+  lock,
+}: {
+  userId: number;
+  ids: string[];
+  lock?: boolean;
+}): Promise<Transactions[]> {
   assertConcreteTargets({ value: ids, what: 'transactions' });
 
-  const rows = await loadUserTransactions({ userId, ids });
+  const rows = await loadUserTransactions({ userId, ids, lock });
   if (rows.length !== ids.length) throw targetNotFound({ what: 'transactions' });
 
   if (rows.some((row) => isRefused({ row }))) {
@@ -36,8 +44,8 @@ const snapshotOf = ({ rows }: { rows: Transactions[] }) => ({
 });
 
 /** Removes the listed rows from the books (soft delete): the card lists exactly those rows. */
-export const resolveRemoveDuplicateTransactions: PreviewResolver = async ({ userId, args }) => {
-  const rows = await loadDuplicates({ userId, ids: [...new Set(args.transactionIds as string[])] });
+export const resolveRemoveDuplicateTransactions: PreviewResolver = async ({ userId, args, lock }) => {
+  const rows = await loadDuplicates({ userId, ids: [...new Set(args.transactionIds as string[])], lock });
 
   return {
     preview: { affected: transactionsAffected({ rows, count: rows.length }) },
@@ -47,9 +55,9 @@ export const resolveRemoveDuplicateTransactions: PreviewResolver = async ({ user
 };
 
 /** Merges duplicates into the survivor, which stays as it is: the card shows it, and lists the rows that go. */
-export const resolveMergeDuplicateTransactions: PreviewResolver = async ({ userId, args }) => {
+export const resolveMergeDuplicateTransactions: PreviewResolver = async ({ userId, args, lock }) => {
   const survivorId = args.survivorId as string;
-  const rows = await loadDuplicates({ userId, ids: [...new Set(args.transactionIds as string[])] });
+  const rows = await loadDuplicates({ userId, ids: [...new Set(args.transactionIds as string[])], lock });
 
   const survivor = rows.find((row) => row.id === survivorId);
   if (!survivor) throw targetNotFound({ what: 'surviving transaction' });

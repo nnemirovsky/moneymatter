@@ -82,7 +82,8 @@ export function assertArgsValid({ row, entry }: { row: ChatProposals; entry: Too
 }
 
 /**
- * Recomputes what the card was previewed against and compares it with the stored snapshot. A
+ * Recomputes what the card was previewed against, holding the rows it reads, and compares it with
+ * the stored snapshot. A
  * stale card throws `StaleRefusal`; a fresh one returns the state, whose snapshot holds the frozen
  * target ids of a bulk delete.
  */
@@ -96,7 +97,14 @@ export async function assertFresh({
   parentStatuses: Array<{ id: string; status: ChatProposalStatus }>;
 }): Promise<CardState> {
   const identity = { id: row.id as string, revision: row.revision, snapshot: row.snapshot };
-  const state = await computeCardState({ userId: row.userId, policy, args: row.args, parents: parentStatuses });
+  // Locked: the rows stay held until the transaction ends, so the handler writes what was just checked.
+  const state = await computeCardState({
+    userId: row.userId,
+    policy,
+    args: row.args,
+    parents: parentStatuses,
+    lock: true,
+  });
 
   if (policy.previewResolver && state.error) {
     throw new StaleRefusal({

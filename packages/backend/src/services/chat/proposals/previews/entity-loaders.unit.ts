@@ -77,6 +77,23 @@ describe('entity loaders', () => {
     });
   });
 
+  it('holds the row FOR UPDATE only when asked to lock, whether the entity is owned, nested or a transaction', async () => {
+    const accountFind = jest.spyOn(Accounts, 'findOne').mockResolvedValue(record({ id: ID }) as never);
+    jest.spyOn(Accounts, 'count').mockResolvedValue(0);
+    jest.mocked(transactionsQuery.findOneTransaction).mockResolvedValue(record({ id: ID }) as never);
+    const reminderFind = jest.spyOn(TagReminders, 'findOne').mockResolvedValue(record({ id: OTHER }) as never);
+
+    await ENTITY_LOADERS.account!({ userId: USER, targets: [ID] });
+    await ENTITY_LOADERS.account!({ userId: USER, targets: [ID], lock: true });
+    await ENTITY_LOADERS.transaction!({ userId: USER, targets: [ID], lock: true });
+    await ENTITY_LOADERS.tagReminder!({ userId: USER, targets: [ID, OTHER], lock: true });
+
+    expect(accountFind.mock.calls[0]![0]).not.toHaveProperty('lock');
+    expect(accountFind.mock.calls[1]![0]).toMatchObject({ lock: true });
+    expect(jest.mocked(transactionsQuery.findOneTransaction).mock.calls.at(-1)![0]).toMatchObject({ lock: true });
+    expect(reminderFind.mock.calls[0]![0]).toMatchObject({ lock: true });
+  });
+
   it('counts the transactions of an account and reports them as the rows a delete removes', async () => {
     const find = jest.spyOn(Accounts, 'findOne').mockResolvedValue(record({ id: ID, name: 'Cash' }) as never);
     jest.mocked(transactionsQuery.countTransactions).mockResolvedValue(12);

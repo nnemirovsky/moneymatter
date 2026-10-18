@@ -7,6 +7,7 @@ import { findOneTransaction } from '@models/transactions-query';
 import { hashTargetIds, latestUpdatedAt } from '../snapshot';
 import {
   assertConcreteTargets,
+  forUpdate,
   PreviewError,
   serializeRow,
   targetNotFound,
@@ -19,13 +20,15 @@ import type { PreviewResolver } from './types';
  * period, the revert deletes that transaction too (unless it is a booked row on a bank-linked
  * account), so the card lists it and counts it.
  */
-export const resolveRevertSubscriptionPeriod: PreviewResolver = async ({ userId, args }) => {
+export const resolveRevertSubscriptionPeriod: PreviewResolver = async ({ userId, args, lock }) => {
   const subscriptionId = args.subscriptionId as string;
   const periodId = args.periodId as string;
   assertConcreteTargets({ value: [subscriptionId, periodId], what: 'subscription period' });
 
   const subscription = await Subscriptions.findOne({ where: { id: subscriptionId, userId } });
-  const period = subscription ? await SubscriptionPeriods.findOne({ where: { id: periodId, subscriptionId } }) : null;
+  const period = subscription
+    ? await SubscriptionPeriods.findOne({ where: { id: periodId, subscriptionId }, ...forUpdate({ lock }) })
+    : null;
   if (!period) throw targetNotFound({ what: 'subscription period' });
 
   if (
@@ -38,6 +41,7 @@ export const resolveRevertSubscriptionPeriod: PreviewResolver = async ({ userId,
   const payment =
     period.transactionId && period.transactionAutoCreated
       ? await findOneTransaction({
+          ...forUpdate({ lock }),
           planned: 'include',
           access: { creator: userId },
           balanceAdjustments: 'include',

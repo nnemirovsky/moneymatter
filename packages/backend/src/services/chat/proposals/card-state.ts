@@ -18,11 +18,13 @@ async function runPreview({
   toolName,
   args,
   policy,
+  lock,
 }: {
   userId: number;
   toolName: string;
   args: Record<string, unknown>;
   policy: ResolvedToolPolicy;
+  lock?: boolean;
 }): Promise<{ resolution: PreviewResolution | null; error: ChatCardError | null }> {
   const resolver = policy.previewResolver
     ? (PREVIEW_RESOLVERS as Partial<Record<string, PreviewResolver>>)[policy.previewResolver]
@@ -30,7 +32,7 @@ async function runPreview({
   if (!resolver) return { resolution: null, error: null };
 
   try {
-    return { resolution: await resolver({ userId, toolName, args, policy }), error: null };
+    return { resolution: await resolver({ userId, toolName, args, policy, ...(lock ? { lock } : {}) }), error: null };
   } catch (error) {
     if (error instanceof PreviewError) {
       return { resolution: null, error: { messageKey: error.messageKey, message: error.message } };
@@ -51,20 +53,23 @@ export interface CardState {
  * What a card shows and is checked against right now: the preview from the policy's resolver (a
  * resolver that fails leaves the card without one), the snapshot the preview rests on and the
  * confirmation the call asks for. A new card, an edit, a refresh and the stale check of an approval
- * all compute it the same way.
+ * all compute it the same way. The approval passes `lock`, so the rows the preview reads stay held
+ * until its transaction ends.
  */
 export async function computeCardState({
   userId,
   policy,
   args,
   parents,
+  lock,
 }: {
   userId: number;
   policy: ResolvedToolPolicy;
   args: Record<string, unknown>;
   parents: Array<{ id: string; status: ChatProposalStatus }>;
+  lock?: boolean;
 }): Promise<CardState> {
-  const { resolution, error } = await runPreview({ userId, toolName: policy.name, args, policy });
+  const { resolution, error } = await runPreview({ userId, toolName: policy.name, args, policy, lock });
 
   return {
     preview: resolution

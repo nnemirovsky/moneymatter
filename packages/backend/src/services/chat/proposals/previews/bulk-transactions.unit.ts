@@ -263,6 +263,26 @@ describe('bulk transaction previews', () => {
       expect(warnings).toEqual([{ key: 'chat.warnings.transferTwins', params: { count: 1 } }]);
     });
 
+    it('holds the targets and their twins FOR UPDATE when asked to lock', async () => {
+      const leg = tx(1, { transferId: uuid(100) });
+      const twin = tx(2, { transferId: uuid(100), accountId: OTHER_ACCOUNT });
+      jest.mocked(resolveBulkTargetIds).mockResolvedValue([leg.id]);
+      find()
+        .mockResolvedValueOnce([leg] as never)
+        .mockResolvedValueOnce([twin] as never);
+
+      await resolveBulkDeleteTransactions({
+        userId: USER,
+        toolName: 'bulk_delete_transactions',
+        args: { transactionIds: [leg.id] },
+        policy: resolveToolPolicy({ name: 'bulk_delete_transactions', args: { transactionIds: [leg.id] } })!,
+        lock: true,
+      });
+
+      expect(find().mock.calls[0]![0]).toMatchObject({ lock: true });
+      expect(find().mock.calls[1]![0]).toMatchObject({ lock: true });
+    });
+
     it('does not list a twin twice when both legs are selected', async () => {
       const leg = tx(1, { transferId: uuid(100) });
       const twin = tx(2, { transferId: uuid(100), accountId: OTHER_ACCOUNT });

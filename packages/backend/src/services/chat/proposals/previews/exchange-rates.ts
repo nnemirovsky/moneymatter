@@ -2,7 +2,7 @@ import UserExchangeRates from '@models/user-exchange-rates.model';
 import { Op } from 'sequelize';
 
 import { hashTargetIds, latestUpdatedAt } from '../snapshot';
-import { PreviewError, SAMPLE_ROW_LIMIT } from './preview-helpers';
+import { forUpdate, PreviewError, SAMPLE_ROW_LIMIT } from './preview-helpers';
 import type { PreviewResolver } from './types';
 
 interface RatePair {
@@ -16,7 +16,7 @@ interface RatePair {
  * the given day. The handler requires each pair's opposite in the same call, so the pairs given are
  * the whole set.
  */
-export const resolveDeleteExchangeRates: PreviewResolver = async ({ userId, args }) => {
+export const resolveDeleteExchangeRates: PreviewResolver = async ({ userId, args, lock }) => {
   const pairs = args.pairs as RatePair[];
 
   const rows = (await UserExchangeRates.findAll({
@@ -29,6 +29,7 @@ export const resolveDeleteExchangeRates: PreviewResolver = async ({ userId, args
       })),
     },
     raw: true,
+    ...forUpdate({ lock }),
     order: [
       ['baseCode', 'ASC'],
       ['quoteCode', 'ASC'],
