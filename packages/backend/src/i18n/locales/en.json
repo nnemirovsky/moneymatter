@@ -44,7 +44,11 @@
   },
   "chat": {
     "threadNotFound": "Chat thread not found",
-    "messageNotFound": "Chat message not found"
+    "messageNotFound": "Chat message not found",
+    "documentPasswordInvalid": "The document password is not valid.",
+    "attachmentNotFound": "Chat attachment not found",
+    "noFileUploaded": "No file was uploaded. Send the file as the raw request body.",
+    "fileTooLarge": "This file is larger than {{maxMegabytes}} MB. Upload a smaller one."
   },
   "transactions": {
     "notFound": "Transaction not found",

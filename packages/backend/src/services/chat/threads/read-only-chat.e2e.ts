@@ -1,6 +1,7 @@
 import { API_ERROR_CODES } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
+import { PNG_1X1_BASE64 } from '@tests/fixtures/statement-parser-fixtures';
 import * as helpers from '@tests/helpers';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -26,6 +27,27 @@ describe('Chat for a read-only user (lapsed plan)', () => {
     const removed = await helpers.deleteChatThread({ threadId });
     expect(removed.statusCode).toBe(200);
     expect((await helpers.listChatThreads({ raw: true })).threads).toEqual([]);
+  });
+
+  it('lets a read-only user attach a document and an image and read the image back', async () => {
+    const thread = await helpers.createChatThread({ title: 'Statement help', raw: true });
+    await becomeReadOnly();
+
+    const csv = await helpers.uploadChatAttachment({
+      threadId: thread.id,
+      file: Buffer.from('date,description,amount\n2026-10-01,Coffee,-3.50\n'),
+      filename: 'october.csv',
+    });
+    const image = await helpers.uploadChatAttachment({
+      threadId: thread.id,
+      file: Buffer.from(PNG_1X1_BASE64, 'base64'),
+      filename: 'receipt.png',
+    });
+    const served = await helpers.getChatAttachmentImage({ attachmentId: image.attachment!.id });
+
+    expect(csv.statusCode).toBe(201);
+    expect(image.statusCode).toBe(201);
+    expect(served.statusCode).toBe(200);
   });
 
   it('lets a read-only user change retention', async () => {

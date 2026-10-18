@@ -35,3 +35,14 @@ export const RATE_SOURCE_SAVE_LIMIT = userRateLimit({ prefix: 'rate-source-save'
  * user typed, so it stays low enough that the endpoint cannot be used to hammer a host.
  */
 export const RATE_SOURCE_TEST_LIMIT = userRateLimit({ prefix: 'rate-source-test', windowSeconds: 60, maxAttempts: 20 });
+
+/**
+ * Chat attachment upload limit (30 uploads per 10 minutes). Each upload buffers a file of up to
+ * 10 MB and reads a PDF on the API thread, so the budget bounds memory churn and parsing time per
+ * user; it matches the message budget, which is what a conversation of attachments needs.
+ */
+export const CHAT_ATTACHMENT_LIMIT = userRateLimit({
+  prefix: 'chat-attachment',
+  windowSeconds: 10 * 60,
+  maxAttempts: 30,
+});

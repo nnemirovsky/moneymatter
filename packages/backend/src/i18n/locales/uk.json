@@ -44,7 +44,11 @@
   },
   "chat": {
     "threadNotFound": "Розмову не знайдено",
-    "messageNotFound": "Повідомлення не знайдено"
+    "messageNotFound": "Повідомлення не знайдено",
+    "documentPasswordInvalid": "Пароль до документа недійсний.",
+    "attachmentNotFound": "Вкладення не знайдено",
+    "noFileUploaded": "Файл не завантажено. Надішліть файл як тіло запиту.",
+    "fileTooLarge": "Цей файл більший за {{maxMegabytes}} МБ. Завантажте менший."
   },
   "transactions": {
     "notFound": "Транзакція не знайдена",

@@ -31,6 +31,8 @@ export const CHAT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
 export const CHAT_ATTACHMENTS_MAX_BYTES_PER_MESSAGE = 25 * 1024 * 1024;
 /** Extracted text kept per attachment. */
 export const CHAT_ATTACHMENT_TEXT_MAX_CHARS = 200_000;
+/** Characters of an attachment's extracted text shown as its excerpt. */
+export const CHAT_ATTACHMENT_EXCERPT_CHARS = 300;
 /** Extracted text sent per message. */
 export const CHAT_ATTACHMENT_TEXT_MAX_CHARS_PER_MESSAGE = 300_000;
 
