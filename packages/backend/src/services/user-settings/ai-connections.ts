@@ -25,6 +25,8 @@ import { randomUUID } from 'node:crypto';
 
 import { assertCliAiAllowed } from '../ai/cli/cli-access';
 import { CliCredentialSource } from '../ai/cli/cli-credential-run';
+import { abortCliRunsForConnection } from '../ai/cli/cli-run-limiter';
+import { retireCodexHome } from '../ai/cli/codex-home';
 import { logoutCodexConnection } from '../ai/cli/codex-logout';
 import { consumeCredential, peekCredential, sessionCredentialSource } from '../ai/cli/login/cli-auth-sessions';
 import { validateCliConnection, validateConnection } from '../ai/connection-validation';
@@ -102,9 +104,10 @@ function readStoredKey({ connection, userId }: { connection: StoredConnection; u
 }
 
 /**
- * A CLI connection's credential as a source the CLI runner loads inside the connection's slot. The
- * row is read fresh and decrypted per run, so no caller holds a decrypted CLI credential, and a
- * Codex refresh a previous run persisted is what the next run starts from.
+ * A CLI connection's credential as a source the CLI runner loads inside a run. The row is read fresh
+ * and decrypted when a run (Claude Code) or the connection's shared Codex home (Codex) needs it, so no
+ * caller holds a decrypted CLI credential, and a Codex refresh a previous run persisted is what the
+ * next shared home starts from.
  */
 export function connectionCredentialSource({
   userId,
@@ -128,13 +131,17 @@ export function connectionCredentialSource({
 
       return { credential, revision: connection.keyEncrypted };
     },
-    save: ({ credential, loadedRevision }) =>
-      replaceConnectionCredential({
+    save: async ({ credential, loadedRevision }) => {
+      const keyEncrypted = encryptToken(credential);
+      const swapped = await replaceConnectionCredential({
         userId,
         connectionId,
         expectedKeyEncrypted: loadedRevision,
-        keyEncrypted: encryptToken(credential),
-      }),
+        keyEncrypted,
+      });
+
+      return swapped ? { revision: keyEncrypted } : null;
+    },
   };
 }
 
@@ -168,6 +175,7 @@ export function swapConnectionCredential({
 /**
  * Persists a credential the CLI refreshed during a run as a compare-and-swap on `keyEncrypted`.
  * A connection deleted mid-run is not resurrected, and a credential replaced mid-run is kept.
+ * Returns whether the new ciphertext was stored.
  */
 export async function replaceConnectionCredential({
   userId,
@@ -179,13 +187,17 @@ export async function replaceConnectionCredential({
   connectionId: string;
   expectedKeyEncrypted: string;
   keyEncrypted: string;
-}): Promise<void> {
+}): Promise<boolean> {
+  let stored = false;
+
   await mutateConnections({
     userId,
     connectionId,
     onMissing: 'skip',
     mutate: ({ connections }) => {
       const result = swapConnectionCredential({ connections, connectionId, expectedKeyEncrypted, keyEncrypted });
+
+      stored = result.swapped;
 
       if (!result.swapped) {
         logger.warn('Skipped saving a refreshed CLI credential: the stored credential changed during the run', {
@@ -197,6 +209,8 @@ export async function replaceConnectionCredential({
       return { connections: result.connections };
     },
   });
+
+  return stored;
 }
 
 function toConnectionInfo({ connection }: { connection: StoredConnection }): AIConnectionInfo {
@@ -732,11 +746,23 @@ export const updateConnection = async ({
 };
 
 /**
- * Features pinned to the deleted connection become automatic again. A Codex connection is signed
- * out first, best effort, so the tokens it held stop working; Claude Code has no CLI revoke.
+ * Features pinned to the deleted connection become automatic again. A CLI connection's active runs
+ * are cancelled first (and waited for, briefly), so nothing keeps using the credential, or the
+ * connection's shared Codex home, while it is signed out: cancelling is the safe choice, since
+ * waiting out a feature run could take minutes for a connection that is going away. A Codex
+ * connection is then signed out, best effort, so the tokens it held stop working; Claude Code has no
+ * CLI revoke. A run that starts in the instant between the cancel and the delete is not stopped:
+ * it fails at the sign-out or completes against the deleted row, which is harmless.
  */
 export const deleteConnection = async ({ userId, connectionId }: { userId: number; connectionId: string }) => {
   const stored = (await readStoredConnections({ userId })).find((connection) => connection.id === connectionId);
+
+  if (stored && asAiCliProvider({ provider: stored.provider })) {
+    await abortCliRunsForConnection({ connectionKey: connectionId });
+    // A run that outlived the cancel (past its 3 s wait) keeps its home but is not written back, and the
+    // sign-out below starts from a fresh home.
+    await retireCodexHome({ connectionKey: connectionId });
+  }
 
   if (stored?.provider === AI_PROVIDER.codex && stored.keyEncrypted) {
     const { connectionKey, load } = connectionCredentialSource({ userId, connectionId });

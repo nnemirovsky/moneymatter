@@ -4,7 +4,15 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { logger } from '@js/utils/logger';
 import UserSettings, { type StoredConnection } from '@models/user-settings.model';
 
-import { connectionCredentialSource, replaceConnectionCredential, swapConnectionCredential } from './ai-connections';
+import { abortCliRunsForConnection } from '../ai/cli/cli-run-limiter';
+import { retireCodexHome } from '../ai/cli/codex-home';
+import { logoutCodexConnection } from '../ai/cli/codex-logout';
+import {
+  connectionCredentialSource,
+  deleteConnection,
+  replaceConnectionCredential,
+  swapConnectionCredential,
+} from './ai-connections';
 
 jest.mock('@js/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
@@ -15,6 +23,11 @@ jest.mock('../ai/connection-validation', () => ({ validateCliConnection: jest.fn
 jest.mock('../ai/list-connection-models', () => ({ listConnectionModels: jest.fn() }));
 jest.mock('../ai/cli/cli-access', () => ({ assertCliAiAllowed: jest.fn() }));
 jest.mock('../ai/cli/codex-logout', () => ({ logoutCodexConnection: jest.fn() }));
+jest.mock('../ai/cli/codex-home', () => ({ retireCodexHome: jest.fn() }));
+jest.mock('../ai/cli/cli-run-limiter', () => ({
+  ...jest.requireActual<object>('../ai/cli/cli-run-limiter'),
+  abortCliRunsForConnection: jest.fn(),
+}));
 jest.mock('../ai/cli/login/cli-auth-sessions', () => ({
   consumeCredential: jest.fn(),
   peekCredential: jest.fn(),
@@ -106,13 +119,14 @@ describe('replaceConnectionCredential', () => {
   it('writes the refreshed credential while the row still holds the loaded ciphertext', async () => {
     const row = stubSettingsRow({ connections: [buildConnection({ id: 'a', keyEncrypted: 'loaded' })] });
 
-    await replaceConnectionCredential({
+    const swapped = await replaceConnectionCredential({
       userId: USER_ID,
       connectionId: 'a',
       expectedKeyEncrypted: 'loaded',
       keyEncrypted: 'refreshed',
     });
 
+    expect(swapped).toBe(true);
     expect(row.save).toHaveBeenCalledTimes(1);
     expect(row.settings.ai.connections[0]!.keyEncrypted).toBe('refreshed');
     expect(logger.warn).not.toHaveBeenCalled();
@@ -121,13 +135,14 @@ describe('replaceConnectionCredential', () => {
   it('keeps a credential a re-authentication wrote in between and logs it without key material', async () => {
     const row = stubSettingsRow({ connections: [buildConnection({ id: 'a', keyEncrypted: 'reauthenticated' })] });
 
-    await replaceConnectionCredential({
+    const swapped = await replaceConnectionCredential({
       userId: USER_ID,
       connectionId: 'a',
       expectedKeyEncrypted: 'loaded',
       keyEncrypted: 'refreshed',
     });
 
+    expect(swapped).toBe(false);
     expect(row.settings.ai.connections[0]!.keyEncrypted).toBe('reauthenticated');
     expect(logger.warn).toHaveBeenCalledWith(expect.any(String), { userId: USER_ID, connectionId: 'a' });
   });
@@ -135,13 +150,14 @@ describe('replaceConnectionCredential', () => {
   it('does not resurrect a connection deleted mid-run', async () => {
     const row = stubSettingsRow({ connections: [buildConnection({ id: 'other', keyEncrypted: 'loaded' })] });
 
-    await replaceConnectionCredential({
+    const swapped = await replaceConnectionCredential({
       userId: USER_ID,
       connectionId: 'a',
       expectedKeyEncrypted: 'loaded',
       keyEncrypted: 'refreshed',
     });
 
+    expect(swapped).toBe(false);
     expect(row.save).not.toHaveBeenCalled();
     expect(row.settings.ai.connections.map((connection) => connection.id)).toEqual(['other']);
   });
@@ -198,11 +214,76 @@ describe('connectionCredentialSource', () => {
     findOneMock.mockResolvedValue(row);
 
     const source = connectionCredentialSource({ userId: USER_ID, connectionId: 'a' });
-    await source.save!({ credential: '{"tokens":{"refresh_token":"rt-2"}}', loadedRevision: loaded });
+    const saved = await source.save!({ credential: '{"tokens":{"refresh_token":"rt-2"}}', loadedRevision: loaded });
 
     const stored = row.settings.ai.connections[0]!.keyEncrypted!;
 
     expect(stored).not.toBe(loaded);
     expect(decryptToken(stored)).toBe('{"tokens":{"refresh_token":"rt-2"}}');
+    expect(saved).toEqual({ revision: stored });
+  });
+
+  it('reports a skipped swap as null, so the caller keeps its revision', async () => {
+    const row = {
+      settings: { ai: { connections: [buildConnection({ id: 'a', keyEncrypted: 'changed-meanwhile' })] } },
+      save: jest.fn(async () => undefined),
+    };
+    findOneMock.mockResolvedValue(row);
+
+    const source = connectionCredentialSource({ userId: USER_ID, connectionId: 'a' });
+
+    expect(await source.save!({ credential: AUTH_JSON, loadedRevision: 'loaded' })).toBeNull();
+    expect(row.settings.ai.connections[0]!.keyEncrypted).toBe('changed-meanwhile');
+  });
+});
+
+describe('deleteConnection', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("cancels the connection's active runs and retires its Codex home before signing it out, then removes it", async () => {
+    const events: string[] = [];
+    const row = stubSettingsRow({ connections: [buildConnection({ id: 'a', keyEncrypted: encryptToken(AUTH_JSON) })] });
+
+    jest.mocked(abortCliRunsForConnection).mockImplementation(async () => {
+      events.push('abort');
+    });
+    jest.mocked(retireCodexHome).mockImplementation(async () => {
+      events.push('retire');
+    });
+    jest.mocked(logoutCodexConnection).mockImplementation(async () => {
+      events.push('logout');
+    });
+    row.save.mockImplementation(async () => {
+      events.push('delete');
+    });
+
+    await deleteConnection({ userId: USER_ID, connectionId: 'a' });
+
+    expect(abortCliRunsForConnection).toHaveBeenCalledWith({ connectionKey: 'a' });
+    expect(retireCodexHome).toHaveBeenCalledWith({ connectionKey: 'a' });
+    expect(events).toEqual(['abort', 'retire', 'logout', 'delete']);
+  });
+
+  it('cancels the active runs of a Claude Code connection too, without a logout', async () => {
+    stubSettingsRow({
+      connections: [{ ...buildConnection({ id: 'c', keyEncrypted: 'token' }), provider: AI_PROVIDER.claudeCode }],
+    });
+
+    await deleteConnection({ userId: USER_ID, connectionId: 'c' });
+
+    expect(abortCliRunsForConnection).toHaveBeenCalledWith({ connectionKey: 'c' });
+    expect(logoutCodexConnection).not.toHaveBeenCalled();
+  });
+
+  it('leaves the runs of a native API connection alone', async () => {
+    stubSettingsRow({
+      connections: [{ ...buildConnection({ id: 'n', keyEncrypted: 'key' }), provider: AI_PROVIDER.anthropic }],
+    });
+
+    await deleteConnection({ userId: USER_ID, connectionId: 'n' });
+
+    expect(abortCliRunsForConnection).not.toHaveBeenCalled();
   });
 });

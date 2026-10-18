@@ -8,6 +8,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+  awaitPeers,
+  claimOnce,
   emit,
   fail,
   flagValue,
@@ -17,6 +19,7 @@ import {
   readStdin,
   recordRun,
   sleep,
+  waitForMarker,
 } from './fake-cli-common.mjs';
 
 const argv = process.argv.slice(2);
@@ -27,6 +30,21 @@ if (argv.includes('--version')) {
 }
 
 const out = (text) => process.stdout.write(text);
+
+// The first sign-in of a test hands out `rt-fake-initial`, later ones `rt-fake-login-<n>`, so a test can tell
+// which sign-in a run's `auth.json` came from.
+function nextLoginRefreshToken() {
+  const dir = process.env.MM_FAKE_CLI_STATE_DIR;
+
+  if (!dir) return 'rt-fake-initial';
+
+  const counterFile = path.join(dir, 'login-count');
+  const count = (fs.existsSync(counterFile) ? Number(fs.readFileSync(counterFile, 'utf8')) : 0) + 1;
+
+  fs.writeFileSync(counterFile, String(count));
+
+  return count === 1 ? 'rt-fake-initial' : `rt-fake-login-${count}`;
+}
 
 // `login --device-auth`: prints a verification URL and a one-time code, then writes `auth.json` into
 // `CODEX_HOME` and exits 0. Scenarios: `denied` exits 1 after the code, `split-chunks` writes the URL and the
@@ -87,7 +105,7 @@ async function deviceAuthLogin() {
         tokens: {
           id_token: 'fake-id-token',
           access_token: 'fake-access-token',
-          refresh_token: 'rt-fake-initial',
+          refresh_token: nextLoginRefreshToken(),
           account_id: 'fake-account',
         },
         last_refresh: new Date().toISOString(),
@@ -150,6 +168,15 @@ for (const name of ['--ephemeral', '--ignore-user-config', '--ignore-rules']) {
 
 if (process.env.OPENAI_API_KEY) fail({ code: 2, message: 'an OpenAI API credential leaked into the CLI environment' });
 
+function readRefreshToken() {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(process.env.CODEX_HOME ?? '', 'auth.json'), 'utf8')).tokens
+      ?.refresh_token;
+  } catch {
+    return undefined;
+  }
+}
+
 const stdin = await readStdin();
 const model = flagValue({ argv, name: '-m' });
 const lastMessagePath = flagValue({ argv, name: '-o' });
@@ -168,6 +195,7 @@ recordRun({
     images,
     schema: schemaPath ? JSON.parse(fs.readFileSync(schemaPath, 'utf8')) : undefined,
     codexHome: process.env.CODEX_HOME,
+    refreshToken: readRefreshToken(),
   },
 });
 
@@ -219,6 +247,29 @@ function rotate() {
   rewriteAuth({ refreshToken: `rt-rotated-${used.length}` });
 }
 
+// Two runs share one `CODEX_HOME`: `parallel` only needs both alive at once; `peer-refresh` makes the first
+// run to claim the leader role rotate the refresh token while the other waits and then reports the
+// refresh token it finds in `auth.json` (`observed-<pid>.json`).
+async function awaitPeersAndRefresh() {
+  await awaitPeers({ count: 2 });
+
+  if (scenario !== 'peer-refresh') return;
+
+  if (claimOnce({ name: 'leader' })) {
+    rewriteAuth({ refreshToken: 'rt-shared-refreshed' });
+    fs.writeFileSync(path.join(stateDir, 'refreshed'), '1');
+
+    return;
+  }
+
+  await waitForMarker({ name: 'refreshed' });
+  fs.writeFileSync(
+    path.join(stateDir, `observed-${process.pid}.json`),
+    JSON.stringify({ refreshToken: JSON.parse(fs.readFileSync(authPath, 'utf8')).tokens?.refresh_token }),
+  );
+}
+
+if (scenario === 'parallel' || scenario === 'peer-refresh') await awaitPeersAndRefresh();
 if (scenario === 'rotating') rotate();
 if (scenario === 'refresh' || scenario === 'refresh-then-limit') {
   rewriteAuth({ refreshToken: `rt-refreshed-${Math.random().toString(36).slice(2)}` });
