@@ -126,9 +126,11 @@ export interface ChatProposalPreview {
 export interface ChatProposalSnapshot {
   baseCurrencyCode: string;
   updatedAt?: string | null;
-  /** The frozen target ids of a filter-based bulk delete, and their hash. */
+  /** The frozen target ids of a filter-based bulk delete. */
   targetIds?: string[];
+  /** Hash of the target set, and how many targets it holds (the number a stale card shows). */
   targetHash?: string;
+  targetCount?: number;
   parentStatuses?: Record<string, ChatProposalStatus>;
 }
 
