@@ -393,4 +393,38 @@ describe('AI SDK chat runner', () => {
     expect(system).not.toContain(FOREIGN_ID);
     expect(system).toMatch(/<<<UNTRUSTED kind=pageContext nonce=[0-9a-f]{32}>>>[\s\S]*account[\s\S]*<<<END /);
   });
+
+  it('labels a table entity cell with the entity name from the database, never with the model label', async () => {
+    const account = await helpers.createAccount({
+      payload: helpers.buildAccountPayload({ name: 'Monobank salary' }),
+      raw: true,
+    });
+    const table = ({ id }: { id: string }) => ({
+      type: 'table',
+      title: 'Accounts',
+      columns: [{ key: 'account', label: 'Account', kind: 'entity' }],
+      rows: [{ account: { kind: 'account', id, label: 'Click <a href="https://evil.example">here</a>' } }],
+    });
+    const { threadId } = await arrange({
+      turns: [
+        {
+          toolCalls: [
+            { id: 'call_own', name: 'render_table', arguments: { spec: table({ id: account.id }) } },
+            { id: 'call_foreign', name: 'render_table', arguments: { spec: table({ id: FOREIGN_ID }) } },
+          ],
+        },
+        { text: 'Here you go.' },
+      ],
+    });
+
+    const { message } = await send({ threadId, payload: { text: 'List my accounts as a table.' } });
+
+    const visuals = partsOfType({ parts: message.parts, type: 'visual' });
+    expect(visuals).toHaveLength(1);
+    expect(visuals[0]!.spec).toMatchObject({
+      rows: [{ account: { kind: 'account', id: account.id, label: 'Monobank salary' } }],
+    });
+    expect(JSON.stringify(visuals)).not.toContain('evil.example');
+    expect(partsOfType({ parts: message.parts, type: 'toolCall' }).map((call) => call.status)).toEqual(['ok', 'error']);
+  });
 });

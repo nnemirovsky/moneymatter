@@ -91,6 +91,45 @@ describe('ChatTable', () => {
     expect(cellsOf({ wrapper })).toEqual(['Category']);
   });
 
+  it('shows the resolved label of an entity cell, as the link text', () => {
+    const wrapper = mountTable({
+      spec: spec({
+        columns: [{ key: 'account', label: 'Account', kind: 'entity' }],
+        rows: [{ account: { kind: 'account', id: '42', label: 'Monobank salary' } }],
+      }),
+    });
+    const link = wrapper.findComponent(RouterLinkStub);
+
+    expect(link.props('to')).toEqual({ name: ROUTES_NAMES.account, params: { id: '42' } });
+    expect(link.text()).toBe('Monobank salary');
+  });
+
+  it('shows the resolved label of an entity without a page as plain text', () => {
+    const wrapper = mountTable({
+      spec: spec({
+        columns: [{ key: 'category', label: 'Category', kind: 'entity' }],
+        rows: [{ category: { kind: 'category', id: '5', label: 'Groceries' } }],
+      }),
+    });
+
+    expect(wrapper.findComponent(RouterLinkStub).exists()).toBe(false);
+    expect(cellsOf({ wrapper })).toEqual(['Groceries']);
+  });
+
+  it('renders a label as text, never as markup', () => {
+    const label = '<img src=x onerror=alert(1)> <b>bold</b>';
+    const wrapper = mountTable({
+      spec: spec({
+        columns: [{ key: 'payee', label: 'Payee', kind: 'entity' }],
+        rows: [{ payee: { kind: 'payee', id: '9', label } }],
+      }),
+    });
+
+    expect(wrapper.find('img').exists()).toBe(false);
+    expect(wrapper.find('b').exists()).toBe(false);
+    expect(cellsOf({ wrapper })).toEqual([label]);
+  });
+
   it('shows text cells as text, not markup', () => {
     const wrapper = mountTable({
       spec: spec({

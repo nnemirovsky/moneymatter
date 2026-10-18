@@ -26,18 +26,39 @@ const OWNED_MODELS: Partial<Record<ChatEntityKind, ModelStatic<Model>>> = {
   portfolio: Portfolios,
 };
 
-/** The refs that do not name a row of this user, or whose kind cannot be checked. */
-export async function findForeignEntities({
-  userId,
-  refs,
-}: {
-  userId: number;
-  refs: ChatEntityRef[];
-}): Promise<ChatEntityRef[]> {
+type LabelRow = Record<string, unknown>;
+
+/** What to read besides `id` to name a kind, and how to turn the row into a display name. */
+const LABEL_SOURCES: Partial<Record<ChatEntityKind, { attributes: string[]; label: (row: LabelRow) => string }>> = {
+  account: { attributes: ['name'], label: (row) => String(row.name) },
+  category: { attributes: ['name'], label: (row) => String(row.name) },
+  tag: { attributes: ['name'], label: (row) => String(row.name) },
+  payee: { attributes: ['name'], label: (row) => String(row.name) },
+  budget: { attributes: ['name'], label: (row) => String(row.name) },
+  subscription: { attributes: ['name'], label: (row) => String(row.name) },
+  portfolio: { attributes: ['name'], label: (row) => String(row.name) },
+  vehicle: {
+    attributes: ['year', 'make', 'model'],
+    label: (row) => `${row.year} ${row.make} ${row.model}`,
+  },
+};
+
+export const entityKey = ({ kind, id }: ChatEntityRef): string => `${kind}:${id}`;
+
+/**
+ * Checks the refs against the user's rows with one query per kind. `foreign` lists the refs that do
+ * not name a row of this user (or whose kind cannot be checked); `labels` maps `entityKey` to the
+ * display name of every owned row whose kind has one.
+ */
+export async function lookupEntities({ userId, refs }: { userId: number; refs: ChatEntityRef[] }): Promise<{
+  foreign: ChatEntityRef[];
+  labels: Map<string, string>;
+}> {
   const idsByKind = new Map<ChatEntityKind, Set<string>>();
   for (const { kind, id } of refs) idsByKind.set(kind, (idsByKind.get(kind) ?? new Set()).add(id));
 
   const foreign: ChatEntityRef[] = [];
+  const labels = new Map<string, string>();
 
   for (const [kind, ids] of idsByKind) {
     const model = OWNED_MODELS[kind];
@@ -46,15 +67,35 @@ export async function findForeignEntities({
       continue;
     }
 
-    const owned = await model.findAll({
+    const source = LABEL_SOURCES[kind];
+    const owned = (await model.findAll({
       where: { userId, id: [...ids] },
-      attributes: ['id'],
+      attributes: ['id', ...(source?.attributes ?? [])],
       raw: true,
-    });
-    const ownedIds = new Set(owned.map((row) => String((row as unknown as { id: string }).id)));
+    })) as unknown as LabelRow[];
+    const ownedIds = new Set<string>();
+
+    for (const row of owned) {
+      const id = String(row.id);
+      ownedIds.add(id);
+
+      const label = source?.label(row).trim();
+      if (label) labels.set(entityKey({ kind, id }), label);
+    }
 
     foreign.push(...[...ids].filter((id) => !ownedIds.has(id)).map((id) => ({ kind, id })));
   }
 
-  return foreign;
+  return { foreign, labels };
+}
+
+/** The refs that do not name a row of this user, or whose kind cannot be checked. */
+export async function findForeignEntities({
+  userId,
+  refs,
+}: {
+  userId: number;
+  refs: ChatEntityRef[];
+}): Promise<ChatEntityRef[]> {
+  return (await lookupEntities({ userId, refs })).foreign;
 }

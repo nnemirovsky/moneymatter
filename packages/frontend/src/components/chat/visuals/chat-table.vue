@@ -2,6 +2,7 @@
 import { ScrollArea } from '@/components/lib/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import {
+  type ChatEntityCell,
   type ChatEntityRef,
   type ChatTableCell,
   type ChatTableColumn,
@@ -19,18 +20,23 @@ const { t } = useI18n();
 
 const NO_VALUE = '—';
 
-const isEntityRef = (cell: ChatTableCell | undefined): cell is ChatEntityRef =>
+const isEntityRef = (cell: ChatTableCell | undefined): cell is ChatEntityCell =>
   cell !== null && typeof cell === 'object';
 
 const isRightAligned = ({ column }: { column: ChatTableColumn }) =>
   column.kind === 'money' || column.kind === 'number' || column.kind === 'percent';
+
+/** The label is the entity's name, set by the server; rendered as text through interpolation only. */
+const entityLabel = ({ cell }: { cell: ChatEntityCell }) =>
+  typeof cell.label === 'string' && cell.label.trim() !== '' ? cell.label : null;
 
 /** Entity names are written for the middle of a sentence ("budget plan"), a cell starts with a capital. */
 const capitalize = ({ text }: { text: string }) => text.charAt(0).toLocaleUpperCase() + text.slice(1);
 
 const cellText = ({ column, cell }: { column: ChatTableColumn; cell: ChatTableCell | undefined }): string => {
   if (cell === null || cell === undefined) return NO_VALUE;
-  if (isEntityRef(cell)) return capitalize({ text: t(chatEntityLabelKey({ entity: cell.kind })) });
+  if (isEntityRef(cell))
+    return entityLabel({ cell }) ?? capitalize({ text: t(chatEntityLabelKey({ entity: cell.kind })) });
   if (typeof cell === 'string') return column.kind === 'date' ? formatVisualDate({ value: cell }) : cell;
   if (column.kind === 'money')
     return formatVisualValue({ value: cell, kind: 'money', currencyCode: column.currencyCode });

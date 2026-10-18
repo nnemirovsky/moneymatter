@@ -1,20 +1,29 @@
 import {
   CHAT_ENTITY_KINDS,
   CHAT_VISUAL_LIMITS,
+  type ChatEntityCell,
+  type ChatEntityRef,
   type ChatKpisSpec,
   type ChatSeriesChartSpec,
+  type ChatTableCell,
   type ChatTableSpec,
   type ChatVisualSpec,
-  type Equals,
   type Expect,
+  type MutuallyAssignable,
 } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
 import type { z } from 'zod';
 
 import { chatVisualSpecSchema } from './visual-spec';
 
+// What the model may send: the shared spec minus the entity label, which only the server sets.
+type ModelTableSpec = Omit<ChatTableSpec, 'rows'> & {
+  rows: Array<Record<string, Exclude<ChatTableCell, ChatEntityCell> | ChatEntityRef>>;
+};
+type ModelVisualSpec = Exclude<ChatVisualSpec, ChatTableSpec> | ModelTableSpec;
+
 // Compile-time: the schemas accept exactly the shared types, so the model-facing tools and the frontend renderer cannot drift apart.
-export type VisualSpecIsPinned = Expect<Equals<z.infer<typeof chatVisualSpecSchema>, ChatVisualSpec>>;
+export type VisualSpecIsPinned = Expect<MutuallyAssignable<z.infer<typeof chatVisualSpecSchema>, ModelVisualSpec>>;
 
 const ENTITY_ID = '0198f1a2-7b3c-7d4e-8f50-123456789abc';
 

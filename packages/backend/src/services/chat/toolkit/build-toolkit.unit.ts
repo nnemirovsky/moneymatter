@@ -25,14 +25,14 @@ import {
 jest.mock('@services/categories.service', () => ({ getCategories: jest.fn() }));
 jest.mock('@services/accounts.service', () => ({ getAccounts: jest.fn() }));
 jest.mock('../../mcp/auth', () => ({ buildMcpAuthInfo: jest.fn() }));
-jest.mock('./entity-ownership', () => ({ findForeignEntities: jest.fn() }));
+jest.mock('../visuals/resolve-entity-labels', () => ({ resolveEntityLabels: jest.fn() }));
 
 import { buildMcpAuthInfo } from '../../mcp/auth';
 import { CHAT_CORE_TOOLS } from '../policies/core-tools';
 import { isSafeForApproveAll } from '../policies/safe-cards';
 import { PREVIEW_RESOLVERS } from '../proposals/previews';
+import { resolveEntityLabels } from '../visuals/resolve-entity-labels';
 import { buildChatToolkit } from './build-toolkit';
-import { findForeignEntities } from './entity-ownership';
 import { CHAT_CLIENT_ID } from './extras';
 import { getModelSchema } from './model-schema';
 import type { ChatToolkit } from './types';
@@ -150,8 +150,8 @@ describe('buildChatToolkit', () => {
         features: [],
       },
     })) as never);
-    jest.mocked(findForeignEntities).mockReset();
-    jest.mocked(findForeignEntities).mockResolvedValue([]);
+    jest.mocked(resolveEntityLabels).mockReset();
+    jest.mocked(resolveEntityLabels).mockImplementation((async ({ spec }: any) => ({ spec, foreign: [] })) as never);
     // The toolkit is tested against an empty registry; the real resolvers have their own suites.
     for (const key of Object.keys(PREVIEW_RESOLVERS)) delete (PREVIEW_RESOLVERS as Record<string, unknown>)[key];
     jest.spyOn(ChatProposals, 'create').mockImplementation((async (values: any) => ({
@@ -1012,31 +1012,42 @@ describe('buildChatToolkit', () => {
 
     it('refuses a table whose entity cell names an id the user does not own', async () => {
       const { toolkit, events } = setup();
-      jest.mocked(findForeignEntities).mockResolvedValue([{ kind: 'account', id: ACCOUNT }]);
+      jest.mocked(resolveEntityLabels).mockResolvedValue({
+        spec: table as never,
+        foreign: [{ kind: 'account', id: ACCOUNT }],
+      });
 
       const result = await call({ toolkit, name: 'render_table', input: { spec: table } });
 
-      expect(findForeignEntities).toHaveBeenCalledWith({
-        userId: CHAT_TEST_USER_ID,
-        refs: [{ kind: 'account', id: ACCOUNT }],
-      });
+      expect(resolveEntityLabels).toHaveBeenCalledWith({ userId: CHAT_TEST_USER_ID, spec: table });
       expect(result.isError).toBe(true);
       expect(result.text).toContain(ACCOUNT);
       expect(events).toEqual([]);
     });
 
-    it('does not look anything up for a table without entity cells', async () => {
-      const { toolkit } = setup();
+    it('emits the table with the labels the server resolved, and drops a label the model sent', async () => {
+      const { toolkit, events } = setup();
+      const resolved = {
+        ...table,
+        rows: [{ account: { kind: 'account', id: ACCOUNT, label: 'Monobank' }, balance: 10 }],
+      };
+      jest.mocked(resolveEntityLabels).mockResolvedValue({ spec: resolved as never, foreign: [] });
 
-      await call({
+      const result = await call({
         toolkit,
         name: 'render_table',
         input: {
-          spec: { type: 'table', title: 'T', columns: [{ key: 'a', label: 'A', kind: 'text' }], rows: [{ a: 'x' }] },
+          spec: { ...table, rows: [{ account: { kind: 'account', id: ACCOUNT, label: 'Injected' }, balance: 10 }] },
         },
       });
 
-      expect(findForeignEntities).not.toHaveBeenCalled();
+      expect(result.isError).toBe(false);
+      // The resolver is handed the validated spec, in which the model's label is already gone.
+      expect(resolveEntityLabels).toHaveBeenCalledWith({ userId: CHAT_TEST_USER_ID, spec: table });
+      expect(events).toContainEqual({
+        type: 'part.started',
+        part: { type: 'visual', id: expect.any(String), spec: resolved },
+      });
     });
 
     it('allows at most 8 visuals per message', async () => {

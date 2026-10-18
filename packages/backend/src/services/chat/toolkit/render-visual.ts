@@ -1,27 +1,17 @@
-import { CHAT_VISUAL_LIMITS, type ChatEntityRef, type ChatVisualSpec } from '@bt/shared/types';
+import { CHAT_VISUAL_LIMITS, type ChatVisualSpec } from '@bt/shared/types';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 
+import { resolveEntityLabels } from '../visuals/resolve-entity-labels';
 import {
   chatChartSpecSchema,
   chatKpisSpecSchema,
   chatTableSpecSchema,
   chatVisualSpecSchema,
 } from '../visuals/visual-spec';
-import { findForeignEntities } from './entity-ownership';
 import { defineNativeTool } from './native-tool';
 import { toolFailure, toolSuccess } from './result-text';
 import type { ChatToolContext } from './types';
-
-const entityRefsOf = ({ spec }: { spec: ChatVisualSpec }): ChatEntityRef[] => {
-  if (spec.type !== 'table') return [];
-
-  return spec.rows.flatMap((row) =>
-    Object.values(row).flatMap((cell) =>
-      cell !== null && typeof cell === 'object' ? [{ kind: cell.kind, id: cell.id }] : [],
-    ),
-  );
-};
 
 function createRenderTool({
   ctx,
@@ -54,20 +44,17 @@ function createRenderTool({
         });
       }
 
-      const refs = entityRefsOf({ spec });
-      if (refs.length > 0) {
-        const foreign = await findForeignEntities({ userId: ctx.run.user.id, refs });
-        if (foreign.length > 0) {
-          return toolFailure({
-            text: `These table links name rows that are not the user's or cannot be linked: ${foreign
-              .map(({ kind, id }) => `${kind} ${id}`)
-              .join(', ')}. Use ids returned by the read tools, or plain text cells.`,
-          });
-        }
+      const { spec: resolved, foreign } = await resolveEntityLabels({ userId: ctx.run.user.id, spec });
+      if (foreign.length > 0) {
+        return toolFailure({
+          text: `These table links name rows that are not the user's or cannot be linked: ${foreign
+            .map(({ kind, id }) => `${kind} ${id}`)
+            .join(', ')}. Use ids returned by the read tools, or plain text cells.`,
+        });
       }
 
       ctx.state.visuals++;
-      await ctx.run.emit({ type: 'part.started', part: { type: 'visual', id: randomUUID(), spec } });
+      await ctx.run.emit({ type: 'part.started', part: { type: 'visual', id: randomUUID(), spec: resolved } });
       return toolSuccess({ text: `The ${type} is shown to the user.` });
     },
   });

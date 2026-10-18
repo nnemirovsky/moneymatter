@@ -57,8 +57,18 @@ export interface ChatTableColumn {
   currencyCode?: string;
 }
 
+/**
+ * An entity reference in a table cell. `label` is the entity's display name, set by the server from the
+ * user's own data after the spec is validated; the model cannot supply it (the validator drops it), and
+ * it is absent when the entity is missing or not the user's. Show it as text only.
+ */
+export interface ChatEntityCell extends ChatEntityRef {
+  /** Server-resolved. */
+  label?: string;
+}
+
 /** A cell holds a number, a string, an entity reference or nothing; the column's kind says which. */
-export type ChatTableCell = string | number | ChatEntityRef | null;
+export type ChatTableCell = string | number | ChatEntityCell | null;
 
 export type ChatTableRow = Record<string, ChatTableCell>;
 
