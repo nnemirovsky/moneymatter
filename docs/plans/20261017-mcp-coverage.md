@@ -1004,29 +1004,30 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 - Create: `tools/{accept-subscription-candidate,list-subscription-match-suggestions,get-subscription-periods,preview-subscription-payment,pay-subscription-period,skip-subscription-period,unlink-subscription-period-transaction,revert-subscription-period}.ts`, `tools/subscription-period-tools.unit.ts`
 - Modify: `services/subscriptions/revert-period.ts` (the `assertCanDeleteTransaction` callback and the period row lock), the four metafiles, `tool-scopes-drift.unit.ts` (`CONDITIONAL_DELETE_TOOLS` gets `revert_subscription_period`)
 
-- [ ] read first: `controllers/subscriptions/{accept-candidate,suggest-matches,get-pay-preview,get-periods,mark-period-paid,skip-period,unlink-transaction,revert-period}.ts` and their services
-- [ ] `accept_subscription_candidate` (`finance:write`): `candidateId`, `subscriptionId?` (attach to an existing one) → `resolveCandidate`.
-- [ ] `list_subscription_match_suggestions` (read): `subscriptionId` → `suggestHistoricalMatches`.
-- [ ] `get_subscription_periods` (read): `subscriptionId`, `limit` (≤ 50), `offset` → `getPeriods`.
-- [ ] `preview_subscription_payment` (read): `subscriptionId`, `periodId?` → `getSubscriptionPayPreview`.
-- [ ] `pay_subscription_period` (`finance:write`):
+- [x] read first: `controllers/subscriptions/{accept-candidate,suggest-matches,get-pay-preview,get-periods,mark-period-paid,skip-period,unlink-transaction,revert-period}.ts` and their services
+- [x] `accept_subscription_candidate` (`finance:write`): `candidateId`, `subscriptionId?` (attach to an existing one) → `resolveCandidate`.
+- [x] `list_subscription_match_suggestions` (read): `subscriptionId` → `suggestHistoricalMatches`.
+- [x] `get_subscription_periods` (read): `subscriptionId`, `limit` (≤ 50), `offset` → `getPeriods`.
+- [x] `preview_subscription_payment` (read): `subscriptionId`, `periodId?` → `getSubscriptionPayPreview`.
+- [x] `pay_subscription_period` (`finance:write`):
   - `subscriptionId`, `periodId`;
   - `transactionId?` or `createTransaction` with `amount?`, `time?`, `accountId?` (mutually exclusive, as REST);
   - `notes?`;
   - calls `markPeriodPaid`.
-- [ ] `skip_subscription_period`, `unlink_subscription_period_transaction` (`finance:write`): `subscriptionId`, `periodId`.
-- [ ] `revert_subscription_period` (`finance:write`, plus `finance:delete` when the revert deletes a transaction): `subscriptionId`, `periodId`. `services/subscriptions/revert-period.ts` deletes the payment transaction when the period's `transactionAutoCreated` is true and the account is not bank-linked (the e2e `subscription-period-actions` asserts the deletion and the balance reversal), so a write-only token must not reach it.
+- [x] `skip_subscription_period`, `unlink_subscription_period_transaction` (`finance:write`): `subscriptionId`, `periodId`.
+- [x] `revert_subscription_period` (`finance:write`, plus `finance:delete` when the revert deletes a transaction): `subscriptionId`, `periodId`. `services/subscriptions/revert-period.ts` deletes the payment transaction when the period's `transactionAutoCreated` is true and the account is not bank-linked (the e2e `subscription-period-actions` asserts the deletion and the balance reversal), so a write-only token must not reach it.
   - The scope decision is made where the delete is decided, inside `revertPeriod`'s own transaction, not from a read made before it (a concurrent unlink or bank-link change between two reads would let a write-only token reach the delete). `revertPeriod` takes an optional `assertCanDeleteTransaction?: () => void`. It calls it in the branch that is about to call `deleteTransaction` (period `transactionAutoCreated`, transaction found, not on a bank-linked account), before that call. When it throws, the transaction rolls back and nothing is written. REST passes no callback and behaves as today.
   - The period read in `revertPeriod` takes a row lock (`lock: true`), so the decision and the delete see one consistent state.
   - The handler calls `requireScope` with `finance:write`, then `revertPeriod` with `assertCanDeleteTransaction` set to a closure that calls `requireScope` with `finance:delete` (the same scope error as everywhere else). A revert that keeps the transaction never calls it, so a write-only token still works for those.
-  - Optional: `getRevertEffect({ userId, subscriptionId, periodId })` → `{ deletesTransaction }`, exported from `revert-period.ts`, may serve the tool description's example and an early, friendlier refusal; it never decides. Drop it if it adds nothing.
+  - Optional: `getRevertEffect({ userId, subscriptionId, periodId })` → `{ deletesTransaction }`, exported from `revert-period.ts`, may serve the tool description's example and an early, friendlier refusal; it never decides. Drop it if it adds nothing. (Dropped: the description states the rule and the callback refuses with the scope error, so a second read adds nothing.)
   - Like `ignore_payee_name`, it goes in `CONDITIONAL_DELETE_TOOLS`. The description says a revert can delete the transaction the app created for the payment.
-- [ ] unit test `subscription-period-tools.unit.ts`: the pay either-or, args, scopes, and the revert scope rule, with the service mocked to call (or not call) the callback it receives: a write-only token passes when the service never calls `assertCanDeleteTransaction`; it is refused when the service calls it, even if any preliminary `getRevertEffect` said "keep"; a token with `finance:delete` passes in both cases. The existing `subscription-period-actions` e2e (in the gate) keeps REST behaviour unchanged: no callback, deletion still happens.
-- [ ] metafiles under `// Subscriptions`.
-- [ ] gate:
+- [x] unit test `subscription-period-tools.unit.ts`: the pay either-or, args, scopes, and the revert scope rule, with the service mocked to call (or not call) the callback it receives: a write-only token passes when the service never calls `assertCanDeleteTransaction`; it is refused when the service calls it, even if any preliminary `getRevertEffect` said "keep"; a token with `finance:delete` passes in both cases. The existing `subscription-period-actions` e2e (in the gate) keeps REST behaviour unchanged: no callback, deletion still happens.
+- [x] metafiles under `// Subscriptions`.
+- [x] gate:
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/subscriptions/(subscription-periods|subscription-period-actions|subscription-mark-paid|detect-candidates|subscriptions)\.e2e|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
+- [x] extras done: e2e `Subscription period request validation` in `subscription-period-actions.e2e.ts` (pay either-or, non-positive amount, periods page limits) added and seen green against the unmoved controllers before the REST bodies moved into `controllers/subscriptions/shared-schemas.ts`; service unit `revert-period.unit.ts` covers the callback (asked once, before the delete, only on the delete branch; a throw writes nothing) and the row lock.
 
 ### Task 11: Payee tools
 
