@@ -3,6 +3,7 @@ import type Transactions from '@models/transactions.model';
 import { hashTargetIds, latestUpdatedAt } from '../snapshot';
 import {
   assertConcreteTargets,
+  keepVisibleRows,
   loadUserTransactions,
   PreviewError,
   serializeRow,
@@ -43,12 +44,15 @@ const snapshotOf = ({ rows }: { rows: Transactions[] }) => ({
   targetCount: rows.length,
 });
 
-/** Removes the listed rows from the books (soft delete): the card lists exactly those rows. */
+/**
+ * Removes the listed rows from the books (soft delete): the card counts exactly those rows, and
+ * lists the ones on accounts the user can still see.
+ */
 export const resolveRemoveDuplicateTransactions: PreviewResolver = async ({ userId, args, lock }) => {
   const rows = await loadDuplicates({ userId, ids: [...new Set(args.transactionIds as string[])], lock });
 
   return {
-    preview: { affected: transactionsAffected({ rows, count: rows.length }) },
+    preview: { affected: transactionsAffected({ rows: await keepVisibleRows({ userId, rows }), count: rows.length }) },
     snapshot: snapshotOf({ rows }),
     affectedCount: rows.length,
   };
@@ -62,11 +66,12 @@ export const resolveMergeDuplicateTransactions: PreviewResolver = async ({ userI
   const survivor = rows.find((row) => row.id === survivorId);
   if (!survivor) throw targetNotFound({ what: 'surviving transaction' });
   const removed = rows.filter((row) => row.id !== survivorId);
+  const survivorVisible = (await keepVisibleRows({ userId, rows: [survivor] })).length > 0;
 
   return {
     preview: {
-      before: serializeRow({ row: survivor }),
-      affected: transactionsAffected({ rows: removed, count: removed.length }),
+      ...(survivorVisible ? { before: serializeRow({ row: survivor }) } : {}),
+      affected: transactionsAffected({ rows: await keepVisibleRows({ userId, rows: removed }), count: removed.length }),
     },
     snapshot: snapshotOf({ rows }),
     affectedCount: removed.length,

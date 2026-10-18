@@ -1,18 +1,15 @@
-import { findTransactions } from '@models/transactions-query';
-import type Transactions from '@models/transactions.model';
-import { getAccessibleAccountIdsForUser } from '@services/sharing/auth/get-accessible-account-ids.service';
 import { resolveBulkTargetIds } from '@services/transactions/matching-transactions';
-import { Op } from 'sequelize';
 
 import { validateBulkDeleteTransactionsArgs } from '../../../mcp/tools/bulk-delete-transactions';
 import { hashTargetIds, latestUpdatedAt } from '../snapshot';
 import {
   assertConcreteTargets,
-  forUpdate,
+  keepVisibleRows,
+  loadTransferTwins,
   loadUserTransactions,
   PreviewError,
-  TRANSACTION_SAMPLE_ATTRIBUTES,
   transactionsAffected,
+  withTwinsAfterTheirLeg,
 } from './preview-helpers';
 import type { PreviewResolver } from './types';
 
@@ -38,7 +35,7 @@ export const resolveBulkUpdateTransactions: PreviewResolver = async ({ userId, a
 
   return {
     preview: {
-      affected: transactionsAffected({ rows, count: rows.length }),
+      affected: transactionsAffected({ rows: await keepVisibleRows({ userId, rows }), count: rows.length }),
       counts: { transactionCount: rows.length },
     },
     snapshot: {
@@ -50,40 +47,6 @@ export const resolveBulkUpdateTransactions: PreviewResolver = async ({ userId, a
     ...(missing > 0 ? { warnings: [{ key: 'chat.warnings.targetsMissing', params: { count: missing } }] } : {}),
   };
 };
-
-/**
- * The other leg of each transfer among the rows, which the delete removes with its leg. The delete
- * finds the legs by `transferId` alone, because a transfer across a shared account has one leg per
- * user, so this lookup is not limited to the creator either.
- */
-async function loadTransferTwins({ rows, lock }: { rows: Transactions[]; lock?: boolean }): Promise<Transactions[]> {
-  const transferIds = [...new Set(rows.flatMap((row) => (row.transferId ? [row.transferId] : [])))];
-  if (transferIds.length === 0) return [];
-
-  return findTransactions({
-    ...forUpdate({ lock }),
-    planned: 'include',
-    access: 'unscoped-internal',
-    balanceAdjustments: 'include',
-    completeness: 'all',
-    attributes: TRANSACTION_SAMPLE_ATTRIBUTES,
-    where: { transferId: transferIds, id: { [Op.notIn]: rows.map((row) => row.id) } },
-  });
-}
-
-/** The twins on accounts the user can see; the others count, but their details are not shown. */
-async function visibleTwins({ userId, twins }: { userId: number; twins: Transactions[] }): Promise<Transactions[]> {
-  if (twins.length === 0) return [];
-
-  const accountIds = new Set(await getAccessibleAccountIdsForUser({ userId }));
-  return twins.filter((twin) => accountIds.has(twin.accountId));
-}
-
-/** Each target followed by its twin, so the sample shows a transfer's two legs together. */
-function withTwinsAfterTheirLeg({ rows, twins }: { rows: Transactions[]; twins: Transactions[] }): Transactions[] {
-  const twinsByTransfer = Map.groupBy(twins, (twin) => twin.transferId);
-  return rows.flatMap((row) => [row, ...(row.transferId ? (twinsByTransfer.get(row.transferId) ?? []) : [])]);
-}
 
 /**
  * Deletes by ids or by filters. Filters are validated exactly as the MCP handler validates them
@@ -105,7 +68,7 @@ export const resolveBulkDeleteTransactions: PreviewResolver = async ({ userId, a
   return {
     preview: {
       affected: transactionsAffected({
-        rows: withTwinsAfterTheirLeg({ rows, twins: await visibleTwins({ userId, twins }) }),
+        rows: await keepVisibleRows({ userId, rows: withTwinsAfterTheirLeg({ rows, twins }) }),
         count: total,
       }),
       counts: { transactionCount: rows.length, transferTwinCount: twins.length },

@@ -92,6 +92,21 @@ describe('bulk transaction previews', () => {
       expect(snapshot.targetIds).toBeUndefined();
     });
 
+    it('counts a row on an account the user can no longer see but shows none of its details', async () => {
+      jest.mocked(getAccessibleAccountIdsForUser).mockResolvedValue([ACCOUNT]);
+      find().mockResolvedValue([tx(1), tx(2, { accountId: OTHER_ACCOUNT })] as never);
+
+      const { preview, affectedCount, snapshot } = await run({
+        toolName: 'bulk_update_transactions',
+        args: { transactionIds: [uuid(1), uuid(2)], note: 'x' },
+      });
+
+      expect(affectedCount).toBe(2);
+      expect(preview.affected!.count).toBe(2);
+      expect(preview.affected!.rows.map((row) => (row.account as { id: string }).id)).toEqual([ACCOUNT]);
+      expect(snapshot.targetCount).toBe(2);
+    });
+
     it('keeps the rows untruncated when there are 10 or fewer', async () => {
       find().mockResolvedValue([tx(1), tx(2)] as never);
 
@@ -261,6 +276,23 @@ describe('bulk transaction previews', () => {
       expect(preview.affected!.rows.map((row) => (row.account as { id: string }).id)).toEqual([ACCOUNT]);
       expect(preview.counts).toEqual({ transactionCount: 1, transferTwinCount: 1 });
       expect(warnings).toEqual([{ key: 'chat.warnings.transferTwins', params: { count: 1 } }]);
+    });
+
+    it('counts a target on an account the user can no longer see but shows none of its details', async () => {
+      const hidden = tx(2, { accountId: OTHER_ACCOUNT });
+      jest.mocked(getAccessibleAccountIdsForUser).mockResolvedValue([ACCOUNT]);
+      jest.mocked(resolveBulkTargetIds).mockResolvedValue([uuid(1), hidden.id]);
+      find().mockResolvedValue([tx(1), hidden] as never);
+
+      const { preview, affectedCount, snapshot } = await run({
+        toolName: 'bulk_delete_transactions',
+        args: { transactionIds: [uuid(1), hidden.id] },
+      });
+
+      expect(affectedCount).toBe(2);
+      expect(preview.affected!.count).toBe(2);
+      expect(preview.affected!.rows.map((row) => (row.account as { id: string }).id)).toEqual([ACCOUNT]);
+      expect(snapshot.targetCount).toBe(2);
     });
 
     it('holds the targets and their twins FOR UPDATE when asked to lock', async () => {
