@@ -1,10 +1,12 @@
-import { CHAT_THREAD_TITLE_MAX_CHARS, SSE_EVENT_TYPES } from '@bt/shared/types';
+import { AI_PROVIDER, CHAT_THREAD_TITLE_MAX_CHARS, SSE_EVENT_TYPES } from '@bt/shared/types';
 import { describe, expect, it, jest } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
 import ChatMessages from '@models/chat-messages.model';
 import ChatThreads from '@models/chat-threads.model';
 import { app } from '@root/app';
 import { API_PREFIX } from '@root/config';
+import { redisClient } from '@root/redis-client';
+import { chatBridgeRunKey, chatBridgeTokenKey, mintChatBridgeToken } from '@services/chat/bridge/bridge-token';
 import { sseManager } from '@services/common/sse';
 import * as helpers from '@tests/helpers';
 import { useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
@@ -273,6 +275,33 @@ describe('Chat threads', () => {
       expect((await helpers.getChatThread({ threadId: thread.id })).statusCode).toBe(ERROR_CODES.NotFoundError);
       expect((await helpers.listChatThreads({ raw: true })).threads).toEqual([]);
       expect(await ChatMessages.count({ where: { threadId: thread.id } })).toBe(0);
+    });
+
+    it('revokes the bridge token of a run that is still going', async () => {
+      const thread = await helpers.createChatThread({ raw: true });
+      const runId = randomUUID();
+      await ChatMessages.create({
+        threadId: thread.id,
+        userId: (await ChatThreads.findByPk(thread.id))!.userId,
+        role: 'assistant',
+        status: 'streaming',
+        runId,
+        parts: [],
+        provider: 'custom',
+        modelId: 'custom/llama3.2',
+      });
+      const token = await mintChatBridgeToken({
+        userId: (await ChatThreads.findByPk(thread.id))!.userId,
+        threadId: thread.id,
+        runId,
+        provider: AI_PROVIDER.claudeCode,
+      });
+      expect(await redisClient.exists(chatBridgeTokenKey({ token }))).toBe(1);
+
+      expect((await helpers.deleteChatThread({ threadId: thread.id })).statusCode).toBe(200);
+
+      expect(await redisClient.exists(chatBridgeTokenKey({ token }))).toBe(0);
+      expect(await redisClient.exists(chatBridgeRunKey({ runId }))).toBe(0);
     });
 
     it('answers 404 the second time', async () => {

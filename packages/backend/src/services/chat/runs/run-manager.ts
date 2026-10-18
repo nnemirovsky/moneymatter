@@ -10,6 +10,7 @@ import ChatMessages from '@models/chat-messages.model';
 import { type AIClientResult } from '@services/ai/ai-client-factory';
 import { randomUUID } from 'node:crypto';
 
+import { endBridgeRun } from '../bridge/bridge-runs';
 import { createTextPolicy } from '../prompt/text-policy';
 import type { ChatRunner } from '../runners/types';
 import { notifyThreadUpdated } from '../threads/thread-events';
@@ -160,7 +161,7 @@ async function executeRun(input: ChatRunInput): Promise<void> {
     await finishRun({ input, recorder, emit, end });
   } finally {
     control.dispose();
-    await Promise.allSettled([lease.stop(), releaseRunSlots({ userId, threadId, runId })]);
+    await Promise.allSettled([lease.stop(), releaseRunSlots({ userId, threadId, runId }), endBridgeRun({ runId })]);
   }
 }
 

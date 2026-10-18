@@ -2,6 +2,7 @@ import ChatMessages from '@models/chat-messages.model';
 import { randomUUID } from 'node:crypto';
 import { Op } from 'sequelize';
 
+import { revokeChatBridgeTokenOfRun } from '../bridge/bridge-token';
 import { appendRunEvent, expireRunStream } from './event-log';
 import { hasRunLease, releaseRunSlots } from './run-lease';
 
@@ -35,6 +36,7 @@ export async function sweepInterruptedRuns(): Promise<{ interrupted: number }> {
     await appendRunEvent({ runId, event: { type: 'run.finished', status: 'interrupted' } });
     await expireRunStream({ runId });
     await releaseRunSlots({ userId: message.userId, threadId: message.threadId, runId });
+    await revokeChatBridgeTokenOfRun({ runId });
     interrupted++;
   }
 

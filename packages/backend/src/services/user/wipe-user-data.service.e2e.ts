@@ -1,4 +1,10 @@
-import { RESOURCE_TYPES, SHARE_PERMISSIONS, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES } from '@bt/shared/types';
+import {
+  AI_PROVIDER,
+  RESOURCE_TYPES,
+  SHARE_PERMISSIONS,
+  TRANSACTION_TRANSFER_NATURE,
+  TRANSACTION_TYPES,
+} from '@bt/shared/types';
 import { API_ERROR_CODES, API_RESPONSE_STATUS } from '@bt/shared/types/api';
 import { VENTURE_CASH_FLOW_MODE, VENTURE_EVENT_TYPE } from '@bt/shared/types/venture';
 import { describe, expect, it } from '@jest/globals';
@@ -20,7 +26,9 @@ import TransactionTemplateTags from '@models/transaction-template-tags.model';
 import Transactions from '@models/transactions.model';
 import UserMerchantCategoryCodes from '@models/user-merchant-category-codes.model';
 import Users from '@models/users.model';
+import { redisClient } from '@root/redis-client';
 import { BACKUP_TABLES, type BackupFileName } from '@services/backup/registry';
+import { chatBridgeTokenKey, mintChatBridgeToken } from '@services/chat/bridge/bridge-token';
 import * as helpers from '@tests/helpers';
 import { randomUUID } from 'crypto';
 
@@ -185,6 +193,27 @@ describe('User data wipe (POST /user/wipe-data)', () => {
       fn: () => helpers.listChatThreads({ raw: true }),
     });
     expect(stillThere.threads.map((item) => item.id)).toEqual([otherThread.id]);
+  }, 60_000);
+
+  it('revokes the bridge token of a chat run that is still going', async () => {
+    const userId = (await Users.findOne({ where: { username: 'test1' } }))!.id;
+    const thread = await helpers.createChatThread({ raw: true });
+    const runId = randomUUID();
+    await ChatMessages.create({
+      threadId: thread.id,
+      userId,
+      role: 'assistant',
+      status: 'streaming',
+      runId,
+      parts: [],
+      provider: 'custom',
+      modelId: 'custom/llama3.2',
+    });
+    const token = await mintChatBridgeToken({ userId, threadId: thread.id, runId, provider: AI_PROVIDER.codex });
+
+    expect((await helpers.wipeUserData()).statusCode).toBe(200);
+
+    expect(await redisClient.exists(chatBridgeTokenKey({ token }))).toBe(0);
   }, 60_000);
 
   it('wipes when UserMerchantCategoryCodes rows reference user categories', async () => {

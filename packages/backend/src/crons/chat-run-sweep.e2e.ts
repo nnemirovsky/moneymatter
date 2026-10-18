@@ -1,8 +1,10 @@
+import { AI_PROVIDER } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
 import ChatMessages from '@models/chat-messages.model';
 import ChatThreads from '@models/chat-threads.model';
 import { chatRunSweepCron } from '@root/crons/chat-run-sweep';
 import { redisClient } from '@root/redis-client';
+import { chatBridgeRunKey, chatBridgeTokenKey, mintChatBridgeToken } from '@services/chat/bridge/bridge-token';
 import { appendRunEvent, runStreamKey } from '@services/chat/runs/event-log';
 import { acquireRunSlots, runLeaseKey, threadRunsKey, userRunsKey } from '@services/chat/runs/run-lease';
 import * as helpers from '@tests/helpers';
@@ -63,6 +65,21 @@ describe('Chat run sweep cron', () => {
     expect(await redisClient.zcard(userRunsKey({ userId }))).toBe(0);
     expect(await redisClient.zcard(threadRunsKey({ threadId }))).toBe(0);
     expect(await acquireRunSlots({ userId, threadId, runId: randomUUID() })).toBe('ok');
+  });
+
+  it('revokes the bridge token of an interrupted run and keeps the token of a live one', async () => {
+    const dead = await seedStreamingRun({ leaseAlive: false });
+    const live = await seedStreamingRun({ leaseAlive: true });
+    const mint = ({ userId, threadId, runId }: { userId: number; threadId: string; runId: string }) =>
+      mintChatBridgeToken({ userId, threadId, runId, provider: AI_PROVIDER.claudeCode });
+    const deadToken = await mint(dead);
+    const liveToken = await mint(live);
+
+    await chatRunSweepCron.triggerManualSync();
+
+    expect(await redisClient.exists(chatBridgeTokenKey({ token: deadToken }))).toBe(0);
+    expect(await redisClient.exists(chatBridgeRunKey({ runId: dead.runId }))).toBe(0);
+    expect(await redisClient.exists(chatBridgeTokenKey({ token: liveToken }))).toBe(1);
   });
 
   it('leaves a message with a live lease alone', async () => {

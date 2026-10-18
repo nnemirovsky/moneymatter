@@ -25,6 +25,7 @@ import { subscriptionAutoRecordCron } from './crons/subscription-auto-record';
 import { subscriptionCandidateDetectionCron } from './crons/subscription-candidate-detection';
 import { subscriptionRemindersCron } from './crons/subscription-reminders-check';
 import { tagRemindersCron } from './crons/tag-reminders-check';
+import { closeBridgeListener } from './services/chat/bridge/bridge-listener';
 import { shutdownChatRuns } from './services/chat/runs/run-manager';
 import { chatTailHub } from './services/chat/runs/tail-hub';
 import { initializeHistoricalRates } from './services/exchange-rates/initialize-historical-rates.service';
@@ -91,6 +92,7 @@ export async function shutdownBackgroundJobs() {
   // Interrupts the chat runs of this process (their messages end as interrupted), then closes the
   // Redis connection their streams are tailed on.
   await shutdownChatRuns();
+  await closeBridgeListener();
   await chatTailHub.close();
   await accountSyncWorker.close();
   // Flush remaining PostHog events before exit
