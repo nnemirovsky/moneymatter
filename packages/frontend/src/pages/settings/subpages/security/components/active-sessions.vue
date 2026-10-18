@@ -10,12 +10,25 @@
       <Loader2Icon class="text-muted-foreground size-6 animate-spin" />
     </div>
 
+    <!-- Load failed: never shown as an empty list -->
+    <div
+      v-else-if="loadFailed"
+      data-testid="sessions-load-error"
+      class="border-destructive/30 bg-destructive/5 flex flex-col items-center gap-3 rounded-lg border px-4 py-8 text-center"
+    >
+      <p class="text-destructive-text text-sm">{{ $t('settings.security.activeSessions.loadError') }}</p>
+      <Button data-testid="sessions-retry" variant="outline" size="sm" @click="retryLoad">
+        {{ $t('common.actions.retry') }}
+      </Button>
+    </div>
+
     <template v-else>
       <!-- Session list -->
       <div class="space-y-3">
         <div
           v-for="session in sessions"
           :key="session.id"
+          data-testid="session-item"
           :class="['border-border rounded-lg border p-4', session.isCurrent && 'border-primary/50 bg-primary/5']"
         >
           <div class="flex items-start justify-between">
@@ -78,27 +91,20 @@
 <script setup lang="ts">
 import { Button } from '@/components/lib/ui/button';
 import { useNotificationCenter } from '@/components/notification-center';
+import { getAuthSessions } from '@/api/user';
 import { authClient, getSession } from '@/lib/auth-client';
+import type { AuthSessionInfo } from '@bt/shared/types';
 import { Loader2Icon, LogOutIcon, MonitorIcon, SmartphoneIcon, TabletIcon } from '@lucide/vue';
 import { type Component, computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-interface Session {
-  id: string;
-  userId: string;
-  token: string;
-  ipAddress?: string;
-  userAgent?: string;
-  createdAt: Date;
-  updatedAt: Date;
-  expiresAt: Date;
-  isCurrent?: boolean;
-}
+type Session = AuthSessionInfo & { isCurrent?: boolean };
 
 const { addErrorNotification, addSuccessNotification } = useNotificationCenter();
 const { t } = useI18n();
 
 const isLoading = ref(true);
+const loadFailed = ref(false);
 const isRevokingSession = ref<string | null>(null);
 const sessions = ref<Session[]>([]);
 const currentSessionToken = ref<string | null>(null);
@@ -166,19 +172,22 @@ const loadSessions = async () => {
       currentSessionToken.value = currentSession.data.session.token;
     }
 
-    const result = await authClient.listSessions();
-    if (result.data) {
-      sessions.value = (result.data as Session[]).map((s: Session) => ({
-        ...s,
-        isCurrent: s.token === currentSessionToken.value,
-      }));
-      // Sort so current session is first
-      sessions.value.sort((a, b) => (a.isCurrent ? -1 : b.isCurrent ? 1 : 0));
-    }
+    const result = await getAuthSessions();
+    sessions.value = result
+      .map((s) => ({ ...s, isCurrent: s.token === currentSessionToken.value }))
+      // Current session first
+      .sort((a, b) => (a.isCurrent ? -1 : b.isCurrent ? 1 : 0));
+    loadFailed.value = false;
   } catch (e) {
     console.error('Failed to load sessions:', e);
-    addErrorNotification(t('settings.security.activeSessions.notifications.loadFailed'));
+    loadFailed.value = true;
   }
+};
+
+const retryLoad = async () => {
+  isLoading.value = true;
+  await loadSessions();
+  isLoading.value = false;
 };
 
 const handleRevokeSession = async (token: string) => {
