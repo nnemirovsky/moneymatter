@@ -1219,19 +1219,20 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
   - `tools/{create-holding,delete-holding,get-security-prices,link-transactions-to-venture-event,replace-venture-event-links,delete-venture-event-link}.ts`, `tools/holding-venture-link-tools.unit.ts`;
   - `services/investments/holdings/create-holding-from-input.service.ts`.
 - Modify: `controllers/investments/holdings/index.ts` (calls the new service), `tools/search-securities.ts`, the four metafiles
+- Also (added): the REST schemas the controllers and tools share (`controllers/investments/holdings/schemas.ts`, `controllers/investments/prices/schemas.ts`, `controllers/venture/events/schemas.ts`), `tools/holding-output.ts` (presenters), and an e2e case in `services/investments/holdings/holdings.e2e.ts` (a body with both `securityId` and `searchResult` is refused), run green on the unmoved controller before the move
 
-- [ ] read first: `controllers/investments/holdings/index.ts`, `services/investments/securities/add-from-search.service.ts`, `controllers/investments/prices/get-prices.controller.ts`, `controllers/venture/events/{append-links,replace-links,delete-link}.controller.ts`, `services/venture/linking/*`
-- [ ] `create-holding-from-input.service.ts`: the controller's orchestration (`securityId`, or `searchResult` → the asset-class check, then `addSecurityFromSearch`, then `createHolding`). The controller calls it.
-- [ ] `search_securities` round trip: today the tool drops `providerName`, `providerSymbol` and `priceSourceSymbol`, while the holding body requires `providerName` and `providerSymbol` (and uses `priceSourceSymbol` to pick the price provider), and the result carries no `securityId`, so a search result could not be passed to `create_holding`. Each result keeps its slim fields and gains the routing keys `create_holding` needs (`providerName`, `providerSymbol`, `priceSourceSymbol` when present, plus `exchangeAcronym`, `exchangeMic`, `cryptoCurrencyCode`, `cusip`, `isin` and the rest of the REST `SecuritySearchResultSchema` when set). Its description says to pass a result as `create_holding`'s `searchResult`, and to read the `securityId` from the `create_holding` result (or `get_portfolio_holdings`) before `create_investment_transaction`. Unit case: a mocked search result, passed through the tool's output, validates against `SecuritySearchResultSchema` (export it from the holdings controller, or move it next to the new service).
-- [ ] `create_holding` (`finance:write`): `portfolioId` plus exactly one of `securityId` and `searchResult` (a result from `search_securities`, validated with the same `SecuritySearchResultSchema`).
-- [ ] `delete_holding` (`finance:delete`): `portfolioId`, `securityId`, `force?`.
-- [ ] `get_security_prices` (read): `securityId` (required in MCP; the price table is global and large), `from?`, `to?` → `getPrices`.
-- [ ] `link_transactions_to_venture_event` (`finance:write`): `eventId`, `transactionIds` (≥ 1) → `linkTxsToEvent`. The description gives the rules: same currency, not linked elsewhere, the sum equals the event's `lpNetAmount`.
-- [ ] `replace_venture_event_links` (`finance:write`): `eventId`, `transactionIds` (may be empty) → `replaceEventLinks`.
-- [ ] `delete_venture_event_link` (`finance:delete`): `eventId`, `linkId` → `unlinkTxFromEvent`. It restores the transaction.
-- [ ] unit test `holding-venture-link-tools.unit.ts`, including the search-to-create round trip above.
-- [ ] metafiles under `// Investments` and `// Venture investments`.
-- [ ] gate:
+- [x] read first: `controllers/investments/holdings/index.ts`, `services/investments/securities/add-from-search.service.ts`, `controllers/investments/prices/get-prices.controller.ts`, `controllers/venture/events/{append-links,replace-links,delete-link}.controller.ts`, `services/venture/linking/*`
+- [x] `create-holding-from-input.service.ts`: the controller's orchestration (`securityId`, or `searchResult` → the asset-class check, then `addSecurityFromSearch`, then `createHolding`). The controller calls it.
+- [x] `search_securities` round trip: today the tool drops `providerName`, `providerSymbol` and `priceSourceSymbol`, while the holding body requires `providerName` and `providerSymbol` (and uses `priceSourceSymbol` to pick the price provider), and the result carries no `securityId`, so a search result could not be passed to `create_holding`. Each result keeps its slim fields and gains the routing keys `create_holding` needs (`providerName`, `providerSymbol`, `priceSourceSymbol` when present, plus `exchangeAcronym`, `exchangeMic`, `cryptoCurrencyCode`, `cusip`, `isin` and the rest of the REST `SecuritySearchResultSchema` when set). Its description says to pass a result as `create_holding`'s `searchResult`, and to read the `securityId` from the `create_holding` result (or `get_portfolio_holdings`) before `create_investment_transaction`. Unit case: a mocked search result, passed through the tool's output, validates against `SecuritySearchResultSchema` (export it from the holdings controller, or move it next to the new service).
+- [x] `create_holding` (`finance:write`): `portfolioId` plus exactly one of `securityId` and `searchResult` (a result from `search_securities`, validated with the same `SecuritySearchResultSchema`).
+- [x] `delete_holding` (`finance:delete`): `portfolioId`, `securityId`, `force?`.
+- [x] `get_security_prices` (read): `securityId` (required in MCP; the price table is global and large), `from?`, `to?` → `getPrices`.
+- [x] `link_transactions_to_venture_event` (`finance:write`): `eventId`, `transactionIds` (≥ 1) → `linkTxsToEvent`. The description gives the rules: same currency, not linked elsewhere, the sum equals the event's `lpNetAmount`.
+- [x] `replace_venture_event_links` (`finance:write`): `eventId`, `transactionIds` (may be empty) → `replaceEventLinks`.
+- [x] `delete_venture_event_link` (`finance:delete`): `eventId`, `linkId` → `unlinkTxFromEvent`. It restores the transaction.
+- [x] unit test `holding-venture-link-tools.unit.ts`, including the search-to-create round trip above.
+- [x] metafiles under `// Investments` and `// Venture investments`.
+- [x] gate:
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/investments/(holdings/holdings|securities-price/get-prices)|services/venture/(events/lifecycle|linking/unlink-tx-from-event)|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
