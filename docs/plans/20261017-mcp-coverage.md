@@ -1328,18 +1328,19 @@ Planned new tools: 147 on the path to `dev` (B 4, C 6, A 137), plus about 10 in 
 
 - Create: `tools/{create-budget-plan,update-budget-plan,delete-budget-plan,restore-budget-plan,set-budget-plan-accounts,create-budget-plan-group,update-budget-plan-group,delete-budget-plan-group}.ts`, `tools/budget-plan-setup-tools.unit.ts`
 - Modify: the four metafiles
+- Also (added): `services/budget-plans/zod-schemas.ts` (the REST create, patch, restore, accounts and group bodies, shared by the controllers and the tools), the five matching controllers, and `tool-scopes-drift.unit.ts` (a budget plan write tool must check the `budget_plan` feature, except `delete_budget_plan`)
 
-- [ ] read first: `controllers/budget-plans/*` (the plan and group handlers and their schemas), `services/budget-plans/{create-plan,update-plan,delete-plan,restore-plan,set-plan-accounts,line-groups}.ts`
-- [ ] every write here except `delete_budget_plan` calls `requireFeatureAccess` `budget_plan`. Delete stays ungated, as in REST, because an active plan blocks base-currency changes.
-- [ ] `create_budget_plan` (`finance:write`): the REST body (`name`, `type`, `cadence`, `anchorDate`, `accountIds`, and the optional fields).
-- [ ] `update_budget_plan` (`finance:write`): `planId` + `name`, `autoAttachAccounts`, `carryPolicy`, `poolEnabled`, `zeroSum`, `expectedIncome`.
-- [ ] `delete_budget_plan` (`finance:delete`): `planId`, `permanent?` → `deletePlan` or `purgePlan`.
-- [ ] `restore_budget_plan` (`finance:write`): `planId`, `replace?`.
-- [ ] `set_budget_plan_accounts` (`finance:write`): `planId`, `accountIds`.
-- [ ] `create_budget_plan_group`, `update_budget_plan_group` (`finance:write`): `planId`, `groupId?`, `name`. `delete_budget_plan_group` (`finance:delete`).
-- [ ] unit test `budget-plan-setup-tools.unit.ts`: the feature gate on each write, delete ungated.
-- [ ] metafiles under `// Budget plans`.
-- [ ] gate:
+- [x] read first: `controllers/budget-plans/*` (the plan and group handlers and their schemas), `services/budget-plans/{create-plan,update-plan,delete-plan,restore-plan,set-plan-accounts,line-groups}.ts`
+- [x] every write here except `delete_budget_plan` calls `requireFeatureAccess` `budget_plan`. Delete stays ungated, as in REST, because an active plan blocks base-currency changes.
+- [x] `create_budget_plan` (`finance:write`): the REST body (`name`, `type`, `cadence`, `anchorDate`, `accountIds`, and the optional fields).
+- [x] `update_budget_plan` (`finance:write`): `planId` + `name`, `autoAttachAccounts`, `carryPolicy`, `poolEnabled`, `zeroSum`, `expectedIncome`.
+- [x] `delete_budget_plan` (`finance:delete`): `planId`, `permanent?` → `deletePlan` or `purgePlan`.
+- [x] `restore_budget_plan` (`finance:write`): `planId`, `replace?`.
+- [x] `set_budget_plan_accounts` (`finance:write`): `planId`, `accountIds`.
+- [x] `create_budget_plan_group`, `update_budget_plan_group` (`finance:write`): `planId`, `groupId?`, `name`. `delete_budget_plan_group` (`finance:delete`).
+- [x] unit test `budget-plan-setup-tools.unit.ts`: the feature gate on each write, delete ungated.
+- [x] metafiles under `// Budget plans`.
+- [x] gate:
   - unit: `services/mcp/`;
   - e2e: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='services/budget-plans/(create-plan|delete-plan|restore-plan|set-plan-accounts|line-groups|guards)|services/mcp/(connected-apps|mcp-scope-gate)'`;
   - typecheck, lint, oxfmt.
