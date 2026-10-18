@@ -8,6 +8,7 @@ import {
 import { registerAcceptSubscriptionCandidate } from './tools/accept-subscription-candidate';
 import { registerAddAccountToGroup } from './tools/add-account-to-group';
 import { registerAddLoanNote } from './tools/add-loan-note';
+import { registerAddSuggestedBudgetPlanLines } from './tools/add-suggested-budget-plan-lines';
 import { registerAddTransactionsToBudget } from './tools/add-transactions-to-budget';
 import { registerAddTransactionsToGroup } from './tools/add-transactions-to-group';
 import { registerAddUserCurrencies } from './tools/add-user-currencies';
@@ -16,6 +17,7 @@ import { registerApplyPayeeTagsToTransactions } from './tools/apply-payee-tags-t
 import { registerApplyTransactionAutomation } from './tools/apply-transaction-automation';
 import { registerArchiveAccount } from './tools/archive-account';
 import { registerArchiveBudget } from './tools/archive-budget';
+import { registerArchiveBudgetPlanLine } from './tools/archive-budget-plan-line';
 import { registerAssignTagsToTransaction } from './tools/assign-tags-to-transaction';
 import { registerBulkDeletePayees } from './tools/bulk-delete-payees';
 import { registerBulkDeleteTransactions } from './tools/bulk-delete-transactions';
@@ -28,6 +30,7 @@ import { registerCreateAttachmentUploadUrl } from './tools/create-attachment-upl
 import { registerCreateBudget } from './tools/create-budget';
 import { registerCreateBudgetPlan } from './tools/create-budget-plan';
 import { registerCreateBudgetPlanGroup } from './tools/create-budget-plan-group';
+import { registerCreateBudgetPlanLine } from './tools/create-budget-plan-line';
 import { registerCreateCategory } from './tools/create-category';
 import { registerCreateCustomCurrency } from './tools/create-custom-currency';
 import { registerCreateHolding } from './tools/create-holding';
@@ -51,6 +54,7 @@ import { registerDeleteAttachment } from './tools/delete-attachment';
 import { registerDeleteBudget } from './tools/delete-budget';
 import { registerDeleteBudgetPlan } from './tools/delete-budget-plan';
 import { registerDeleteBudgetPlanGroup } from './tools/delete-budget-plan-group';
+import { registerDeleteBudgetPlanLine } from './tools/delete-budget-plan-line';
 import { registerDeleteCategory } from './tools/delete-category';
 import { registerDeleteCustomCurrency } from './tools/delete-custom-currency';
 import { registerDeleteExchangeRates } from './tools/delete-exchange-rates';
@@ -181,6 +185,7 @@ import { registerSearchCoingeckoCoins } from './tools/search-coingecko-coins';
 import { registerSearchSecurities } from './tools/search-securities';
 import { registerSearchTransactions } from './tools/search-transactions';
 import { registerSetBudgetPlanAccounts } from './tools/set-budget-plan-accounts';
+import { registerSetBudgetPlanLayout } from './tools/set-budget-plan-layout';
 import { registerSetCurrencyRateSource } from './tools/set-currency-rate-source';
 import { registerSetExchangeRates } from './tools/set-exchange-rates';
 import { registerSetPayeesCategorizationMode } from './tools/set-payees-categorization-mode';
@@ -205,6 +210,7 @@ import { registerUpdateAccountGroup } from './tools/update-account-group';
 import { registerUpdateBudget } from './tools/update-budget';
 import { registerUpdateBudgetPlan } from './tools/update-budget-plan';
 import { registerUpdateBudgetPlanGroup } from './tools/update-budget-plan-group';
+import { registerUpdateBudgetPlanLine } from './tools/update-budget-plan-line';
 import { registerUpdateCategory } from './tools/update-category';
 import { registerUpdateCustomCurrency } from './tools/update-custom-currency';
 import { registerUpdateInvestmentTransaction } from './tools/update-investment-transaction';
@@ -543,6 +549,12 @@ export function createMcpServer(): McpServer {
   registerCreateBudgetPlanGroup(server);
   registerUpdateBudgetPlanGroup(server);
   registerDeleteBudgetPlanGroup(server);
+  registerCreateBudgetPlanLine(server);
+  registerUpdateBudgetPlanLine(server);
+  registerDeleteBudgetPlanLine(server);
+  registerArchiveBudgetPlanLine(server);
+  registerAddSuggestedBudgetPlanLines(server);
+  registerSetBudgetPlanLayout(server);
 
   return server;
 }
