@@ -8,6 +8,7 @@ import { API_PREFIX } from '@root/config';
 import { redisClient } from '@root/redis-client';
 import { chatBridgeRunKey, chatBridgeTokenKey, mintChatBridgeToken } from '@services/chat/bridge/bridge-token';
 import { sseManager } from '@services/common/sse';
+import { PNG_1X1_BASE64 } from '@tests/fixtures/statement-parser-fixtures';
 import * as helpers from '@tests/helpers';
 import { useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
 import type { ErrorResponse } from '@tests/helpers/common';
@@ -345,6 +346,11 @@ describe('Chat threads', () => {
       const account = await helpers.createAccount({ raw: true });
       expect(account.id).toBeTruthy();
       const thread = await helpers.createChatThread({ title: 'Owner only', raw: true });
+      const upload = await helpers.uploadChatAttachment({
+        threadId: thread.id,
+        file: Buffer.from(PNG_1X1_BASE64, 'base64'),
+      });
+      const attachmentId = upload.attachment!.id;
 
       const owner = await helpers.findAppUserByEmail({ email: 'test1@test.local' });
       const member = await helpers.provisionSecondUserWithBaseCurrency();
@@ -364,12 +370,21 @@ describe('Chat threads', () => {
           get: await helpers.getChatThread({ threadId: thread.id }),
           patch: await helpers.updateChatThread({ threadId: thread.id, payload: { title: 'Mine now' } }),
           remove: await helpers.deleteChatThread({ threadId: thread.id }),
+          image: await helpers.getChatAttachmentImage({ attachmentId }),
+          upload: await helpers.uploadChatAttachment({
+            threadId: thread.id,
+            file: Buffer.from(PNG_1X1_BASE64, 'base64'),
+          }),
+          send: await helpers.sendChatMessage({ threadId: thread.id, payload: { text: 'Intrude' } }),
         }),
       });
       expect(memberView.list.threads).toEqual([]);
       expect(memberView.get.statusCode).toBe(ERROR_CODES.NotFoundError);
       expect(memberView.patch.statusCode).toBe(ERROR_CODES.NotFoundError);
       expect(memberView.remove.statusCode).toBe(ERROR_CODES.NotFoundError);
+      expect(memberView.image.statusCode).toBe(ERROR_CODES.NotFoundError);
+      expect(memberView.upload.statusCode).toBe(ERROR_CODES.NotFoundError);
+      expect(memberView.send.statusCode).toBe(ERROR_CODES.NotFoundError);
 
       const memberThread = await helpers.asUser({
         cookies: member.cookies,
