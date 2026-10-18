@@ -164,6 +164,9 @@ describe('approveProposal', () => {
       },
     });
     jest.spyOn(toolCatalog, 'getToolCatalog').mockReturnValue(catalog);
+    jest
+      .spyOn(toolCatalog, 'findToolCatalogEntry')
+      .mockImplementation(({ name }) => catalog.find((entry) => entry.name === name));
     for (const entry of catalog) {
       const invoke = entry.invoke as unknown as jest.Mock<(...args: unknown[]) => Promise<unknown>>;
       const original = invoke.getMockImplementation()!;

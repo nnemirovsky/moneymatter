@@ -8,6 +8,7 @@ import { withTransaction } from '@services/common/with-transaction';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 
+import { findToolCatalogEntry } from '../../mcp/tool-catalog';
 import { getToolPolicy, resolveToolPolicy } from '../policies';
 import { notifyThreadUpdated } from '../threads/thread-events';
 import { buildChatApplyExtra } from '../toolkit/extras';
@@ -18,7 +19,6 @@ import {
   assertConfirmed,
   assertFresh,
   failedValues,
-  findEntry,
   readHandlerResult,
   StaleRefusal,
   staleValues,
@@ -123,7 +123,7 @@ const applyChain = withTransaction(
     const prepared = order.map((row) => ({
       row,
       policy: resolveToolPolicy({ name: row.toolName, args: row.args }),
-      entry: findEntry({ name: row.toolName }),
+      entry: findToolCatalogEntry({ name: row.toolName }),
     }));
     const realIds = new Map<string, string>();
     for (const id of plan.appliedParents) {

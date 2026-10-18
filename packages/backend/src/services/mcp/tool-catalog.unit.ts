@@ -10,7 +10,13 @@ jest.mock('@services/accounts.service', () => ({ getAccounts: jest.fn() }));
 import { getAccounts } from '@services/accounts.service';
 import { getCategories } from '@services/categories.service';
 
-import { getToolCatalog, type ToolCallResult, type ToolCatalogEntry, type ToolInvokeExtra } from './tool-catalog';
+import {
+  findToolCatalogEntry,
+  getToolCatalog,
+  type ToolCallResult,
+  type ToolCatalogEntry,
+  type ToolInvokeExtra,
+} from './tool-catalog';
 import { READ_TOOL_NAME } from './tool-classification';
 
 const TOOLS_DIR = path.join(__dirname, 'tools');
@@ -51,6 +57,13 @@ const readOnlyExtra = (): ToolInvokeExtra => ({
       features: [],
     },
   },
+});
+
+describe('findToolCatalogEntry', () => {
+  it('finds the entry of a tool by name, and nothing for an unknown name', () => {
+    expect(findToolCatalogEntry({ name: 'create_category' })).toBe(findTool({ name: 'create_category' }));
+    expect(findToolCatalogEntry({ name: 'no_such_tool' })).toBeUndefined();
+  });
 });
 
 describe('getToolCatalog', () => {

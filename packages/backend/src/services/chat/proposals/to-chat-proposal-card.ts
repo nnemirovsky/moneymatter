@@ -7,7 +7,7 @@ import {
 } from '@bt/shared/types';
 import type ChatProposals from '@models/chat-proposals.model';
 
-import { getToolCatalog, type ToolCatalogEntry } from '../../mcp/tool-catalog';
+import { findToolCatalogEntry } from '../../mcp/tool-catalog';
 import { resolveToolPolicy } from '../policies';
 import { isSafeForApproveAll } from '../policies/safe-cards';
 import { getModelSchema } from '../toolkit/model-schema';
@@ -40,13 +40,6 @@ type ChatProposalRow = Pick<
   | 'appliedAt'
 > &
   Partial<Pick<ChatProposals, 'snapshot'>>;
-
-let entriesByName: Map<string, ToolCatalogEntry> | null = null;
-
-const findEntry = ({ name }: { name: string }): ToolCatalogEntry | undefined => {
-  entriesByName ??= new Map(getToolCatalog().map((entry) => [entry.name, entry]));
-  return entriesByName.get(name);
-};
 
 /** Arguments and stored rows are JSON, so equal values serialize alike. */
 const isSameValue = ({ a, b }: { a: unknown; b: unknown }) => JSON.stringify(a) === JSON.stringify(b);
@@ -88,7 +81,7 @@ export function toChatProposalCard({
   parents: ChatProposalRow[];
 }): ChatProposalCard {
   const policy = resolveToolPolicy({ name: row.toolName, args: row.args });
-  const entry = findEntry({ name: row.toolName });
+  const entry = findToolCatalogEntry({ name: row.toolName });
   const properties = (entry ? getModelSchema({ entry }).properties : undefined) as Record<string, unknown> | undefined;
   const uncertain = new Map((row.uncertainFields ?? []).map((field) => [field.field, field]));
 

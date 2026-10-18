@@ -90,3 +90,14 @@ export function getToolCatalog(): readonly ToolCatalogEntry[] {
   catalog = Object.freeze(entries);
   return catalog;
 }
+
+let entriesByName: { source: readonly ToolCatalogEntry[]; byName: Map<string, ToolCatalogEntry> } | null = null;
+
+/** The catalog entry of a tool by name; `undefined` for a name the catalog does not know. */
+export function findToolCatalogEntry({ name }: { name: string }): ToolCatalogEntry | undefined {
+  const source = getToolCatalog();
+  if (entriesByName?.source !== source) {
+    entriesByName = { source, byName: new Map(source.map((entry) => [entry.name, entry])) };
+  }
+  return entriesByName.byName.get(name);
+}

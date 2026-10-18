@@ -4,9 +4,9 @@ import { NotFoundError, ValidationError } from '@js/errors';
 import ChatProposals from '@models/chat-proposals.model';
 import { withTransaction } from '@services/common/with-transaction';
 
+import { findToolCatalogEntry } from '../../mcp/tool-catalog';
 import { resolveToolPolicy } from '../policies';
 import { notifyThreadUpdated } from '../threads/thread-events';
-import { findEntry } from './approval-support';
 import { cardConflict } from './card-conflict';
 import { expireDueCards, isExpiryDue } from './card-expiry';
 import { loadCards } from './card-load';
@@ -46,7 +46,7 @@ const editTransaction = withTransaction(
     }
     if (row.revision !== revision) return { kind: 'conflict', reason: 'revision' };
 
-    const entry = findEntry({ name: row.toolName });
+    const entry = findToolCatalogEntry({ name: row.toolName });
     const policy = resolveToolPolicy({ name: row.toolName, args });
     if (!entry || !policy) return { kind: 'conflict', reason: 'unavailable' };
 

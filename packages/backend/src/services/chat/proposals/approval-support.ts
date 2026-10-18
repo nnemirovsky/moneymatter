@@ -5,7 +5,6 @@ import ChatProposals from '@models/chat-proposals.model';
 import { withTransaction } from '@services/common/with-transaction';
 
 import type { ToolCallResult, ToolCatalogEntry } from '../../mcp/tool-catalog';
-import { getToolCatalog } from '../../mcp/tool-catalog';
 import { resolveToolPolicy } from '../policies';
 import type { ResolvedToolPolicy } from '../policies/rules';
 import { errorMessage } from '../toolkit/result-text';
@@ -36,9 +35,6 @@ export class ApplyFailure extends Error {
     super(message);
   }
 }
-
-export const findEntry = ({ name }: { name: string }): ToolCatalogEntry | undefined =>
-  getToolCatalog().find((entry) => entry.name === name);
 
 /** What the planner and the confirmation check need from a stored card. */
 export function toChainRow({ row }: { row: ChatProposals }): ChainRow {

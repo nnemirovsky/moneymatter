@@ -6,6 +6,7 @@ import { runWithBalanceRevalueBatch } from '@services/balances/revalue-balance-h
 import { withTransaction } from '@services/common/with-transaction';
 import { z } from 'zod';
 
+import { findToolCatalogEntry } from '../../mcp/tool-catalog';
 import { resolveToolPolicy } from '../policies';
 import { notifyThreadUpdated } from '../threads/thread-events';
 import { buildChatApplyExtra } from '../toolkit/extras';
@@ -15,7 +16,6 @@ import {
   assertConfirmed,
   assertFresh,
   failedValues,
-  findEntry,
   readHandlerResult,
   StaleRefusal,
   staleValues,
@@ -55,7 +55,7 @@ const claim = withTransaction(async ({ params }: { params: ApproveParams }): Pro
     return { kind: 'conflict', reason: row.status === 'expired' ? 'expired' : 'notPending' };
 
   const policy = resolveToolPolicy({ name: row.toolName, args: row.args });
-  const entry = findEntry({ name: row.toolName });
+  const entry = findToolCatalogEntry({ name: row.toolName });
   if (!policy || !entry || row.dependsOn.length > 0 || (policy.previewResolver !== null && row.preview === null)) {
     return { kind: 'conflict', reason: 'unavailable' };
   }
@@ -126,7 +126,7 @@ export async function approveStandalone(params: ApproveParams): Promise<ChatCard
   }
 
   const policy = resolveToolPolicy({ name: outcome.toolName, args: outcome.args })!;
-  const entry = findEntry({ name: outcome.toolName })!;
+  const entry = findToolCatalogEntry({ name: outcome.toolName })!;
 
   try {
     const result = await runWithBalanceRevalueBatch(() => entry.invoke({ args: outcome.args, extra }));
