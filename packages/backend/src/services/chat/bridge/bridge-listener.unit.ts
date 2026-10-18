@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest 
 import { Unauthorized } from '@js/errors';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { Server } from 'node:net';
 
 // The unit suite maps the MCP server modules to stubs that never answer; the bridge needs the real
 // McpServer-free transport, so both mappings are swapped for the SDK's own CommonJS build.
@@ -128,12 +129,27 @@ describe('bridge listener', () => {
   });
 
   it('listens on the loopback interface only, on one port for every run', async () => {
-    const first = await ensureBridgeListener();
-    const second = await ensureBridgeListener();
+    await closeBridgeListener();
+    const bound: unknown[] = [];
+    const originalAddress = Server.prototype.address;
+    const addressSpy = jest.spyOn(Server.prototype, 'address').mockImplementation(function (this: Server) {
+      const address = originalAddress.call(this);
+      bound.push(address);
+      return address;
+    });
 
-    expect(first.url).toBe(`http://127.0.0.1:${first.port}/mcp`);
-    expect(first.port).toBeGreaterThan(0);
-    expect(second).toEqual(first);
+    try {
+      const first = await ensureBridgeListener();
+      const second = await ensureBridgeListener();
+
+      // The interface the socket is really bound to, not the url the listener builds.
+      expect(bound).toEqual([{ address: '127.0.0.1', family: 'IPv4', port: first.port }]);
+      expect(first.url).toBe(`http://127.0.0.1:${first.port}/mcp`);
+      expect(first.port).toBeGreaterThan(0);
+      expect(second).toEqual(first);
+    } finally {
+      addressSpy.mockRestore();
+    }
   });
 
   it('does not start on a cloud instance', async () => {
