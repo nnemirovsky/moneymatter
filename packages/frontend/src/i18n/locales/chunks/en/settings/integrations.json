@@ -224,7 +224,8 @@
             "confirm": "Delete note"
           }
         },
-        "back": "Back to accounts"
+        "back": "Back to accounts",
+        "limitation": "Only contactless taps in a shop start the shortcut. Apple Pay payments inside apps and on websites do not trigger the Wallet automation, so log them by hand or connect your bank to bring them in with the bank sync."
       }
     }
   }

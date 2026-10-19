@@ -21,6 +21,10 @@ It works through an iOS **Shortcut** that Apple's Wallet app starts after each p
 - A MoneyMatter account with at least one account for each card you want to track.
 - About fifteen minutes the first time.
 
+<Aside type="caution" title="Only taps in a shop start the shortcut">
+The Wallet **Transaction** automation runs when you tap a card at a terminal. Apple Pay payments made inside an app or on a website, such as a delivery app's checkout, show up in Wallet but do not start the automation, so MoneyMatter never hears about them. Log those payments by hand, or connect your bank so the bank sync brings them in.
+</Aside>
+
 <Aside type="note" title="What iOS tells the shortcut">
 After a Wallet payment, iOS gives the shortcut only the **Amount**, the **Merchant**, the **Card or Pass** (its name) and a **Name**. It does not give the card's last four digits, a currency field or the time of the payment. That is why MoneyMatter links cards by name, reads the currency from the amount text, and uses the time the shortcut ran.
 </Aside>

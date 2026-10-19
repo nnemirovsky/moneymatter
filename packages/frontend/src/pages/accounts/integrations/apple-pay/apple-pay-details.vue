@@ -30,6 +30,10 @@
         </i18n-t>
       </div>
 
+      <Callout variant="warning" data-testid="apple-pay-limitation">
+        {{ $t(`${LABEL_ROOT}.limitation`) }}
+      </Callout>
+
       <section class="border-border flex flex-col gap-6 rounded-lg border p-4" data-testid="apple-pay-setup">
         <div class="max-w-xl">
           <h4 class="mb-1 text-base font-medium">{{ $t(`${LABEL_ROOT}.setup.title`) }}</h4>
