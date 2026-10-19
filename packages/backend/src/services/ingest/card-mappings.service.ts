@@ -15,7 +15,7 @@ import { Op, UniqueConstraintError } from 'sequelize';
 
 export const CARD_LABEL_MAX_LENGTH = 100;
 
-export const toCardMappingDto = ({
+const toCardMappingDto = ({
   mapping,
 }: {
   mapping: Pick<CardAccountMappings, 'id' | 'cardLabel' | 'accountId' | 'createdAt'>;

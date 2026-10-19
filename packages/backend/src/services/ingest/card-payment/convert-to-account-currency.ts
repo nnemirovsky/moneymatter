@@ -3,7 +3,7 @@ import type { Money } from '@common/types/money';
 import { ExchangeRateUnavailableError } from '@js/errors';
 import { calculateRefAmount } from '@services/calculate-ref-amount.service';
 
-export type ConvertToAccountCurrencyResult = { amount: Money } | { parked: 'rateUnavailable' };
+type ConvertToAccountCurrencyResult = { amount: Money } | { parked: 'rateUnavailable' };
 
 /**
  * A payment amount in the currency of the account it is logged on, converted at the rate of the

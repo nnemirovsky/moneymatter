@@ -95,7 +95,7 @@ const revokeIngestTokensImpl = ({ userId, purpose }: { userId: number; purpose?:
 
 export const revokeIngestTokens = withTransaction(revokeIngestTokensImpl);
 
-export interface VerifiedIngestToken {
+interface VerifiedIngestToken {
   id: RecordId;
   userId: number;
   authUserId: string;

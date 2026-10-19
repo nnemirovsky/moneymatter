@@ -1,7 +1,7 @@
 import { getSymbolCandidates } from './resolve-currency';
 
 /** What a Wallet amount text could be read as. */
-export type ParseAmountResult =
+type ParseAmountResult =
   | {
       ok: true;
       /** A positive decimal string with a `.` separator, safe for `Money.fromDecimal`. */

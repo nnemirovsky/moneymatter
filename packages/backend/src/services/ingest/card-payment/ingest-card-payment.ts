@@ -23,7 +23,7 @@ import { readUserLocale } from './read-user-locale';
 import { recordIngestRequest } from './record-request';
 import { runIngestPass } from './run-ingest-pass';
 
-export type IngestCardPaymentResult = CardPaymentDryRunResponse | ProcessIngestResult;
+type IngestCardPaymentResult = CardPaymentDryRunResponse | ProcessIngestResult;
 
 const answerDryRun = async ({
   userId,

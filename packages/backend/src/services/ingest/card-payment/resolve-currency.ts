@@ -5,7 +5,7 @@ import { CURRENCY_CODE_PATTERN, type CardPaymentRejectionReason } from '@bt/shar
  * with one candidate names that currency whoever the user is; a shared one (`$`, `¥`, `kr`) needs
  * the user's own currencies to pick. Keys are lower-case; the lookup is case-insensitive.
  */
-export const CURRENCY_SYMBOLS: Readonly<Record<string, readonly string[]>> = {
+const CURRENCY_SYMBOLS: Readonly<Record<string, readonly string[]>> = {
   '₾': ['GEL'],
   '€': ['EUR'],
   '£': ['GBP'],
@@ -45,9 +45,9 @@ export const getSymbolCandidates = ({ symbol }: { symbol: string }): readonly st
   return Object.hasOwn(CURRENCY_SYMBOLS, key) ? CURRENCY_SYMBOLS[key] : undefined;
 };
 
-export type CurrencySource = 'explicit' | 'text-code' | 'symbol' | 'account';
+type CurrencySource = 'explicit' | 'text-code' | 'symbol' | 'account';
 
-export type ResolveCurrencyResult =
+type ResolveCurrencyResult =
   | { ok: true; currencyCode: string; source: CurrencySource }
   | { ok: false; reason: Extract<CardPaymentRejectionReason, 'invalidCurrency' | 'currencyConflict'> };
 

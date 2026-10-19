@@ -5,7 +5,7 @@ import { subMonths } from 'date-fns';
 import { Op, col, fn, literal } from 'sequelize';
 
 /** How far back the payee's past categories count. */
-export const HISTORY_CATEGORY_MONTHS = 12;
+const HISTORY_CATEGORY_MONTHS = 12;
 
 /**
  * The category the owner most often gave the payee's past payments, or `null` when there is none.

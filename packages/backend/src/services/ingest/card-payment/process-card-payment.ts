@@ -30,7 +30,7 @@ import { resolveCurrency } from './resolve-currency';
  */
 const PAYEE_PROMOTION_THRESHOLD = 1;
 
-export type ProcessCardPaymentResult =
+type ProcessCardPaymentResult =
   | { kind: 'logged'; transactionId: RecordId }
   | { kind: 'rejected'; reason: CardPaymentRejectionReason }
   | { kind: 'unlinked' }

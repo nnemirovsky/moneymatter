@@ -4,13 +4,13 @@ import { cleanText } from './clean-text';
 import { amountInputToText, parseAmount } from './parse-amount';
 
 export const CARD_PAYMENT_DEFAULT_SOURCE = 'card-payment';
-export const CARD_PAYMENT_MERCHANT_MAX_LENGTH = 200;
+const CARD_PAYMENT_MERCHANT_MAX_LENGTH = 200;
 export const CARD_PAYMENT_CARD_MAX_LENGTH = 100;
-export const CARD_PAYMENT_NAME_MAX_LENGTH = 200;
+const CARD_PAYMENT_NAME_MAX_LENGTH = 200;
 /** A payment time may be this far after the request was received (clock skew). */
-export const CARD_PAYMENT_TIME_AHEAD_MS = 5 * 60 * 1000;
+const CARD_PAYMENT_TIME_AHEAD_MS = 5 * 60 * 1000;
 /** A payment time may be this far before the request was received (a shortcut that ran late). */
-export const CARD_PAYMENT_TIME_BEHIND_MS = 30 * 24 * 60 * 60 * 1000;
+const CARD_PAYMENT_TIME_BEHIND_MS = 30 * 24 * 60 * 60 * 1000;
 
 // Printable ASCII without spaces: a 64-character SHA-256 hex or a UUID fits.
 const IDEMPOTENCY_KEY_PATTERN = /^[\x21-\x7E]{8,128}$/;
@@ -43,13 +43,13 @@ export interface ParsedCardPayment {
 }
 
 /** A dry run only asks whether the connection and a card link work; nothing is validated or written. */
-export interface ParsedDryRun {
+interface ParsedDryRun {
   kind: 'dryRun';
   /** The card to look up, or `null` when none (usable) was sent. */
   card: string | null;
 }
 
-export type ParsePayloadResult =
+type ParsePayloadResult =
   | ({ ok: true } & (ParsedCardPayment | ParsedDryRun))
   | { ok: false; reason: CardPaymentRejectionReason; field: string };
 

@@ -6,7 +6,7 @@ import { getUserDefaultCategory } from '@models/users.model';
 
 import { formatSummary } from './format-summary';
 
-export interface LoggedSummary {
+interface LoggedSummary {
   summary: string;
   planned: boolean;
 }

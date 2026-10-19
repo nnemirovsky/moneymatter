@@ -686,12 +686,12 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
 
 ### Task 14: Verify acceptance criteria
 
-- [ ] a full ingest round trip through HTTP: a token from a setup code (decoded with the shared decoder), a mapped card, a cross-currency payment logged with the right summary, the same key replayed, a parked unknown card logged after linking, and a planned row on a connected account settled by a synced booking at a different amount
-- [ ] no route authenticated by a token reaches a session route, a password reset revokes the tokens, and the guard invariant covers the ingest route
-- [ ] backups: a mapping round-trips; tokens, the log and the access headers are not in an export
-- [ ] backend: `npm run test:unit` (full); `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='(ingest|ingest-tokens|planned-matching|payees|ai-categorization|transaction-automations|backup|mcp|routes/base-currency-guard-coverage)'`
-- [ ] frontend: `npm run typecheck && npm run lint && npm run test:unit -- --run`; Playwright `integrations/` when the dev stack is up
-- [ ] root `npm run format:check` and `npm run knip`
+- [x] a full ingest round trip through HTTP: a token from a setup code (decoded with the shared decoder), a mapped card, a cross-currency payment logged with the right summary, the same key replayed, a parked unknown card logged after linking, and a planned row on a connected account settled by a synced booking at a different amount (verified: `ingest-card-payment.e2e.ts`, `setup-code.e2e.ts`, `processing.e2e.ts`, `merge-card-payment.e2e.ts`, `requests.e2e.ts` pass; the shortcut-generator part is pending Task 11)
+- [x] no route authenticated by a token reaches a session route, a password reset revokes the tokens, and the guard invariant covers the ingest route (verified: `session-isolation.e2e.ts`, `password-reset.e2e.ts`, `base-currency-guard-coverage.e2e.ts`)
+- [x] backups: a mapping round-trips; tokens, the log and the access headers are not in an export (verified: `card-account-mappings` round-trips in `restore-backup.e2e.ts`; `IngestTokens`, `IngestRequests`, `IngestSettings` sit in `BACKUP_EXCLUDED`, enforced by `registry.unit.ts`)
+- [x] backend: `npm run test:unit` (full); `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='(ingest|ingest-tokens|planned-matching|payees|ai-categorization|transaction-automations|backup|mcp|routes/base-currency-guard-coverage)'` (unit 235 suites 3430 passed; e2e 40 suites 475 passed, 1 skipped)
+- [x] frontend: `npm run typecheck && npm run lint && npm run test:unit -- --run`; Playwright `integrations/` when the dev stack is up (typecheck, lint, unit 287 files 3871 passed; Playwright `integrations/` 10/10 on a host-run backend and Vite, torn down afterwards)
+- [x] root `npm run format:check` and `npm run knip` (`format:check` flags only untracked `.revmux/` files; `knip` is clean for ingest after de-exporting 19 unused symbols; the rest of its backend list (currencies, backup restore, migrations utils) and the frontend `AccountVisual` come from code this branch does not touch)
 
 ### Task 15: [Final] Update documentation
 
