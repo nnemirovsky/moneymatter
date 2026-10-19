@@ -51,9 +51,11 @@ test.describe('Apple Pay', () => {
 
   test('offers Apple Pay when connecting, next to the banks, and opens its setup', async ({ page }) => {
     await page.goto('/accounts');
+    // The sync-status popover opens by itself while no bank is connected and would eat the click.
+    await page.keyboard.press('Escape');
     await page
-      .getByRole('button', { name: /^Connect/ })
-      .first()
+      .locator('section', { has: page.getByRole('heading', { name: 'Bank connections' }) })
+      .getByRole('button', { name: 'Connect bank' })
       .click();
     await page.getByTestId('add-apple-pay').click();
 
