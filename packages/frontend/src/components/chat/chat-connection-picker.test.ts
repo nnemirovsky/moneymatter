@@ -1,14 +1,18 @@
 import { useAiSettings } from '@/composable/data-queries/ai-settings';
+import { useAiConnectionModels } from '@/composable/data-queries/use-ai-connection-models';
 import { useAiConnectionsList } from '@/composable/data-queries/use-ai-connections';
+import enCommon from '@/i18n/locales/chunks/en/common.json';
+import enChat from '@/i18n/locales/chunks/en/pages/chat.json';
 import { AI_PROVIDER, type AIConnectionInfo } from '@bt/shared/types';
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { computed, defineComponent, h, ref } from 'vue';
+import { createI18n } from 'vue-i18n';
 
-import { createChatI18n } from './cards/card-test-fixtures';
 import ChatConnectionPicker from './chat-connection-picker.vue';
 
 vi.mock('@/composable/data-queries/use-ai-connections', () => ({ useAiConnectionsList: vi.fn() }));
+vi.mock('@/composable/data-queries/use-ai-connection-models', () => ({ useAiConnectionModels: vi.fn() }));
 vi.mock('@/composable/data-queries/ai-settings', () => ({ useAiSettings: vi.fn() }));
 
 const connection = (overrides: Partial<AIConnectionInfo> = {}): AIConnectionInfo => ({
@@ -26,6 +30,7 @@ const connection = (overrides: Partial<AIConnectionInfo> = {}): AIConnectionInfo
 const state = {
   connections: ref<AIConnectionInfo[]>([]),
   includedModelName: ref<string | null>(null),
+  liveModels: ref<string[]>([]),
 };
 
 /** The select reports the option the user picked; the real one renders its options in a portal. */
@@ -52,10 +57,15 @@ const SelectStub = defineComponent({
       ),
 });
 
-const mountPicker = (props: { connectionId: string | null; disabled?: boolean }) =>
+const mountPicker = (props: { connectionId: string | null; modelId?: string | null; disabled?: boolean }) =>
   mount(ChatConnectionPicker, {
     props,
-    global: { plugins: [createChatI18n()], stubs: { SelectField: SelectStub } },
+    global: {
+      plugins: [
+        createI18n({ legacy: false, locale: 'en', messages: { en: { ...enChat, ...enCommon } }, missingWarn: false }),
+      ],
+      stubs: { SelectField: SelectStub },
+    },
   });
 
 describe('ChatConnectionPicker', () => {
@@ -65,6 +75,11 @@ describe('ChatConnectionPicker', () => {
       connection({ id: 'c2', name: 'Studio vLLM', model: 'qwen2.5' }),
     ];
     state.includedModelName.value = null;
+    state.liveModels.value = ['llama3.2', 'llama3.2:70b'];
+    vi.mocked(useAiConnectionModels).mockReturnValue({
+      liveModels: computed(() => state.liveModels.value),
+      isLoadingLiveModels: ref(false),
+    } as unknown as ReturnType<typeof useAiConnectionModels>);
     vi.mocked(useAiConnectionsList).mockReturnValue({
       connections: computed(() => state.connections.value),
     } as unknown as ReturnType<typeof useAiConnectionsList>);
@@ -100,6 +115,47 @@ describe('ChatConnectionPicker', () => {
     await wrapper.find('[data-testid="option-included"]').trigger('click');
 
     expect(wrapper.emitted('select')).toEqual([['c2'], [null]]);
+  });
+
+  describe('model within the connection', () => {
+    const modelSelect = (wrapper: ReturnType<typeof mountPicker>) => wrapper.findAll('[data-testid="select"]')[1];
+
+    it('offers the connection default and the other models of its provider next to the connection', () => {
+      const wrapper = mountPicker({ connectionId: 'c1' });
+
+      expect(wrapper.findAll('[data-testid="select"]')).toHaveLength(2);
+      expect(modelSelect(wrapper)!.text()).toContain('Default (llama3.2)');
+      expect(modelSelect(wrapper)!.text()).toContain('llama3.2:70b');
+      expect(modelSelect(wrapper)!.attributes('data-selected')).toBe('Default (llama3.2)');
+    });
+
+    it('shows the model the thread was set to as selected', () => {
+      const wrapper = mountPicker({ connectionId: 'c1', modelId: 'llama3.2:70b' });
+
+      expect(modelSelect(wrapper)!.attributes('data-selected')).toBe('llama3.2:70b');
+    });
+
+    it('reports the picked model, and null for the connection default', async () => {
+      const wrapper = mountPicker({ connectionId: 'c1', modelId: 'llama3.2:70b' });
+
+      await wrapper.find('[data-testid="option-llama3.2:70b"]').trigger('click');
+      await modelSelect(wrapper)!.findAll('button')[0]!.trigger('click');
+
+      // Picking what is already selected reports nothing.
+      expect(wrapper.emitted('select-model')).toEqual([[null]]);
+    });
+
+    it('is left out for the included model, which has no choice of model', () => {
+      state.includedModelName.value = 'Gemini';
+
+      expect(mountPicker({ connectionId: null }).findAll('[data-testid="select"]')).toHaveLength(1);
+    });
+
+    it('follows the disabled state of the picker', () => {
+      const wrapper = mountPicker({ connectionId: 'c1', disabled: true });
+
+      expect(modelSelect(wrapper)!.attributes('data-disabled')).toBe('true');
+    });
   });
 
   it('is disabled while told to', () => {

@@ -87,16 +87,18 @@ const ComposerStub = defineComponent({
 });
 
 const PickerStub = defineComponent({
-  props: ['connectionId', 'disabled'],
-  emits: ['select'],
+  props: ['connectionId', 'modelId', 'disabled'],
+  emits: ['select', 'select-model'],
   setup:
     (props, { emit }) =>
     () =>
       h('button', {
         'data-testid': 'picker',
         'data-connection': String(props.connectionId),
+        'data-model': String(props.modelId),
         'data-disabled': String(props.disabled),
         onClick: () => emit('select', 'c-picked'),
+        onDblclick: () => emit('select-model', 'm-picked'),
       }),
 });
 
@@ -132,6 +134,7 @@ const state = {
   featureKnown: ref(true),
   thread: ref<ChatThread | null>(null),
   defaultConnectionId: ref<string | null>('c-default'),
+  defaultModelId: ref<string | null>(null),
   isUpdating: ref(false),
 };
 
@@ -185,8 +188,9 @@ describe('ChatConversation', () => {
     state.run.value = null;
     state.featureServedBy.value = 'connection';
     state.featureKnown.value = true;
-    state.thread.value = { id: 'thread-1', connectionId: 'c-thread' } as ChatThread;
+    state.thread.value = { id: 'thread-1', connectionId: 'c-thread', modelId: null } as ChatThread;
     state.defaultConnectionId.value = 'c-default';
+    state.defaultModelId.value = null;
     state.isUpdating.value = false;
     updateMutateAsync.mockResolvedValue({});
 
@@ -213,7 +217,7 @@ describe('ChatConversation', () => {
       isPending: state.isUpdating,
     } as unknown as ReturnType<typeof useUpdateChatThread>);
     vi.mocked(useChatDefaultConnection).mockReturnValue({
-      data: computed(() => ({ connectionId: state.defaultConnectionId.value })),
+      data: computed(() => ({ connectionId: state.defaultConnectionId.value, modelId: state.defaultModelId.value })),
     } as unknown as ReturnType<typeof useChatDefaultConnection>);
     vi.mocked(useChatRun).mockReturnValue({
       run: state.run,
@@ -497,6 +501,78 @@ describe('ChatConversation', () => {
       await flushPromises();
 
       expect(mutateAsync).toHaveBeenCalledWith({});
+    });
+
+    describe('model within the connection', () => {
+      it('shows the model of the thread, and the one a new conversation would inherit', () => {
+        state.thread.value = { id: 'thread-1', connectionId: 'c-thread', modelId: 'm-thread' } as ChatThread;
+        expect(picker(mountConversation()).attributes('data-model')).toBe('m-thread');
+
+        state.thread.value = null;
+        state.defaultModelId.value = 'm-inherited';
+        expect(picker(mountConversation({ threadId: null })).attributes('data-model')).toBe('m-inherited');
+      });
+
+      it('picks a model for the thread without touching its connection', async () => {
+        const wrapper = mountConversation();
+
+        await picker(wrapper).trigger('dblclick');
+        await flushPromises();
+
+        expect(updateMutateAsync).toHaveBeenCalledWith({ threadId: 'thread-1', payload: { modelId: 'm-picked' } });
+      });
+
+      it('goes back to the connection default as soon as the connection changes', async () => {
+        state.thread.value = { id: 'thread-1', connectionId: 'c-thread', modelId: 'm-thread' } as ChatThread;
+        updateMutateAsync.mockReturnValue(new Promise(() => {}));
+        const wrapper = mountConversation();
+
+        await picker(wrapper).trigger('click');
+
+        expect(picker(wrapper).attributes('data-model')).toBe('null');
+      });
+
+      it('goes back to the stored model when the pick is refused', async () => {
+        state.thread.value = { id: 'thread-1', connectionId: 'c-thread', modelId: 'm-thread' } as ChatThread;
+        updateMutateAsync.mockRejectedValue(new Error('not served'));
+        const wrapper = mountConversation();
+
+        await picker(wrapper).trigger('dblclick');
+        await flushPromises();
+
+        expect(picker(wrapper).attributes('data-model')).toBe('m-thread');
+      });
+
+      it('creates the thread on the model picked before the first message, on the connection shown', async () => {
+        state.thread.value = null;
+        mutateAsync.mockResolvedValue({
+          id: 'new-thread',
+          connectionId: 'c-default',
+          modelId: 'm-picked',
+        } as ChatThread);
+        const wrapper = mountConversation({ threadId: null });
+
+        await picker(wrapper).trigger('dblclick');
+        expect(updateMutateAsync).not.toHaveBeenCalled();
+        await wrapper.find('[data-testid="composer"]').trigger('click');
+        await flushPromises();
+
+        expect(mutateAsync).toHaveBeenCalledWith({ connectionId: 'c-default', modelId: 'm-picked' });
+        expect(picker(wrapper).attributes('data-model')).toBe('m-picked');
+      });
+
+      it('does not send the model of the connection that was switched away from', async () => {
+        state.thread.value = null;
+        mutateAsync.mockResolvedValue({ id: 'new-thread', connectionId: 'c-picked', modelId: null } as ChatThread);
+        const wrapper = mountConversation({ threadId: null });
+
+        await picker(wrapper).trigger('dblclick');
+        await picker(wrapper).trigger('click');
+        await wrapper.find('[data-testid="composer"]').trigger('click');
+        await flushPromises();
+
+        expect(mutateAsync).toHaveBeenCalledWith({ connectionId: 'c-picked' });
+      });
     });
 
     it('is disabled while an answer streams', () => {

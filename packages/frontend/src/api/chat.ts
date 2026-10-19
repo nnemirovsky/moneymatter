@@ -37,10 +37,11 @@ export const listChatThreads = ({
   limit?: number;
 } = {}): Promise<ChatThreadListPage> => api.get('/chat/threads', { q, cursor, limit });
 
-export const createChatThread = ({ title, connectionId }: ChatCreateThreadRequest = {}): Promise<ChatThread> =>
+export const createChatThread = ({ title, connectionId, modelId }: ChatCreateThreadRequest = {}): Promise<ChatThread> =>
   api.post('/chat/threads', {
     ...(title === undefined ? {} : { title }),
     ...(connectionId === undefined ? {} : { connectionId }),
+    ...(modelId === undefined ? {} : { modelId }),
   });
 
 /** The connection a new conversation starts on when the user picks none. */

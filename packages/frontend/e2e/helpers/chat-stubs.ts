@@ -16,6 +16,8 @@ export interface StubThread {
   lastMessageAt: string;
   /** The connection the thread runs on; null is the included model. */
   connectionId: string | null;
+  /** A model of that connection picked for the thread; null is the connection's own model. */
+  modelId: string | null;
   messages: Json[];
 }
 
@@ -109,6 +111,7 @@ const asListItem = ({ thread, query }: { thread: StubThread; query: string }) =>
   expiresAt: null,
   usage: ZERO_USAGE,
   connectionId: thread.connectionId,
+  modelId: thread.modelId,
   createdAt: NOW,
   ...(query ? { snippet: `…${thread.title}…` } : {}),
 });
@@ -136,6 +139,7 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
         pinned: false,
         lastMessageAt: NOW,
         connectionId: null,
+        modelId: null,
         messages: [],
         ...thread,
       };
@@ -246,7 +250,7 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
     }
 
     if (method === 'GET' && path === '/default-connection') {
-      return ok({ route, response: { connectionId: stub.defaultConnectionId } });
+      return ok({ route, response: { connectionId: stub.defaultConnectionId, modelId: null } });
     }
 
     if (method === 'POST' && path === '/threads') {
@@ -276,7 +280,11 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
       if (method === 'PATCH') {
         if (typeof body?.title === 'string') thread.title = body.title;
         if (typeof body?.pinned === 'boolean') thread.pinned = body.pinned;
-        if (body && 'connectionId' in body) thread.connectionId = body.connectionId as string | null;
+        if (body && 'connectionId' in body) {
+          thread.connectionId = body.connectionId as string | null;
+          thread.modelId = null;
+        }
+        if (body && 'modelId' in body) thread.modelId = body.modelId as string | null;
         return ok({ route, response: asListItem({ thread, query: '' }) });
       }
       if (method === 'DELETE') {
