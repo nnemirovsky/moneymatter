@@ -9,12 +9,19 @@ export type ConnectionModelOption =
   | { value: typeof CONNECTION_DEFAULT_MODEL_VALUE; kind: 'default'; model: string; name: string }
   | { value: string; kind: 'model'; model: string; name: string };
 
-/** A subscription model by its curated label (a legacy id included), any other model as the provider names it. */
-export const formatConnectionModelName = ({ provider, model }: ModelOwner): string => {
+/** The curated id a subscription model goes by (`haiku`, a legacy `claude-haiku-5-5` included); undefined for any other. */
+const canonicalCliModel = ({ provider, model }: ModelOwner): string | undefined => {
   const cliProvider = asAiCliProvider({ provider });
 
-  return (cliProvider && findCliAiModel({ provider: cliProvider, model })?.label) || model;
+  return cliProvider ? findCliAiModel({ provider: cliProvider, model })?.id : undefined;
 };
+
+/**
+ * A subscription model by its short id, which is also its friendly name (`haiku`, `sonnet`, `opus`), so it
+ * fits a narrow select. The provider listings carry ids only, so any other model shows as the provider names it.
+ */
+export const formatConnectionModelName = ({ provider, model }: ModelOwner): string =>
+  canonicalCliModel({ provider, model }) ?? model;
 
 /**
  * What a model picker offers for one connection: "Default" first (the connection's own model), then every
@@ -31,11 +38,11 @@ export const buildConnectionModelOptions = ({
   selectedModelId: string | null;
 }): ConnectionModelOption[] => {
   const nameOf = (model: string) => formatConnectionModelName({ provider: connection.provider, model });
+  const defaultCanonical = canonicalCliModel(connection);
   const isDefault = (model: string) =>
     model === connection.model ||
-    (Boolean(asAiCliProvider({ provider: connection.provider })) &&
-      nameOf(model) === nameOf(connection.model) &&
-      nameOf(model) !== model);
+    (defaultCanonical !== undefined &&
+      canonicalCliModel({ provider: connection.provider, model }) === defaultCanonical);
 
   const others = [...new Set([...liveModels, ...(selectedModelId ? [selectedModelId] : [])])].filter(
     (model) => !isDefault(model),

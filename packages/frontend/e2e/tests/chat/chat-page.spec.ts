@@ -238,6 +238,15 @@ test.describe('Chat page', () => {
         const models = page.getByTestId('chat-connection-picker').getByRole('combobox').nth(1);
         await expect(models).toContainText('Default (llama3.2)');
 
+        // The page is wide, so the two selects share a row.
+        const connectionBox = await page
+          .getByTestId('chat-connection-picker')
+          .getByRole('combobox')
+          .first()
+          .boundingBox();
+        const modelBox = await models.boundingBox();
+        expect(Math.abs(connectionBox!.y - modelBox!.y)).toBeLessThan(4);
+
         await models.click();
         await page.getByRole('option', { name: 'llama3.2:70b' }).click();
 
@@ -248,8 +257,9 @@ test.describe('Chat page', () => {
         await models.click();
         await page.getByRole('option', { name: 'Default (llama3.2)' }).click();
 
-        const reset = stub.calls.findLast((call) => call.method === 'PATCH' && call.path === '/threads/thread-1');
-        expect(reset?.body).toEqual({ modelId: null });
+        await expect
+          .poll(() => stub.calls.findLast((call) => call.method === 'PATCH' && call.path === '/threads/thread-1')?.body)
+          .toEqual({ modelId: null });
       });
 
       test('starts a new conversation on the model picked before the first message', async ({ page }) => {

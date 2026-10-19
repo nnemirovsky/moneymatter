@@ -12,11 +12,9 @@ const OLLAMA = { provider: AI_PROVIDER.custom, model: 'llama3.2' } as const;
 const CLAUDE_CODE = { provider: AI_PROVIDER.claudeCode, model: 'sonnet' } as const;
 
 describe('formatConnectionModelName', () => {
-  it('names a subscription model by its curated label, legacy ids included', () => {
-    expect(formatConnectionModelName({ provider: AI_PROVIDER.claudeCode, model: 'haiku' })).toBe('Claude Haiku 5.5');
-    expect(formatConnectionModelName({ provider: AI_PROVIDER.claudeCode, model: 'claude-haiku-5-5' })).toBe(
-      'Claude Haiku 5.5',
-    );
+  it('names a subscription model by its short curated id, legacy ids included', () => {
+    expect(formatConnectionModelName({ provider: AI_PROVIDER.claudeCode, model: 'haiku' })).toBe('haiku');
+    expect(formatConnectionModelName({ provider: AI_PROVIDER.claudeCode, model: 'claude-haiku-5-5' })).toBe('haiku');
   });
 
   it('shows any other model id as it is', () => {
@@ -50,7 +48,7 @@ describe('buildConnectionModelOptions', () => {
     expect(options.map((option) => option.value)).toEqual([CONNECTION_DEFAULT_MODEL_VALUE, 'qwen2.5']);
   });
 
-  it('names subscription models by label and counts the legacy id of the default as the default', () => {
+  it('names subscription models by short id and counts the legacy id of the default as the default', () => {
     const options = buildConnectionModelOptions({
       connection: { ...CLAUDE_CODE, model: 'claude-sonnet-5-5' },
       liveModels: ['sonnet', 'opus', 'haiku'],
@@ -58,9 +56,9 @@ describe('buildConnectionModelOptions', () => {
     });
 
     expect(options.map(({ value, name }) => [value, name])).toEqual([
-      [CONNECTION_DEFAULT_MODEL_VALUE, 'Claude Sonnet 5.5'],
-      ['opus', 'Claude Opus 5.5'],
-      ['haiku', 'Claude Haiku 5.5'],
+      [CONNECTION_DEFAULT_MODEL_VALUE, 'sonnet'],
+      ['opus', 'opus'],
+      ['haiku', 'haiku'],
     ]);
   });
 
