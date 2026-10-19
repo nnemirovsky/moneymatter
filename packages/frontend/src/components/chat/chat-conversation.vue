@@ -181,16 +181,21 @@ const onPickModel = async ({ modelId }: { modelId: string | null }) => {
 
 /**
  * What the first message creates the thread with. A model rides on the connection it was picked for, so a
- * model picked on the connection shown by default names that connection too.
+ * model picked on the connection shown by default names that connection too. Choosing the connection default
+ * is sent as an explicit null: left out, the new thread would inherit the model of the latest one.
  */
 const buildCreateRequest = (): ChatCreateThreadRequest => {
-  const modelId = typeof pickedModelId.value === 'string' ? pickedModelId.value : undefined;
+  const modelId = pickedModelId.value;
   const connectionId =
-    pickedConnectionId.value !== undefined ? pickedConnectionId.value : modelId ? shownConnectionId.value : undefined;
+    pickedConnectionId.value !== undefined
+      ? pickedConnectionId.value
+      : typeof modelId === 'string'
+        ? shownConnectionId.value
+        : undefined;
 
   return {
     ...(connectionId === undefined ? {} : { connectionId }),
-    ...(modelId ? { modelId } : {}),
+    ...(modelId === undefined ? {} : { modelId }),
   };
 };
 

@@ -490,7 +490,7 @@ describe('ChatConversation', () => {
       await wrapper.find('[data-testid="composer"]').trigger('click');
       await flushPromises();
 
-      expect(mutateAsync).toHaveBeenCalledWith({ connectionId: 'c-picked' });
+      expect(mutateAsync).toHaveBeenCalledWith({ connectionId: 'c-picked', modelId: null });
     });
 
     it('creates the thread without a connection when the user picked none', async () => {
@@ -561,6 +561,20 @@ describe('ChatConversation', () => {
         expect(picker(wrapper).attributes('data-model')).toBe('m-picked');
       });
 
+      it('sends the connection default outright, so the new thread does not inherit the latest model', async () => {
+        state.thread.value = null;
+        state.defaultModelId.value = 'm-inherited';
+        mutateAsync.mockResolvedValue({ id: 'new-thread', connectionId: 'c-default', modelId: null } as ChatThread);
+        const wrapper = mountConversation({ threadId: null });
+        // The stub picks 'm-picked'; a second pick of the default is what the real select reports as null.
+        await picker(wrapper).trigger('dblclick');
+        await wrapper.findComponent(PickerStub).vm.$emit('select-model', null);
+        await wrapper.find('[data-testid="composer"]').trigger('click');
+        await flushPromises();
+
+        expect(mutateAsync).toHaveBeenCalledWith({ modelId: null });
+      });
+
       it('does not send the model of the connection that was switched away from', async () => {
         state.thread.value = null;
         mutateAsync.mockResolvedValue({ id: 'new-thread', connectionId: 'c-picked', modelId: null } as ChatThread);
@@ -571,7 +585,7 @@ describe('ChatConversation', () => {
         await wrapper.find('[data-testid="composer"]').trigger('click');
         await flushPromises();
 
-        expect(mutateAsync).toHaveBeenCalledWith({ connectionId: 'c-picked' });
+        expect(mutateAsync).toHaveBeenCalledWith({ connectionId: 'c-picked', modelId: null });
       });
     });
 
