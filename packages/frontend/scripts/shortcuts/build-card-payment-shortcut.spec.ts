@@ -135,6 +135,21 @@ describe('card-payment shortcut generator', () => {
       expect(tokenAttachments(time.WFValue)[0]!.OutputUUID).toBe(params(isoAction).UUID);
     });
 
+    it('binds the date of both Format Date actions as a text token on the current date', () => {
+      const formatActions = byId(SHORTCUT_ACTIONS.formatDate);
+      const [now] = byId(SHORTCUT_ACTIONS.currentDate);
+
+      expect(formatActions).toHaveLength(2);
+      for (const action of formatActions) {
+        const date = params(action)[SHORTCUT_PARAMS.date];
+
+        expect(date.WFSerializationType).toBe('WFTextTokenString');
+        expect(date.Value.string).toBe('\uFFFC');
+        expect(Object.keys(date.Value.attachmentsByRange)).toEqual(['{0, 1}']);
+        expect(tokenAttachments(date)[0]!.OutputUUID).toBe(params(now!).UUID);
+      }
+    });
+
     it('encodes both If conditions as the numbers Shortcuts stores', () => {
       const conditions = byId(SHORTCUT_ACTIONS.conditional)
         .map((action) => params(action)[SHORTCUT_PARAMS.condition])
