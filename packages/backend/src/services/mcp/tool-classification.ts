@@ -42,7 +42,8 @@ export const LOCK_EXEMPT_TOOLS = [
   // POST /notifications/read-all and POST /notifications/:id/read have no lock.
   'mark_notifications_read',
   // PUT and PATCH /user/settings have no lock: settings touch no amounts.
-  'update_user_settings',
+  'update_user_settings', // PATCH /subscriptions/:id/periods/:periodId has no lock: a period's note touches no amounts.
+  'update_subscription_period',
 ];
 
 // Read-named tools whose REST route carries `checkBaseCurrencyLock`, so REST refuses them with

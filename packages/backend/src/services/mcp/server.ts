@@ -231,6 +231,7 @@ import { registerUpdateLoan } from './tools/update-loan';
 import { registerUpdatePayee } from './tools/update-payee';
 import { registerUpdatePortfolio } from './tools/update-portfolio';
 import { registerUpdateSubscription } from './tools/update-subscription';
+import { registerUpdateSubscriptionPeriod } from './tools/update-subscription-period';
 import { registerUpdateTag } from './tools/update-tag';
 import { registerUpdateTagReminder } from './tools/update-tag-reminder';
 import { registerUpdateTransaction } from './tools/update-transaction';
@@ -451,6 +452,7 @@ export function registerAllTools(server: McpServer): void {
   registerSkipSubscriptionPeriod(server);
   registerUnlinkSubscriptionPeriodTransaction(server);
   registerRevertSubscriptionPeriod(server);
+  registerUpdateSubscriptionPeriod(server);
 
   // Transaction automations (rules engine)
   registerGetTransactionAutomations(server);

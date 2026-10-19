@@ -18,6 +18,7 @@ import suggestMatches from '@controllers/subscriptions/suggest-matches';
 import toggleActive from '@controllers/subscriptions/toggle-active';
 import unlinkPeriodTransaction from '@controllers/subscriptions/unlink-transaction';
 import unlinkTransactions from '@controllers/subscriptions/unlink-transactions';
+import updatePeriodNotes from '@controllers/subscriptions/update-period-notes';
 import updateSubscription from '@controllers/subscriptions/update-subscription';
 import { authenticateSession } from '@middlewares/better-auth';
 import { checkBaseCurrencyLock } from '@middlewares/check-base-currency-lock';
@@ -54,6 +55,9 @@ router.get('/:id/suggest-matches', suggestMatches);
 // Period payment routes
 router.get('/:id/pay-preview', getPayPreview);
 router.get('/:id/periods', getPeriods);
+// No checkBaseCurrencyLock: a period's note carries no amount, so a base-currency change cannot conflict with it
+// (same reasoning as the attachment and settings routes).
+router.patch('/:id/periods/:periodId', updatePeriodNotes);
 router.post('/:id/periods/:periodId/pay', checkBaseCurrencyLock, markPeriodPaid);
 router.post('/:id/periods/:periodId/skip', checkBaseCurrencyLock, skipPeriod);
 router.post('/:id/periods/:periodId/unlink', checkBaseCurrencyLock, unlinkPeriodTransaction);

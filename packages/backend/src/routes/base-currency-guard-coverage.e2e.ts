@@ -58,6 +58,9 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   // drop the user's upload for nothing.
   'POST /api/v1/resource-leases/refresh',
 
+  // A subscription period's note: note text only, no monetary data.
+  'PATCH /api/v1/subscriptions/:id/periods/:periodId',
+
   // Client diagnostics only reach the log stream, and they must keep flowing
   // while a migration holds the lock.
   'POST /api/v1/client-logs',

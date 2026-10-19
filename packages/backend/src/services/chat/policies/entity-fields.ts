@@ -86,6 +86,7 @@ export const UNMAPPED_ID_FIELDS: Readonly<Record<string, string[]>> = {
   skip_subscription_period: ['periodId'],
   unlink_subscription_period_transaction: ['periodId'],
   revert_subscription_period: ['periodId'],
+  update_subscription_period: ['periodId'],
   set_budget_plan_line_goal: ['periodId'],
   snooze_budget_plan_line_goal: ['periodId'],
   set_budget_plan_assignment: ['periodId'],

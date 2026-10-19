@@ -652,3 +652,214 @@ describe('Subscription period request validation', () => {
     expect(maxRes.statusCode).toBe(200);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Update period notes
+// ---------------------------------------------------------------------------
+
+describe('PATCH /subscriptions/:id/periods/:periodId', () => {
+  it('sets, replaces and clears the note of a period in any status', async () => {
+    const { sub, period } = await createSubWithPeriod({ dueDate: futureDate({ monthsAhead: 1, day: 15 }) });
+
+    const set = await helpers.updateSubscriptionPeriodNotes({
+      id: sub.id,
+      periodId: period.id,
+      payload: { notes: '  Prepaid for the year  ' },
+      raw: true,
+    });
+    expect(set.id).toBe(period.id);
+    expect(set.notes).toBe('Prepaid for the year');
+    expect(set.status).toBe(SUBSCRIPTION_PERIOD_STATUSES.upcoming);
+
+    // A paid period keeps its status, link and paidAt: only the note changes.
+    const paid = await helpers.markSubscriptionPeriodPaid({
+      id: sub.id,
+      periodId: period.id,
+      createTransaction: true,
+      raw: true,
+    });
+    const edited = await helpers.updateSubscriptionPeriodNotes({
+      id: sub.id,
+      periodId: period.id,
+      payload: { notes: 'Paid by card' },
+      raw: true,
+    });
+    expect(edited.notes).toBe('Paid by card');
+    expect(edited.status).toBe(SUBSCRIPTION_PERIOD_STATUSES.paid);
+    expect(edited.transactionId).toBe(paid.transactionId);
+    expect(edited.paidAt).toBe(paid.paidAt);
+
+    const detail = await helpers.getSubscriptionById({ id: sub.id, raw: true });
+    expect(detail.periods.find((p) => p.id === period.id)!.notes).toBe('Paid by card');
+  });
+
+  it('clears the note with null or a blank string', async () => {
+    const { sub, period } = await createSubWithPeriod({ dueDate: futureDate({ monthsAhead: 1, day: 15 }) });
+
+    for (const cleared of [null, '', '   ']) {
+      await helpers.updateSubscriptionPeriodNotes({
+        id: sub.id,
+        periodId: period.id,
+        payload: { notes: 'something' },
+        raw: true,
+      });
+      const res = await helpers.updateSubscriptionPeriodNotes({
+        id: sub.id,
+        periodId: period.id,
+        payload: { notes: cleared },
+        raw: true,
+      });
+      expect(res.notes).toBeNull();
+    }
+  });
+
+  it('returns 404 for an unknown subscription, an unknown period and a period of another subscription', async () => {
+    const { sub: s1 } = await createSubWithPeriod({ dueDate: futureDate({ monthsAhead: 1, day: 15 }) });
+    const { sub: s2, period: periodS2 } = await createSubWithPeriod({
+      dueDate: futureDate({ monthsAhead: 2, day: 20 }),
+    });
+    const unknownId = '99999999-9999-4999-8999-999999999999';
+    const payload = { notes: 'x' };
+
+    const foreign = await helpers.updateSubscriptionPeriodNotes({
+      id: s1.id,
+      periodId: periodS2.id,
+      payload,
+      raw: false,
+    });
+    expect(foreign.statusCode).toBe(404);
+
+    const unknownPeriod = await helpers.updateSubscriptionPeriodNotes({
+      id: s1.id,
+      periodId: unknownId,
+      payload,
+      raw: false,
+    });
+    expect(unknownPeriod.statusCode).toBe(404);
+
+    const unknownSub = await helpers.updateSubscriptionPeriodNotes({
+      id: unknownId,
+      periodId: periodS2.id,
+      payload,
+      raw: false,
+    });
+    expect(unknownSub.statusCode).toBe(404);
+
+    // The period of S2 was not touched.
+    const s2Periods = await helpers.getSubscriptionPeriods({ id: s2.id, raw: true });
+    expect(s2Periods.periods.find((p) => p.id === periodS2.id)!.notes).toBeNull();
+  });
+
+  it('returns 404 when another user targets an existing subscription and period, and leaves the note alone', async () => {
+    const { sub, period } = await createSubWithPeriod({ dueDate: futureDate({ monthsAhead: 1, day: 15 }) });
+    await helpers.updateSubscriptionPeriodNotes({
+      id: sub.id,
+      periodId: period.id,
+      payload: { notes: 'mine' },
+      raw: true,
+    });
+
+    const handle = await helpers.signUpSecondUser();
+    const res = await helpers.asUser({
+      cookies: handle.cookies,
+      fn: () =>
+        helpers.updateSubscriptionPeriodNotes({
+          id: sub.id,
+          periodId: period.id,
+          payload: { notes: 'hijack' },
+          raw: false,
+        }),
+    });
+    expect(res.statusCode).toBe(404);
+
+    const periods = await helpers.getSubscriptionPeriods({ id: sub.id, raw: true });
+    expect(periods.periods.find((p) => p.id === period.id)!.notes).toBe('mine');
+  });
+
+  it('rejects a missing notes field, a non-string note and a note past 5000 characters', async () => {
+    const { sub, period } = await createSubWithPeriod({ dueDate: futureDate({ monthsAhead: 1, day: 15 }) });
+
+    for (const payload of [{}, { notes: 5 }, { notes: 'x'.repeat(5001) }]) {
+      const res = await helpers.updateSubscriptionPeriodNotes({ id: sub.id, periodId: period.id, payload, raw: false });
+      expect(res.statusCode).toBe(ERROR_CODES.ValidationError);
+    }
+
+    const maxRes = await helpers.updateSubscriptionPeriodNotes({
+      id: sub.id,
+      periodId: period.id,
+      payload: { notes: 'x'.repeat(5000) },
+      raw: false,
+    });
+    expect(maxRes.statusCode).toBe(200);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Revert — the note of the open period that gets removed is carried over
+// ---------------------------------------------------------------------------
+
+describe('POST /subscriptions/:id/periods/:periodId/revert (notes of the removed open period)', () => {
+  /** Pays the first period (the app generates the next open one), then notes both. */
+  async function payAndNote({
+    reopenedNote,
+    successorNote,
+  }: {
+    reopenedNote: string | null;
+    successorNote: string | null;
+  }) {
+    const { sub, period } = await createSubWithPeriod({ dueDate: futureDate({ monthsAhead: 1, day: 15 }) });
+    await helpers.markSubscriptionPeriodPaid({ id: sub.id, periodId: period.id, raw: true });
+
+    const afterPay = await helpers.getSubscriptionPeriods({ id: sub.id, raw: true });
+    const successor = afterPay.periods.find((p) => p.status === SUBSCRIPTION_PERIOD_STATUSES.upcoming)!;
+    expect(successor.id).not.toBe(period.id);
+
+    for (const [target, notes] of [
+      [period, reopenedNote],
+      [successor, successorNote],
+    ] as const) {
+      if (notes === null) continue;
+      await helpers.updateSubscriptionPeriodNotes({ id: sub.id, periodId: target.id, payload: { notes }, raw: true });
+    }
+    return { sub, period, successor };
+  }
+
+  it('moves the removed period note onto the reopened period when that one has none', async () => {
+    const { sub, period, successor } = await payAndNote({ reopenedNote: null, successorNote: 'Next one is prepaid' });
+
+    const reverted = await helpers.revertSubscriptionPeriod({ id: sub.id, periodId: period.id, raw: true });
+
+    expect(reverted.notes).toBe('Next one is prepaid');
+    const after = await helpers.getSubscriptionPeriods({ id: sub.id, raw: true });
+    expect(after.periods.find((p) => p.id === successor.id)).toBeUndefined();
+  });
+
+  it('keeps both notes, reopened first, when they differ, and one when they are the same', async () => {
+    const differing = await payAndNote({ reopenedNote: 'Paid by card', successorNote: 'Price goes up' });
+    const merged = await helpers.revertSubscriptionPeriod({
+      id: differing.sub.id,
+      periodId: differing.period.id,
+      raw: true,
+    });
+    expect(merged.notes).toBe('Paid by card\n\nPrice goes up');
+
+    const same = await payAndNote({ reopenedNote: 'Same note', successorNote: 'Same note' });
+    const kept = await helpers.revertSubscriptionPeriod({ id: same.sub.id, periodId: same.period.id, raw: true });
+    expect(kept.notes).toBe('Same note');
+  });
+
+  it('leaves the reopened note alone when the removed period has none, and cuts the appended part at 5000', async () => {
+    const plain = await payAndNote({ reopenedNote: 'Only mine', successorNote: null });
+    const untouched = await helpers.revertSubscriptionPeriod({
+      id: plain.sub.id,
+      periodId: plain.period.id,
+      raw: true,
+    });
+    expect(untouched.notes).toBe('Only mine');
+
+    const long = await payAndNote({ reopenedNote: 'a'.repeat(4990), successorNote: 'b'.repeat(100) });
+    const capped = await helpers.revertSubscriptionPeriod({ id: long.sub.id, periodId: long.period.id, raw: true });
+    expect(capped.notes).toHaveLength(5000);
+    expect(capped.notes!.startsWith('a'.repeat(4990) + '\n\nbbbb')).toBe(true);
+  });
+});
