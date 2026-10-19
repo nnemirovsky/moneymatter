@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto';
 import type { ResolvedToolPolicy } from '../policies/rules';
 import type { ChatMeta } from '../toolkit/model-schema';
 import type { ChatToolkitRun } from '../toolkit/types';
+import { markAccountHistoryMismatch } from './account-history-guard';
 import { computeCardState } from './card-state';
 import { loadParentRows, resolveParents } from './parents';
 import { ToolInputError } from './placeholders';
@@ -86,6 +87,13 @@ export async function createProposal({
     parents: parents.map((parent) => ({ id: parent.id as string, status: parent.status })),
   });
 
+  const uncertainFields = await markAccountHistoryMismatch({
+    userId: run.user.id,
+    toolName: policy.name,
+    args,
+    uncertain: meta.uncertain && meta.uncertain.length > 0 ? meta.uncertain : null,
+  });
+
   const { row, replaced } = await storeProposal({
     run,
     meta,
@@ -104,7 +112,7 @@ export async function createProposal({
       confirmation: confirmation.mode,
       confirmationPhrase: confirmation.phrase ?? null,
       preview,
-      uncertainFields: meta.uncertain && meta.uncertain.length > 0 ? meta.uncertain : null,
+      uncertainFields,
       sources,
       snapshot,
       dependsOn: refs,
