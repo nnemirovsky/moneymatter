@@ -624,4 +624,42 @@ describe('ProposalCard', () => {
       expect(wrapper.text()).toContain('Attachment receipt.png');
     });
   });
+
+  describe('the record a delete or update targets', () => {
+    const target: ChatCardField[] = [
+      buildField({ path: 'amount', value: 28.1, display: { kind: 'money', currencyCode: 'GEL' } }),
+      buildField({ path: 'time', value: '2026-10-19T07:26:00Z', display: { kind: 'datetime' } }),
+      buildField({ path: 'note', value: 'Nord Coffee', display: { kind: 'text' } }),
+      buildField({
+        path: 'accountId',
+        value: 'acc-1',
+        display: { kind: 'entity', entity: { kind: 'account', id: 'acc-1', label: '' } },
+      }),
+    ];
+
+    it('lists what identifies the record: amount with its currency, date, note and account', () => {
+      const wrapper = mountCard({
+        card: buildCard({
+          kind: 'delete',
+          toolName: 'delete_transaction',
+          fields: [buildField({ path: 'id', value: 'tx-1', display: { kind: 'text' } })],
+          target,
+        }),
+      });
+
+      const block = wrapper.find('[data-testid="card-target"]');
+      expect(block.exists()).toBe(true);
+      expect(block.text()).toContain('28.10');
+      expect(block.text()).toContain('GEL');
+      expect(block.text()).toContain('Oct 19, 2026');
+      expect(block.text()).toContain('Nord Coffee');
+      expect(block.text()).toContain('Main card');
+    });
+
+    it('shows no such block on a card that targets nothing', () => {
+      const wrapper = mountCard({ card: buildCard() });
+
+      expect(wrapper.find('[data-testid="card-target"]').exists()).toBe(false);
+    });
+  });
 });

@@ -62,15 +62,20 @@ const partsOf = ({ value }: { value: unknown }): ValuePart[] => {
     return [{ text: t(value ? 'chat.cards.yes' : 'chat.cards.no') }];
   }
   if (displayKind.value === 'money' && typeof value === 'number') {
+    const currencyCode = props.field.display?.currencyCode ?? props.currencyCode;
     return [
       {
         text: formatVisualValue({
           value,
-          kind: props.currencyCode ? 'money' : 'number',
-          currencyCode: props.currencyCode ?? undefined,
+          kind: currencyCode ? 'money' : 'number',
+          currencyCode: currencyCode ?? undefined,
         }),
       },
     ];
+  }
+  if (displayKind.value === 'enum' && typeof value === 'string') {
+    // An option this build has no name for shows as the server wrote it.
+    return [{ text: keyText({ key: `chat.cards.enumValues.${props.field.path}.${value}` }) ?? value }];
   }
   if ((displayKind.value === 'date' || displayKind.value === 'datetime') && typeof value === 'string') {
     return [{ text: formatVisualDate({ value }) }];

@@ -169,4 +169,59 @@ test.describe('Chat cards', () => {
     const approve = stub.calls.find((call) => call.path === '/proposals/bulk/approve');
     expect(approve?.body).toMatchObject({ confirmation: '42' });
   });
+  test('shows which record a delete card removes, at the width of a narrow panel', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await open({
+      page,
+      cards: [
+        buildCard({
+          id: 'c-del',
+          kind: 'delete',
+          toolName: 'delete_transaction',
+          fields: [
+            { path: 'id', labelKey: 'chat.fields.id', value: 'tx-1', display: { kind: 'text' }, editable: null },
+          ],
+          target: [
+            {
+              path: 'amount',
+              labelKey: 'chat.fields.amount',
+              value: 28.1,
+              display: { kind: 'money', currencyCode: 'GEL' },
+              editable: null,
+            },
+            {
+              path: 'time',
+              labelKey: 'chat.fields.time',
+              value: '2026-10-19T07:26:00Z',
+              display: { kind: 'datetime' },
+              editable: null,
+            },
+            {
+              path: 'note',
+              labelKey: 'chat.fields.note',
+              value: 'Nord Coffee',
+              display: { kind: 'text' },
+              editable: null,
+            },
+            {
+              path: 'transactionType',
+              labelKey: 'chat.fields.transactionType',
+              value: 'expense',
+              display: { kind: 'enum' },
+              editable: null,
+            },
+          ],
+        }),
+      ],
+    });
+
+    const target = page.getByTestId('card-target');
+    await expect(target).toContainText('Nord Coffee');
+    await expect(target).toContainText('GEL');
+    await expect(target).toContainText('Oct 19, 2026');
+    await expect(target).toContainText('Expense');
+    await expect(target).not.toContainText('2026-10-19T');
+    const box = await target.boundingBox();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(360);
+  });
 });

@@ -397,7 +397,8 @@
         "alternatives": "Інші варіанти"
       },
       "uncertainty": {
-        "guessedFromHistory": "Припущення за вашою історією",
+        "guessedFromHistory": "Асистент припустив це за вашою історією",
+        "accountHistoryMismatch": "Відрізняється від того, як зазвичай платять з цього рахунку",
         "guessedFromAttachment": "Прочитано з вкладення, не певно",
         "ambiguousMatch": "Є кілька збігів",
         "missingInSource": "Немає в джерелі, тож це припущення",
@@ -487,7 +488,33 @@
         "rate": "Курс",
         "source": "Джерело"
       },
-      "appliedToast": "Зміну застосовано"
+      "appliedToast": "Зміну застосовано",
+      "enumValues": {
+        "transactionType": {
+          "expense": "Витрата",
+          "income": "Дохід"
+        },
+        "transferNature": {
+          "not_transfer": "Не переказ",
+          "transfer_between_user_accounts": "Між вашими рахунками",
+          "transfer_out_wallet": "З ваших рахунків",
+          "transfer_to_portfolio": "До портфеля",
+          "transfer_to_venture": "До венчурного вкладення",
+          "transfer_to_loan": "До кредиту"
+        },
+        "paymentType": {
+          "bankTransfer": "Банківський переказ",
+          "voucher": "Ваучер",
+          "webPayment": "Онлайн-платіж",
+          "cash": "Готівка",
+          "mobilePayment": "Мобільний платіж",
+          "creditCard": "Кредитна картка",
+          "debitCard": "Дебетова картка"
+        }
+      },
+      "target": {
+        "title": "Запис, який змінюється"
+      }
     },
     "errors": {
       "threadAction": "Не вдалося оновити розмову. Спробуйте ще раз.",
