@@ -240,7 +240,8 @@
       "weekday": "Weekday",
       "withSuggestedLines": "Add suggested lines",
       "year": "Year",
-      "zeroSum": "Zero-sum budget"
+      "zeroSum": "Zero-sum budget",
+      "filename": "File name"
     },
     "entities": {
       "transaction": "transaction",

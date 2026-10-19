@@ -54,6 +54,31 @@ describe('buildCardTarget', () => {
     expect(target.map((field) => field.path)).toEqual(['name', 'currencyCode']);
   });
 
+  it.each([
+    [
+      'a subscription',
+      { name: 'Netflix', expectedAmount: 12.99, expectedCurrencyCode: 'USD', frequency: 'monthly' },
+      ['name', 'expectedAmount'],
+    ],
+    ['a tag reminder', { type: 'monthly', frequency: 'month' }, ['type']],
+    ['a payee alias', { rawName: 'NORD COFFEE TBILISI' }, ['rawName']],
+    ['an attachment', { filename: 'receipt.pdf', size: 10 }, ['filename']],
+    ['a vehicle', { make: 'Toyota', model: 'Corolla', year: 2018 }, ['make', 'model']],
+    ['a loan', { lenderName: 'TBC', startDate: '2026-01-01' }, ['lenderName', 'startDate']],
+    [
+      'a venture event',
+      { type: 'distribution', eventDate: '2026-05-01', grossAmount: 100, currencyCode: 'USD' },
+      ['grossAmount', 'eventDate'],
+    ],
+    [
+      'an investment transaction',
+      { name: 'AAPL buy', date: '2026-05-01', amount: 100, currencyCode: 'USD' },
+      ['name', 'amount', 'date'],
+    ],
+  ])('identifies %s', (_name, before, paths) => {
+    expect(buildCardTarget({ before }).map((field) => field.path)).toEqual(paths);
+  });
+
   it('leaves out empty fields', () => {
     const target = buildCardTarget({ before: { name: 'Wallet', note: null, description: '' } });
 
