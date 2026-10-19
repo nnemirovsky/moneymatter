@@ -214,7 +214,7 @@
 					<key>WFControlFlowMode</key>
 					<integer>0</integer>
 					<key>WFCondition</key>
-					<string>Has Any Value</string>
+					<integer>100</integer>
 					<key>WFInput</key>
 					<dict>
 						<key>Type</key>
@@ -252,6 +252,8 @@
 				<dict>
 					<key>WFDateFormatStyle</key>
 					<string>ISO 8601</string>
+					<key>WFISO8601IncludeTime</key>
+					<true/>
 					<key>WFDate</key>
 					<dict>
 						<key>Value</key>
@@ -1171,7 +1173,7 @@
 					<key>WFControlFlowMode</key>
 					<integer>0</integer>
 					<key>WFCondition</key>
-					<string>Does Not Have Any Value</string>
+					<integer>101</integer>
 					<key>WFInput</key>
 					<dict>
 						<key>Type</key>

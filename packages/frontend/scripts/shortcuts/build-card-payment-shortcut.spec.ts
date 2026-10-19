@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import {
+  CONDITION_CODES,
   SHORTCUT_ACTIONS,
   SHORTCUT_PARAMS,
   buildCardPaymentShortcut,
@@ -22,7 +23,7 @@ const id = (action: Dict): string => action.WFWorkflowActionIdentifier;
 const params = (action: Dict): Dict => action.WFWorkflowActionParameters;
 const byId = (identifier: string): Dict[] => actions.filter((action) => id(action) === identifier);
 
-/** The text of a `WFTextTokenString`, with each placeholder replaced by `<var>` markers. */
+/** The attachments of a `WFTextTokenString`, ordered by the position of their placeholder in the text. */
 const tokenAttachments = (value: Dict): Dict[] => {
   const ranges = value.Value.attachmentsByRange as Dict;
 
@@ -123,11 +124,31 @@ describe('card-payment shortcut generator', () => {
       for (const key of items.map(keyOf)) expect(CARD_PAYMENT_REQUEST_KEYS).toContain(key);
     });
 
+    it('sends the payment time with its time of day and offset', () => {
+      const isoAction = actions.find((action) => params(action)[SHORTCUT_PARAMS.dateFormatStyle] === 'ISO 8601')!;
+
+      expect(params(isoAction)[SHORTCUT_PARAMS.isoIncludeTime]).toBe(true);
+
+      const time = dictionaryItems(params(paymentRequest!)[SHORTCUT_PARAMS.jsonValues]).find(
+        (entry) => keyOf(entry) === 'time',
+      )!;
+      expect(tokenAttachments(time.WFValue)[0]!.OutputUUID).toBe(params(isoAction).UUID);
+    });
+
+    it('encodes both If conditions as the numbers Shortcuts stores', () => {
+      const conditions = byId(SHORTCUT_ACTIONS.conditional)
+        .map((action) => params(action)[SHORTCUT_PARAMS.condition])
+        .filter((value) => value !== undefined);
+
+      expect(CONDITION_CODES).toEqual({ 'Has Any Value': 100, 'Does Not Have Any Value': 101 });
+      expect(conditions).toEqual([100, 101]);
+    });
+
     it('guards the payment branch with a has-any-value check on the shortcut input', () => {
       const conditional = actions[8]!;
 
       expect(params(conditional)[SHORTCUT_PARAMS.controlFlowMode]).toBe(0);
-      expect(params(conditional)[SHORTCUT_PARAMS.condition]).toBe('Has Any Value');
+      expect(params(conditional)[SHORTCUT_PARAMS.condition]).toBe(100);
       expect(params(conditional)[SHORTCUT_PARAMS.input].Variable.Value.Type).toBe('ExtensionInput');
     });
   });

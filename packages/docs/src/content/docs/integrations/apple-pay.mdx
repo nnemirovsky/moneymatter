@@ -99,7 +99,7 @@ Open the Shortcuts app, tap **+** to create a new shortcut and name it `MoneyMat
 
    Send the amount as it is. MoneyMatter reads the number, the separators, and the currency code or symbol from the text.
 
-2. **Current Date**, then **Format Date**. Set **Date Format** to **ISO 8601**. This is the payment time.
+2. **Current Date**, then **Format Date**. Set **Date Format** to **ISO 8601** and turn on **Include Time**. Without it the result is a date only, and MoneyMatter refuses it. This is the payment time.
 
 3. **Format Date** again on the current date, with **Date Format** set to **Custom** and the format `yyyy-MM-dd'T'HH:mmZZZZZ`. This is the time to the minute, used in the next step.
 
@@ -198,7 +198,7 @@ curl -sS https://money.example.com/api/v1/ingest/card-payment \
   "response": {
     "outcome": "logged",
     "summary": "Logged 47.00 GEL at Cafe Heart of Batumi → Bar, cafe",
-    "transactionId": 1234,
+    "transactionId": "0d9f6c1e-5b7a-4c1e-9a52-3f1d2b8e7a10",
     "planned": false,
     "categoryPending": false
   }
@@ -280,7 +280,7 @@ If the answer is an HTML page rather than JSON, the gateway in front of MoneyMat
 
 ### The payment shows "iOS sent no amount or merchant"
 
-Sometimes iOS runs the automation with an empty amount or merchant. MoneyMatter refuses an empty payment rather than guess. It appears under **Waiting payments** with that reason. Add the payment by hand and click **Dismiss**.
+Sometimes iOS runs the automation with an empty amount or merchant. MoneyMatter refuses an empty payment rather than guess. It is not logged and cannot be retried: open **Show recent payments** to see it listed as refused, and add the payment by hand.
 
 ### The card was renamed
 

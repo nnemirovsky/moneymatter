@@ -61,7 +61,7 @@ Every response uses the API envelope. Success: `{ "status": "success", "response
   "response": {
     "outcome": "logged",
     "summary": "Logged 47.00 GEL at Cafe Heart of Batumi → Bar, cafe",
-    "transactionId": 1234,
+    "transactionId": "0d9f6c1e-5b7a-4c1e-9a52-3f1d2b8e7a10",
     "planned": false,
     "categoryPending": false
   }
@@ -83,7 +83,7 @@ Every response uses the API envelope. Success: `{ "status": "success", "response
     "outcome": "parked",
     "reason": "unknownCard",
     "summary": "Not logged yet: link the card \"TBC Visa\" in MoneyMatter → Settings → Integrations → Apple Pay",
-    "requestId": 88
+    "requestId": "7b3e2a94-1c6d-4f08-8e35-a2d94c51b6f3"
   }
 }
 ```
@@ -106,7 +106,7 @@ The payload is unusable. The request is recorded as `rejected` so the owner can 
 
 A body that is not a JSON object, or has no usable `idempotencyKey`, has nothing to key a record on and is refused without one.
 
-Only expenses are logged: a zero or negative amount is refused, and so is a blank merchant. iOS sometimes runs the automation with an empty amount and merchant; the payment then shows in the app's list of refused payments so the user can enter it by hand.
+Only expenses are logged: a zero or negative amount is refused, and so is a blank merchant. iOS sometimes runs the automation with an empty amount and merchant; the request is stored as refused and appears under **Show recent payments** in Settings → Integrations → Apple Pay, so the user can enter the payment by hand.
 
 ### Conflict (409)
 

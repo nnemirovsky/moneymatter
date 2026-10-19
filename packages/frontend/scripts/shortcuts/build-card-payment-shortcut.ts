@@ -55,6 +55,7 @@ export const SHORTCUT_PARAMS = {
   dateActionMode: 'WFDateActionMode',
   date: 'WFDate',
   dateFormatStyle: 'WFDateFormatStyle',
+  isoIncludeTime: 'WFISO8601IncludeTime',
   dateFormat: 'WFDateFormat',
   hashType: 'WFHashType',
   url: 'WFURL',
@@ -66,6 +67,9 @@ export const SHORTCUT_PARAMS = {
   notificationBody: 'WFNotificationActionBody',
   notificationTitle: 'WFNotificationActionTitle',
 } as const;
+
+/** Shortcuts stores the If condition as a number. */
+export const CONDITION_CODES = { 'Has Any Value': 100, 'Does Not Have Any Value': 101 } as const;
 
 /** Placeholder character that stands for each attachment inside a `WFTextTokenString`. */
 const PLACEHOLDER = '￼';
@@ -318,7 +322,7 @@ export const buildCardPaymentShortcut = (): Dict => {
     group: number;
     mode: 0 | 1 | 2;
     subject?: Reference;
-    condition?: 'Has Any Value' | 'Does Not Have Any Value';
+    condition?: keyof typeof CONDITION_CODES;
   }) =>
     add({
       identifier: SHORTCUT_ACTIONS.conditional,
@@ -328,7 +332,7 @@ export const buildCardPaymentShortcut = (): Dict => {
         [SHORTCUT_PARAMS.controlFlowMode]: mode,
         ...(condition && subject
           ? {
-              [SHORTCUT_PARAMS.condition]: condition,
+              [SHORTCUT_PARAMS.condition]: CONDITION_CODES[condition],
               [SHORTCUT_PARAMS.input]: { Type: 'Variable', Variable: tokenAttachment({ reference: subject }) },
             }
           : {}),
@@ -350,7 +354,10 @@ export const buildCardPaymentShortcut = (): Dict => {
       parameters: { ...parameters, [SHORTCUT_PARAMS.date]: tokenAttachment({ reference: from({ output: now }) }) },
     });
   // The input carries no date, so the run time stands in for the payment time.
-  const isoTime = formatDate({ name: 'Formatted Date', parameters: { [SHORTCUT_PARAMS.dateFormatStyle]: 'ISO 8601' } });
+  const isoTime = formatDate({
+    name: 'Formatted Date',
+    parameters: { [SHORTCUT_PARAMS.dateFormatStyle]: 'ISO 8601', [SHORTCUT_PARAMS.isoIncludeTime]: true },
+  });
   const keyTime = formatDate({
     name: 'Formatted Date',
     parameters: { [SHORTCUT_PARAMS.dateFormatStyle]: 'Custom', [SHORTCUT_PARAMS.dateFormat]: KEY_TIME_FORMAT },
