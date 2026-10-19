@@ -112,6 +112,24 @@ export const CARD_PAYMENT_PARK_REASONS = ['unknownCard', 'rateUnavailable', 'pro
 
 export type CardPaymentParkReason = (typeof CARD_PAYMENT_PARK_REASONS)[number];
 
+/**
+ * The keys of a card-payment request body, as `parsePayload` reads them. Clients (the bundled
+ * Shortcut among them) build their JSON from these names.
+ */
+export const CARD_PAYMENT_REQUEST_KEYS = [
+  'amount',
+  'currency',
+  'merchant',
+  'card',
+  'name',
+  'time',
+  'idempotencyKey',
+  'source',
+  'dryRun',
+] as const;
+
+export type CardPaymentRequestKey = (typeof CARD_PAYMENT_REQUEST_KEYS)[number];
+
 /** The payment was logged as a transaction (or is the replay of one that was). */
 export interface CardPaymentLoggedResponse {
   outcome: 'logged';

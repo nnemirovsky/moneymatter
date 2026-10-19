@@ -1,4 +1,4 @@
-import type { CardPaymentRejectionReason } from '@bt/shared/types';
+import type { CardPaymentRejectionReason, CardPaymentRequestKey } from '@bt/shared/types';
 
 import { cleanText } from './clean-text';
 import { amountInputToText, parseAmount } from './parse-amount';
@@ -133,7 +133,7 @@ export const parsePayload = ({ body, receivedAt }: { body: unknown; receivedAt: 
     return reject({ reason: 'invalidBody', field: 'body' });
   }
 
-  const fields = body as Record<string, unknown>;
+  const fields = body as Partial<Record<CardPaymentRequestKey, unknown>>;
 
   if (fields.dryRun === true) return { ok: true, kind: 'dryRun', card: readDryRunCard({ value: fields.card }) };
 

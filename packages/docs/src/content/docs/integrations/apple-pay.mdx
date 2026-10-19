@@ -28,14 +28,12 @@ After a Wallet payment, iOS gives the shortcut only the **Amount**, the **Mercha
 ## How setup works
 
 1. **Link each card** to a MoneyMatter account (Settings → Integrations → Apple Pay).
-2. **Create the shortcut** on your iPhone, following the [manual guide](#build-the-shortcut-by-hand) below.
+2. **Add the shortcut** to your iPhone: one tap with **Add Shortcut**, or build it by hand with the [manual guide](#build-the-shortcut-by-hand) below.
 3. **Create the automation** that starts the shortcut after each payment.
 4. **Send a test request** to check the connection.
 
-{/* ONE-TAP-SHORTCUT: update this section when the signed shortcut ships (plan Task 11). Until then the Add Shortcut button in Settings has no file to offer, and the manual guide is the way to set up. */}
-
-<Aside type="note" title="One-tap setup is coming">
-MoneyMatter's Settings page can already generate a **setup code** (the address of your instance and a new token in one string), and it will offer a ready-made shortcut named "MoneyMatter: log card payment" that asks for that code once. That shortcut isn't shipped yet, so **Add Shortcut** has nothing to add on most instances. Until it is, build the shortcut by hand. It takes about ten actions, and you only do it once.
+<Aside type="tip" title="One-tap setup">
+Settings → Integrations → Apple Pay generates a **setup code** (the address of your instance and a new token in one string). The ready-made shortcut "MoneyMatter: log card payment" asks for that code once, when you import it, and needs nothing else. The **Add Shortcut** button appears once your instance has the shortcut file or an iCloud link for it; if you don't see it, ask whoever runs the instance, or build the shortcut by hand with the [manual guide](#build-the-shortcut-by-hand). It takes about ten actions, and you only do it once.
 </Aside>
 
 ## Step 1: Link your cards

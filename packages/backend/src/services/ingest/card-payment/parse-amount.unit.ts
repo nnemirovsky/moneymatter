@@ -96,6 +96,7 @@ describe('parseAmount', () => {
       ['a full-width yen', '￥1,200', '1200', null, '¥'],
       ['a trailing code', '47.00 GEL', '47', 'GEL', null],
       ['a leading code', 'GEL 47', '47', 'GEL', null],
+      ["Wallet's own form, a leading code with decimals", 'GEL 28.10', '28.1', 'GEL', null],
       ['a lower-case code', '47 eur', '47', 'EUR', null],
       ['a code glued to the number', 'USD47.50', '47.5', 'USD', null],
       ['a symbol and a code', '₾47.00 GEL', '47', 'GEL', '₾'],

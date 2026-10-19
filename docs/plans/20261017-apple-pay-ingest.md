@@ -616,13 +616,13 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
 - Modify: `packages/frontend/nginx.conf` (`location /shortcuts/`: `application/octet-stream`, `Content-Disposition: attachment`, short cache), `packages/frontend/package.json` (`shortcuts:build` script)
 - Modify: `packages/frontend/src/common/config.ts` (`CARD_PAYMENT_SHORTCUT_ICLOUD_URL` in `AppRuntimeConfig`; getter `cardPaymentShortcutIcloudUrl` = `runtime().CARD_PAYMENT_SHORTCUT_ICLOUD_URL || undefined`, `||` because the entrypoint writes an empty string when unset, as `docsUrl` does; no `VITE_` fallback, since nothing needs it in dev), `self-hosting/frontend/docker-entrypoint.sh` (writes the key into `window.__APP_CONFIG__`). No CI build variable: the value is per instance.
 
-- [ ] ⚠️ capture the identifiers the generator cannot guess:
+- [x] ⚠️ capture the identifiers the generator cannot guess (done by the lead from a test shortcut built on the iPhone and run by a Wallet transaction automation; decoded with `plutil -convert xml1` into `packages/frontend/scripts/shortcuts/fixtures/transaction-input.xml`. Found: the transaction arrives as the Shortcut Input, a variable of `Type: ExtensionInput` with `WFPropertyVariableAggrandizement`s named `Merchant`, `Amount`, `Card or Pass` and `Name` (`PropertyUserInfo: WFItemName`); it exposes no date, so the key uses the run time; `WFWorkflowInputContentItemClasses` is the generic default list with no Wallet class, and the generator emits that list; a real payment printed `Ltd Nord Coffe Company|GEL 28.10|TBC CARD VISA GOLD|Ltd Nord Coffe Company`, so Amount is a code-prefixed string such as `GEL 28.10`, which `parseAmount` reads (a unit case was added). ⚠️ The Replace Text, Base64, Generate Hash, Format Date, Get Dictionary Value and Get Contents of URL identifiers and parameter keys are not verified against an export (no offline source was found); they sit in `SHORTCUT_ACTIONS` and `SHORTCUT_PARAMS` at the top of the generator, and the first on-device import checks them):
   - the Wallet transaction input class for `WFWorkflowInputContentItemClasses`;
   - the property names for Amount, Merchant, Card or Pass and Name, and whether the input carries any date of its own (if it does, the idempotency key uses it instead of the run time);
   - the identifiers of the Replace Text (regex) and Generate Hash (SHA-256) actions.
   - How: build a minimal shortcut by hand on the iPhone (Receive Transaction input → a Dictionary of those four properties), share it as an iCloud link, read the unsigned plist through the iCloud shortcut record (a known community technique; verify), convert it with `plutil -convert xml1`, and keep the extract as a fixture: `packages/frontend/scripts/shortcuts/fixtures/transaction-input.xml`.
   - If this is not feasible, build the full shortcut by hand from the manual guide (Task 13), export and sign it, commit its decoded XML in place of the generated one, and mark the generator task ➕ follow-up.
-- [ ] failing vitest:
+- [x] failing vitest (red run: 12 of 16 failed on assertions against a stub generator):
   - the generated plist has exactly one import question bound to the first Text action's `WFTextActionText`;
   - the actions appear in the order from Solution Overview;
   - the body keys equal the server's schema keys (imported from `shared`);
@@ -632,10 +632,10 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
   - the idempotency key goes through Generate Hash (SHA-256) and the key text joins card, merchant, amount and the key time;
   - the no-input branch sends `dryRun: true`;
   - drift: the committed XML equals the generator output
-- [ ] implement the generator: a deterministic UUID per action (seeded), so the XML is stable and diffable
-- [ ] vitest for `config.cardPaymentShortcutIcloudUrl`: the runtime value wins, an empty runtime string falls back to undefined (⚠️ the getter, its spec `src/common/config.spec.ts`, the `docker-entrypoint.sh` key and the compose/`.env.example` pass-through were done early in Task 13, whose **Add Shortcut** button reads the getter; what remains for this task is only the line in its gate)
-- [ ] gate: `cd packages/frontend && npm run test:unit -- --run scripts/shortcuts/build-card-payment-shortcut.spec.ts src/common/config`; `npm run shortcuts:build` leaves no diff; typecheck (which now covers `scripts/`) and lint
-- [ ] the signed `.shortcut` and the iCloud link are made in Post-Completion; until then the **Add Shortcut** button (Task 13) hides itself when the file is absent (a HEAD probe) and the page points to the manual guide
+- [x] implement the generator: a deterministic UUID per action (seeded), so the XML is stable and diffable
+- [x] vitest for `config.cardPaymentShortcutIcloudUrl`: the runtime value wins, an empty runtime string falls back to undefined (⚠️ the getter, its spec `src/common/config.spec.ts`, the `docker-entrypoint.sh` key and the compose/`.env.example` pass-through were done early in Task 13, whose **Add Shortcut** button reads the getter; what remains for this task is only the line in its gate)
+- [x] gate: `cd packages/frontend && npm run test:unit -- --run scripts/shortcuts/build-card-payment-shortcut.spec.ts src/common/config`; `npm run shortcuts:build` leaves no diff; typecheck (which now covers `scripts/`) and lint (passed: 16 shortcut tests and 3 config tests; `shortcuts:build` left no diff; frontend typecheck and lint clean; backend `parse-amount`/`parse-payload` 180 passed and backend typecheck clean; the committed plist passes `plutil -lint`)
+- [x] the signed `.shortcut` and the iCloud link are made in Post-Completion; until then the **Add Shortcut** button (Task 13) hides itself when the file is absent (a HEAD probe) and the page points to the manual guide
 
 ### Task 12: Frontend: Settings → Integrations → Ingest tokens
 
@@ -686,7 +686,7 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
 
 ### Task 14: Verify acceptance criteria
 
-- [x] a full ingest round trip through HTTP: a token from a setup code (decoded with the shared decoder), a mapped card, a cross-currency payment logged with the right summary, the same key replayed, a parked unknown card logged after linking, and a planned row on a connected account settled by a synced booking at a different amount (verified: `ingest-card-payment.e2e.ts`, `setup-code.e2e.ts`, `processing.e2e.ts`, `merge-card-payment.e2e.ts`, `requests.e2e.ts` pass; the shortcut-generator part is pending Task 11)
+- [x] a full ingest round trip through HTTP: a token from a setup code (decoded with the shared decoder), a mapped card, a cross-currency payment logged with the right summary, the same key replayed, a parked unknown card logged after linking, and a planned row on a connected account settled by a synced booking at a different amount (verified: `ingest-card-payment.e2e.ts`, `setup-code.e2e.ts`, `processing.e2e.ts`, `merge-card-payment.e2e.ts`, `requests.e2e.ts` pass; the shortcut-generator part is covered by Task 11's spec)
 - [x] no route authenticated by a token reaches a session route, a password reset revokes the tokens, and the guard invariant covers the ingest route (verified: `session-isolation.e2e.ts`, `password-reset.e2e.ts`, `base-currency-guard-coverage.e2e.ts`)
 - [x] backups: a mapping round-trips; tokens, the log and the access headers are not in an export (verified: `card-account-mappings` round-trips in `restore-backup.e2e.ts`; `IngestTokens`, `IngestRequests`, `IngestSettings` sit in `BACKUP_EXCLUDED`, enforced by `registry.unit.ts`)
 - [x] backend: `npm run test:unit` (full); `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='(ingest|ingest-tokens|planned-matching|payees|ai-categorization|transaction-automations|backup|mcp|routes/base-currency-guard-coverage)'` (unit 235 suites 3430 passed; e2e 40 suites 475 passed, 1 skipped)
@@ -707,7 +707,7 @@ The work happens in the fork on `feat/apple-pay-ingest` (cut from `dev`) and is 
 - [x] `packages/backend/docs/card-payment-ingest.md`: the API reference (request, key rule, currency resolution, responses, idempotency and the repeat window, parking, settlement), for other clients
 - [x] `self-hosting/docs/environment-reference.md` and `getting-started/self-hosting.mdx` (also a "Proxies with access control" section in `self-hosting/docs/reverse-proxies.md`): `CARD_PAYMENT_SHORTCUT_ICLOUD_URL` as a runtime env var of the frontend container; a note on reverse proxies with access control (path-scoped service auth for `/api/v1/ingest/`)
 - [x] `cd packages/docs && npm run build`; the link validator passes (43 pages built, "All internal links are valid"; `npm ci` was needed first, `packages/docs` is a standalone project with no installed dependencies)
-- [ ] move this plan to `docs/plans/completed/` after Task 14 passes (waits for Task 11, which stays open until the shortcut export exists; then update the `ONE-TAP-SHORTCUT` section of `apple-pay.mdx` and the Add Shortcut text, and move the plan)
+- [x] move this plan to `docs/plans/completed/` after Task 14 passes (Task 11 is done; the `ONE-TAP-SHORTCUT` Aside of `apple-pay.mdx` now describes the generated shortcut and the Add Shortcut button)
 
 ## Post-Completion
 
