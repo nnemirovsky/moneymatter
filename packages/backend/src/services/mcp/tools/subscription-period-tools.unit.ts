@@ -14,6 +14,7 @@ import { revertPeriod } from '@services/subscriptions/revert-period';
 import { skipPeriod } from '@services/subscriptions/skip-period';
 import { suggestHistoricalMatches } from '@services/subscriptions/suggest-historical-matches';
 import { unlinkTransaction } from '@services/subscriptions/unlink-transaction';
+import { updatePeriodNotes } from '@services/subscriptions/update-period-notes';
 import { captureTools, makeExtra, parseToolResult } from '@tests/helpers/mcp-tools';
 import { z } from 'zod';
 
@@ -27,6 +28,7 @@ jest.mock('@services/subscriptions/mark-period-paid', () => ({ markPeriodPaid: j
 jest.mock('@services/subscriptions/skip-period', () => ({ skipPeriod: jest.fn() }));
 jest.mock('@services/subscriptions/unlink-transaction', () => ({ unlinkTransaction: jest.fn() }));
 jest.mock('@services/subscriptions/revert-period', () => ({ revertPeriod: jest.fn() }));
+jest.mock('@services/subscriptions/update-period-notes', () => ({ updatePeriodNotes: jest.fn() }));
 jest.mock('@services/payees/get-payee-names', () => ({ getPayeeNames: jest.fn() }));
 jest.mock('@services/currencies/base-currency-lock', () => ({ isBaseCurrencyChangeLocked: jest.fn() }));
 
@@ -40,6 +42,7 @@ import { registerPreviewSubscriptionPayment } from './preview-subscription-payme
 import { registerRevertSubscriptionPeriod } from './revert-subscription-period';
 import { registerSkipSubscriptionPeriod } from './skip-subscription-period';
 import { registerUnlinkSubscriptionPeriodTransaction } from './unlink-subscription-period-transaction';
+import { registerUpdateSubscriptionPeriod } from './update-subscription-period';
 
 const READ_ONLY = makeExtra({ scopes: ['finance:read'], readOnly: true });
 const WRITE = makeExtra({ scopes: ['finance:read', 'finance:write'] });
@@ -57,6 +60,7 @@ const pay = jest.mocked(markPeriodPaid);
 const skip = jest.mocked(skipPeriod);
 const unlink = jest.mocked(unlinkTransaction);
 const revert = jest.mocked(revertPeriod);
+const updateNotes = jest.mocked(updatePeriodNotes);
 
 const SUB_ID = '11111111-1111-4111-8111-111111111111';
 const PERIOD_ID = '22222222-2222-4222-8222-222222222222';
@@ -491,5 +495,54 @@ describe('revert_subscription_period', () => {
     lockCheck.mockResolvedValue(true);
     await expect(call({ tool, args, extra: WRITE_DELETE })).rejects.toThrow(LOCKED);
     expect(revert).not.toHaveBeenCalled();
+  });
+});
+
+describe('update_subscription_period', () => {
+  const tool = captureTools({ register: registerUpdateSubscriptionPeriod })[0]!;
+  const schema = z.object(tool.config.inputSchema!);
+  const args = { subscriptionId: SUB_ID, periodId: PERIOD_ID, notes: 'Paid by card' };
+
+  it('registers under its name and says it edits the note and that null clears it', () => {
+    expect(tool.name).toBe('update_subscription_period');
+    expect(tool.config.description).toMatch(/note/i);
+    expect(tool.config.description).toMatch(/null/);
+  });
+
+  it('requires both ids and a notes field that is a string or null, capped at 5000 characters', () => {
+    expect(schema.safeParse(args).success).toBe(true);
+    expect(schema.safeParse({ ...args, notes: null }).success).toBe(true);
+    expect(schema.safeParse({ ...args, notes: 'x'.repeat(5000) }).success).toBe(true);
+    expect(schema.safeParse({ ...args, notes: 'x'.repeat(5001) }).success).toBe(false);
+    expect(schema.safeParse({ subscriptionId: SUB_ID, periodId: PERIOD_ID }).success).toBe(false);
+    expect(schema.safeParse({ ...args, notes: 5 }).success).toBe(false);
+    expect(schema.safeParse({ ...args, periodId: 'nope' }).success).toBe(false);
+  });
+
+  it('calls the service with the note and returns the period', async () => {
+    updateNotes.mockResolvedValue({ id: PERIOD_ID, notes: 'Paid by card' } as never);
+
+    expect(await call({ tool, args, extra: WRITE })).toEqual({ id: PERIOD_ID, notes: 'Paid by card' });
+    expect(updateNotes).toHaveBeenCalledWith({
+      userId: 42,
+      subscriptionId: SUB_ID,
+      periodId: PERIOD_ID,
+      notes: 'Paid by card',
+    });
+
+    await call({ tool, args: { ...args, notes: null }, extra: WRITE });
+    expect(updateNotes).toHaveBeenLastCalledWith(expect.objectContaining({ notes: null }));
+  });
+
+  it('needs finance:write and refuses a read-only user, and does not wait on the base-currency lock', async () => {
+    await expect(call({ tool, args, extra: READ_ONLY })).rejects.toThrow(/no longer includes editing/);
+    await expect(call({ tool, args, extra: NO_WRITE_SCOPE })).rejects.toThrow(/Missing required scope: finance:write/);
+    expect(updateNotes).not.toHaveBeenCalled();
+
+    // Matches PATCH /subscriptions/:id/periods/:periodId, which carries no checkBaseCurrencyLock.
+    lockCheck.mockResolvedValue(true);
+    updateNotes.mockResolvedValue({ id: PERIOD_ID } as never);
+    await call({ tool, args, extra: WRITE });
+    expect(updateNotes).toHaveBeenCalledTimes(1);
   });
 });
