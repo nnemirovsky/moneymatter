@@ -18,7 +18,7 @@ export function registerGetExpensesForPeriod(server: McpServer) {
     'get_expenses_for_period',
     {
       description:
-        'Get total expense amount for a date range. Returns a single total number. Use this for quick "how much did I spend" queries instead of summing transactions manually.',
+        'Get total expense amount for a date range. Returns a single total number; transfers between the user\'s own accounts are not counted. Use this for quick "how much did I spend" queries instead of summing transactions manually.',
       inputSchema,
     },
     async (args, extra) => {
