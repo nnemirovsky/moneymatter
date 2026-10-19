@@ -103,7 +103,7 @@ The **Model** field lists the models the program accepts. Each connection has a 
 
 Not every model is available on every plan. If your plan doesn't include the one you picked, **Test connection** says that the provider doesn't offer that model on your subscription. Pick another one.
 
-Larger models answer better but use up your plan's limits faster. Since you can add the same connection more than once, a common setup is a fast model for categorization and a stronger one for reading statements. Then choose the model for each feature on the **AI Features** tab. Chat is the exception: you pick its model in each conversation.
+Larger models answer better but use up your plan's limits faster. One connection can serve them all: the model you set on the connection is its default, and wherever you pick a connection you can also pick another model of the same subscription. A common setup is a fast model for categorization and a stronger one for reading statements. On the **AI Features** tab, pick the connection for a feature, then choose a model under **Model from this connection**. **Default** keeps the connection's own model. Chat picks its model in each conversation, next to the connection.
 
 Connections on a subscription are marked **Subscription**. They don't show a cost estimate. Where a price would normally appear, you'll see "Included in your subscription".
 
@@ -114,7 +114,7 @@ A subscription has its own usage limits, set by Claude or ChatGPT and shared wit
 - **Runs can overlap.** Several runs of one connection can go at the same time, which draws on your plan faster. Across the server, no more than four runs go at the same time unless the server's owner changes `AI_CLI_MAX_CONCURRENT_RUNS`. Larger imports and categorization can take a little longer than with an API key.
 - **A single run can take up to five minutes** before it's cancelled.
 
-When your plan's limit is reached, the feature tells you the subscription limit is used up and, when the provider says so, when it resets. Try again after the reset, or pick another model for that feature (for Chat, under the message box).
+When your plan's limit is reached, the feature tells you the subscription limit is used up and, when the provider says so, when it resets. Try again after the reset, or pick another model or connection for that feature (for Chat, under the message box).
 
 MoneyMatter's usage shows up on your plan's usage page at Claude or ChatGPT, like any other use of the account.
 
@@ -161,7 +161,7 @@ If you restore a backup, subscription connections come back marked as needing a 
 
 **Budget suggestions** keep using the model the server provides, and never your subscription connection. They run on the server's own AI key (`GEMINI_API_KEY`), and are available only when the server has one.
 
-Every other AI feature uses the model you choose for it on the **AI Features** tab, including a subscription connection.
+Every other AI feature uses the connection and model you choose for it on the **AI Features** tab, including a subscription connection.
 
 ## Troubleshooting
 
