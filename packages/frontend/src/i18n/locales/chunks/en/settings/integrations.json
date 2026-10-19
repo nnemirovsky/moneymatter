@@ -105,7 +105,7 @@
           "description": "iOS does not let apps share automations, so this part is done on the phone itself.",
           "step1": "Open Shortcuts, go to Automation, tap + and choose Transaction.",
           "step2": "Choose your cards, select Run Immediately and tap Next.",
-          "step3": "Select the shortcut \"MoneyMatter: log card payment\" and tap Done.",
+          "step3": "Select the shortcut \"MoneyMatter - Log card payment\" and tap Done.",
           "testTitle": "Test it",
           "test": "Run the shortcut by hand from the Shortcuts app. Without a payment it sends a test request and shows a notification that confirms the connection."
         },

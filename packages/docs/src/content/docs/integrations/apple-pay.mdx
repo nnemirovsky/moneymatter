@@ -37,7 +37,7 @@ After a Wallet payment, iOS gives the shortcut only the **Amount**, the **Mercha
 4. **Send a test request** to check the connection.
 
 <Aside type="tip" title="One-tap setup">
-The Apple Pay page generates a **setup code** (the address of your instance and a new token in one string). The ready-made shortcut "MoneyMatter: log card payment" asks for that code once, when you import it, and needs nothing else. The **Add Shortcut** button appears once your instance has the shortcut file or an iCloud link for it; if you don't see it, ask whoever runs the instance, or build the shortcut by hand with the [manual guide](#build-the-shortcut-by-hand). It takes about ten actions, and you only do it once.
+The Apple Pay page generates a **setup code** (the address of your instance and a new token in one string). The ready-made shortcut "MoneyMatter - Log card payment" asks for that code once, when you import it, and needs nothing else. The **Add Shortcut** button appears once your instance has the shortcut file or an iCloud link for it; if you don't see it, ask whoever runs the instance, or build the shortcut by hand with the [manual guide](#build-the-shortcut-by-hand). It takes about ten actions, and you only do it once.
 </Aside>
 
 ## Step 1: Link your cards
@@ -87,7 +87,7 @@ If a service such as Cloudflare Access asks for a login before it lets requests 
 
 ## Build the shortcut by hand
 
-Open the Shortcuts app, tap **+** to create a new shortcut and name it `MoneyMatter: log card payment`. Then add these actions in order. Where an action reads a value from an earlier action, tap the field and pick the earlier action's result from the variable list.
+Open the Shortcuts app, tap **+** to create a new shortcut and name it `MoneyMatter - Log card payment`. Then add these actions in order. Where an action reads a value from an earlier action, tap the field and pick the earlier action's result from the variable list.
 
 <Steps>
 
@@ -150,7 +150,7 @@ iOS doesn't let apps share automations, so this part is done on the phone.
 2. Choose **Transaction**.
 3. Choose your cards.
 4. Select **Run Immediately**, then tap **Next**.
-5. Pick the shortcut "MoneyMatter: log card payment" and tap **Done**.
+5. Pick the shortcut "MoneyMatter - Log card payment" and tap **Done**.
 
 </Steps>
 
@@ -272,6 +272,10 @@ On the **Apple Pay** tab, **Cards without a link** shows each card that has paym
 Payments are kept in the list for 90 days after they are logged, refused or dismissed.
 
 ## Troubleshooting
+
+### The shortcut says the setup code is missing or could not be read
+
+"No MoneyMatter setup code was entered" means the question at import was skipped. "The MoneyMatter setup code could not be read" means the code was cut short or changed on the way. Generate a new code on the Apple Pay page, add the shortcut again and paste the whole code when it asks. A code is shown once and carries a new token, so a code from before a password reset no longer works.
 
 ### The shortcut says "unauthorized" or nothing happens (401)
 

@@ -19,7 +19,7 @@ describe('SetupChecklist', () => {
     expect(steps[1]).toContain('2');
     expect(steps[1]).toContain('Run Immediately');
     expect(steps[2]).toContain('3');
-    expect(steps[2]).toContain('"MoneyMatter: log card payment"');
+    expect(steps[2]).toContain('"MoneyMatter - Log card payment"');
   });
 
   it('explains that running the shortcut by hand sends a dry run', () => {

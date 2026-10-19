@@ -3,7 +3,7 @@
     <a
       :href="href"
       :target="isExternal ? '_blank' : undefined"
-      :download="isExternal ? undefined : ''"
+      :download="isExternal ? undefined : CARD_PAYMENT_SHORTCUT_DOWNLOAD_NAME"
       rel="noopener noreferrer"
     >
       <SmartphoneIcon class="size-4" />
@@ -17,7 +17,7 @@ import { Button } from '@/components/lib/ui/button';
 import { SmartphoneIcon } from '@lucide/vue';
 import { computed } from 'vue';
 
-import { CARD_PAYMENT_SHORTCUT_FILE_PATH } from '../apple-pay';
+import { CARD_PAYMENT_SHORTCUT_DOWNLOAD_NAME, CARD_PAYMENT_SHORTCUT_FILE_PATH } from '../apple-pay';
 import { useShortcutLink } from '../composables/use-shortcut-link';
 
 const { href } = useShortcutLink();

@@ -1,5 +1,5 @@
 /**
- * Generates the unsigned "MoneyMatter: log card payment" Shortcut as an XML property list.
+ * Generates the unsigned "MoneyMatter - Log card payment" Shortcut as an XML property list.
  *
  * `npm run shortcuts:build` writes `shortcuts/log-card-payment.plist`; the maintainer signs that
  * file on macOS (`shortcuts sign`, see `public/shortcuts/README.md`). The output is
@@ -27,6 +27,7 @@ export const SHORTCUT_ACTIONS = {
   text: 'is.workflow.actions.gettext',
   replaceText: 'is.workflow.actions.text.replace',
   base64: 'is.workflow.actions.base64encode',
+  detectText: 'is.workflow.actions.detect.text',
   detectDictionary: 'is.workflow.actions.detect.dictionary',
   getValue: 'is.workflow.actions.getvalueforkey',
   conditional: 'is.workflow.actions.conditional',
@@ -36,6 +37,7 @@ export const SHORTCUT_ACTIONS = {
   downloadUrl: 'is.workflow.actions.downloadurl',
   setVariable: 'is.workflow.actions.setvariable',
   notification: 'is.workflow.actions.notification',
+  exit: 'is.workflow.actions.exit',
 } as const;
 
 export const SHORTCUT_PARAMS = {
@@ -75,8 +77,12 @@ export const CONDITION_CODES = { 'Has Any Value': 100, 'Does Not Have Any Value'
 const PLACEHOLDER = '￼';
 
 const SEED = 'moneymatter-log-card-payment-shortcut-v1';
-const SHORTCUT_NAME = 'MoneyMatter: log card payment';
+const SHORTCUT_NAME = 'MoneyMatter - Log card payment';
 const IMPORT_QUESTION = 'Paste the setup code from the Apple Pay page in MoneyMatter (Accounts → Apple Pay).';
+const NO_CODE_ERROR =
+  'No MoneyMatter setup code was entered. Generate one on the Apple Pay page and add the shortcut again.';
+const UNREADABLE_CODE_ERROR =
+  'The MoneyMatter setup code could not be read. Generate a new one on the Apple Pay page and add the shortcut again.';
 const KEY_TIME_FORMAT = "yyyy-MM-dd'T'HH:mmZZZZZ";
 const SOURCE = 'apple-pay';
 const IMPORT_QUESTION_ACTION_INDEX = 0;
@@ -259,7 +265,9 @@ export const buildCardPaymentShortcut = (): Dict => {
       [SHORTCUT_PARAMS.replaceWith]: '',
       [SHORTCUT_PARAMS.replaceRegex]: true,
       [SHORTCUT_PARAMS.replaceCaseSensitive]: true,
-      [SHORTCUT_PARAMS.input]: tokenAttachment({ reference: from({ output: code }) }),
+      // A typed-into slot: Shortcuts serializes it as a text token, like `WFDate`. Pure variable slots
+      // (Decode, Get Text, Get Dictionary, Get Value, Hash, Set Variable) take a bare attachment.
+      [SHORTCUT_PARAMS.input]: tokenString({ parts: [from({ output: code })] }),
     },
   });
   const decoded = add({
@@ -270,10 +278,16 @@ export const buildCardPaymentShortcut = (): Dict => {
       [SHORTCUT_PARAMS.input]: tokenAttachment({ reference: from({ output: stripped }) }),
     },
   });
+  // Base64 Decode yields untyped data; reading it as text first makes the next step parse JSON.
+  const decodedText = add({
+    identifier: SHORTCUT_ACTIONS.detectText,
+    name: 'Text',
+    parameters: { [SHORTCUT_PARAMS.input]: tokenAttachment({ reference: from({ output: decoded }) }) },
+  });
   const setup = add({
     identifier: SHORTCUT_ACTIONS.detectDictionary,
     name: 'Dictionary',
-    parameters: { [SHORTCUT_PARAMS.input]: tokenAttachment({ reference: from({ output: decoded }) }) },
+    parameters: { [SHORTCUT_PARAMS.input]: tokenAttachment({ reference: from({ output: decodedText }) }) },
   });
   const getSetupValue = ({ key }: { key: string }) =>
     add({
@@ -340,6 +354,25 @@ export const buildCardPaymentShortcut = (): Dict => {
     });
 
   // 9-..: the Wallet automation passes the payment as Shortcut Input; a manual run has none.
+  // No setup code, or one that cannot be read, leaves `url` or `token` empty; stop with a message instead of
+  // letting Get Contents of URL fail with "No URL Specified". The Cloudflare pair is optional.
+  const stopWhenEmpty = ({ group, value, message }: { group: number; value: Output; message: string }) => {
+    conditional({ group, mode: 0, subject: from({ output: value }), condition: 'Does Not Have Any Value' });
+    add({
+      identifier: SHORTCUT_ACTIONS.notification,
+      name: 'Notification',
+      parameters: {
+        [SHORTCUT_PARAMS.notificationTitle]: SHORTCUT_NAME,
+        [SHORTCUT_PARAMS.notificationBody]: tokenString({ parts: [message] }),
+      },
+    });
+    add({ identifier: SHORTCUT_ACTIONS.exit, name: 'Stop', parameters: {} });
+    conditional({ group, mode: 2 });
+  };
+  stopWhenEmpty({ group: 1002, value: code, message: NO_CODE_ERROR });
+  stopWhenEmpty({ group: 1003, value: url, message: UNREADABLE_CODE_ERROR });
+  stopWhenEmpty({ group: 1004, value: token, message: UNREADABLE_CODE_ERROR });
+
   conditional({ group: 1000, mode: 0, subject: shortcutInput(), condition: 'Has Any Value' });
 
   const now = add({
@@ -351,7 +384,10 @@ export const buildCardPaymentShortcut = (): Dict => {
     add({
       identifier: SHORTCUT_ACTIONS.formatDate,
       name,
-      parameters: { ...parameters, [SHORTCUT_PARAMS.date]: tokenAttachment({ reference: from({ output: now }) }) },
+      parameters: {
+        ...parameters, // Typed-into field: Shortcuts serializes it as a text token, not a bare variable slot.
+        [SHORTCUT_PARAMS.date]: tokenString({ parts: [from({ output: now })] }),
+      },
     });
   // The input carries no date, so the run time stands in for the payment time.
   const isoTime = formatDate({
