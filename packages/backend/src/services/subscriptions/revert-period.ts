@@ -9,6 +9,7 @@ import { deleteTransaction } from '@services/transactions/delete-transaction';
 import { Op } from 'sequelize';
 
 import { findSubscriptionOrThrow } from './helpers';
+import { mergePeriodNotes } from './merge-period-notes';
 
 interface RevertPeriodParams {
   userId: number;
@@ -68,6 +69,8 @@ export const revertPeriod = withTransaction(
       },
     });
 
+    let notes = period.notes;
+
     if (!laterConsumedPeriod) {
       const newerOpenPeriod = await SubscriptionPeriods.findOne({
         where: {
@@ -78,6 +81,8 @@ export const revertPeriod = withTransaction(
       });
 
       if (newerOpenPeriod && newerOpenPeriod.dueDate > period.dueDate) {
+        // The successor goes away, so a note the user put on it moves to the reopened period.
+        notes = mergePeriodNotes({ reopened: period.notes, removed: newerOpenPeriod.notes });
         await newerOpenPeriod.destroy();
       }
     }
@@ -110,6 +115,7 @@ export const revertPeriod = withTransaction(
 
     await period.update({
       status: newStatus,
+      notes,
       paidAt: null,
       transactionId: null,
       transactionAutoCreated: false,
