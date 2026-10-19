@@ -1,4 +1,11 @@
-import { AICliProvider, AI_FEATURE, AI_PROVIDER, CATEGORIZATION_SOURCE, type RecordId } from '@bt/shared/types';
+import {
+  AICliProvider,
+  AI_FEATURE,
+  AI_PROVIDER,
+  CLI_AI_MODELS,
+  CATEGORIZATION_SOURCE,
+  type RecordId,
+} from '@bt/shared/types';
 import { ASSET_CLASS } from '@bt/shared/types/investments';
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
@@ -146,6 +153,22 @@ describe('AI features on subscription CLI connections', () => {
 
       expect(status).toMatchObject({ configuredModelId: 'haiku', modelId: `${CLAUDE}/haiku` });
     });
+
+    it.each(CLI_AI_MODELS[CLAUDE].map((model) => model.id))(
+      'accepts the listed Claude Code id %s, alias and versioned id alike',
+      async (modelId) => {
+        const connection = await createSignedInConnection({ provider: CLAUDE });
+
+        const response = await helpers.setAiFeatureConfig({
+          feature: AI_FEATURE.categorization,
+          connectionId: connection.id,
+          modelId,
+        });
+
+        expect(response.statusCode).toBe(200);
+      },
+      TEST_TIMEOUT_MS,
+    );
 
     it('refuses a model the subscription does not offer', async () => {
       const connection = await createSignedInConnection({ provider: CLAUDE });

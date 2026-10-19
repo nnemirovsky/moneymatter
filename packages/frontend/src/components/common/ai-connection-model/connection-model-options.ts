@@ -17,11 +17,14 @@ const canonicalCliModel = ({ provider, model }: ModelOwner): string | undefined 
 };
 
 /**
- * A subscription model by its short id, which is also its friendly name (`haiku`, `sonnet`, `opus`), so it
- * fits a narrow select. The provider listings carry ids only, so any other model shows as the provider names it.
+ * A subscription model by its curated label: a versioned id as it is, an alias as the moving one it is
+ * (`haiku (latest)`). The provider listings carry ids only, so any other model shows as the provider names it.
  */
-export const formatConnectionModelName = ({ provider, model }: ModelOwner): string =>
-  canonicalCliModel({ provider, model }) ?? model;
+export const formatConnectionModelName = ({ provider, model }: ModelOwner): string => {
+  const cliProvider = asAiCliProvider({ provider });
+
+  return (cliProvider && findCliAiModel({ provider: cliProvider, model })?.label) || model;
+};
 
 /**
  * What a model picker offers for one connection: "Default" first (the connection's own model), then every
