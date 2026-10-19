@@ -676,7 +676,8 @@
       "placeholder": "Виберіть модель",
       "included": "Вбудована модель",
       "option": "{name} ({model})",
-      "optionNeedsAttention": "{name} ({model}) - потребує уваги"
+      "optionNeedsAttention": "{name} ({model}) - потребує уваги",
+      "nameNeedsAttention": "{name} - потребує уваги"
     },
     "context": {
       "pages": {

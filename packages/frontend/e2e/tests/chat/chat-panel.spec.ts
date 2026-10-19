@@ -122,7 +122,8 @@ test.describe('Chat panel', () => {
     // The model select sits on its own row under the connection select.
     expect(model!.y).toBeGreaterThanOrEqual(connection!.y + connection!.height);
     expect(await panel.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-    await expect(selects.nth(0)).toContainText('My Claude Account');
+    // The model select names the model, so the connection is named alone.
+    await expect(selects.nth(0)).toHaveText('My Claude Account');
     await expect(selects.nth(1)).toContainText('Default (claude-haiku-5-5)');
     expect(await showsFullLabel({ select: selects.nth(0) })).toBe(true);
     expect(await showsFullLabel({ select: selects.nth(1) })).toBe(true);

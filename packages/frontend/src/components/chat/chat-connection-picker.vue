@@ -4,7 +4,7 @@ import SelectField from '@/components/fields/select-field.vue';
 import { useAiSettings } from '@/composable/data-queries/ai-settings';
 import { useAiConnectionsList } from '@/composable/data-queries/use-ai-connections';
 import { AI_FEATURE } from '@bt/shared/types';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import {
@@ -43,8 +43,17 @@ const selected = computed(() =>
 // The included model has no choice of model, and a connection gone from the list has nothing to list.
 const selectedConnection = computed(() => connections.value.find(({ id }) => id === props.connectionId) ?? null);
 
+// While the model select beside it names the model, the connection is named alone: its own model
+// would read as a contradiction when another one is picked.
+const hasModelChoice = ref(false);
+const showsModelSelect = computed(() => hasModelChoice.value && selectedConnection.value !== null);
+
 const formatOption = (option: ChatConnectionOption) => {
   if (option.kind === 'included') return t('chat.connection.included');
+
+  if (showsModelSelect.value) {
+    return option.needsAttention ? t('chat.connection.nameNeedsAttention', { name: option.name }) : option.name;
+  }
 
   const params = { name: option.name, model: option.model };
   return option.needsAttention
@@ -88,6 +97,7 @@ const onSelect = (option: ChatConnectionOption | null) => {
         :model-id="modelId"
         :disabled="disabled"
         @select="(next) => emit('select-model', next)"
+        @update:has-choice="(value) => (hasModelChoice = value)"
       />
     </div>
   </div>

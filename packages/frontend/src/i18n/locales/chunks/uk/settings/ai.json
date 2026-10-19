@@ -71,7 +71,8 @@
           "description": "Додайте власну AI-модель, щоб використовувати цю функцію."
         },
         "allConnectionsDown": "Усі ваші AI-моделі потребують уваги, тому цю функцію призупинено. Виправте одну з них на вкладці {link}.",
-        "allConnectionsDownLink": "AI-моделі"
+        "allConnectionsDownLink": "AI-моделі",
+        "connectionNameNeedsAttention": "{name} (потребує уваги)"
       },
       "modelGuide": {
         "trigger": "Яка модель підійде?",

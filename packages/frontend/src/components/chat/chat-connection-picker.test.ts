@@ -6,7 +6,7 @@ import enChat from '@/i18n/locales/chunks/en/pages/chat.json';
 import { AI_PROVIDER, type AIConnectionInfo } from '@bt/shared/types';
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { computed, defineComponent, h, ref } from 'vue';
+import { computed, defineComponent, h, nextTick, ref } from 'vue';
 import { createI18n } from 'vue-i18n';
 
 import ChatConnectionPicker from './chat-connection-picker.vue';
@@ -89,6 +89,7 @@ describe('ChatConnectionPicker', () => {
   });
 
   it('lists every connection with its model and shows the thread connection as selected', () => {
+    state.liveModels.value = [];
     const wrapper = mountPicker({ connectionId: 'c2' });
 
     expect(wrapper.find('[data-testid="option-c1"]').text()).toBe('Home Ollama (llama3.2)');
@@ -151,6 +152,33 @@ describe('ChatConnectionPicker', () => {
       expect(mountPicker({ connectionId: null }).findAll('[data-testid="select"]')).toHaveLength(1);
     });
 
+    it('names the connection alone, since the model select beside it names the model', async () => {
+      const wrapper = mountPicker({ connectionId: 'c2' });
+      await nextTick();
+
+      expect(wrapper.find('[data-testid="option-c1"]').text()).toBe('Home Ollama');
+      expect(wrapper.find('[data-testid="option-c2"]').text()).toBe('Studio vLLM');
+      expect(wrapper.find('[data-testid="select"]').attributes('data-selected')).toBe('Studio vLLM');
+    });
+
+    it('keeps naming the model next to the connection when the provider offers no other model', () => {
+      state.liveModels.value = [];
+
+      const wrapper = mountPicker({ connectionId: 'c2' });
+
+      expect(wrapper.findAll('[data-testid="select"]')).toHaveLength(1);
+      expect(wrapper.find('[data-testid="select"]').attributes('data-selected')).toBe('Studio vLLM (qwen2.5)');
+    });
+
+    it('still flags a connection that needs attention when only its name is shown', async () => {
+      state.connections.value = [connection({ id: 'c1', status: 'invalid' })];
+
+      const wrapper = mountPicker({ connectionId: 'c1' });
+      await nextTick();
+
+      expect(wrapper.find('[data-testid="option-c1"]').text()).toBe('Home Ollama - needs attention');
+    });
+
     it('follows the disabled state of the picker', () => {
       const wrapper = mountPicker({ connectionId: 'c1', disabled: true });
 
@@ -168,6 +196,7 @@ describe('ChatConnectionPicker', () => {
   });
 
   it('names a connection that needs attention', () => {
+    state.liveModels.value = [];
     state.connections.value = [connection({ id: 'c1', status: 'invalid' })];
 
     const wrapper = mountPicker({ connectionId: 'c1' });

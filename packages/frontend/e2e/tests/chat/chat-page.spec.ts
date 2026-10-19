@@ -237,6 +237,10 @@ test.describe('Chat page', () => {
 
         const models = page.getByTestId('chat-connection-picker').getByRole('combobox').nth(1);
         await expect(models).toContainText('Default (llama3.2)');
+        // The model select names the model, so the connection is named alone.
+        await expect(page.getByTestId('chat-connection-picker').getByRole('combobox').first()).toHaveText(
+          'Home Ollama',
+        );
 
         // The page is wide, so the two selects share a row.
         const connectionBox = await page
