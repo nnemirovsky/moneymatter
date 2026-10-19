@@ -20,6 +20,7 @@ interface AppRuntimeConfig {
   IS_SELF_HOST?: string;
   MCP_BASE_URL?: string;
   DOCS_URL?: string;
+  CARD_PAYMENT_SHORTCUT_ICLOUD_URL?: string;
   POSTHOG_KEY?: string;
   POSTHOG_HOST?: string;
   LOGO_DEV_TOKEN?: string;
@@ -56,6 +57,10 @@ export const config = {
   /** `||`, not `??`: the entrypoint writes an empty string when DOCS_URL is unset. */
   get docsUrl(): string {
     return runtime().DOCS_URL || EXTERNAL_URLS.docs;
+  },
+  /** `||`, not `??`: the entrypoint writes an empty string when the link is unset. No `VITE_` fallback, the link is per instance. */
+  get cardPaymentShortcutIcloudUrl(): string | undefined {
+    return runtime().CARD_PAYMENT_SHORTCUT_ICLOUD_URL || undefined;
   },
   get posthogKey(): string | undefined {
     return runtime().POSTHOG_KEY ?? import.meta.env.VITE_POSTHOG_KEY;

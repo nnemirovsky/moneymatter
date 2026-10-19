@@ -4,6 +4,7 @@ import BudgetPlans from '@models/budget-plans.model';
 import ChatAttachments from '@models/chat-attachments.model';
 import ChatMessages from '@models/chat-messages.model';
 import ChatThreads from '@models/chat-threads.model';
+import IngestRequests from '@models/ingest-requests.model';
 import ResourceShares from '@models/resource-shares.model';
 import ShareInvitations from '@models/share-invitations.model';
 import * as Users from '@models/users.model';
@@ -85,8 +86,8 @@ const WIPE_ORDER = BACKUP_TABLES.toReversed();
  * surrounding spine handles share-target snapshots and notification fan-out.
  *
  * Deletes the user's chat history (excluded from backups, so the registry never reaches it) and
- * walks the backup registry's `userColumn` tables; `viaParent` children go with their parents via
- * FK cascade. Leaves the Users + `ba_user` rows intact
+ * walks the backup registry's `userColumn` tables (and clears the ingest request log, which the registry excludes
+ * from exports); `viaParent` children go with their parents via FK cascade. Leaves the Users + `ba_user` rows intact
  * (identity is preserved); only the domain data + per-user settings go.
  */
 export const destroyUserOwnedData = async ({ user }: { user: Users.default }) => {
@@ -119,6 +120,9 @@ export const destroyUserOwnedData = async ({ user }: { user: Users.default }) =>
   await ChatAttachments.destroy({ where: { userId: user.id } });
 
   await BudgetPlans.destroy({ where: { userId: user.id }, force: true });
+  // Not in `BACKUP_TABLES` (kept out of exports), but its payloads hold merchants, amounts and
+  // card names, and a parked payment could still be retried onto an account linked later.
+  await IngestRequests.destroy({ where: { userId: user.id }, force: true });
   for (const def of WIPE_ORDER) {
     if (def.scope.strategy !== 'userColumn' || CREATOR_SCOPED_TABLES.has(def.fileName)) continue;
     // force:true so paranoid models hard-delete instead of leaving soft-deleted rows behind their default scope.

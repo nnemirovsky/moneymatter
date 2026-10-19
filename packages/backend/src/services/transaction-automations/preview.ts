@@ -69,7 +69,8 @@ export const scanAutomationMatches = async ({
   });
   const bankAccountIds = accounts.filter((account) => account.type !== ACCOUNT_TYPES.system).map(({ id }) => id);
   const scanned = await findTransactions({
-    planned: 'exclude',
+    // Plans are narrowed to the card-payment ones by `buildEligibilityWhere`.
+    planned: 'include',
     access: { creator: userId },
     balanceAdjustments: 'exclude',
     transfers: { natures: [TRANSACTION_TRANSFER_NATURE.not_transfer] },

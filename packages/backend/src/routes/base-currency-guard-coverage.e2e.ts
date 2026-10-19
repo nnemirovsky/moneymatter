@@ -7,7 +7,8 @@ import { buildLockKey } from '@services/currencies/base-currency-lock';
 import * as helpers from '@tests/helpers';
 import { ErrorResponse } from '@tests/helpers/common';
 
-const AUTH_MIDDLEWARE = 'authenticateSession';
+// A route authenticated by either is a caller-facing route, so both must carry the guard on a write.
+const AUTH_MIDDLEWARES = new Set(['authenticateSession', 'authenticateIngestToken']);
 const GUARD_MIDDLEWARE = 'checkBaseCurrencyLock';
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const LOCK_CODE = API_ERROR_CODES.baseCurrencyChangeInProgress;
@@ -66,8 +67,15 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   'DELETE /api/v1/user/settings/ai/cli/auth-sessions/:id',
   'DELETE /api/v1/user/settings/ai/connections/:id',
   'DELETE /api/v1/user/settings/ai/features/:feature',
+  // Ingest tokens are credentials, no monetary data.
+  'DELETE /api/v1/user/settings/ingest-tokens/:id',
+  // A card link names an account; it moves no money.
+  'DELETE /api/v1/user/settings/card-mappings/:id',
+  // Dismissing a waiting payment only changes the request log; the payment was never booked.
+  'DELETE /api/v1/user/settings/card-payments/requests/:id',
   'DELETE /api/v1/user/settings/mcp/connected-apps/:clientId',
   'PATCH /api/v1/user/settings',
+  'PATCH /api/v1/user/settings/card-mappings/:id',
   'POST /api/v1/user/backup',
   // A rate-source preview fetches one URL and saves nothing.
   'POST /api/v1/user/currencies/:code/rate-source/test',
@@ -79,10 +87,16 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   'POST /api/v1/user/settings/ai/connections/:id/default',
   'POST /api/v1/user/settings/ai/connections/models',
   'POST /api/v1/user/settings/ai/connections/test',
+  'POST /api/v1/user/settings/card-mappings',
+  // The setup code mints a credential and moves no money.
+  'POST /api/v1/user/settings/card-payments/setup-code',
+  'POST /api/v1/user/settings/ingest-tokens',
   'PUT /api/v1/user/settings',
   'PUT /api/v1/user/settings/ai/connections/:id',
   'PUT /api/v1/user/settings/ai/custom-instructions',
   'PUT /api/v1/user/settings/ai/features/:feature',
+  // Cloudflare Access headers are credentials for the setup code, no monetary data.
+  'PUT /api/v1/user/settings/card-payments/access-headers',
   'PUT /api/v1/user/settings/onboarding',
   'PUT /api/v1/user/update',
 
@@ -213,14 +227,25 @@ describe('Base-currency guard coverage', () => {
 
     const createTransaction = routes.find((route) => route.method === 'POST' && route.path === '/api/v1/transactions');
     expect(createTransaction).toBeDefined();
-    expect(createTransaction!.middlewares).toContain(AUTH_MIDDLEWARE);
+    expect(createTransaction!.middlewares.some((name) => AUTH_MIDDLEWARES.has(name))).toBe(true);
     expect(createTransaction!.middlewares).toContain(GUARD_MIDDLEWARE);
+  });
+
+  it('discovers the ingest route behind authenticateIngestToken and guards it without an exemption', () => {
+    const ingest = collectRoutes().find(
+      (route) => route.method === 'POST' && route.path === '/api/v1/ingest/card-payment',
+    );
+
+    expect(ingest).toBeDefined();
+    expect(ingest!.middlewares).toContain('authenticateIngestToken');
+    expect(ingest!.middlewares).toContain(GUARD_MIDDLEWARE);
+    expect(GUARD_EXEMPT_ROUTES.has('POST /api/v1/ingest/card-payment')).toBe(false);
   });
 
   it('guards every authenticated mutating route (or allowlists it)', () => {
     const offenders = collectRoutes()
       .filter((route) => MUTATING_METHODS.has(route.method))
-      .filter((route) => route.middlewares.includes(AUTH_MIDDLEWARE))
+      .filter((route) => route.middlewares.some((name) => AUTH_MIDDLEWARES.has(name)))
       .filter((route) => !route.middlewares.includes(GUARD_MIDDLEWARE))
       .map((route) => `${route.method} ${route.path}`)
       .filter((key) => !GUARD_EXEMPT_ROUTES.has(key))

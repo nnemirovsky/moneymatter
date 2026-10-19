@@ -52,8 +52,28 @@ describe('isAutomationEligible', () => {
     ).toBe(true);
   });
 
+  it('accepts a planned row that carries a card payment, on a connected account', () => {
+    expect(
+      isAutomationEligible({
+        ...eligible,
+        isPlanned: true,
+        externalData: { applyAutomations: true, cardPayment: { source: 'apple-pay' } },
+      }),
+    ).toBe(true);
+  });
+
   it.each([
     ['a manual system row', { accountType: ACCOUNT_TYPES.system, externalData: null }],
+    ['a planned row with no card payment', { isPlanned: true, externalData: { applyAutomations: true } }],
+    ['a planned row whose card payment is null', { isPlanned: true, externalData: { cardPayment: null } }],
+    [
+      'a planned card payment that is a transfer leg',
+      {
+        isPlanned: true,
+        externalData: { cardPayment: {} },
+        transferNature: TRANSACTION_TRANSFER_NATURE.common_transfer,
+      },
+    ],
     ['a planned row', { isPlanned: true }],
     ['a planned row even with applyAutomations', { isPlanned: true, externalData: { applyAutomations: true } }],
     ['a transfer leg', { transferNature: TRANSACTION_TRANSFER_NATURE.common_transfer }],
@@ -68,11 +88,13 @@ describe('isAutomationEligible', () => {
 });
 
 describe('buildEligibilityWhere', () => {
-  it('carries the trigger axis of its predicate twin and drops split parents', () => {
+  it('carries the planned and trigger axes of its predicate twin and drops split parents', () => {
     const bankAccountIds = [generateRandomRecordId(), generateRandomRecordId()];
-    const [eligibility, noSplits] = buildEligibilityWhere({ bankAccountIds })[Op.and];
+    const [plannedClause, eligibility, noSplits] = buildEligibilityWhere({ bankAccountIds })[Op.and];
     const [accountClause, importClause, apiClause] = eligibility?.[Op.or] ?? [];
 
+    expect((plannedClause as ReturnType<typeof literal>).val).toContain(`"isPlanned" = false OR`);
+    expect((plannedClause as ReturnType<typeof literal>).val).toContain(`"externalData"->'cardPayment' IS NOT NULL`);
     expect(accountClause).toEqual({ accountId: { [Op.in]: bankAccountIds } });
     expect((importClause as ReturnType<typeof literal>).val).toContain(`"externalData"->'importDetails' IS NOT NULL`);
     expect((apiClause as ReturnType<typeof literal>).val).toContain(`"externalData"->'applyAutomations' IS NOT NULL`);

@@ -43,6 +43,7 @@ export default defineConfig({
         { label: 'Stats & reports', items: [{ autogenerate: { directory: 'stats' } }] },
         { label: 'Import & bank connections', items: [{ autogenerate: { directory: 'import' } }] },
         { label: 'AI', items: [{ autogenerate: { directory: 'ai' } }] },
+        { label: 'Integrations', items: [{ autogenerate: { directory: 'integrations' } }] },
         { label: 'Settings', items: [{ autogenerate: { directory: 'settings' } }] },
       ],
     }),

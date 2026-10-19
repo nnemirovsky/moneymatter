@@ -135,7 +135,7 @@ export default async ({ mode }) => {
     },
     test: {
       globals: true,
-      include: ['src/**/?(*.)+(spec|test).[jt]s?(x)'],
+      include: ['src/**/?(*.)+(spec|test).[jt]s?(x)', 'scripts/**/*.spec.ts'],
       environment: 'jsdom',
       watch: false,
     },

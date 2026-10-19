@@ -17,12 +17,15 @@ export const resolvePayeeForIncomingRow = async ({
   note,
   failureLogMessage,
   logContext,
+  promotionThreshold,
 }: {
   ownerUserId: number;
   rawMerchantName?: string | null;
   note?: string | null;
   failureLogMessage: string;
   logContext?: Record<string, unknown>;
+  /** Overrides the user's `payeePromotionThreshold`; see `resolvePayeeForRawMerchant`. */
+  promotionThreshold?: number;
 }): Promise<string | null> => {
   let effectiveRawMerchant = rawMerchantName;
 
@@ -37,7 +40,7 @@ export const resolvePayeeForIncomingRow = async ({
 
   try {
     const extraction = await runInSavepoint(() =>
-      resolvePayeeForRawMerchant({ userId: ownerUserId, rawMerchantName: effectiveRawMerchant }),
+      resolvePayeeForRawMerchant({ userId: ownerUserId, rawMerchantName: effectiveRawMerchant, promotionThreshold }),
     );
     return extraction.payeeId;
   } catch (error) {

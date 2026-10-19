@@ -101,6 +101,17 @@ export async function clearExchangeRatesForDates({ dates }: { dates: Date[] }) {
 }
 
 /**
+ * Drops every stored USD-based rate of `code`, on any date, so the currency has no market rate at
+ * all. `ExchangeRates` survives the between-test truncation, so a test that relies on a currency
+ * being unpriceable states it here instead of trusting what earlier suites left behind.
+ */
+export async function removeExchangeRatesForCurrency({ code }: { code: string }) {
+  await connection.sequelize.query(`DELETE FROM "ExchangeRates" WHERE "quoteCode" = :code OR "baseCode" = :code`, {
+    replacements: { code },
+  });
+}
+
+/**
  * Pin the market rates a test's date needs. Rate resolution reads USD-based rows
  * only, so quotes are given per USD; the `api-layer` source also marks the date
  * fully fetched, which keeps the providers out of the test.

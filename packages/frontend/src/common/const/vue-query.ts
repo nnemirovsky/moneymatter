@@ -263,6 +263,18 @@ export const VUE_QUERY_CACHE_KEYS = Object.freeze({
   // MCP connected apps
   mcpConnectedApps: ['mcp-connected-apps'] as const,
 
+  // Ingest tokens (Settings → Integrations)
+  ingestTokens: ['ingest-tokens'] as const,
+
+  // Apple Pay / card-payment ingest (Settings → Integrations)
+  cardMappings: ['card-payment', 'card-mappings'] as const,
+  unlinkedCards: ['card-payment', 'unlinked-cards'] as const,
+  cardPaymentRequests: ['card-payment', 'requests'] as const,
+  // Deleting an unconfirmed plan is a transaction change, so the transaction prefix refreshes it.
+  unconfirmedCardPayments: [transactionChange, 'card-payment', 'unconfirmed'] as const,
+  cardPaymentAccessHeaders: ['card-payment', 'access-headers'] as const,
+  cardPaymentShortcutFile: ['card-payment', 'shortcut-file'] as const,
+
   // AI settings
   aiFeaturesStatus: ['ai-settings', 'features'] as const,
   aiCustomInstructions: ['ai-settings', 'custom-instructions'] as const,

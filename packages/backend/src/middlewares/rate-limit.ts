@@ -39,7 +39,7 @@ const nonDev =
     return middleware(req, res, next);
   };
 
-const respondTooManyRequests = ({
+export const respondTooManyRequests = ({
   res,
   maxAttempts,
   retryAfterSeconds,
@@ -387,4 +387,28 @@ export const webPushTestRateLimit = perUserNonDevRateLimit({
   prefix: 'web-push-test',
   windowSeconds: 60,
   maxAttempts: 5,
+});
+
+/**
+ * Ingest settings writes (per user, 10 per minute). Minting a token or a setup code creates a
+ * credential, so it is limited like a login-adjacent action.
+ */
+export const ingestSettingsWriteRateLimit = createRateLimit({
+  windowSeconds: 60,
+  maxAttempts: 10,
+  keyGenerator: (req: Request) => {
+    const user = req.user as Users;
+    return `ingest-settings-write:user:${user.id}`;
+  },
+});
+
+/**
+ * Ingest endpoint limit (per token, 30 requests per minute). A shortcut sends one request per
+ * payment, so this only stops a runaway client; the budget is the token's, not the IP's, because
+ * several phones can share one address.
+ */
+export const ingestTokenRateLimit = createRateLimit({
+  windowSeconds: 60,
+  maxAttempts: 30,
+  keyGenerator: (req: Request) => `ingest-token:${req.ingestToken?.id ?? req.ip}`,
 });

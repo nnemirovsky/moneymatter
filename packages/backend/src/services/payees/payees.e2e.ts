@@ -852,4 +852,24 @@ describe('Payees API', () => {
       expect(after.aliases?.some((a) => a.normalizedName === 'hijack attempt')).toBe(false);
     }, 30000);
   });
+
+  describe('occurrence promotion for provider-style rows', () => {
+    // The card-payment ingest promotes a first-seen merchant at once through a per-call threshold.
+    // A row resolved the usual way (here through the note fallback) keeps the user's threshold.
+    it('still needs the user threshold of two occurrences before a note creates a payee', async () => {
+      await helpers.updateUserSettings({ settings: { locale: 'en', payeeExtractionUsesDescription: true } });
+      const account = await helpers.createAccount({ raw: true });
+      const create = () =>
+        helpers.createTransaction({
+          payload: helpers.buildTransactionPayload({ accountId: account.id, note: 'Wolt Market' }),
+          raw: true,
+        });
+
+      await create();
+      expect(await helpers.listPayees({ raw: true })).toEqual([]);
+
+      await create();
+      expect((await helpers.listPayees({ raw: true })).map((payee) => payee.name)).toEqual(['Wolt Market']);
+    });
+  });
 });

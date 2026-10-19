@@ -314,6 +314,13 @@ const TABLE_DEFS = [
 
   // tier 4
   {
+    fileName: 'card-account-mappings',
+    model: models.CardAccountMappings,
+    tier: 4,
+    scope: { strategy: 'userColumn', column: 'userId' },
+    restoreMode: 'insert',
+  },
+  {
     fileName: 'transactions',
     model: models.Transactions,
     tier: 4,
@@ -601,6 +608,19 @@ export const BACKUP_EXCLUDED: readonly BackupExcludedDef[] = [
   {
     model: models.FeatureUsages,
     reason: 'Feature-trial counters. Restoring them would hand back spent tries on every restore.',
+  },
+  {
+    model: models.IngestTokens,
+    reason: 'Credentials, stored hashed; a restored hash is useless and a restore must not resurrect a revoked token.',
+  },
+  {
+    model: models.IngestRequests,
+    reason:
+      'Operational log that holds raw merchant text and points at tokens and transactions that are not restored with it.',
+  },
+  {
+    model: models.IngestSettings,
+    reason: 'Cloudflare Access credentials, encrypted for this instance; a restored copy would not decrypt elsewhere.',
   },
   {
     model: models.TransactionAttachments,

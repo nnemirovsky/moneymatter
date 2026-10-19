@@ -148,6 +148,7 @@ Interpolated into the frontend container's `environment:` block. Change and
 | `VITE_SENTRY_RELEASE`                        | Release tag Sentry events report — also a build arg, see below          |
 | `VITE_LOGO_DEV_TOKEN`                        | Brand logos for payees, subs, banks, tickers (logo.dev publishable key) |
 | `MCP_BASE_URL`                               | Backend origin advertised to MCP clients — required for MCP, see below  |
+| `CARD_PAYMENT_SHORTCUT_ICLOUD_URL`           | iCloud link of the Apple Pay shortcut, offered as Add Shortcut          |
 | `API_HTTP`, `API_VER`                        | Point the SPA at a separate API origin (leave unset for same-origin)    |
 | `CSP_EXTRA_CONNECT`, `CSP_EXTRA_FORM_ACTION` | Extra CSP allow-list hosts (default to `API_HTTP`)                      |
 | `CSP_EXTRA_ANALYTICS`                        | CSP allow-list for analytics — **set this if you use Sentry**           |
@@ -166,6 +167,19 @@ the hosted one. In split-domain mode set it to the backend's own origin, the
 same value as `BETTER_AUTH_URL`: the OAuth issuer is built from
 `BETTER_AUTH_URL`, and the frontend's static discovery mirrors rewrite it to
 `MCP_BASE_URL`, so the two must agree. Leave it unset if you do not use MCP.
+
+`CARD_PAYMENT_SHORTCUT_ICLOUD_URL` is the iCloud share link of the "MoneyMatter:
+log card payment" shortcut. When set, Settings → Integrations → Apple Pay offers
+it as **Add Shortcut** on an iPhone. It is a runtime variable of the frontend
+container, written to the page's config when the container starts: change it and
+`up -d`, no rebuild. Leave it empty and the page points to the manual guide
+instead. A link can only be created on an iPhone, by sharing the imported
+shortcut. See the [Apple Pay guide](https://docs.moneymatter.app/integrations/apple-pay/).
+
+If a gateway with access control (such as Cloudflare Access) sits in front of the
+app, give the Apple Pay shortcut a path-scoped service credential for
+`/api/v1/ingest/` and keep the login on everything else; see
+[reverse-proxies.md](reverse-proxies.md#proxies-with-access-control).
 
 Whatever fronts the frontend container must pass these paths through to it
 unchanged, alongside `/api/`: `/mcp`, `/.well-known/oauth-authorization-server`,

@@ -30,6 +30,7 @@ import { redisClient } from '@root/redis-client';
 import { BACKUP_TABLES, type BackupFileName } from '@services/backup/registry';
 import { chatBridgeTokenKey, mintChatBridgeToken } from '@services/chat/bridge/bridge-token';
 import * as helpers from '@tests/helpers';
+import * as ingestHelpers from '@tests/helpers/ingest-tokens';
 import { randomUUID } from 'crypto';
 
 describe('User data wipe (POST /user/wipe-data)', () => {
@@ -441,5 +442,26 @@ describe('User data wipe (POST /user/wipe-data)', () => {
       where: { resourceType: RESOURCE_TYPES.account, resourceId: String(account.id) },
     });
     expect(shares).toHaveLength(0);
+  });
+
+  it('deletes the ingest request log, so parked payments cannot be read or retried afterwards', async () => {
+    const { secret } = await ingestHelpers.createTestIngestToken();
+    const parked = await ingestHelpers.postCardPayment({
+      secret,
+      body: {
+        amount: '47.00',
+        merchant: 'Cafe Heart of Batumi',
+        card: 'Unlinked Visa',
+        idempotencyKey: `wipe-${randomUUID()}`,
+      },
+    });
+    expect(parked.status).toBe(202);
+    expect(await helpers.listCardPaymentRequests({ status: 'recent', raw: true })).toHaveLength(1);
+
+    const wipeRes = await helpers.wipeUserData({ acknowledgeSharing: false });
+    expect(wipeRes.statusCode).toBe(200);
+
+    expect(await helpers.listCardPaymentRequests({ status: 'recent', raw: true })).toHaveLength(0);
+    expect(await helpers.listCardPaymentRequests({ status: 'parked', raw: true })).toHaveLength(0);
   });
 });

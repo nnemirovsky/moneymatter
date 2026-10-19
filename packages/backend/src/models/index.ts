@@ -21,6 +21,7 @@ import BudgetPlanAccountsModel from './budget-plan-accounts.model';
 import BudgetPlansModel from './budget-plans.model';
 import BudgetTransactionsModel from './budget-transactions.model';
 import BudgetModel from './budget.model';
+import CardAccountMappingsModel from './card-account-mappings.model';
 import CategoriesModel from './categories.model';
 import CategoryTagsModel from './category-tags.model';
 import ChatAttachmentsModel from './chat-attachments.model';
@@ -33,6 +34,9 @@ import ExchangeRatesModel from './exchange-rates.model';
 import FeatureUsagesModel from './feature-usages.model';
 import ImportBatchAccountEffectsModel from './import-batch-account-effects.model';
 import ImportBatchesModel from './import-batches.model';
+import IngestRequestsModel from './ingest-requests.model';
+import IngestSettingsModel from './ingest-settings.model';
+import IngestTokensModel from './ingest-tokens.model';
 import HoldingsModel from './investments/holdings.model';
 import InvestmentTransactionModel from './investments/investment-transaction.model';
 import PortfolioBalancesModel from './investments/portfolio-balances.model';
@@ -151,6 +155,10 @@ const models = [
   PayeesModel,
   PayeeAliasesModel,
   BrandLogosModel,
+  IngestTokensModel,
+  IngestRequestsModel,
+  IngestSettingsModel,
+  CardAccountMappingsModel,
   PayeeIgnoredNamesModel,
   PayeeTagsModel,
   CategoryTagsModel,

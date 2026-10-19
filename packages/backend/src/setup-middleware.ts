@@ -156,6 +156,8 @@ export function setupMiddleware(app: Express) {
 
     // Paths that need larger payloads
     const largePaths: Record<string, string[]> = {
+      // A card payment is a handful of short fields; anything larger is not one.
+      '8kb': [`${API_PREFIX}/ingest/card-payment`],
       '1mb': [
         `${API_PREFIX}/investments/securities/prices/bulk-upload`,
         // A manual categorization run can carry up to AI_CATEGORIZATION_MAX_TRANSACTIONS_PER_RUN

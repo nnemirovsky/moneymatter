@@ -132,6 +132,8 @@ async function seedRichData() {
   const payee = await helpers.createPayee({ payload: helpers.buildPayeePayload({ name: 'Corner Shop' }), raw: true });
   await helpers.createPayeeAlias({ payeeId: payee.id, rawName: 'CORNER SHOP #12', raw: true });
 
+  await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: checking.id }, raw: true });
+
   // Template pinned to an account, carrying every optional relation and two tags.
   const templateTag = await helpers.createTag({ payload: helpers.buildTagPayload({ name: 'weekly' }), raw: true });
   await helpers.createTransactionTemplate({
@@ -429,6 +431,7 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
       expect((firstArchive.readData({ name: 'transaction-templates' }) as unknown[]).length).toBeGreaterThan(0);
       expect((firstArchive.readData({ name: 'transaction-template-tags' }) as unknown[]).length).toBeGreaterThan(0);
       expect((firstArchive.readData({ name: 'category-tags' }) as unknown[]).length).toBeGreaterThan(0);
+      expect((firstArchive.readData({ name: 'card-account-mappings' }) as unknown[]).length).toBeGreaterThan(0);
 
       const restore = await helpers.restoreBackup({ fileContent: first.base64 });
       expect(restore.statusCode).toBe(200);

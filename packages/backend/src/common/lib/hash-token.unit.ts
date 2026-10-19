@@ -3,17 +3,18 @@ import { describe, expect, it } from '@jest/globals';
 import { hashToken } from './hash-token';
 
 describe('hashToken', () => {
-  it('returns the SHA-256 digest as unpadded base64url, the way better-auth stores tokens', () => {
-    // Digest of the literal below, computed independently with `openssl dgst -sha256 -binary`.
-    expect(hashToken({ token: 'mm-test-token' })).toBe('7nJScpKw3okGoSfrAyz-9ZOcsCq6dRoAVVI3IM-PPF4');
+  // Stored MCP access tokens were hashed with this exact output; a change here would stop them verifying.
+  it('returns the SHA-256 digest as unpadded base64url for a fixed input', () => {
+    expect(hashToken({ token: 'abc' })).toBe('ungWv48Bz-pBQUDeXa4iI7ADYaOWF3qctBD_YfIAFa0');
+    expect(hashToken({ token: 'mm_ingest_example-token' })).toBe('UtWathwl2cJR1FZXuy8LAeBo40CKgcMnil-PV0kpe2I');
   });
 
-  it('is deterministic and differs between tokens', () => {
-    expect(hashToken({ token: 'a' })).toBe(hashToken({ token: 'a' }));
-    expect(hashToken({ token: 'a' })).not.toBe(hashToken({ token: 'b' }));
+  it('is deterministic and distinguishes inputs', () => {
+    expect(hashToken({ token: 'one' })).toBe(hashToken({ token: 'one' }));
+    expect(hashToken({ token: 'one' })).not.toBe(hashToken({ token: 'two' }));
   });
 
-  it('contains no padding or url-unsafe characters', () => {
+  it('never contains base64 padding or characters outside the url-safe alphabet', () => {
     expect(hashToken({ token: 'anything' })).toMatch(/^[A-Za-z0-9_-]{43}$/);
   });
 });

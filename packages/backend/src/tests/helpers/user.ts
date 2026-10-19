@@ -1,7 +1,7 @@
 import { AuthSessionInfo, UserInfoResponse } from '@bt/shared/types';
 import { authPool } from '@config/auth';
 
-import { makeRequest } from './common';
+import { makeAuthRequest, makeRequest } from './common';
 
 /**
  * `GET /user` returns the authenticated user's row enriched with `email` and
@@ -52,4 +52,16 @@ export async function createTestAuthSession({
 /** Move a session's `createdAt` back in time, as if the user had signed in long ago. */
 export async function backdateAuthSession({ token, createdAt }: { token: string; createdAt: Date }) {
   await authPool.query(`UPDATE ba_session SET "createdAt" = $2 WHERE token = $1`, [token, createdAt]);
+}
+
+/**
+ * Runs the password-reset flow through the better-auth mock. The mock's reset token is the auth
+ * user id, and the configured `onPasswordReset` hook runs exactly as it does after a real reset.
+ */
+export async function resetPasswordForTests({ authUserId }: { authUserId: string }) {
+  return makeAuthRequest({
+    method: 'post',
+    url: '/auth/reset-password',
+    payload: { token: authUserId, newPassword: 'a-new-test-password-123' },
+  });
 }

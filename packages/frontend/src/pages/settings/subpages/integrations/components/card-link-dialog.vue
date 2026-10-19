@@ -1,0 +1,146 @@
+<template>
+  <ResponsiveDialog :open="open" dialog-content-class="max-w-md" @update:open="emit('update:open', $event)">
+    <template #title>
+      {{ $t(`${LABEL_ROOT}.${mapping ? 'editTitle' : 'createTitle'}`) }}
+    </template>
+    <template #description>{{ $t(`${LABEL_ROOT}.description`) }}</template>
+
+    <form :id="FORM_ID" class="grid gap-4" @submit.prevent="handleSubmit">
+      <InputField
+        v-model="form.cardLabel"
+        :label="$t(`${LABEL_ROOT}.cardLabel`)"
+        :placeholder="$t(`${LABEL_ROOT}.cardLabelPlaceholder`)"
+        :error-message="labelError ?? undefined"
+        data-testid="card-link-label"
+        @update:model-value="labelError = null"
+      />
+
+      <AccountSelectField
+        v-model="form.account"
+        :accounts="mappableAccounts"
+        :label="$t(`${LABEL_ROOT}.account`)"
+        :placeholder="$t(`${LABEL_ROOT}.accountPlaceholder`)"
+        :error-message="accountError ?? undefined"
+        data-testid="card-link-account"
+        @update:model-value="accountError = null"
+      />
+    </form>
+
+    <template #footer>
+      <div class="flex w-full justify-end gap-2">
+        <Button type="button" variant="outline" :disabled="isSaving" @click="emit('update:open', false)">
+          {{ $t('common.actions.cancel') }}
+        </Button>
+        <Button type="submit" :form="FORM_ID" :disabled="isSaving" :loading="isSaving" data-testid="card-link-submit">
+          {{ $t(`${LABEL_ROOT}.save`) }}
+        </Button>
+      </div>
+    </template>
+  </ResponsiveDialog>
+</template>
+
+<script setup lang="ts">
+import { createCardMapping, updateCardMapping } from '@/api/ingest';
+import { VUE_QUERY_CACHE_KEYS } from '@/common/const/vue-query';
+import ResponsiveDialog from '@/components/common/responsive-dialog.vue';
+import AccountSelectField from '@/components/fields/account-select-field.vue';
+import InputField from '@/components/fields/input-field.vue';
+import { Button } from '@/components/lib/ui/button';
+import { useInvalidatingMutation } from '@/composable/data-queries/use-invalidating-mutation';
+import { useAccountsStore } from '@/stores/accounts';
+import type { AccountModel, CardMappingDto, CreateCardMappingPayload } from '@bt/shared/types';
+import { computed, reactive, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+
+import { getMappableAccounts } from '../apple-pay';
+
+const LABEL_ROOT = 'settings.integrations.applePay.cardLinks.dialog';
+const FORM_ID = 'card-link-form';
+
+const props = withDefaults(
+  defineProps<{
+    open: boolean;
+    /** The link being edited; absent when a new link is created. */
+    mapping?: CardMappingDto | null;
+    /** Pre-fills the card name of a new link, e.g. from an unlinked card. */
+    initialLabel?: string;
+  }>(),
+  { mapping: null, initialLabel: '' },
+);
+
+const emit = defineEmits<{
+  'update:open': [value: boolean];
+  saved: [mapping: CardMappingDto];
+}>();
+
+const { t } = useI18n({ useScope: 'global' });
+const accountsStore = useAccountsStore();
+
+const mappableAccounts = computed(() => getMappableAccounts({ accounts: accountsStore.accounts ?? [] }));
+
+const form = reactive<{ cardLabel: string; account: AccountModel | null }>({ cardLabel: '', account: null });
+const labelError = ref<string | null>(null);
+const accountError = ref<string | null>(null);
+
+/** Starts from the edited link, or from the pre-filled label of a new one. */
+const resetForm = () => {
+  form.cardLabel = props.mapping?.cardLabel ?? props.initialLabel;
+  form.account = mappableAccounts.value.find((account) => account.id === props.mapping?.accountId) ?? null;
+  labelError.value = null;
+  accountError.value = null;
+};
+
+watch(
+  () => props.open,
+  (isOpen) => {
+    if (isOpen) resetForm();
+  },
+  { immediate: true },
+);
+
+const invalidateKeys = [VUE_QUERY_CACHE_KEYS.cardMappings, VUE_QUERY_CACHE_KEYS.unlinkedCards];
+
+const { mutateAsync: create, isPending: isCreating } = useInvalidatingMutation({
+  mutationFn: (payload: CreateCardMappingPayload) => createCardMapping(payload),
+  invalidateKeys,
+  successKey: `${LABEL_ROOT}.createSuccess`,
+  errorKey: `${LABEL_ROOT}.saveError`,
+});
+
+const { mutateAsync: update, isPending: isUpdating } = useInvalidatingMutation({
+  mutationFn: (payload: Parameters<typeof updateCardMapping>[0]) => updateCardMapping(payload),
+  invalidateKeys,
+  successKey: `${LABEL_ROOT}.updateSuccess`,
+  errorKey: `${LABEL_ROOT}.saveError`,
+});
+
+const isSaving = computed(() => isCreating.value || isUpdating.value);
+
+const handleSubmit = async () => {
+  const cardLabel = form.cardLabel.trim();
+  const { account } = form;
+
+  labelError.value = cardLabel ? null : t(`${LABEL_ROOT}.cardLabelRequired`);
+  accountError.value = account ? null : t(`${LABEL_ROOT}.accountRequired`);
+  if (!cardLabel || !account) return;
+
+  try {
+    const { mapping } = props;
+    if (!mapping) {
+      emit('saved', await create({ cardLabel, accountId: account.id }));
+    } else {
+      // Only what changed: the server refuses an empty patch.
+      const changes = {
+        ...(cardLabel !== mapping.cardLabel && { cardLabel }),
+        ...(account.id !== mapping.accountId && { accountId: account.id }),
+      };
+
+      if (Object.keys(changes).length) emit('saved', await update({ id: mapping.id, ...changes }));
+    }
+
+    emit('update:open', false);
+  } catch {
+    // The mutation already told the user what failed; the form stays open for another try.
+  }
+};
+</script>

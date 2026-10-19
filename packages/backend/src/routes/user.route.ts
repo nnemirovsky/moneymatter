@@ -25,6 +25,26 @@ import {
   updateCurrencyRateSource,
 } from '@controllers/currencies/rate-source';
 import { exportDataController } from '@controllers/data-export/export-data.controller';
+import { getAccessHeadersController, setAccessHeadersController } from '@controllers/ingest/access-headers.controller';
+import {
+  createCardMappingController,
+  deleteCardMappingController,
+  listCardMappingsController,
+  updateCardMappingController,
+} from '@controllers/ingest/card-mappings.controller';
+import {
+  dismissCardPaymentRequestController,
+  listCardPaymentRequestsController,
+  listUnconfirmedCardPaymentsController,
+  listUnlinkedCardsController,
+  retryCardPaymentRequestController,
+} from '@controllers/ingest/card-payment-requests.controller';
+import { createCardPaymentSetupCodeController } from '@controllers/ingest/card-payment-setup-code.controller';
+import {
+  createIngestTokenController,
+  listIngestTokensController,
+  revokeIngestTokenController,
+} from '@controllers/ingest/ingest-tokens.controller';
 import { getConnectedAppsController, revokeConnectedAppController } from '@controllers/mcp/connected-apps.controller';
 import {
   cancelCliAuthSessionController,
@@ -81,6 +101,7 @@ import {
   backupRateLimit,
   backupRestoreRateLimit,
   dataExportRateLimit,
+  ingestSettingsWriteRateLimit,
   rateSourceSaveRateLimit,
   rateSourceTestRateLimit,
 } from '@middlewares/rate-limit';
@@ -207,5 +228,44 @@ router.post(
 // MCP Connected Apps
 router.get('/settings/mcp/connected-apps', getConnectedAppsController);
 router.delete('/settings/mcp/connected-apps/:clientId', revokeConnectedAppController);
+
+// Ingest tokens: personal credentials for machine clients (the Apple Pay shortcut). The secret is
+// returned by the create response only. Demo users cannot mint credentials.
+router.get('/settings/ingest-tokens', listIngestTokensController);
+router.post('/settings/ingest-tokens', blockDemoUsers, ingestSettingsWriteRateLimit, createIngestTokenController);
+router.delete('/settings/ingest-tokens/:id', revokeIngestTokenController);
+
+// Card links: which account a Wallet card's payments are logged on.
+router.get('/settings/card-mappings', listCardMappingsController);
+router.get('/settings/card-mappings/unlinked', listUnlinkedCardsController);
+router.post('/settings/card-mappings', createCardMappingController);
+router.patch('/settings/card-mappings/:id', updateCardMappingController);
+router.delete('/settings/card-mappings/:id', deleteCardMappingController);
+
+// Card payments that did not log on arrival: the waiting list, retry (writes a transaction, so it
+// honors the base-currency lock), dismiss, and plans the bank never confirmed.
+router.get('/settings/card-payments/requests', listCardPaymentRequestsController);
+router.post('/settings/card-payments/requests/:id/retry', checkBaseCurrencyLock, retryCardPaymentRequestController);
+router.delete('/settings/card-payments/requests/:id', dismissCardPaymentRequestController);
+router.get('/settings/card-payments/unconfirmed', listUnconfirmedCardPaymentsController);
+
+// Cloudflare Access service-token headers for the setup code. The secret is write-only. Demo users
+// cannot store credentials.
+router.get('/settings/card-payments/access-headers', getAccessHeadersController);
+router.put(
+  '/settings/card-payments/access-headers',
+  blockDemoUsers,
+  ingestSettingsWriteRateLimit,
+  setAccessHeadersController,
+);
+
+// The setup code bundles the ingest URL, a freshly minted token and the stored Cloudflare Access
+// pair. It is shown once and never stored, so there is no GET. Demo users cannot mint credentials.
+router.post(
+  '/settings/card-payments/setup-code',
+  blockDemoUsers,
+  ingestSettingsWriteRateLimit,
+  createCardPaymentSetupCodeController,
+);
 
 export default router;

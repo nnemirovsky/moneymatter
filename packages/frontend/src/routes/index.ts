@@ -563,6 +563,25 @@ const routes: RouteRecordRaw[] = [
             ],
           },
           {
+            path: 'integrations',
+            name: ROUTES_NAMES.settingsIntegrations,
+            component: () => import('@/pages/settings/subpages/integrations/index.vue'),
+            redirect: { name: ROUTES_NAMES.settingsIntegrationsIngestTokens },
+            meta: { i18nChunks: ['settings/integrations'] },
+            children: [
+              {
+                path: 'ingest-tokens',
+                name: ROUTES_NAMES.settingsIntegrationsIngestTokens,
+                component: () => import('@/pages/settings/subpages/integrations/pages/ingest-tokens.vue'),
+              },
+              {
+                path: 'apple-pay',
+                name: ROUTES_NAMES.settingsIntegrationsApplePay,
+                component: () => import('@/pages/settings/subpages/integrations/pages/apple-pay.vue'),
+              },
+            ],
+          },
+          {
             path: 'security',
             name: ROUTES_NAMES.settingsSecurity,
             component: () => import('@/pages/settings/subpages/security/index.vue'),

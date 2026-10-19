@@ -17,6 +17,14 @@
     },
     "lib": ["esnext", "dom", "dom.iterable"]
   },
-  "include": ["src/**/*.js", "src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "tests/**/*.ts", "tests/**/*.tsx"],
+  "include": [
+    "src/**/*.js",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.vue",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "scripts/**/*.ts"
+  ],
   "exclude": ["node_modules", "e2e", "src/service-worker/sw.ts", "playwright.config.ts", "./index.html", "knip.ts"]
 }

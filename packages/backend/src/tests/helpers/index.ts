@@ -55,3 +55,4 @@ export * from './invoice-matching';
 export * from './landing-faq';
 export * from './reconciliation';
 export * from './web-push';
+export * from './ingest';

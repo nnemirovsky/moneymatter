@@ -148,6 +148,7 @@ import {
   PaletteIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
+  PlugZapIcon,
   SettingsIcon,
   ShieldIcon,
   SparklesIcon,
@@ -308,6 +309,12 @@ const workspaceTabs = computed<Tab[]>(() => {
       label: t('settings.navigation.ai'),
       to: { name: ROUTES_NAMES.settingsAi },
       icon: SparklesIcon,
+    },
+    {
+      name: 'integrations',
+      label: t('settings.navigation.integrations'),
+      to: { name: ROUTES_NAMES.settingsIntegrations },
+      icon: PlugZapIcon,
     },
     {
       name: 'shared-with-me',

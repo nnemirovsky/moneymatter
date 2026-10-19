@@ -659,6 +659,58 @@
   "middleware": {
     "tooManyRequests": "Too many requests. Please try again later."
   },
+  "ingestTokens": {
+    "unauthorized": "The ingest token is missing, invalid or expired.",
+    "missingScope": "The ingest token does not allow this action.",
+    "tokenNotFound": "Ingest token not found."
+  },
+  "cardMappings": {
+    "mappingNotFound": "Card link not found.",
+    "labelTaken": "A card with this name is already linked.",
+    "labelEmpty": "The card name cannot be empty.",
+    "accountNotFound": "Account not found.",
+    "accountArchived": "An archived account cannot be linked to a card.",
+    "accountNotSupported": "Loan and vehicle accounts cannot be linked to a card."
+  },
+  "ingest": {
+    "summary": {
+      "logged": "Logged {{amount}} at {{merchant}} → {{category}}",
+      "alreadyLogged": "Already logged {{amount}} at {{merchant}} → {{category}}",
+      "noted": "Noted {{amount}} at {{merchant}} → {{category}}; the bank sync will confirm it",
+      "categorizing": "categorizing…",
+      "uncategorized": "Uncategorized",
+      "unknownCard": "Not logged yet: link the card \"{{card}}\" in MoneyMatter → Settings → Integrations → Apple Pay",
+      "rateUnavailable": "Not logged yet: no {{from}}→{{to}} rate for {{date}}",
+      "processingFailed": "Not logged yet: MoneyMatter could not process it; retry it in Settings → Integrations → Apple Pay",
+      "dryRunCard": "Connected as {{username}}. Card \"{{card}}\" → {{account}}",
+      "dryRunCardNotLinked": "Connected as {{username}}. Card \"{{card}}\" is not linked yet",
+      "dryRunCards_one": "Connected as {{username}}. {{count}} card linked.",
+      "dryRunCards_other": "Connected as {{username}}. {{count}} cards linked."
+    },
+    "rejection": {
+      "invalidBody": "The request body must be a JSON object.",
+      "invalidIdempotencyKey": "The idempotency key must be 8 to 128 printable characters without spaces.",
+      "invalidSource": "The source must be 1 to 32 lowercase letters, digits or dashes.",
+      "invalidAmount": "The amount is missing or is not a valid number.",
+      "zeroAmount": "The amount is zero, so nothing was logged. Enter the payment by hand.",
+      "negativeAmount": "The amount is negative. Only expenses can be logged this way.",
+      "invalidCurrency": "The currency is not valid or is not available to you.",
+      "currencyConflict": "The currency code and the currency symbol in the amount disagree.",
+      "blankMerchant": "The merchant name is empty, so nothing was logged. Enter the payment by hand.",
+      "merchantTooLong": "The merchant name is longer than 200 characters.",
+      "blankCard": "The card name is missing.",
+      "cardTooLong": "The card name is longer than 100 characters.",
+      "nameTooLong": "The payment name is longer than 200 characters.",
+      "invalidTime": "The time must be an ISO 8601 date and time with an offset.",
+      "timeInFuture": "The payment time is in the future.",
+      "timeTooOld": "The payment time is more than 30 days in the past."
+    },
+    "idempotencyConflict": "This idempotency key was already used for a different payment.",
+    "requestDismissed": "This payment was dismissed in MoneyMatter.",
+    "requestNotFound": "Card payment request not found.",
+    "requestNotWaiting": "This payment is not waiting to be logged.",
+    "setupCodeUnusable": "The setup code cannot be built from these values. Shorten the ingest URL or the Cloudflare Access values."
+  },
   "defaultCategories": {
     "main": {
       "food": "Food & Drinks",
