@@ -5,7 +5,7 @@ import { DEFAULT_SETTINGS, SettingsSchema } from '@models/user-settings.model';
 
 import { getServerModel } from '../ai/resolution-ladder';
 import { withTransaction } from '../common/with-transaction';
-import { assertConnectionServesModel, getStoredAiSettings } from './ai-connections';
+import { assertConnectionServesModel } from './ai-connections';
 import { getOrCreateUserSettings } from './get-or-create-user-settings';
 
 /**
@@ -75,10 +75,8 @@ export const setFeatureConfig = async ({
 
   let override: string | undefined;
   if (modelId !== undefined && connectionId !== null) {
-    // Probes the provider outside the settings transaction, so no lock is held across the call.
-    await assertConnectionServesModel({ userId, connectionId, modelId });
-    const connection = (await getStoredAiSettings({ userId }))?.connections?.find(({ id }) => id === connectionId);
-    override = modelId.trim() === connection?.model ? undefined : modelId.trim();
+    // Asks the provider outside the settings transaction, so no lock is held across the call.
+    override = (await assertConnectionServesModel({ userId, connectionId, modelId })) ?? undefined;
   }
 
   await storeFeatureConfig({

@@ -1,7 +1,9 @@
-import { AI_FEATURE, PLANS } from '@bt/shared/types';
-import { describe, expect, it } from '@jest/globals';
+import { AI_FEATURE, AI_PROVIDER, PLANS } from '@bt/shared/types';
+import { beforeEach, describe, expect, it } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
 import { FALLBACK_SERVER_MODELS } from '@services/ai/resolution-ladder';
+import { clearServedModelsCache } from '@services/ai/served-models-cache';
+import { RateLimitService } from '@services/common/rate-limit.service';
 import * as helpers from '@tests/helpers';
 import { enableServerModel, runAsCloud, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
 import {
@@ -16,11 +18,14 @@ import {
 import { createCallsCounter } from '@tests/mocks/helpers';
 import { MODELS_DEV_CATALOG, MODELS_DEV_URL, modelsDevUnavailableMock } from '@tests/mocks/models-dev/mock-api';
 import {
+  CUSTOM_ENDPOINT_LISTED_MODELS,
+  CUSTOM_ENDPOINT_LISTING_BASE_URL,
   CUSTOM_ENDPOINT_LOOPBACK_BASE_URL,
   CUSTOM_ENDPOINT_MODEL,
   CUSTOM_ENDPOINT_UNKNOWN_MODEL,
   getCustomEndpointCallCountingMock,
 } from '@tests/mocks/openai-compatible/mock-api';
+import { HttpResponse, http } from 'msw';
 import { randomUUID } from 'node:crypto';
 
 const FEATURE = AI_FEATURE.categorization;
@@ -276,6 +281,108 @@ describe('AI feature settings', () => {
 
         expect(response.statusCode).toBe(ERROR_CODES.ValidationError);
         expect(await readStoredFeatureConfigs({ userId })).toEqual([{ feature: FEATURE, connectionId: first.id }]);
+      });
+
+      describe('validation cost', () => {
+        beforeEach(() => {
+          clearServedModelsCache();
+        });
+
+        /** A connection whose endpoint lists its models, counting what the endpoint is asked. */
+        const arrangeListingConnection = async () => {
+          const counts = { listings: 0, completions: 0 };
+          global.mswMockServer.use(
+            http.get(`${CUSTOM_ENDPOINT_LISTING_BASE_URL}/models`, () => {
+              counts.listings += 1;
+              return HttpResponse.json({
+                object: 'list',
+                data: CUSTOM_ENDPOINT_LISTED_MODELS.map((id) => ({ id, object: 'model' })),
+              });
+            }),
+            getCustomEndpointCallCountingMock({
+              baseUrl: CUSTOM_ENDPOINT_LISTING_BASE_URL,
+              onCall: () => {
+                counts.completions += 1;
+              },
+            }),
+          );
+          const connection = await helpers.createAiConnection({
+            provider: AI_PROVIDER.custom,
+            name: 'Listing server',
+            baseUrl: CUSTOM_ENDPOINT_LISTING_BASE_URL,
+            model: CUSTOM_ENDPOINT_MODEL,
+            raw: true,
+          });
+          // Saving the connection probed it already.
+          counts.listings = 0;
+          counts.completions = 0;
+
+          return { connection, counts };
+        };
+
+        it('checks a model against the provider listing, without a generate call', async () => {
+          const { connection, counts } = await arrangeListingConnection();
+
+          const accepted = await helpers.setAiFeatureConfig({
+            feature: FEATURE,
+            connectionId: connection.id,
+            modelId: `${CUSTOM_ENDPOINT_MODEL}:70b`,
+          });
+          const refused = await helpers.setAiFeatureConfig({
+            feature: FEATURE,
+            connectionId: connection.id,
+            modelId: 'not-in-the-listing',
+          });
+
+          expect(accepted.statusCode).toBe(200);
+          expect(refused.statusCode).toBe(ERROR_CODES.ValidationError);
+          expect(counts.completions).toBe(0);
+        });
+
+        it('remembers the listing for the next picks', async () => {
+          const { connection, counts } = await arrangeListingConnection();
+
+          for (const modelId of [`${CUSTOM_ENDPOINT_MODEL}:70b`, 'qwen2.5', `${CUSTOM_ENDPOINT_MODEL}:70b`]) {
+            await helpers.setAiFeatureConfig({ feature: FEATURE, connectionId: connection.id, modelId });
+          }
+
+          expect(counts.listings).toBe(1);
+        });
+
+        it('spends the probe budget, and refuses once it is used up, when the provider has no listing', async () => {
+          await createFirstConnection();
+          const second = await createSecondConnection();
+          const userId = await getTestUserId();
+          const PROBE_BUDGET = 15;
+          for (let used = 0; used < PROBE_BUDGET; used++) {
+            await RateLimitService.checkRateLimit(`ai-connection-probe:user:${userId}`, 60, PROBE_BUDGET);
+          }
+
+          const response = await helpers.setAiFeatureConfig({
+            feature: FEATURE,
+            connectionId: second.id,
+            modelId: CUSTOM_ENDPOINT_MODEL,
+          });
+
+          expect(response.statusCode).toBe(ERROR_CODES.TooManyRequests);
+        });
+
+        it('leaves the probe budget alone when the listing answers', async () => {
+          const { connection } = await arrangeListingConnection();
+          const userId = await getTestUserId();
+          const PROBE_BUDGET = 15;
+          for (let used = 0; used < PROBE_BUDGET; used++) {
+            await RateLimitService.checkRateLimit(`ai-connection-probe:user:${userId}`, 60, PROBE_BUDGET);
+          }
+
+          const response = await helpers.setAiFeatureConfig({
+            feature: FEATURE,
+            connectionId: connection.id,
+            modelId: `${CUSTOM_ENDPOINT_MODEL}:70b`,
+          });
+
+          expect(response.statusCode).toBe(200);
+        });
       });
 
       it('refuses a model for the included server model', async () => {

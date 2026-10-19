@@ -3,6 +3,11 @@ import { t } from '@i18n/index';
 import { TooManyRequests } from '@js/errors';
 import { logger } from '@js/utils';
 import Users from '@models/users.model';
+import {
+  AI_PROBE_RATE_LIMIT_MAX_ATTEMPTS,
+  AI_PROBE_RATE_LIMIT_WINDOW_SECONDS,
+  aiProbeRateLimitKey,
+} from '@services/ai/probe-rate-limit';
 import { RateLimitService } from '@services/common/rate-limit.service';
 import {
   CHAT_APPROVAL_LIMIT,
@@ -307,12 +312,9 @@ export const shareInvitationSendRateLimit = createRateLimit({
  * a connection depends on a probe succeeding.
  */
 export const aiConnectionProbeRateLimit = createRateLimit({
-  windowSeconds: 60,
-  maxAttempts: 15,
-  keyGenerator: (req: Request) => {
-    const user = req.user as Users;
-    return `ai-connection-probe:user:${user.id}`;
-  },
+  windowSeconds: AI_PROBE_RATE_LIMIT_WINDOW_SECONDS,
+  maxAttempts: AI_PROBE_RATE_LIMIT_MAX_ATTEMPTS,
+  keyGenerator: (req: Request) => aiProbeRateLimitKey({ userId: (req.user as Users).id }),
 });
 
 /**

@@ -629,7 +629,7 @@
     "connectionProviderUnreachable": "Couldn't reach the provider. Try again in a moment.",
     "connectionValidationFailed": "The provider refused the test request: {{reason}}",
     "serverModelUnavailable": "The included MoneyMatter AI model isn't available on your plan.",
-    "connectionModelNotOffered": "This AI model isn't offered by your subscription: {{model}}.",
+    "connectionModelNotOffered": "This AI model isn't offered by this connection's provider: {{model}}.",
     "includedModelHasNoChoice": "The included MoneyMatter AI model has a fixed model, so it can't be changed.",
     "connectionKeyNotInBackup": "API key isn't included in backups. Edit this model and enter the key again.",
     "customEndpointUnreachable": "Could not reach the endpoint. Check the base URL and make sure the server is running and reachable from the internet.",
