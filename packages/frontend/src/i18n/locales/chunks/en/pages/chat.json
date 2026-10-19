@@ -500,6 +500,7 @@
       "modelNotFound": "The model is not available on this connection. Pick another model for Chat in Settings → AI.",
       "auth": "The provider rejected your credentials. Update the connection in Settings → AI.",
       "rateLimited": "The provider is limiting requests. Wait a minute and try again.",
+      "quotaExhausted": "The subscription behind this model is out of credits. Pick another model below the message box, or top up the subscription.",
       "temporary": "The provider had a temporary problem. Try again in a moment.",
       "unknown": "Something went wrong while answering. Try again.",
       "timeout": "The answer took too long and was stopped. Try a smaller request.",
