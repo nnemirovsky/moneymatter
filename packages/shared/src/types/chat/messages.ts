@@ -36,6 +36,10 @@ export interface ChatAttachmentPart {
   type: 'attachment';
   id: string;
   attachmentId: string;
+  /** What the attachment is, so a message shows a thumbnail or a named chip; absent from messages sent earlier. */
+  fileName?: string;
+  mimeType?: string;
+  kind?: ChatAttachmentKind;
 }
 
 /** User parts. */

@@ -2,6 +2,7 @@ import {
   CHAT_ATTACHMENT_TEXT_MAX_CHARS_PER_MESSAGE,
   CHAT_ATTACHMENTS_MAX_BYTES_PER_MESSAGE,
   type ChatClarificationAnswerInput,
+  type ChatAttachmentKind,
   type ChatClarificationPart,
   type ChatPageContext,
   type ChatSendMessageResponse,
@@ -32,6 +33,8 @@ import { launchChatRun } from './run-manager';
 interface SendableAttachment {
   id: string;
   fileName: string;
+  mimeType: string;
+  kind: ChatAttachmentKind;
 }
 
 /**
@@ -55,6 +58,8 @@ async function loadSendableAttachments({
     attributes: [
       'id',
       'fileName',
+      'mimeType',
+      'kind',
       'sizeBytes',
       [fn('char_length', fn('coalesce', col('extractedText'), '')), 'textLength'],
     ],
@@ -72,7 +77,9 @@ async function loadSendableAttachments({
     throw new ValidationError({ message: t({ key: 'chat.attachmentsTextTooLong' }) });
   }
 
-  return ids.map((id) => rows.find((row) => row.id === id)!).map(({ id, fileName }) => ({ id, fileName }));
+  return ids
+    .map((id) => rows.find((row) => row.id === id)!)
+    .map(({ id, fileName, mimeType, kind }) => ({ id, fileName, mimeType, kind }));
 }
 
 /**
@@ -162,7 +169,15 @@ const createRunMessages = withTransaction(
       ...(cardComment
         ? [{ type: 'cardComment' as const, id: randomUUID(), proposalId: cardComment.proposalId, text }]
         : []),
-      ...attachments.map(({ id }) => ({ type: 'attachment' as const, id: randomUUID(), attachmentId: id })),
+      // The name and kind travel with the part, so the history shows a thumbnail or a named chip without a lookup.
+      ...attachments.map(({ id, fileName, mimeType, kind }) => ({
+        type: 'attachment' as const,
+        id: randomUUID(),
+        attachmentId: id,
+        fileName,
+        mimeType,
+        kind,
+      })),
       ...(pageContext ? [{ type: 'pageContext' as const, id: randomUUID(), context: pageContext }] : []),
       ...(clarificationAnswer
         ? [
@@ -215,6 +230,7 @@ const createRunMessages = withTransaction(
       title: deriveThreadTitle({
         text: text || answerText,
         attachmentNames: attachments.map(({ fileName }) => fileName),
+        fallbackTitle: t({ key: 'chat.imageThreadTitle', variables: { date: new Date().toISOString().slice(0, 10) } }),
       }),
     });
 

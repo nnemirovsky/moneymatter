@@ -30,6 +30,28 @@ describe('deriveThreadTitle', () => {
     );
   });
 
+  it.each([
+    'image.png',
+    'Screenshot 2026-10-19 at 11.02.33.png',
+    'IMG_4821.jpg',
+    'photo.jpeg',
+    'Pasted image.png',
+    '1729339200.png',
+  ])('names a thread whose only content is the generic file %s by the given fallback', (fileName) => {
+    expect(deriveThreadTitle({ text: '', attachmentNames: [fileName], fallbackTitle: 'Image, 2026-10-19' })).toBe(
+      'Image, 2026-10-19',
+    );
+  });
+
+  it('keeps a file name that says something, and the text of a message, over the fallback', () => {
+    expect(
+      deriveThreadTitle({ text: '', attachmentNames: ['october-statement.pdf'], fallbackTitle: 'Image, 2026-10-19' }),
+    ).toBe('october-statement');
+    expect(
+      deriveThreadTitle({ text: 'What is this?', attachmentNames: ['image.png'], fallbackTitle: 'Image, 2026-10-19' }),
+    ).toBe('What is this?');
+  });
+
   it('leaves the title empty when there is nothing to name it from', () => {
     expect(deriveThreadTitle({ text: '', attachmentNames: [] })).toBe('');
   });

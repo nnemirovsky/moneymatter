@@ -5,6 +5,7 @@ import { ERROR_CODES } from '@js/errors';
 import ChatAttachments from '@models/chat-attachments.model';
 import ChatMessages from '@models/chat-messages.model';
 import { redisClient } from '@root/redis-client';
+import { PNG_1X1_BASE64 } from '@tests/fixtures/statement-parser-fixtures';
 import * as helpers from '@tests/helpers';
 import { useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
 import { provisionDemoUser } from '@tests/helpers/chat-cards';
@@ -362,6 +363,27 @@ describe('Chat runs', () => {
   describe('Attachments on a message', () => {
     const csv = (name: string) => Buffer.from(`date,description,amount\n2026-10-01,${name},-3.50\n`);
 
+    it('titles a thread whose only message is a generic image by "Image" and the date', async () => {
+      const { threadId } = await arrange({ turns: [{ text: 'A receipt.' }] });
+      const upload = await helpers.uploadChatAttachment({
+        threadId,
+        file: Buffer.from(PNG_1X1_BASE64, 'base64'),
+        filename: 'image.png',
+      });
+
+      const sent = await helpers.sendChatMessage({
+        threadId,
+        payload: { text: '', attachmentIds: [upload.attachment!.id] },
+      });
+      await helpers.getChatRunEvents({ runId: sent.body.response.runId });
+
+      const loaded = await helpers.getChatThread({ threadId, raw: true });
+      expect(loaded.thread.title).toBe(`Image, ${new Date().toISOString().slice(0, 10)}`);
+      expect(loaded.messages[0]!.parts).toContainEqual(
+        expect.objectContaining({ type: 'attachment', fileName: 'image.png', kind: 'image' }),
+      );
+    });
+
     it('attaches uploaded files to the user message, names an untitled thread after one, and lets no other message reuse it', async () => {
       const { threadId } = await arrange({ turns: [{ text: 'It is a CSV file.' }] });
       const upload = await helpers.uploadChatAttachment({ threadId, file: csv('Coffee'), filename: 'october.csv' });
@@ -373,7 +395,14 @@ describe('Chat runs', () => {
 
       const loaded = await helpers.getChatThread({ threadId, raw: true });
       expect(loaded.thread.title).toBe('october');
-      expect(loaded.messages[0]!.parts).toContainEqual({ type: 'attachment', id: expect.any(String), attachmentId });
+      expect(loaded.messages[0]!.parts).toContainEqual({
+        type: 'attachment',
+        id: expect.any(String),
+        attachmentId,
+        fileName: 'october.csv',
+        mimeType: expect.any(String),
+        kind: 'csv',
+      });
       const stored = await ChatAttachments.findByPk(attachmentId);
       expect(stored!.messageId).toBe(sent.body.response.userMessageId);
 
