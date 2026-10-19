@@ -22,14 +22,21 @@ interface UpdateThreadParams {
   modelId?: string | null;
 }
 
-const updateThreadImpl = async ({
-  userId,
-  threadId,
-  title,
-  pinned,
-  connectionId,
-  modelId,
-}: UpdateThreadParams): Promise<ChatThread> => {
+/** What was checked with the provider before the transaction: the connection the model was checked on. */
+interface CheckedSelection {
+  /** The connection the thread ends up on. */
+  connectionId: string | null;
+  /** The model to store, or undefined when the request did not name one. */
+  modelId: string | null | undefined;
+}
+
+/** The thread's connection moved between the check and the lock, so the checked model may not fit it. */
+class StaleSelectionError extends Error {}
+
+const updateThreadImpl = async (
+  { userId, threadId, title, pinned, connectionId, modelId }: UpdateThreadParams,
+  checked: CheckedSelection,
+): Promise<ChatThread> => {
   // Settings before thread, the order `setChatRetention` locks in.
   const retentionDays = pinned === undefined ? null : await getChatRetentionDays({ userId, lock: true });
   const thread = await findThreadOrThrow({ userId, threadId, lock: true });
@@ -47,22 +54,23 @@ const updateThreadImpl = async ({
   const switchesConnection = connectionId !== undefined && connectionId !== thread.connectionId;
   const picksModel = modelId !== undefined && (switchesConnection || modelId !== thread.modelId);
 
+  // The model was checked against the connection the thread had then, so a move since makes it stale.
+  if (modelId !== undefined && (switchesConnection ? connectionId : thread.connectionId) !== checked.connectionId) {
+    throw new StaleSelectionError();
+  }
+
   // The run in flight keeps the client it started with, so a switch now would show a model it is not on.
-  // Asked first: validating a model probes the provider, which a refused switch should not cost.
   if ((switchesConnection || picksModel) && (await hasActiveRun({ threadId }))) {
     throw new ConflictError({ message: t({ key: 'chat.runInProgress' }) });
   }
 
   if (connectionId !== undefined && switchesConnection) {
-    await assertSelectableConnection({ userId, connectionId });
     thread.connectionId = connectionId;
     // A model belongs to its connection: the new one starts on its own model unless the request names one.
     thread.modelId = null;
   }
 
-  if (modelId !== undefined) {
-    thread.modelId = await resolveThreadModel({ userId, connectionId: thread.connectionId, modelId });
-  }
+  if (checked.modelId !== undefined) thread.modelId = checked.modelId;
 
   await thread.save();
 
@@ -71,8 +79,54 @@ const updateThreadImpl = async ({
 
 const updateThreadTransactional = withTransaction(updateThreadImpl);
 
+/**
+ * Asks the provider about a model pick before the transaction, so the thread row, the settings row and a
+ * pooled connection are not held across a call that can take seconds. A switch or pick while a run is
+ * active is refused first, so a refused request costs no provider call.
+ */
+const checkSelection = async (params: UpdateThreadParams): Promise<CheckedSelection> => {
+  const { userId, threadId, connectionId, modelId } = params;
+  const thread = await findThreadOrThrow({ userId, threadId });
+
+  const switchesConnection = connectionId !== undefined && connectionId !== thread.connectionId;
+  const picksModel = modelId !== undefined && (switchesConnection || modelId !== thread.modelId);
+
+  if ((switchesConnection || picksModel) && (await hasActiveRun({ threadId }))) {
+    throw new ConflictError({ message: t({ key: 'chat.runInProgress' }) });
+  }
+
+  const targetConnectionId = connectionId !== undefined ? connectionId : thread.connectionId;
+  if (connectionId !== undefined && switchesConnection) {
+    await assertSelectableConnection({ userId, connectionId });
+  }
+
+  return {
+    connectionId: targetConnectionId,
+    modelId:
+      modelId === undefined
+        ? undefined
+        : await resolveThreadModel({ userId, connectionId: targetConnectionId, modelId }),
+  };
+};
+
 export const updateThread = async (params: UpdateThreadParams): Promise<ChatThread> => {
-  const thread = await updateThreadTransactional(params);
+  const hasSelection = params.connectionId !== undefined || params.modelId !== undefined;
+  let thread: ChatThread | undefined;
+
+  // One retry covers a connection switch landing between the check and the lock; a second one is a real race.
+  for (let attempt = 0; thread === undefined; attempt++) {
+    const checked: CheckedSelection = hasSelection
+      ? await checkSelection(params)
+      : { connectionId: null, modelId: undefined };
+
+    try {
+      thread = await updateThreadTransactional(params, checked);
+    } catch (error) {
+      if (!(error instanceof StaleSelectionError)) throw error;
+      if (attempt > 0) throw new ConflictError({ message: t({ key: 'chat.runInProgress' }) });
+    }
+  }
+
   notifyThreadUpdated({ userId: params.userId, threadId: thread.id });
   return thread;
 };

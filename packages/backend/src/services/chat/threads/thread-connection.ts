@@ -60,11 +60,7 @@ export async function resolveThreadModel({
     throw new ValidationError({ message: t({ key: 'ai.includedModelHasNoChoice' }) });
   }
 
-  await assertConnectionServesModel({ userId, connectionId, modelId });
-
-  const connection = (await getConnections({ userId })).find((candidate) => candidate.id === connectionId);
-
-  return modelId.trim() === connection?.model ? null : modelId.trim();
+  return assertConnectionServesModel({ userId, connectionId, modelId });
 }
 
 /** A connection a new thread may inherit: it exists, is not flagged down and its provider may run here. */

@@ -20,7 +20,10 @@ interface CreateThreadParams {
   title?: string;
   /** Omitted: the thread starts on the connection and model `pickDefaultThreadChoice` names. Null picks the included model. */
   connectionId?: string | null;
-  /** A model of the named connection; omitted or null, the connection's own model. Needs `connectionId`. */
+  /**
+   * A model of the named connection. Null asks for the connection's own model outright, where omitted
+   * lets a thread that inherits its connection inherit the model too. A model needs `connectionId`.
+   */
   modelId?: string | null;
 }
 
@@ -56,8 +59,10 @@ export const createThread = async (params: CreateThreadParams): Promise<ChatThre
 
   if (params.connectionId === undefined) {
     // A model names a connection's model, so it can't ride on a connection picked for the user.
-    if (params.modelId != null) throw new ValidationError({ message: t({ key: 'chat.modelNeedsConnection' }) });
+    if (params.modelId) throw new ValidationError({ message: t({ key: 'chat.modelNeedsConnection' }) });
     choice = await pickDefaultThreadChoice({ userId });
+    // An explicit null keeps the inherited connection but not its model.
+    if (params.modelId === null) choice = { connectionId: choice.connectionId, modelId: null };
   } else {
     await assertSelectableConnection({ userId, connectionId: params.connectionId });
     choice = {

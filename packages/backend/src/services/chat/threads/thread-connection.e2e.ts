@@ -20,6 +20,7 @@ import {
   CUSTOM_ENDPOINT_UNKNOWN_MODEL,
   getCustomEndpointModelNotFoundMock,
 } from '@tests/mocks/openai-compatible/mock-api';
+import { HttpResponse, delay, http } from 'msw';
 
 useSelfHostWithoutServerAiKeys();
 failOnUnscriptedChatRequests();
@@ -241,6 +242,17 @@ describe('Chat thread connection', () => {
       expect(inherited).toMatchObject({ connectionId: first.id, modelId: FIRST_OVERRIDE_MODEL });
     });
 
+    it('starts on the connection default when the request says so outright, instead of inheriting the model', async () => {
+      const { first } = await arrangeConnections({ deferScripts: true });
+      await helpers.createChatThread({ connectionId: first.id, modelId: FIRST_OVERRIDE_MODEL, raw: true });
+
+      const explicit = await helpers.createChatThread({ modelId: null, raw: true });
+      const withConnection = await helpers.createChatThread({ connectionId: first.id, modelId: null, raw: true });
+
+      expect(explicit).toMatchObject({ connectionId: first.id, modelId: null });
+      expect(withConnection).toMatchObject({ connectionId: first.id, modelId: null });
+    });
+
     it('drops the inherited model when the connection can no longer be inherited', async () => {
       const { first, second } = await arrangeConnections({ deferScripts: true });
       await helpers.createChatThread({ connectionId: second.id, modelId: 'qwen2.5-coder', raw: true });
@@ -353,6 +365,34 @@ describe('Chat thread connection', () => {
         expect((await helpers.getChatThread({ threadId: thread.id, raw: true })).thread.modelId).toBe(
           FIRST_OVERRIDE_MODEL,
         );
+      });
+
+      it('checks the model with the provider before locking the thread, so a slow provider blocks nothing else', async () => {
+        const { first } = await arrangeConnections({ deferScripts: true });
+        const thread = await helpers.createChatThread({ connectionId: first.id, raw: true });
+        const SLOW_PROVIDER_MS = 2_000;
+        global.mswMockServer.use(
+          http.post(`${CUSTOM_ENDPOINT_BASE_URL}/chat/completions`, async () => {
+            await delay(SLOW_PROVIDER_MS);
+            return HttpResponse.json({
+              id: 'x',
+              object: 'chat.completion',
+              created: 1,
+              model: FIRST_OVERRIDE_MODEL,
+              choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+              usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+            });
+          }),
+        );
+
+        const slow = helpers.updateChatThread({ threadId: thread.id, payload: { modelId: FIRST_OVERRIDE_MODEL } });
+        await settle();
+        const startedAt = Date.now();
+        const renamed = await helpers.updateChatThread({ threadId: thread.id, payload: { title: 'Renamed' } });
+
+        expect(renamed.statusCode).toBe(200);
+        expect(Date.now() - startedAt).toBeLessThan(SLOW_PROVIDER_MS / 2);
+        expect((await slow).statusCode).toBe(200);
       });
 
       it('answers 409 to a model switch while a run is active', async () => {
