@@ -44,7 +44,7 @@ import { HIGH_IMPACT_TOOLS, PREVIEW_RESOLVER_NAMES } from './rules';
 const EN_CHAT_PATH = path.resolve(__dirname, '../../../../../frontend/src/i18n/locales/chunks/en/pages/chat.json');
 
 /** The schema budget for the core catalog tools every chat step sends; the rest is found through `find_capabilities`. */
-const CORE_SCHEMA_BUDGET_BYTES = 60 * 1024;
+const CORE_SCHEMA_BUDGET_BYTES = 44 * 1024;
 
 /** The chat-native tools (find_capabilities, ask_clarification, render_*, read_attachment, run_analysis) have a budget of their own. */
 const NATIVE_SCHEMA_BUDGET_BYTES = 12 * 1024;
@@ -287,7 +287,7 @@ describe('chat capability drift', () => {
     }
   });
 
-  it('keeps the model-facing schemas of the core tools within 60 KB, and those of the chat-native tools within their own budget', () => {
+  it('keeps the model-facing schemas of the core tools within 44 KB, and those of the chat-native tools within their own budget', () => {
     const toolkit = buildChatToolkit({ run: makeChatRun().run });
     const active = new Set(toolkit.activeToolNames());
     const offered = toolkit.tools.filter((tool) => active.has(tool.name));
