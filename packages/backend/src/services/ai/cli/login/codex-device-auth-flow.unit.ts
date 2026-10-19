@@ -75,7 +75,9 @@ describe('startCodexDeviceAuthFlow', () => {
     await expect(flow.result).rejects.toThrow('ai.cliLoginTimedOut');
   });
 
-  it('cancel ends the flow', async () => {
+  it('cancel ends a flow that is still waiting for the approval', async () => {
+    // The default fake approves itself 200 ms after printing the code, which a loaded runner can outlast.
+    fakes.setScenario({ scenario: 'awaiting-approval' });
     const flow = startCodexDeviceAuthFlow({ timeouts: { ...DEFAULT_LOGIN_TIMEOUTS, completionMs: 60 * 1000 } });
 
     await flow.ready;

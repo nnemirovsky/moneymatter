@@ -1,8 +1,11 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 import { rm, stat, writeFile } from 'fs/promises';
 import path from 'path';
 
 import { createPrivateDir, withTempDir } from './cli-workdir';
+
+// The directories are real; jest's default 5 s is too tight on a loaded runner.
+jest.setTimeout(30_000);
 
 describe('withTempDir', () => {
   it('creates a private directory and removes it afterwards', async () => {
