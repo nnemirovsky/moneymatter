@@ -49,17 +49,39 @@ test.describe('Apple Pay', () => {
     await loginViaUI({ page, email: creds.email, password: creds.password });
   });
 
-  test('shows the Apple Pay tab with the optional Cloudflare Access explanation', async ({ page }) => {
-    await page.goto('/settings/integrations');
-    await page.getByRole('tab', { name: 'Apple Pay' }).click();
+  test('offers Apple Pay when connecting, next to the banks, and opens its setup', async ({ page }) => {
+    await page.goto('/accounts');
+    await page
+      .getByRole('button', { name: /^Connect/ })
+      .first()
+      .click();
+    await page.getByTestId('add-apple-pay').click();
 
-    await expect(page).toHaveURL(/\/settings\/integrations\/apple-pay$/);
+    await expect(page).toHaveURL(/\/accounts\/integrations\/apple-pay$/);
     await expect(page.getByTestId('apple-pay-setup')).toContainText('One-tap setup');
     await expect(page.getByTestId('setup-checklist-step')).toHaveCount(3);
   });
 
+  test('shows Apple Pay as a connection on the accounts page once it is set up', async ({ page }) => {
+    await page.goto('/accounts');
+
+    const row = page.getByTestId('apple-pay-row');
+    await expect(row).toBeVisible();
+    await expect(row).toContainText('Apple Pay');
+    await expect(page.getByTestId('apple-pay-waiting')).toContainText('1 waiting');
+
+    await row.getByRole('button').first().click();
+    await expect(page).toHaveURL(/\/accounts\/integrations\/apple-pay$/);
+  });
+
+  test('sends the old Settings routes to the Apple Pay page', async ({ page }) => {
+    await page.goto('/settings/integrations/ingest-tokens');
+
+    await expect(page).toHaveURL(/\/accounts\/integrations\/apple-pay$/);
+  });
+
   test('lists the unlinked card and its waiting payment', async ({ page }) => {
-    await page.goto('/settings/integrations/apple-pay');
+    await page.goto('/accounts/integrations/apple-pay');
 
     const unlinked = page.getByTestId('unlinked-card-row');
     await expect(unlinked).toHaveCount(1);
@@ -73,7 +95,7 @@ test.describe('Apple Pay', () => {
   });
 
   test('links the card and logs the waiting payment', async ({ page }) => {
-    await page.goto('/settings/integrations/apple-pay');
+    await page.goto('/accounts/integrations/apple-pay');
 
     await page.getByTestId('unlinked-card-link').click();
     const dialog = page.getByRole('dialog');
@@ -97,7 +119,7 @@ test.describe('Apple Pay', () => {
 
   test('generates a setup code, shows the QR code, copies it and forgets it on close', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-    await page.goto('/settings/integrations/apple-pay');
+    await page.goto('/accounts/integrations/apple-pay');
 
     await page.getByTestId('generate-setup-code').click();
 
@@ -119,8 +141,8 @@ test.describe('Apple Pay', () => {
     expect(await page.content()).not.toContain(code);
   });
 
-  test('the generated token appears in the ingest tokens list without a secret', async ({ page }) => {
-    await page.goto('/settings/integrations');
+  test('the generated token appears in the devices list without a secret', async ({ page }) => {
+    await page.goto('/accounts/integrations/apple-pay');
 
     const rows = page.getByTestId('ingest-token-row');
     await expect(rows).toHaveCount(2);
@@ -128,7 +150,7 @@ test.describe('Apple Pay', () => {
   });
 
   test('renames the card link and removes it after a confirmation', async ({ page }) => {
-    await page.goto('/settings/integrations/apple-pay');
+    await page.goto('/accounts/integrations/apple-pay');
 
     await page.getByTestId('card-link-edit').click();
     const dialog = page.getByRole('dialog');

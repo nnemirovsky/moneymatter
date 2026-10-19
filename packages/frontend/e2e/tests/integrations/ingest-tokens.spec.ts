@@ -12,7 +12,7 @@ const creds = buildTestCredentials({ prefix: 'ingesttokens' });
 
 test.describe.configure({ mode: 'serial' });
 
-test.describe('Ingest tokens', () => {
+test.describe('Apple Pay devices (ingest tokens)', () => {
   let api: APIRequestContext;
   let secret = '';
 
@@ -27,14 +27,14 @@ test.describe('Ingest tokens', () => {
   });
 
   test('shows the empty state before any token exists', async ({ page }) => {
-    await page.goto('/settings/integrations');
+    await page.goto('/accounts/integrations/apple-pay');
 
     await expect(page.getByTestId('ingest-tokens-empty')).toBeVisible();
     await expect(page.getByTestId('ingest-token-row')).toHaveCount(0);
   });
 
   test('creates a token and shows its secret once', async ({ page }) => {
-    await page.goto('/settings/integrations');
+    await page.goto('/accounts/integrations/apple-pay');
 
     await page.getByTestId('ingest-token-create').click();
     await page
@@ -56,7 +56,7 @@ test.describe('Ingest tokens', () => {
   });
 
   test('lists the token masked after a reload', async ({ page }) => {
-    await page.goto('/settings/integrations');
+    await page.goto('/accounts/integrations/apple-pay');
 
     const row = page.getByTestId('ingest-token-row');
     await expect(row).toHaveCount(1);
@@ -67,7 +67,7 @@ test.describe('Ingest tokens', () => {
   });
 
   test('revokes the token after a confirmation', async ({ page }) => {
-    await page.goto('/settings/integrations');
+    await page.goto('/accounts/integrations/apple-pay');
 
     await page.getByTestId('ingest-token-revoke').click();
     await expect(page.getByRole('alertdialog')).toContainText(`${TOKEN_NAME} stops working at once.`);
