@@ -5,7 +5,7 @@ import { chatPageContextToQuery, useChatPageContext } from '@/composable/chat/us
 import { CUSTOM_BREAKPOINTS, useWindowBreakpoints } from '@/composable/window-breakpoints';
 import { ROUTES_NAMES } from '@/routes/constants';
 import { useChatPanelStore } from '@/stores/chat-panel';
-import { MessageSquareIcon } from '@lucide/vue';
+import { SparklesIcon } from '@lucide/vue';
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -48,7 +48,7 @@ const onClick = () => {
       :aria-pressed="isMobileView ? undefined : panel.isOpen"
       @click="onClick"
     >
-      <MessageSquareIcon class="size-4" aria-hidden="true" />
+      <SparklesIcon class="size-4" aria-hidden="true" />
     </Button>
   </DesktopOnlyTooltip>
 </template>

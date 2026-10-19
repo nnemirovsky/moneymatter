@@ -41,9 +41,9 @@ test.describe('Settings → AI → Chat', () => {
     await openChatFeature({ page });
 
     const chatBlock = retentionSection({ page });
-    await expect(chatBlock.getByRole('heading', { name: 'Chat', level: 4 })).toBeVisible();
+    await expect(chatBlock.getByRole('heading', { name: 'AI chat', level: 4 })).toBeVisible();
     await expect(chatBlock.getByText('Model', { exact: true })).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Chat', exact: true, level: 4 })).toHaveCount(1);
+    await expect(page.getByRole('heading', { name: 'AI chat', exact: true, level: 4 })).toHaveCount(1);
   });
 
   test('changes how long conversations are kept', async ({ page }) => {

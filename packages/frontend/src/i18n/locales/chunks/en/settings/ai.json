@@ -333,7 +333,7 @@
         "saveFailed": "Failed to save custom instructions. Please try again."
       },
       "chat": {
-        "title": "Chat",
+        "title": "AI chat",
         "description": "Your conversations with the assistant. Each conversation picks its own model in the chat.",
         "retention": {
           "title": "Conversation history",
