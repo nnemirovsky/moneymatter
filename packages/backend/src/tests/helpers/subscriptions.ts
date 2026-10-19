@@ -26,6 +26,7 @@ import type { skipPeriod as apiSkipPeriod } from '@services/subscriptions/skip-p
 import type { suggestHistoricalMatches as apiSuggestMatches } from '@services/subscriptions/suggest-historical-matches';
 import type { unlinkTransaction as apiUnlinkTransaction } from '@services/subscriptions/unlink-transaction';
 import type { unlinkTransactionsFromSubscription as apiUnlinkTransactions } from '@services/subscriptions/unlink-transactions';
+import type { updatePeriodNotes as apiUpdatePeriodNotes } from '@services/subscriptions/update-period-notes';
 
 import { makeRequest } from './common';
 
@@ -459,6 +460,25 @@ export async function revertSubscriptionPeriod<R extends boolean | undefined = u
   return makeRequest<Awaited<ReturnType<typeof apiRevertPeriod>>, R>({
     method: 'post',
     url: `/subscriptions/${id}/periods/${periodId}/revert`,
+    raw,
+  });
+}
+
+export async function updateSubscriptionPeriodNotes<R extends boolean | undefined = undefined>({
+  id,
+  periodId,
+  payload,
+  raw,
+}: {
+  id: string;
+  periodId: string;
+  payload: Record<string, unknown>;
+  raw?: R;
+}) {
+  return makeRequest<Awaited<ReturnType<typeof apiUpdatePeriodNotes>>, R>({
+    method: 'patch',
+    url: `/subscriptions/${id}/periods/${periodId}`,
+    payload,
     raw,
   });
 }
