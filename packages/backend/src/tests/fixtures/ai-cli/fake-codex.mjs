@@ -93,6 +93,13 @@ async function deviceAuthLogin() {
   }
 
   out('Device codes are a common phishing target. Never share this code.\n');
+
+  // Waits for an approval that never comes, so a test can act on a sign-in that is still going.
+  if (scenario === 'awaiting-approval') {
+    setInterval(() => {}, 1000);
+    await new Promise(() => {});
+  }
+
   await sleep(200);
 
   if (scenario === 'denied')
