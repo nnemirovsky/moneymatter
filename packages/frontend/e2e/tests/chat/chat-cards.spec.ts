@@ -224,4 +224,67 @@ test.describe('Chat cards', () => {
     const box = await target.boundingBox();
     expect(box!.x + box!.width).toBeLessThanOrEqual(360);
   });
+  test('edits a card with real labels: a date and time picker, named choices and the currency of the amount', async ({
+    page,
+  }) => {
+    const field = ({ path, value, display, editable }: Record<string, unknown>) => ({
+      path,
+      labelKey: `chat.fields.${path}`,
+      value,
+      display,
+      editable,
+    });
+    await open({
+      page,
+      cards: [
+        buildCard({
+          id: 'c-edit',
+          fields: [
+            field({ path: 'amount', value: 12, display: { kind: 'money' }, editable: { type: 'money' } }),
+            field({
+              path: 'time',
+              value: '2026-10-19T07:26:00Z',
+              display: { kind: 'datetime' },
+              editable: { type: 'datetime' },
+            }),
+            field({
+              path: 'paymentType',
+              value: 'debitCard',
+              display: { kind: 'enum' },
+              editable: { type: 'enum', options: ['cash', 'debitCard', 'creditCard'] },
+            }),
+            field({
+              path: 'transferNature',
+              value: 'not_transfer',
+              display: { kind: 'enum' },
+              editable: { type: 'enum', options: ['not_transfer', 'transfer_between_user_accounts'] },
+            }),
+            field({
+              path: 'transactionType',
+              value: 'expense',
+              display: { kind: 'enum' },
+              editable: { type: 'enum', options: ['income', 'expense'] },
+            }),
+          ],
+        }),
+      ],
+    });
+
+    await page.getByTestId('edit').click();
+
+    await expect(page.getByTestId('field-editor-amount')).toContainText('Amount (USD)');
+    const when = page.getByTestId('field-editor-time').locator('input[type="datetime-local"]');
+    await expect(when).toHaveCount(1);
+    await expect(when).not.toHaveValue('');
+
+    const payment = page.getByTestId('field-editor-paymentType');
+    await expect(payment).toContainText('Debit card');
+    await expect(payment).not.toContainText('debitCard');
+    await expect(page.getByTestId('field-editor-transferNature')).toContainText('Not a transfer');
+    await expect(page.getByTestId('field-editor-transactionType')).toContainText('Expense');
+
+    await payment.getByRole('combobox').click();
+    await expect(page.getByRole('option', { name: 'Credit card' })).toBeAttached();
+    await expect(page.getByRole('option', { name: 'creditCard' })).toHaveCount(0);
+  });
 });

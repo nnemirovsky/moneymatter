@@ -60,9 +60,9 @@ export function describeField({
       if (schema.format === 'date-time') return { display: { kind: 'datetime' }, editable: { type: 'datetime' } };
       if (schema.format === 'date') return { display: { kind: 'date' }, editable: { type: 'date' } };
       if (typeof value === 'string' && ISO_DATE_TIME.test(value))
-        return { display: { kind: 'datetime' }, editable: { type: 'text' } };
+        return { display: { kind: 'datetime' }, editable: { type: 'datetime' } };
       if (typeof value === 'string' && ISO_DATE.test(value))
-        return { display: { kind: 'date' }, editable: { type: 'text' } };
+        return { display: { kind: 'date' }, editable: { type: 'date' } };
       return { display: { kind: 'text' }, editable: schema.format === 'uuid' ? null : { type: 'text' } };
     case 'number':
     case 'integer':

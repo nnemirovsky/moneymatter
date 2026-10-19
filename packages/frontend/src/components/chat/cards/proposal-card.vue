@@ -384,7 +384,13 @@ const isDetailsOpen = ref(false);
     <div v-else class="flex flex-col gap-3">
       <p class="text-sm font-medium">{{ $t('chat.cards.edit.title') }}</p>
       <div v-for="field in card.fields" :key="field.path" :data-testid="`field-editor-${field.path}`">
-        <CardFieldEditor v-model="draft[field.path]" :field="field" :lookups="lookups" />
+        <CardFieldEditor
+          v-model="draft[field.path]"
+          :field="field"
+          :lookups="lookups"
+          :currency-code="currencyOf({ path: field.path })"
+          :depends-on="card.dependsOn"
+        />
       </div>
       <p v-if="edited.changed.length === 0" class="text-muted-foreground text-xs">
         {{ $t('chat.cards.edit.nothingChanged') }}

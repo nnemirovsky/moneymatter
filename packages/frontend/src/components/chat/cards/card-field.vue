@@ -26,7 +26,7 @@ const props = defineProps<{
 const emit = defineEmits<{ choose: [value: unknown] }>();
 
 const { t } = useI18n();
-const { keyText, entityLabel, titleText } = useChatText();
+const { keyText, entityLabel, titleText, enumValueText } = useChatText();
 
 const LOOKS_LIKE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -78,8 +78,7 @@ const partsOf = ({ value }: { value: unknown }): ValuePart[] => {
     ];
   }
   if (displayKind.value === 'enum' && typeof value === 'string') {
-    // An option this build has no name for shows as the server wrote it.
-    return [{ text: keyText({ key: `chat.cards.enumValues.${props.field.path}.${value}` }) ?? value }];
+    return [{ text: enumValueText({ path: props.field.path, value }) }];
   }
   if ((displayKind.value === 'date' || displayKind.value === 'datetime') && typeof value === 'string') {
     return [{ text: formatVisualDate({ value }) }];

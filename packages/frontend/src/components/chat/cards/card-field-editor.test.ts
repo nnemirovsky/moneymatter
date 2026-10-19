@@ -19,9 +19,17 @@ import { buildField, buildLookups, createChatI18n } from './card-test-fixtures';
 const selectProps = ({ wrapper }: { wrapper: VueWrapper }): Record<string, unknown> =>
   wrapper.findComponent(SelectField as unknown as DefineComponent).props();
 
-const mountEditor = ({ field, modelValue }: { field: ChatCardField; modelValue: unknown }) =>
+const mountEditor = ({
+  field,
+  modelValue,
+  currencyCode = null,
+}: {
+  field: ChatCardField;
+  modelValue: unknown;
+  currencyCode?: string | null;
+}) =>
   mount(CardFieldEditor, {
-    props: { field, modelValue, lookups: buildLookups() },
+    props: { field, modelValue, lookups: buildLookups(), currencyCode, dependsOn: [] },
     global: {
       plugins: [createChatI18n()],
       stubs: {
@@ -31,9 +39,12 @@ const mountEditor = ({ field, modelValue }: { field: ChatCardField; modelValue: 
         TagSelectField: true,
         DateField: true,
         SelectField: true,
+        RouterLink: true,
       },
     },
   });
+
+const BUDGET_ID = '3f1b9c2e-8d4a-4b6e-9c1d-2a7e5f0b8c11';
 
 describe('CardFieldEditor', () => {
   it('edits text in an input field with a placeholder', () => {
@@ -115,10 +126,10 @@ describe('CardFieldEditor', () => {
     const select = selectProps({ wrapper });
 
     expect(select.values).toEqual([
-      { value: 'income', label: 'income' },
-      { value: 'expense', label: 'expense' },
+      { value: 'income', label: 'Income' },
+      { value: 'expense', label: 'Expense' },
     ]);
-    expect(select.modelValue).toEqual({ value: 'expense', label: 'expense' });
+    expect(select.modelValue).toEqual({ value: 'expense', label: 'Expense' });
   });
 
   it('edits a boolean in a checkbox', () => {
@@ -170,5 +181,87 @@ describe('CardFieldEditor', () => {
 
     expect(wrapper.findComponent(InputField).exists()).toBe(false);
     expect(wrapper.find('[data-testid="field-readonly"]').exists()).toBe(true);
+  });
+  describe('values a person reads', () => {
+    it.each([
+      ['paymentType', ['cash', 'debitCard'], 'debitCard', ['Cash', 'Debit card'], 'Debit card'],
+      [
+        'transferNature',
+        ['not_transfer', 'transfer_between_user_accounts'],
+        'not_transfer',
+        ['Not a transfer', 'Between your accounts'],
+        'Not a transfer',
+      ],
+    ])('names the options and the value of %s', (path, options, value, labels, selected) => {
+      const wrapper = mountEditor({
+        field: buildField({ path, editable: { type: 'enum', options } }),
+        modelValue: value,
+      });
+      const select = selectProps({ wrapper });
+
+      expect((select.values as Array<{ label: string }>).map((item) => item.label)).toEqual(labels);
+      expect((select.modelValue as { label: string }).label).toBe(selected);
+    });
+
+    it('keeps the value of an option it has no name for', () => {
+      const wrapper = mountEditor({
+        field: buildField({ path: 'frequency', editable: { type: 'enum', options: ['weekly_odd'] } }),
+        modelValue: 'weekly_odd',
+      });
+
+      expect(selectProps({ wrapper }).values).toEqual([{ value: 'weekly_odd', label: 'weekly_odd' }]);
+    });
+
+    it('shows the currency of an amount in its label and gives the field the currency decimals', () => {
+      const wrapper = mountEditor({
+        field: buildField({ path: 'amount', editable: { type: 'money' } }),
+        modelValue: 1200,
+        currencyCode: 'JPY',
+      });
+      const amount = wrapper.findComponent(FormattedAmountField);
+
+      expect(amount.props('label')).toBe('Amount (JPY)');
+      expect(amount.props('decimals')).toBe(0);
+    });
+
+    it('gives an amount in a two-decimal currency two decimals', () => {
+      const wrapper = mountEditor({
+        field: buildField({ path: 'amount', editable: { type: 'money' } }),
+        modelValue: 12.5,
+        currencyCode: 'GEL',
+      });
+
+      expect(wrapper.findComponent(FormattedAmountField).props('decimals')).toBe(2);
+    });
+
+    it('names a record the editor cannot change, instead of showing its id', () => {
+      const wrapper = mountEditor({
+        field: buildField({
+          path: 'budgetId',
+          value: BUDGET_ID,
+          display: { kind: 'entity', entity: { kind: 'budget', id: BUDGET_ID, label: '' } },
+          editable: { type: 'entity', entity: 'budget' },
+        }),
+        modelValue: BUDGET_ID,
+      });
+
+      expect(wrapper.find('[data-testid="field-readonly"]').text()).toContain('Budget');
+      expect(wrapper.text()).not.toContain(BUDGET_ID);
+    });
+
+    it('shows a value it cannot change in the form of the card, formatted', () => {
+      const wrapper = mountEditor({
+        field: buildField({
+          path: 'time',
+          value: '2026-10-19T07:26:00Z',
+          display: { kind: 'datetime' },
+          editable: null,
+        }),
+        modelValue: '2026-10-19T07:26:00Z',
+      });
+
+      expect(wrapper.text()).toContain('Oct 19, 2026');
+      expect(wrapper.text()).not.toContain('2026-10-19T');
+    });
   });
 });

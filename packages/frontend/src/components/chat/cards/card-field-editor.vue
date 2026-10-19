@@ -9,25 +9,31 @@ import PayeeSelectField from '@/components/fields/payee-select-field.vue';
 import SelectField from '@/components/fields/select-field.vue';
 import TagSelectField from '@/components/fields/tag-select-field.vue';
 import { Checkbox } from '@/components/lib/ui/checkbox';
-import type { ChatCardField } from '@bt/shared/types';
+import { getCurrencyDecimals } from '@/js/helpers/currency-decimals';
+import type { ChatCardDependency, ChatCardField } from '@bt/shared/types';
 import { format, isValid, parseISO } from 'date-fns';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { useChatText } from '../chat-text';
-import { fieldEntityKind, isProposalRef, summarizeValue } from './card-values';
+import CardField from './card-field.vue';
+import { isProposalRef } from './card-values';
 import type { CardLookups } from './use-card-lookups';
 
 const props = defineProps<{
   field: ChatCardField;
   modelValue: unknown;
   lookups: CardLookups;
+  /** The currency an amount argument is written in; `null` when the card does not say. */
+  currencyCode: string | null;
+  /** The cards this one depends on, to name a `$proposal:` ref in a value that is shown and not edited. */
+  dependsOn: ChatCardDependency[];
 }>();
 
 const emit = defineEmits<{ 'update:modelValue': [value: unknown] }>();
 
 const { t } = useI18n();
-const { keyText } = useChatText();
+const { keyText, enumValueText } = useChatText();
 
 const DATE_PATTERN = 'yyyy-MM-dd';
 
@@ -77,6 +83,8 @@ const editorKind = computed<EditorKind>(() => {
 });
 
 const label = computed(() => keyText({ key: props.field.labelKey }) ?? props.field.path);
+const amountLabel = computed(() => (props.currencyCode ? `${label.value} (${props.currencyCode})` : label.value));
+const amountDecimals = computed(() => getCurrencyDecimals({ code: props.currencyCode }));
 const set = (value: unknown) => emit('update:modelValue', value);
 
 const placeholder = computed(() => {
@@ -95,7 +103,10 @@ const dateValue = computed(() => {
 });
 
 const enumValues = computed(() =>
-  (props.field.editable?.options ?? []).map((option) => ({ value: option, label: option })),
+  (props.field.editable?.options ?? []).map((option) => ({
+    value: option,
+    label: enumValueText({ path: props.field.path, value: option }),
+  })),
 );
 const selectedEnum = computed(() => enumValues.value.find((item) => item.value === String(props.modelValue)) ?? null);
 // The options are strings; an argument that is a number goes back as one.
@@ -120,7 +131,6 @@ const findCategory = ({ list, id }: { list: FormattedCategory[]; id: unknown }):
 const selectedCategory = computed(() => findCategory({ list: props.lookups.categories(), id: props.modelValue }));
 
 const tagIds = computed(() => (Array.isArray(props.modelValue) ? props.modelValue.map(String) : []));
-const entityKind = computed(() => fieldEntityKind({ field: props.field }));
 </script>
 
 <template>
@@ -143,7 +153,8 @@ const entityKind = computed(() => fieldEntityKind({ field: props.field }));
     <FormattedAmountField
       v-else-if="editorKind === 'money'"
       :model-value="numberValue"
-      :label="label"
+      :decimals="amountDecimals"
+      :label="amountLabel"
       :placeholder="placeholder"
       @update:model-value="set($event)"
     />
@@ -212,11 +223,9 @@ const entityKind = computed(() => fieldEntityKind({ field: props.field }));
       with-search
       @update:model-value="set($event?.value ?? null)"
     />
-    <div v-else class="flex items-baseline justify-between gap-3 px-2 py-1.5 text-sm" data-testid="field-readonly">
-      <span class="text-muted-foreground shrink-0 text-xs">{{ label }}</span>
-      <span class="min-w-0 text-right wrap-anywhere" :data-entity="entityKind">{{
-        summarizeValue({ value: modelValue })
-      }}</span>
-    </div>
+    <!-- A value that is shown and not edited reads as it does on the card: names, dates and labels, never ids. -->
+    <dl v-else data-testid="field-readonly">
+      <CardField :field="field" :lookups="lookups" :currency-code="currencyCode" :depends-on="dependsOn" disabled />
+    </dl>
   </div>
 </template>

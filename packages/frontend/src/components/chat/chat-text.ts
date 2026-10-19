@@ -42,5 +42,9 @@ export const useChatText = () => {
     return keyText({ key: title.key, params: { ...title.params, entity: named } }) ?? named;
   };
 
-  return { keyText, entityText, entityLabel, titleText };
+  /** The name of one option of an enum argument ("debitCard" as "Debit card"); an option with no name is shown as written. */
+  const enumValueText = ({ path, value }: { path: string; value: string }): string =>
+    keyText({ key: `chat.cards.enumValues.${path}.${value}` }) ?? value;
+
+  return { keyText, entityText, entityLabel, titleText, enumValueText };
 };

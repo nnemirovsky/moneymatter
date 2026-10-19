@@ -39,6 +39,14 @@ describe('describeField', () => {
     expect(describeField({ key: 'date', value: '2026-10-19', node, entityKind: undefined }).display).toEqual({
       kind: 'date',
     });
+    expect(describeField({ key: 'time', value: '2026-10-19T07:26:00Z', node, entityKind: undefined }).editable).toEqual(
+      {
+        type: 'datetime',
+      },
+    );
+    expect(describeField({ key: 'date', value: '2026-10-19', node, entityKind: undefined }).editable).toEqual({
+      type: 'date',
+    });
     expect(describeField({ key: 'note', value: 'Nord Coffee', node, entityKind: undefined }).display).toEqual({
       kind: 'text',
     });
