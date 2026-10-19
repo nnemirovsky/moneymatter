@@ -35,7 +35,10 @@ const inputSchema = {
   limit: z.number().optional().describe('Max results (default: 50, max: 500)'),
   offset: z.number().optional().describe('Pagination offset (default: 0)'),
   order: z.enum(['asc', 'desc']).optional().describe('Sort order by date (default: desc)'),
-  excludeTransfers: z.boolean().optional().describe('Exclude transfer transactions'),
+  excludeTransfers: z
+    .boolean()
+    .optional()
+    .describe('Exclude transfer transactions. Set true for spending, income or "biggest transactions" questions'),
   excludeRefunds: z.boolean().optional().describe('Exclude refund transactions'),
   isPlanned: z
     .boolean()
@@ -50,7 +53,7 @@ export function registerSearchTransactions(server: McpServer) {
     'search_transactions',
     {
       description:
-        'Search and filter transactions. Returns transaction amount (original + base currency), category, account, payee (payeeId and payee { id, name }), note, date, type, and tags. Filter by payee with payeeIds (get_payees resolves a name to an id) and by planned state with isPlanned. Use date filters to limit results. Default: last 30 days, 50 items; future plans need a later endDate.',
+        "Search and filter transactions. Returns transaction amount (original + base currency), category, account, payee (payeeId and payee { id, name }), note, date, type, and tags. Filter by payee with payeeIds (get_payees resolves a name to an id) and by planned state with isPlanned. Use date filters to limit results. Default: last 30 days, 50 items; future plans need a later endDate. Transfers between the user's own accounts are returned too (transferNature other than not_transfer): they are not spending or income, so set excludeTransfers for such questions.",
       inputSchema,
     },
     async (args, extra) => {

@@ -35,8 +35,6 @@ export const chatMetaSchema = z
 
 export type ChatMeta = z.infer<typeof chatMetaSchema>;
 
-const PROPOSAL_REF_SCHEMA_PATTERN = '^\\$proposal:[0-9a-f-]{36}$';
-
 /** The same conversion the MCP SDK uses for `tools/list`, minus the `$schema` line, with the uuid and date patterns dropped. */
 export function zodToModelSchema({ schema }: { schema: z.ZodType }): JsonSchema {
   const { $schema: _dropped, ...converted } = z.toJSONSchema(schema, { target: 'draft-7', io: 'input' }) as JsonSchema;
@@ -44,9 +42,10 @@ export function zodToModelSchema({ schema }: { schema: z.ZodType }): JsonSchema 
 }
 
 /**
- * Lets every uuid position accept a `$proposal:<id>` ref too. A call that refers to a card that
- * does not exist yet has to pass the provider's own schema check (and the bridge's), so the
- * ref-tolerant schema is what the model is shown; the real schema still runs in `execute`.
+ * Shows every uuid position as a plain string. A call may refer to a card that does not exist yet with
+ * a `$proposal:<id>` ref, so the provider's own schema check (and the bridge's) must not insist on a
+ * uuid; the real schema still runs in `execute`. A plain string says it in a few tokens, where a uuid
+ * alternative next to a ref pattern repeated at every id position cost over 4 KB on each step.
  */
 function widenUuidPositions({ node }: { node: unknown }): unknown {
   if (Array.isArray(node)) return node.map((item) => widenUuidPositions({ node: item }));
@@ -58,14 +57,8 @@ function widenUuidPositions({ node }: { node: unknown }): unknown {
 
   if (widened.type !== 'string' || widened.format !== 'uuid') return widened;
 
-  const { type: _type, format: _format, ...rest } = widened;
-  return {
-    ...rest,
-    anyOf: [
-      { type: 'string', format: 'uuid' },
-      { type: 'string', pattern: PROPOSAL_REF_SCHEMA_PATTERN },
-    ],
-  };
+  const { format: _format, ...rest } = widened;
+  return rest;
 }
 
 /**

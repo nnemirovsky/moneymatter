@@ -26,3 +26,17 @@ export function compactArgs({ args }: { args: unknown }): unknown {
   const json = JSON.stringify(args ?? {});
   return json.length <= 1_000 ? (args ?? {}) : { truncated: json.slice(0, 500) };
 }
+
+/**
+ * A JSON result without its indentation. The catalog tools pretty-print for the external MCP clients; the
+ * model reads the same data for a fraction of the tokens when it is compact. Text that is not one JSON
+ * value stays as it is.
+ */
+export function compactJsonText({ text }: { text: string }): string {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return typeof parsed === 'object' && parsed !== null ? JSON.stringify(parsed) : text;
+  } catch {
+    return text;
+  }
+}

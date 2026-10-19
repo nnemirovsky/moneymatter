@@ -33,16 +33,10 @@ export const CHAT_CORE_TOOL_REASONS: Readonly<Record<string, string>> = {
   bulk_update_transactions: 'Recategorize or tag many transactions in one card.',
   bulk_delete_transactions: 'Delete duplicates found in a statement or by a filter, under a typed confirmation.',
   create_category: 'A category an import needs, which later cards reference with a $proposal: ref.',
-  update_category: 'Rename or recolor a category.',
   create_tag: 'A tag an import needs, which later cards reference with a $proposal: ref.',
   assign_tags_to_transaction: 'Tag a set of transactions.',
   create_payee: 'A payee an import needs, which later cards reference with a $proposal: ref.',
-  update_payee: 'Set a payee default category or fix its name.',
-  merge_payees: 'Fold duplicate payees into one.',
   create_account: 'An account an import needs, which later cards reference with a $proposal: ref.',
-  update_account: 'Rename an account or change its limits and flags.',
-  link_transfer: 'Pair the two legs of a transfer.',
-  link_refund: 'Pair a refund with the purchase it returns.',
 };
 
 export const CHAT_CORE_TOOLS: readonly string[] = Object.keys(CHAT_CORE_TOOL_REASONS);

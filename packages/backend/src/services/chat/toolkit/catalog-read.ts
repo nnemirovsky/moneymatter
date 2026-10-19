@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { ToolCatalogEntry } from '../../mcp/tool-catalog';
 import { THIRD_PARTY_READ_TOOLS } from '../policies/explicit';
 import { describeInputError } from '../proposals/placeholders';
-import { capForModel, compactArgs, errorMessage, toolFailure, toolSuccess } from './result-text';
+import { capForModel, compactArgs, compactJsonText, errorMessage, toolFailure, toolSuccess } from './result-text';
 import type { ChatToolContext, ChatToolResult } from './types';
 
 type CatalogReadOutcome = { ok: true; fullText: string } | { ok: false; failure: ChatToolResult };
@@ -40,7 +40,7 @@ export async function readFromCatalog({
 
   try {
     const result = await entry.invoke({ args, extra: await ctx.getExtra() });
-    return { ok: true, fullText: result.content.map((block) => block.text).join('\n') };
+    return { ok: true, fullText: compactJsonText({ text: result.content.map((block) => block.text).join('\n') }) };
   } catch (error) {
     return { ok: false, failure: toolFailure({ text: errorMessage({ error }) }) };
   }

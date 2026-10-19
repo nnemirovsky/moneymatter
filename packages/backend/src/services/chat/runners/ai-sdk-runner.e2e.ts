@@ -300,7 +300,7 @@ describe('AI SDK chat runner', () => {
     expect(script.remaining()).toBe(1);
   });
 
-  it('makes a discovered tool callable in the next step, with the ref-tolerant schema', async () => {
+  it('makes a discovered tool callable in the next step, with ids as plain strings that take a ref', async () => {
     const { script, threadId } = await arrange({
       turns: [
         { toolCalls: [{ id: 'call_find', name: 'find_capabilities', arguments: { query: 'delete account' } }] },
@@ -315,7 +315,8 @@ describe('AI SDK chat runner', () => {
 
     const discovered = script.requests[1]!.tools!.find((tool) => tool.function.name === 'delete_account')!;
     const schema = JSON.stringify(discovered.function.parameters);
-    expect(schema).toContain('proposal:');
+    expect(schema).not.toContain('"format":"uuid"');
+    expect(schema).not.toContain('proposal:');
     expect(schema).toContain('_chat');
   });
 

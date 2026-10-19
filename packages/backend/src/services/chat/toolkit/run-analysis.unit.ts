@@ -717,6 +717,27 @@ describe('run_analysis', () => {
       expect(result.text).toContain('monthly');
     });
 
+    it('tells the model that an input is the whole result when the code treats it as a list', async () => {
+      const { toolkit } = setup();
+      jest.mocked(runSandboxedAnalysis).mockResolvedValueOnce({
+        ok: false,
+        error: { kind: 'runtime', message: 'input.tx.map is not a function' },
+        durationMs: 900,
+      } as never);
+
+      const failed = await call({ toolkit, name: 'run_analysis', input: { code: 'return input.tx.map(x => x)' } });
+
+      expect(failed.isError).toBe(true);
+      expect(failed.text).toContain('input.tx.map is not a function');
+      expect(failed.text).toMatch(/whole result[^.]*field/i);
+    });
+
+    it('says in its description that a list lives in a field of the input', () => {
+      const { toolkit } = setup();
+
+      expect(toolkit.getTool({ name: 'run_analysis' })!.description).toMatch(/input\.\w+\.transactions/);
+    });
+
     it('refuses a failed analysis, whose output does not exist', async () => {
       const { toolkit } = setup();
       jest.mocked(runSandboxedAnalysis).mockResolvedValueOnce({

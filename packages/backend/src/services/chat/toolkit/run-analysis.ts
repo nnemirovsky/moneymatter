@@ -23,7 +23,7 @@ const MAX_LISTED_READS = 10;
 
 const INPUT_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
 
-const DESCRIPTION = `Run JavaScript on data your read tools returned, for sums, groupings, comparisons and trends the stats tools do not give. Inputs are named reads, never numbers you typed: fromCall (the id of a read you already made) or tool + args (any read tool; allPages: true joins every page of a list tool such as search_transactions, up to ${CHAT_ANALYSIS_MAX_ROWS} rows, into one result of the same shape). The code is a function body: read input.<name>, then return { values, tables, charts, kpis }. values is any JSON you want back; tables, charts and kpis map a key to a spec like render_table, render_chart and render_kpis take, and are shown with source: { analysisId, key }. Amounts are decimals. Helpers: sum, mean, median, percentile(items, p, selector), groupBy, sortBy(items, selector, 'asc'|'desc'), movingAverage(items, window, selector), byMonth(items, dateSelector, valueSelector), minor.sum(items, decimals, selector) for exact money totals; a selector is a property name or a function. No network, clock, timers or require. Return aggregates, not rows (256 KB). Errors name their kind: fix the code and call again.`;
+const DESCRIPTION = `Run JavaScript on data your read tools returned, for sums, groupings, comparisons and trends the stats tools do not give. Inputs are named reads, never numbers you typed: fromCall (the id of a read you already made) or tool + args (any read tool; allPages: true joins every page of a list tool such as search_transactions, up to ${CHAT_ANALYSIS_MAX_ROWS} rows, into one result of the same shape). The code is a function body: read input.<name>, which is the whole result exactly as the read returned it, so a list is one of its fields (input.tx.transactions for search_transactions, not input.tx itself), then return { values, tables, charts, kpis }. values is any JSON you want back; tables, charts and kpis map a key to a spec like render_table, render_chart and render_kpis take, and are shown with source: { analysisId, key }. Amounts are decimals. Helpers: sum, mean, median, percentile(items, p, selector), groupBy, sortBy(items, selector, 'asc'|'desc'), movingAverage(items, window, selector), byMonth(items, dateSelector, valueSelector), minor.sum(items, decimals, selector) for exact money totals; a selector is a property name or a function. No network, clock, timers or require. Return aggregates, not rows (256 KB). Errors name their kind: fix the code and call again.`;
 
 const inputSchema = z.object({
   name: z.string().regex(INPUT_NAME_PATTERN, 'An input name starts with a letter and uses letters, digits and _'),
@@ -269,7 +269,10 @@ export function createRunAnalysisTool({ ctx }: { ctx: ChatToolContext }) {
           partId: analysisId,
           patch: { status: 'error', error: message, durationMs: result.durationMs },
         });
-        return toolFailure({ text: `The analysis failed (${message})` });
+        const hint = /is not a function|not iterable|undefined|null/.test(result.error.message)
+          ? ' An input is the whole result of a read, so its list is a field of it (for example input.tx.transactions).'
+          : '';
+        return toolFailure({ text: `The analysis failed (${message}).${hint}` });
       }
 
       ctx.state.analyses.set(analysisId, result.output);

@@ -36,6 +36,15 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toMatch(/cards are the only way/i);
   });
 
+  it('keeps transfers between the user own accounts out of spending and ties the text to the visuals', () => {
+    const prompt = buildSystemPrompt(params);
+
+    expect(prompt).toMatch(/transfers? between (the user's )?own accounts/i);
+    expect(prompt).toMatch(/not (spending|income)/i);
+    expect(prompt).toContain('excludeTransfers');
+    expect(prompt).toMatch(/never (restate|quote)[^.]*(differ|visual)/i);
+  });
+
   it('has the card rules: one call per change, refs, uncertain fields, clarification', () => {
     const prompt = buildSystemPrompt(params);
 

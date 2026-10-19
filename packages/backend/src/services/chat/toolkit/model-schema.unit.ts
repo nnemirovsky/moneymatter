@@ -48,56 +48,36 @@ const isRefAlternative = ({ node }: { node: JsonSchema }) => node.type === 'stri
 const isUuidAlternative = ({ node }: { node: JsonSchema }) => node.type === 'string' && node.format === 'uuid';
 
 describe('getModelSchema', () => {
-  it('widens every uuid position of every write tool to accept a ref, and nothing else', () => {
-    let widened = 0;
-
+  it('shows every uuid position of every write tool as a plain string, which takes a ref as well', () => {
     for (const entry of writes()) {
-      // `_chat.replaces` names an existing card, so it stays a plain uuid.
       const { [CHAT_META_FIELD]: meta, ...ownProperties } = (
         getModelSchema({ entry }) as { properties: Record<string, unknown> }
       ).properties;
       expect(meta).toBeDefined();
-      const schema = { properties: ownProperties };
 
-      for (const { node, parent } of nodes({ node: schema })) {
-        if (!isUuidAlternative({ node })) continue;
-
-        // A uuid schema only appears as one alternative of an `anyOf` whose other alternative is the ref.
-        if (!Array.isArray(parent))
-          throw new Error(`${entry.name}: a uuid position is not widened: ${JSON.stringify(node)}`);
-        const siblings = (parent as JsonSchema[]).filter((sibling) => sibling !== node);
-        expect([entry.name, siblings.some((sibling) => isRefAlternative({ node: sibling }))]).toEqual([
+      for (const { node } of nodes({ node: { properties: ownProperties } })) {
+        // The ref alternative (and the uuid format it sits next to) cost tokens on every step of every run.
+        expect([entry.name, isUuidAlternative({ node })]).toEqual([entry.name, false]);
+        expect([entry.name, isRefAlternative({ node })]).toEqual([entry.name, false]);
+        expect([entry.name, 'anyOf' in node && JSON.stringify(node).includes('$proposal')]).toEqual([
           entry.name,
-          true,
+          false,
         ]);
-        widened++;
-      }
-
-      for (const { node } of nodes({ node: schema })) {
-        if (isRefAlternative({ node })) expect(Object.keys(node).toSorted()).toEqual(['pattern', 'type']);
       }
     }
-
-    expect(widened).toBeGreaterThan(100);
   });
 
-  it('widens uuid positions at the top level, in arrays and in nested objects', () => {
+  it('keeps an id field a string with its description, in arrays and nested objects too', () => {
     const schema = getModelSchema({ entry: entryOf({ name: 'create_transaction' }) }) as {
       properties: Record<string, any>;
     };
 
-    expect(schema.properties.categoryId.anyOf).toHaveLength(2);
-    expect(schema.properties.tagIds.items.anyOf).toHaveLength(2);
-    expect(schema.properties.splits.items.properties.categoryId.anyOf).toHaveLength(2);
-  });
-
-  it('keeps the description of a widened field and leaves other fields as they are', () => {
-    const schema = getModelSchema({ entry: entryOf({ name: 'create_transaction' }) }) as {
-      properties: Record<string, any>;
-    };
-
-    expect(schema.properties.categoryId.description).toBe('Category ID to assign to this transaction');
-    expect(schema.properties.note).toMatchObject({ type: 'string' });
+    expect(schema.properties.categoryId).toMatchObject({
+      type: 'string',
+      description: 'Category ID to assign to this transaction',
+    });
+    expect(schema.properties.tagIds.items).toMatchObject({ type: 'string' });
+    expect(schema.properties.splits.items.properties.categoryId).toMatchObject({ type: 'string' });
     expect(schema.properties.note.anyOf).toBeUndefined();
   });
 
