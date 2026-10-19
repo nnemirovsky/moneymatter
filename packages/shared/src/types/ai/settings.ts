@@ -95,21 +95,28 @@ export interface CliAiModel {
 /**
  * Curated models per CLI provider, one entry per model. Neither CLI can list models without a
  * signed-in session, so the picker offers this list; the create/test probe confirms the pick.
- * Claude entries use the CLI aliases (`sonnet`), which follow the newest model of their family, so a
- * CLI bump needs no change here; `catalogId` only drives capability and price display.
+ * Claude Code takes either an alias (`sonnet`, which follows the newest model of its family, so a CLI
+ * bump needs no change here) or a versioned id that pins one model. The versioned ids are the current
+ * and previous generations the CLI's own model picker names, and the CLI passes any id on to the API.
+ * `catalogId` only drives capability and price display.
  */
 export const CLI_AI_MODELS: Record<AICliProvider, CliAiModel[]> = {
   [AI_PROVIDER.claudeCode]: [
-    {
-      id: 'sonnet',
-      label: 'Claude Sonnet 5.5',
-      catalogId: 'claude-sonnet-5-5',
-      isDefault: true,
-      legacyIds: ['claude-sonnet-5-5'],
-    },
-    { id: 'opus', label: 'Claude Opus 5.5', catalogId: 'claude-opus-5-5', legacyIds: ['claude-opus-5-5'] },
-    { id: 'haiku', label: 'Claude Haiku 5.5', catalogId: 'claude-haiku-5-5', legacyIds: ['claude-haiku-5-5'] },
-    { id: 'fable', label: 'Claude Fable 5.1', catalogId: 'claude-fable-5-1', legacyIds: ['claude-fable-5-1'] },
+    { id: 'sonnet', label: 'sonnet (latest)', catalogId: 'claude-sonnet-5-5', isDefault: true },
+    { id: 'opus', label: 'opus (latest)', catalogId: 'claude-opus-5-5' },
+    { id: 'haiku', label: 'haiku (latest)', catalogId: 'claude-haiku-5-5' },
+    { id: 'fable', label: 'fable (latest)', catalogId: 'claude-fable-5-1' },
+    ...[
+      'claude-fable-5-1',
+      'claude-opus-5-5',
+      'claude-sonnet-5-5',
+      'claude-haiku-5-5',
+      'claude-fable-5',
+      'claude-opus-5',
+      'claude-opus-4-8',
+      'claude-sonnet-5',
+      'claude-haiku-4-5',
+    ].map((id) => ({ id, label: id, catalogId: id })),
   ],
   [AI_PROVIDER.codex]: [
     { id: 'gpt-6-astra', label: 'GPT-6 Astra', catalogId: 'gpt-6-astra', isDefault: true },

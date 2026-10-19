@@ -1,4 +1,4 @@
-import { AI_PROVIDER, CLI_AI_MODELS } from '@bt/shared/types';
+import { AI_PROVIDER, CLI_AI_MODELS, findCliAiModel } from '@bt/shared/types';
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { listConnectionModels, readGeminiModelIds } from './list-connection-models';
@@ -81,14 +81,32 @@ describe('listConnectionModels', () => {
     },
   );
 
-  it('lists one id per Claude Code model, as CLI aliases', async () => {
+  it('lists the Claude Code aliases first, then the versioned ids the CLI accepts', async () => {
     expect(await listConnectionModels({ provider: AI_PROVIDER.claudeCode, apiKey: null })).toEqual([
       'sonnet',
       'opus',
       'haiku',
       'fable',
+      'claude-fable-5-1',
+      'claude-opus-5-5',
+      'claude-sonnet-5-5',
+      'claude-haiku-5-5',
+      'claude-fable-5',
+      'claude-opus-5',
+      'claude-opus-4-8',
+      'claude-sonnet-5',
+      'claude-haiku-4-5',
     ]);
   });
+
+  it.each([AI_PROVIDER.claudeCode, AI_PROVIDER.codex] as const)(
+    'recognises every listed %s id as a stored model, the check a run and a model pick go through',
+    async (provider) => {
+      for (const id of await listConnectionModels({ provider, apiKey: null })) {
+        expect(findCliAiModel({ provider, model: id })?.id).toBe(id);
+      }
+    },
+  );
 
   it.each([AI_PROVIDER.claudeCode, AI_PROVIDER.codex] as const)('lists no %s model twice', async (provider) => {
     const models = await listConnectionModels({ provider, apiKey: null });
