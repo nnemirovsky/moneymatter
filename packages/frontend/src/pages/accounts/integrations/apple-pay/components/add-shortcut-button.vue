@@ -1,6 +1,11 @@
 <template>
   <Button v-if="href" as-child variant="outline" data-testid="add-shortcut">
-    <a :href="href" :target="isExternal ? '_blank' : undefined" rel="noopener noreferrer">
+    <a
+      :href="href"
+      :target="isExternal ? '_blank' : undefined"
+      :download="isExternal ? undefined : ''"
+      rel="noopener noreferrer"
+    >
       <SmartphoneIcon class="size-4" />
       {{ $t('settings.integrations.applePay.setup.addShortcut') }}
     </a>

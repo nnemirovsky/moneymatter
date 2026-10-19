@@ -96,7 +96,7 @@
             </template>
 
             <div
-              v-if="connectionRows.length"
+              v-if="connectionRows.length || isApplePaySetUp"
               class="border-border/60 bg-card divide-border/60 divide-y overflow-hidden rounded-xl border"
             >
               <BankConnectionRow
@@ -105,6 +105,11 @@
                 :connection="row.connection"
                 :accounts="row.accounts"
                 :folder-group-names="folderGroupNames"
+              />
+              <ApplePayConnectionRow
+                v-if="isApplePaySetUp"
+                :linked-cards-count="applePayLinkedCardsCount"
+                :waiting-count="applePayWaitingCount"
               />
             </div>
             <p v-else class="text-muted-foreground px-1 py-2 text-sm">{{ $t('accounts.noBanksConnected') }}</p>
@@ -233,6 +238,8 @@ import { collectGroupAccounts } from '@/components/sidebar/accounts-view/helpers
 import { buildAccountGroupTree } from '@/components/sidebar/accounts-view/helpers/build-account-group-tree';
 import { useBaseBalanceTotals } from '@/composable/use-base-balance-totals';
 import { useProjectedBalance } from '@/composable/use-projected-balance';
+import ApplePayConnectionRow from '@/pages/accounts/integrations/apple-pay/components/apple-pay-connection-row.vue';
+import { useApplePayStatus } from '@/pages/accounts/integrations/apple-pay/composables/use-apple-pay-status';
 import AddIntegrationDialog from '@/pages/accounts/integrations/components/add-integration-dialog.vue';
 import { useAccountsStore } from '@/stores';
 import { ACCOUNT_CATEGORIES, ACCOUNT_STATUSES, AccountModel } from '@bt/shared/types';
@@ -289,6 +296,12 @@ const { data: bankConnections, isFetched: isConnectionsFetched } = useQuery({
   staleTime: Infinity,
   placeholderData: [] as BankConnection[],
 });
+
+const {
+  isSetUp: isApplePaySetUp,
+  linkedCardsCount: applePayLinkedCardsCount,
+  waitingCount: applePayWaitingCount,
+} = useApplePayStatus();
 
 const { baseCurrencyCode, includeCreditLimit, sumBaseBalance } = useBaseBalanceTotals();
 

@@ -1,20 +1,14 @@
 {
   "settings": {
     "integrations": {
-      "title": "Integrations",
-      "description": "Let shortcuts, scripts and other apps send data to MoneyMatter without signing in as you.",
-      "tabs": {
-        "ingestTokens": "Ingest tokens",
-        "applePay": "Apple Pay"
-      },
       "ingestTokens": {
-        "title": "Ingest tokens",
-        "description": "A token lets one shortcut or script add card payments to your account. Each token works for a single purpose and can be revoked at any time.",
+        "title": "Devices",
+        "description": "Each iPhone or script that sends payments uses its own token. Revoke a token to cut that device off at once.",
         "createButton": "Create token",
         "loadError": "Could not load your tokens. Check your connection and try again.",
         "empty": {
-          "title": "No tokens yet",
-          "description": "Create a token to connect an iOS Shortcut or a script that logs card payments."
+          "title": "No devices yet",
+          "description": "Generate a setup code to connect an iPhone, or create a token for a script that logs card payments."
         },
         "fields": {
           "scope": "Scope",
@@ -229,7 +223,8 @@
             "description": "The planned payment at {name} is removed from the account. The bank's own transaction, if it arrived, is not touched.",
             "confirm": "Delete note"
           }
-        }
+        },
+        "back": "Back to accounts"
       }
     }
   }

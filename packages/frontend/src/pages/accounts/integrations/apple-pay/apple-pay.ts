@@ -8,7 +8,7 @@ import {
 
 const LABEL_ROOT = 'settings.integrations.applePay';
 
-export const CARD_PAYMENT_SHORTCUT_FILE_PATH = '/shortcuts/moneymatter-log-card-payment.shortcut';
+export const CARD_PAYMENT_SHORTCUT_FILE_PATH = '/shortcuts/log-card-payment.shortcut';
 
 /**
  * Accounts a card can be linked to: the user's own, active, and not a loan or vehicle, whose

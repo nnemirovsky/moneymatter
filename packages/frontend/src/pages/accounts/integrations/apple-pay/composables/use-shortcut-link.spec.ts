@@ -19,7 +19,7 @@ vi.mock('../apple-pay', async (importOriginal) => ({
 }));
 
 const ICLOUD = 'https://www.icloud.com/shortcuts/abc123';
-const FILE = '/shortcuts/moneymatter-log-card-payment.shortcut';
+const FILE = '/shortcuts/log-card-payment.shortcut';
 
 const mountComposable = async () => {
   let composable!: ReturnType<typeof useShortcutLink>;
