@@ -3,7 +3,7 @@ import enCommon from '@/i18n/locales/chunks/en/common.json';
 import { AI_PROVIDER } from '@bt/shared/types';
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { computed, defineComponent, h, ref } from 'vue';
+import { computed, defineComponent, h, nextTick, ref } from 'vue';
 import { createI18n } from 'vue-i18n';
 
 import ConnectionModelSelect from './connection-model-select.vue';
@@ -78,6 +78,16 @@ describe('ConnectionModelSelect', () => {
     await wrapper.find('[data-testid="option-claude-sonnet-5-5"]').trigger('click');
 
     expect(wrapper.emitted('select')).toBeUndefined();
+  });
+
+  it('tells its parent when it offers a choice, so the connection can be named alone', async () => {
+    const wrapper = mountSelect({ modelId: null });
+    expect(wrapper.emitted('update:hasChoice')?.at(-1)).toEqual([true]);
+
+    state.liveModels.value = [];
+    await nextTick();
+
+    expect(wrapper.emitted('update:hasChoice')?.at(-1)).toEqual([false]);
   });
 
   it('renders nothing when the provider offers no model but the default', () => {

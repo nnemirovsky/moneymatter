@@ -71,7 +71,8 @@
           "description": "Add your own AI model to use this feature."
         },
         "allConnectionsDown": "All your AI models need attention, so this feature is paused. Fix one in {link}.",
-        "allConnectionsDownLink": "AI models"
+        "allConnectionsDownLink": "AI models",
+        "connectionNameNeedsAttention": "{name} (needs attention)"
       },
       "modelGuide": {
         "trigger": "Which model fits?",

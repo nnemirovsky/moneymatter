@@ -2,7 +2,7 @@
 import SelectField from '@/components/fields/select-field.vue';
 import { useAiConnectionModels } from '@/composable/data-queries/use-ai-connection-models';
 import { type AIConnectionInfo } from '@bt/shared/types';
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import {
@@ -22,7 +22,7 @@ const props = withDefaults(
   { disabled: false, label: undefined },
 );
 
-const emit = defineEmits<{ select: [modelId: string | null] }>();
+const emit = defineEmits<{ select: [modelId: string | null]; 'update:hasChoice': [hasChoice: boolean] }>();
 
 const { t } = useI18n();
 
@@ -46,6 +46,10 @@ const selected = computed(() => findSelectedConnectionModelOption({ options: opt
 
 // A provider that lists nothing leaves only the default, which is no choice to offer.
 const hasChoice = computed(() => options.value.length > 1 || isLoadingLiveModels.value);
+
+// The connection select beside this one drops the model from its labels while this one names it.
+watch(hasChoice, (value) => emit('update:hasChoice', value), { immediate: true });
+onBeforeUnmount(() => emit('update:hasChoice', false));
 
 const formatOption = (option: ConnectionModelOption) =>
   option.kind === 'default' ? t('ai.connectionModel.default', { model: option.name }) : option.name;

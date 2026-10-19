@@ -81,6 +81,7 @@
             :label="$t('ai.connectionModel.label')"
             :disabled="isUpdating"
             @select="handleModelChange"
+            @update:has-choice="(value) => (hasModelChoice = value)"
           />
 
           <Callout
@@ -216,8 +217,17 @@ const fitWarningKey = computed(() => {
 
 const serverLabel = computed(() => t('settings.ai.modelSelector.serverOption'));
 
+// While the model select below names the model, the connection is named alone.
+const hasModelChoice = ref(false);
+const showsModelSelect = computed(() => hasModelChoice.value && pickedConnection.value !== null);
+
 const formatOptionLabel = (option: FeatureModelOption) => {
   if (option.kind === 'server') return serverLabel.value;
+  if (option.kind === 'connection' && showsModelSelect.value) {
+    return option.needsAttention
+      ? t('settings.ai.modelSelector.connectionNameNeedsAttention', { name: option.name })
+      : option.name;
+  }
   if (option.kind === 'connection') {
     const params = { name: option.name, model: option.model };
     return option.needsAttention

@@ -648,7 +648,8 @@
       "placeholder": "Choose a model",
       "included": "Included model",
       "option": "{name} ({model})",
-      "optionNeedsAttention": "{name} ({model}) - needs attention"
+      "optionNeedsAttention": "{name} ({model}) - needs attention",
+      "nameNeedsAttention": "{name} - needs attention"
     },
     "context": {
       "pages": {
