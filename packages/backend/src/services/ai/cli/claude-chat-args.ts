@@ -1,11 +1,9 @@
+import { CHAT_MAX_STEPS } from '@bt/shared/types';
 import { chmod, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { CLAUDE_HARDENING_ARGS, CLAUDE_STREAM_ARGS, createToolGuard } from './claude-code-language-model';
 import { CHAT_MCP_SERVER, CHAT_TOKEN_ENV } from './cli-chat-bridge';
-
-/** The CLI's model-step cap for a chat run; tool calls are capped by the toolkit. */
-export const CLAUDE_CHAT_MAX_TURNS = 25;
 
 /** Claude Code names an MCP tool `mcp__<server>__<tool>`. */
 const CHAT_TOOL_PREFIX = `mcp__${CHAT_MCP_SERVER}__`;
@@ -38,7 +36,7 @@ export function buildClaudeChatArgs({
     '--allowedTools',
     `mcp__${CHAT_MCP_SERVER}`,
     '--max-turns',
-    String(CLAUDE_CHAT_MAX_TURNS),
+    String(CHAT_MAX_STEPS),
   ];
 }
 

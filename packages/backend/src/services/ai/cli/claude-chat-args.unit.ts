@@ -1,3 +1,4 @@
+import { CHAT_MAX_STEPS } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
@@ -50,7 +51,7 @@ describe('buildClaudeChatArgs', () => {
       '--allowedTools',
       'mcp__moneymatter',
       '--max-turns',
-      '25',
+      String(CHAT_MAX_STEPS),
     ]);
   });
 

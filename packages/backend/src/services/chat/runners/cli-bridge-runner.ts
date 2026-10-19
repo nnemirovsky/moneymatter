@@ -1,6 +1,5 @@
-import { AI_FEATURE, AI_PROVIDER, asAiCliProvider, getModelNameFromModelId } from '@bt/shared/types';
+import { AI_FEATURE, AI_PROVIDER, asAiCliProvider, CHAT_MAX_STEPS, getModelNameFromModelId } from '@bt/shared/types';
 import { logger } from '@js/utils/logger';
-import { CLAUDE_CHAT_MAX_TURNS } from '@services/ai/cli/claude-chat-args';
 import { runWithCliCredential } from '@services/ai/cli/cli-credential-run';
 import { CliSlotBusyError, getChatRunTimeoutMs, getChatSlotWaitMs } from '@services/ai/cli/cli-run-limiter';
 import { trackAiUsage } from '@services/ai/track-ai-usage';
@@ -116,7 +115,7 @@ export const runCliBridgeChat: ChatRunner = async (input) => {
           type: 'notice',
           id: randomUUID(),
           key: 'chat.notices.stepLimit',
-          params: { limit: CLAUDE_CHAT_MAX_TURNS },
+          params: { limit: CHAT_MAX_STEPS },
         },
       });
     }
