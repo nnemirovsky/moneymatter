@@ -291,6 +291,7 @@ Includes detected candidates and billing periods.
 | `skip_subscription_period`               | Skip a billing cycle without paying it (`finance:write`)                                                         |
 | `unlink_subscription_period_transaction` | Detach a period's transaction; the transaction and the paid status stay (`finance:write`)                        |
 | `revert_subscription_period`             | Undo a paid or skipped period; may delete the transaction the app booked (`finance:write` + `finance:delete`)    |
+| `update_subscription_period`             | Edit a period's note in any status; `null` clears it (`finance:write`)                                           |
 
 ### Transaction automations
 
@@ -469,7 +470,8 @@ multi-currency data.
   `pay_subscription_period` either links an existing transaction or books a new one.
   `revert_subscription_period` undoes a payment and also deletes a transaction the app
   booked for it, so it needs `finance:delete` in that case; a transaction you linked
-  yourself is kept.
+  yourself is kept. A revert keeps the period's note, so
+  clear a stale one with `update_subscription_period` (`notes: null`).
 - File bytes never travel through MCP tool arguments. To attach a receipt, call
   `create_attachment_upload_url`, then POST each file as the raw request body to
   the returned `url` with the returned headers plus the file's URI-encoded name in

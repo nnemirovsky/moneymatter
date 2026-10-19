@@ -463,6 +463,10 @@
       "description": "Undo a paid or skipped subscription period. Deletes the transaction the app created for the payment, which also needs finance:delete scope. Requires finance:write scope."
     },
     {
+      "name": "update_subscription_period",
+      "description": "Edit the note of a subscription period, in any status; null clears it. Requires finance:write scope."
+    },
+    {
       "name": "create_transaction",
       "description": "Create a new income, expense, or transfer transaction with optional splits, tags, category, payee (payeeId, or merchantName resolved like bank sync), and original (foreign-currency) amount."
     },

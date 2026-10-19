@@ -43,6 +43,8 @@ const LOCK_EXEMPT_TOOLS = [
   'mark_notifications_read',
   // PUT and PATCH /user/settings have no lock: settings touch no amounts.
   'update_user_settings',
+  // PATCH /subscriptions/:id/periods/:periodId has no lock: a period's note touches no amounts.
+  'update_subscription_period',
 ];
 
 // Lock-exempt tools that still call `assertBaseCurrencyUnlocked` in one branch, because their
