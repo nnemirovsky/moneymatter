@@ -16,6 +16,16 @@ describe('buildSystemPrompt', () => {
     expect(CHAT_PROMPT_VERSION).toMatch(/^chat-\d+$/);
   });
 
+  it('prints the clock and the date in the zone it names', () => {
+    const prompt = buildSystemPrompt({ ...params, now: new Date('2026-10-18T22:30:00Z'), timeZone: 'Europe/Kyiv' });
+
+    expect(prompt).toContain('Now: 2026-10-19 01:30 (Europe/Kyiv); today is 2026-10-19.');
+  });
+
+  it('prints the UTC clock when the zone is UTC', () => {
+    expect(buildSystemPrompt(params)).toContain('Now: 2026-10-18 14:30 (UTC); today is 2026-10-18.');
+  });
+
   it('has the role and the two modes, and never lets the model claim a change is done', () => {
     const prompt = buildSystemPrompt(params);
 
