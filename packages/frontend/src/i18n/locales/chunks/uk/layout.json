@@ -23,7 +23,7 @@
     },
     "venture": "Венчур",
     "budget": "Бюджет",
-    "chat": "Чат"
+    "chat": "AI-чат"
   },
   "sidebar": {
     "collapse": "Згорнути бічну панель",
@@ -90,7 +90,7 @@
       "queued": "Очікує на початок...",
       "transactions": "транзакцій"
     },
-    "chat": "Чат"
+    "chat": "Відкрити AI-чат"
   },
   "themeSelector": {
     "light": "Світла",

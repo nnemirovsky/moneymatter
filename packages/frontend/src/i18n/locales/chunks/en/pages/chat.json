@@ -575,7 +575,7 @@
         "tool": "Read with {tool}"
       }
     },
-    "title": "Chat",
+    "title": "AI chat",
     "cliBusy": "All CLI slots on this instance are busy; try again in a minute.",
     "page": {
       "newChat": "New chat",
@@ -664,7 +664,7 @@
     },
     "empty": {
       "title": "Ask anything about your money",
-      "description": "Chat reads your accounts and transactions, answers with charts and tables, and turns every change into a card you approve first.",
+      "description": "AI chat reads your accounts and transactions, answers with charts and tables, and turns every change into a card you approve first.",
       "promptsTitle": "Try asking",
       "prompts": {
         "spending": "Where did my money go last month?",
@@ -674,7 +674,7 @@
       },
       "notConfigured": {
         "title": "Connect a model to start",
-        "description": "Chat runs on your own AI connection. Add one in Settings → AI, then pick it below the message box.",
+        "description": "AI chat runs on your own AI connection. Add one in Settings → AI, then pick it below the message box.",
         "cta": "Open AI settings"
       }
     },
@@ -690,10 +690,10 @@
       "comment": "Comment on a card"
     },
     "panel": {
-      "title": "Chat",
-      "close": "Close the chat panel",
-      "resize": "Resize the chat panel",
-      "openInPage": "Open in the Chat page",
+      "title": "AI chat",
+      "close": "Close the AI chat panel",
+      "resize": "Resize the AI chat panel",
+      "openInPage": "Open in the AI chat page",
       "newChat": "New chat"
     }
   }

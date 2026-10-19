@@ -23,7 +23,7 @@
     },
     "venture": "Venture",
     "budget": "Budget",
-    "chat": "Chat"
+    "chat": "AI chat"
   },
   "sidebar": {
     "collapse": "Collapse sidebar",
@@ -90,7 +90,7 @@
       "queued": "Waiting to start...",
       "transactions": "transactions"
     },
-    "chat": "Chat"
+    "chat": "Open AI chat"
   },
   "themeSelector": {
     "light": "Light",

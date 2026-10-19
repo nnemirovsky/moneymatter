@@ -85,6 +85,12 @@ describe('ChatHeaderButton', () => {
   });
 
   it('is labelled for assistive technology', () => {
-    expect(mountButton().find('button').attributes('aria-label')).toBe('Chat');
+    expect(mountButton().find('button').attributes('aria-label')).toBe('Open AI chat');
+  });
+
+  it('shows the shared AI chat icon', () => {
+    const icon = mountButton().find('button svg');
+
+    expect(icon.classes()).toContain('lucide-bot-message-square');
   });
 });
