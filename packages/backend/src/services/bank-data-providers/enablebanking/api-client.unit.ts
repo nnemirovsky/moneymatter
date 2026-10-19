@@ -211,6 +211,22 @@ describe('isAspspDateRangeRejection', () => {
     ).toBe(true);
   });
 
+  it('matches the bare ASPSP_ERROR wrapper, since Enable Banking may drop the bank text (SNS NL)', () => {
+    expect(
+      isAspspDateRangeRejection(
+        makeAspspBadRequest({
+          aspspMessage: 'Error interacting with ASPSP',
+          message: 'Enable Banking API error: Error interacting with ASPSP',
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      isAspspDateRangeRejection(
+        makeAspspBadRequest({ message: 'Enable Banking API error: Error interacting with ASPSP' }),
+      ),
+    ).toBe(true);
+  });
+
   it('does NOT match generic 400s from the transactions endpoint with no date vocabulary', () => {
     expect(isAspspDateRangeRejection(makeAspspBadRequest({ aspspMessage: 'Account not found for this session' }))).toBe(
       false,

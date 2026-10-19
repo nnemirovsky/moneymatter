@@ -540,7 +540,7 @@ describe('Patch user settings – notification push groups', () => {
       raw: true,
       settings: {
         locale: 'en',
-        notifications: { enabled: false, types: { budget_alert: false, system: true, changelog: false } },
+        notifications: { enabled: false, types: { tracker_alert: false, system: true, changelog: false } },
       },
     });
 
@@ -551,7 +551,7 @@ describe('Patch user settings – notification push groups', () => {
 
     expect(patched.notifications).toStrictEqual({
       enabled: false,
-      types: { budget_alert: false, system: true, changelog: false },
+      types: { tracker_alert: false, system: true, changelog: false },
       push: { groups: { sharing: false } },
     });
   });

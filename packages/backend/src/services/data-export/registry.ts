@@ -1,7 +1,6 @@
 import { transformAccounts } from './transformers/accounts-transformer';
 import { transformBalancesHistory } from './transformers/balances-history-transformer';
 import { transformBudgetLines, transformBudgetPeriods } from './transformers/budget-plans-transformer';
-import { transformBudgets } from './transformers/budgets-transformer';
 import { transformCategories } from './transformers/categories-transformer';
 import { transformHoldings } from './transformers/holdings-transformer';
 import { transformInvestmentTransactions } from './transformers/investment-transactions-transformer';
@@ -10,6 +9,7 @@ import { transformPortfolioTransfers } from './transformers/portfolio-transfers-
 import { transformPortfolios } from './transformers/portfolios-transformer';
 import { transformSubscriptions } from './transformers/subscriptions-transformer';
 import { transformTags } from './transformers/tags-transformer';
+import { transformTrackers } from './transformers/trackers-transformer';
 import { transformTransactionTemplates } from './transformers/transaction-templates-transformer';
 import { transformTransactions } from './transformers/transactions-transformer';
 import { transformVehicles } from './transformers/vehicles-transformer';
@@ -172,10 +172,10 @@ export const EXPORT_DOMAINS: { readonly [N in ExportFileName]: ExportDomain<N> }
       { header: 'DepreciationModel', field: 'depreciationModel', kind: 'text' },
     ],
   },
-  budgets: {
-    name: 'budgets',
+  trackers: {
+    name: 'trackers',
     group: 'budgets',
-    build: ({ userId }) => transformBudgets({ userId }),
+    build: ({ userId }) => transformTrackers({ userId }),
     columns: [
       { header: 'Name', field: 'name', kind: 'text' },
       { header: 'Status', field: 'status', kind: 'text' },

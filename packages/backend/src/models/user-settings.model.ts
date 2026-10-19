@@ -129,7 +129,7 @@ const ZodNotificationPreferencesSchema = z.object({
   enabled: z.boolean().optional(),
   types: z
     .object({
-      [NOTIFICATION_TYPES.budgetAlert]: z.boolean().default(true),
+      [NOTIFICATION_TYPES.trackerAlert]: z.boolean().default(true),
       [NOTIFICATION_TYPES.system]: z.boolean().default(true),
       [NOTIFICATION_TYPES.changelog]: z.boolean().default(true),
     })
@@ -385,6 +385,8 @@ export const ZodSettingsSchema = z.object({
   // When true, the sidebar Accounts panel hides accounts whose display balance is
   // zero, and hides any account group left with no non-zero account. Off by default.
   hideZeroBalances: z.boolean().optional(),
+  // Hides the "turn on smart tracking" tip on every tracker's Transactions tab.
+  hideSmartTrackingTip: z.boolean().optional(),
   // When true, manual (`system`) accounts are offered as candidates to the bank-sync transfer
   // matcher. Opt-in because linking turns a manually recorded row into a transfer leg, and
   // transfer legs carry no category, so the row disappears from category stats.
@@ -429,7 +431,7 @@ export const ZodSettingsPatchSchema = z.object({
       enabled: z.boolean().optional(),
       types: z
         .object({
-          [NOTIFICATION_TYPES.budgetAlert]: z.boolean().optional(),
+          [NOTIFICATION_TYPES.trackerAlert]: z.boolean().optional(),
           [NOTIFICATION_TYPES.system]: z.boolean().optional(),
           [NOTIFICATION_TYPES.changelog]: z.boolean().optional(),
         })
@@ -506,6 +508,7 @@ export const ZodSettingsPatchSchema = z.object({
   payeePromotionThreshold: z.number().int().min(1).max(3).optional(),
   showSupportButton: z.boolean().optional(),
   hideZeroBalances: z.boolean().optional(),
+  hideSmartTrackingTip: z.boolean().optional(),
   matchTransfersWithManualAccounts: z.boolean().optional(),
   importPendingBankTransactions: z.boolean().optional(),
   bankSyncHoursUtc: z.array(z.number().int().min(0).max(23)).length(2).optional(),

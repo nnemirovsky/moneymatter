@@ -110,7 +110,7 @@ describe('FIRE settings integrity across settings writers', () => {
           notifications: {
             enabled: false,
             types: {
-              [NOTIFICATION_TYPES.budgetAlert]: false,
+              [NOTIFICATION_TYPES.trackerAlert]: false,
               [NOTIFICATION_TYPES.system]: true,
               [NOTIFICATION_TYPES.changelog]: true,
             },

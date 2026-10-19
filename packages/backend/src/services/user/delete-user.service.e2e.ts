@@ -10,12 +10,12 @@ import { API_RESPONSE_STATUS } from '@bt/shared/types/api';
 import { authPool } from '@config/auth';
 import { afterEach, describe, expect, it } from '@jest/globals';
 import Accounts from '@models/accounts.model';
-import Budgets from '@models/budget.model';
 import Categories from '@models/categories.model';
 import { connection } from '@models/index';
 import Portfolios from '@models/investments/portfolios.model';
 import Notifications from '@models/notifications.model';
 import ResourceShares from '@models/resource-shares.model';
+import Trackers from '@models/trackers.model';
 import Transactions from '@models/transactions.model';
 import UserSettings from '@models/user-settings.model';
 import UsersCurrencies from '@models/users-currencies.model';
@@ -97,13 +97,13 @@ describe('User deletion (DELETE /user/delete)', () => {
     await helpers.addAccountToGroup({ accountId: account2.id, groupId: group1.id, raw: true });
     await helpers.addAccountToGroup({ accountId: account1.id, groupId: group2.id, raw: true });
 
-    const budget = await helpers.createCustomBudget({
-      name: 'Test Budget',
+    const tracker = await helpers.createTracker({
+      name: 'Test Tracker',
       limitAmount: 5000,
       raw: true,
     });
-    await helpers.addTransactionToCustomBudget({
-      id: budget.id,
+    await helpers.addTransactionsToTracker({
+      id: tracker.id,
       payload: { transactionIds: [expenseTx!.id] },
       raw: true,
     });
@@ -138,7 +138,7 @@ describe('User deletion (DELETE /user/delete)', () => {
     const categoriesBefore = await helpers.getCategoriesList();
     const transactionsBefore = await helpers.getTransactions({ raw: true });
     const groupsBefore = await helpers.getAccountGroups({ raw: true });
-    const budgetsBefore = await helpers.getCustomBudgets({ raw: true });
+    const trackersBefore = await helpers.getTrackers({ raw: true });
     const portfoliosBefore = await helpers.listPortfolios({ raw: true });
     const currenciesBefore = await helpers.getUserCurrencies();
     const settingsBefore = await UserSettings.findAll({});
@@ -148,7 +148,7 @@ describe('User deletion (DELETE /user/delete)', () => {
     expect(categoriesBefore.find((c) => c.id === childCategory.id)).toBeDefined();
     expect(transactionsBefore.length).toBeGreaterThanOrEqual(4);
     expect(groupsBefore.length).toBeGreaterThanOrEqual(2);
-    expect(budgetsBefore.length).toBeGreaterThanOrEqual(1);
+    expect(trackersBefore.length).toBeGreaterThanOrEqual(1);
     expect(portfoliosBefore.data.length).toBeGreaterThanOrEqual(1);
     expect(currenciesBefore.length).toBeGreaterThanOrEqual(3);
     expect(settingsBefore).toHaveLength(1);
@@ -165,7 +165,7 @@ describe('User deletion (DELETE /user/delete)', () => {
       where: { id: [category1.id, category2.id, childCategory.id] },
     });
     const transactionsAfter = await Transactions.findAll({ where: { accountId: [account1.id, account2.id] } });
-    const budgetsAfter = await Budgets.findAll({ where: { id: budget.id } });
+    const trackersAfter = await Trackers.findAll({ where: { id: tracker.id } });
     const portfoliosAfter = await Portfolios.findAll({ where: { id: portfolio.id } });
     const currenciesAfter = await UsersCurrencies.findAll({});
     const settingsAfter = await UserSettings.findAll({ where: {} });
@@ -173,7 +173,7 @@ describe('User deletion (DELETE /user/delete)', () => {
     expect(accountsAfter).toHaveLength(0);
     expect(categoriesAfter).toHaveLength(0);
     expect(transactionsAfter).toHaveLength(0);
-    expect(budgetsAfter).toHaveLength(0);
+    expect(trackersAfter).toHaveLength(0);
     expect(portfoliosAfter).toHaveLength(0);
     expect(currenciesAfter).toHaveLength(0);
     expect(settingsAfter).toHaveLength(0);

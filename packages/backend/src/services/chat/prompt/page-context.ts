@@ -9,7 +9,7 @@ const FILTER_ID_KEYS: Array<{ pattern: RegExp; kind: ChatEntityKind }> = [
   { pattern: /^category(Id|Ids)$/i, kind: 'category' },
   { pattern: /^payee(Id|Ids)$/i, kind: 'payee' },
   { pattern: /^tag(Id|Ids)$/i, kind: 'tag' },
-  { pattern: /^budget(Id|Ids)$/i, kind: 'budget' },
+  { pattern: /^tracker(Id|Ids)$/i, kind: 'tracker' },
 ];
 
 const ANY_ID_KEY = /(^id$|Ids?$)/;

@@ -83,12 +83,18 @@ describe('MONEY_COLUMNS', () => {
 });
 
 describe('money-storage migration snapshot', () => {
-  // The migration owns a frozen copy of the list, so a column added later never reaches it. The two
-  // are equal while the live list is still the one the migration converted. When a later change
-  // adds a column to the live list, relax this to "every snapshot entry is still listed" and leave
-  // the snapshot alone.
-  it('matches the live list while the live list has not grown past the migration', () => {
-    expect(MONEY_COLUMNS_20261016).toEqual(MONEY_COLUMNS);
+  // The migration owns a frozen copy of the list, so a column added later never reaches it. The live
+  // list may grow past the snapshot and may follow a table rename (the Budgets tables became
+  // Trackers), so every snapshot entry has to be listed, under its current table name.
+  const RENAMED_TABLES: Record<string, string> = { Budgets: 'Trackers' };
+
+  it('lists every column of the migration snapshot under its current table name', () => {
+    const live = new Set(MONEY_COLUMNS.map(({ table, column }) => `${table}.${column}`));
+    const missing = MONEY_COLUMNS_20261016.map(
+      ({ table, column }) => `${RENAMED_TABLES[table] ?? table}.${column}`,
+    ).filter((entry) => !live.has(entry));
+
+    expect(missing).toEqual([]);
     expect(MONEY_JSON_FIELDS_20261016).toEqual(MONEY_JSON_FIELDS);
     expect(MONEY_COLUMN_PRECISION_20261016).toBe(MONEY_COLUMN_PRECISION);
     expect(MONEY_COLUMN_SCALE_20261016).toBe(MONEY_COLUMN_SCALE);

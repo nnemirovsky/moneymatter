@@ -45,9 +45,9 @@ type AnalyticsEvent =
   | { event: 'transaction_created'; properties: { transaction_type: 'income' | 'expense' | 'transfer' } }
   | { event: 'transaction_template_applied' }
   | { event: 'transaction_template_saved' }
-  // Budget creation funnel
-  | { event: 'budget_creation_opened' }
-  | { event: 'budget_created' }
+  // Tracker creation funnel
+  | { event: 'tracker_creation_opened' }
+  | { event: 'tracker_created' }
   // Import funnel (import_completed tracked on backend)
   | {
       event: 'import_opened';

@@ -9,7 +9,7 @@ import { CategoryRefundPair, resolveRefundPairs } from './category-allocation';
 
 /**
  * What counts as money movement for reporting, for the reports that aggregate transaction rows
- * over a window (cash-flow, expenses history, cumulative, pivot, savings, budget spend). Reports
+ * over a window (cash-flow, expenses history, cumulative, pivot, savings, tracker spend). Reports
  * that read something other than those rows — earliest date, vehicle anchors, refund pair
  * resolution — go to the boundary directly.
  *
@@ -54,7 +54,7 @@ export interface StatsTransactionsResult {
   /**
    * Refund pairs touching `rows`, oriented into expense/income sides. Empty unless
    * `refunds: 'net'`. Reports keyed on payee/tag (pivot) or on original/refund orientation
-   * (budgets) resolve their own pairs — those shapes carry data a category pair cannot express.
+   * (trackers) resolve their own pairs — those shapes carry data a category pair cannot express.
    */
   refundPairs: CategoryRefundPair[];
 }

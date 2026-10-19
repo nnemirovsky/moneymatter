@@ -12,8 +12,8 @@ interface InviteLinkTarget {
  * watches `?invitation_token=…` and opens the share-invitation dialog on any route, so
  * the landing path only decides where the recipient lands behind the dialog.
  */
-export const buildShareInvitationLink = ({ token, resourceType }: InviteLinkTarget): string => {
-  const landingPath = resourceType === RESOURCE_TYPES.budget ? '/budgets' : '/accounts';
+const buildShareInvitationLink = ({ token, resourceType }: InviteLinkTarget): string => {
+  const landingPath = resourceType === RESOURCE_TYPES.tracker ? '/planned/trackers' : '/accounts';
   return `${window.location.origin}${landingPath}?invitation_token=${encodeURIComponent(token)}`;
 };
 

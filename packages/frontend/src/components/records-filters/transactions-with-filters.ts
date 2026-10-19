@@ -28,7 +28,7 @@ interface TransactionsSorting {
 
 const DATE_FILTER_KEYS = new Set<string>(['start', 'end']);
 
-export interface StoredFiltersState {
+interface StoredFiltersState {
   filters: Partial<FiltersStruct>;
   sorting?: TransactionsSorting;
 }
@@ -85,8 +85,8 @@ export const buildFilterParams = ({ filter }: { filter: FiltersStruct }): Transa
       payeeIds: filter.payeeIds.length ? filter.payeeIds : undefined,
       categorizationSource: filter.categorizationSource ?? undefined,
       batchId: filter.batchId ?? undefined,
-      budgetIds: filter.budgetIds.length ? filter.budgetIds : undefined,
-      excludedBudgetIds: filter.excludedBudgetIds.length ? filter.excludedBudgetIds : undefined,
+      trackerIds: filter.trackerIds.length ? filter.trackerIds : undefined,
+      excludedTrackerIds: filter.excludedTrackerIds.length ? filter.excludedTrackerIds : undefined,
     },
     isNil,
   ) as TransactionFilterParams;
@@ -161,6 +161,7 @@ export const useTransactionsWithFilters = ({
     isFetchingNextPage,
     isFetched,
     isFetching,
+    isError,
   } = useInfiniteQuery({
     queryKey,
     queryFn: ({ pageParam }) => fetchTransactions({ pageParam, filter: appliedFilters.value }),
@@ -203,6 +204,7 @@ export const useTransactionsWithFilters = ({
     isFetchingNextPage,
     isFetched,
     isFetching,
+    isError,
     transactionsListRef,
     invalidate,
     matching,

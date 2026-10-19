@@ -26,8 +26,7 @@ const ROUTE_ENTITIES: Readonly<Record<string, { kind: ChatEntityKind; param: str
   [ROUTES_NAMES.budgetPlan]: { kind: 'budgetPlan', param: 'planId' },
   [ROUTES_NAMES.subscriptionDetails]: { kind: 'subscription', param: 'id' },
   [ROUTES_NAMES.plannedSubscriptionDetails]: { kind: 'subscription', param: 'id' },
-  [ROUTES_NAMES.budgetsInfo]: { kind: 'budget', param: 'id' },
-  [ROUTES_NAMES.plannedBudgetDetails]: { kind: 'budget', param: 'id' },
+  [ROUTES_NAMES.plannedTrackerDetails]: { kind: 'tracker', param: 'id' },
   [ROUTES_NAMES.settingsPayeeDetail]: { kind: 'payee', param: 'id' },
   [ROUTES_NAMES.automationDetails]: { kind: 'transactionAutomation', param: 'id' },
 };

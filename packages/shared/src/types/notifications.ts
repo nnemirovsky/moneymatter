@@ -7,7 +7,7 @@ import type { TagReminderFrequency, TagReminderType } from './tags';
  * adding new types without migrations. These are the currently supported types.
  */
 export const NOTIFICATION_TYPES = {
-  budgetAlert: 'budget_alert',
+  trackerAlert: 'tracker_alert',
   system: 'system',
   changelog: 'changelog',
   tagReminder: 'tag_reminder',
@@ -16,6 +16,8 @@ export const NOTIFICATION_TYPES = {
   plannedConfirmed: 'planned_confirmed',
   /** Enable Banking rows still pending after a week; the user should check them with the bank. */
   stuckPending: 'stuck_pending',
+  /** A smart tracking scan linked or suggested transactions for a tracker. */
+  trackerAiMatches: 'tracker_ai_matches',
   shareInvitationReceived: 'share_invitation_received',
   shareInvitationSendFailed: 'share_invitation_send_failed',
   shareAccepted: 'share_accepted',
@@ -24,10 +26,10 @@ export const NOTIFICATION_TYPES = {
   shareLeft: 'share_left',
   shareExpired: 'share_expired',
   shareOwnerAccountDeleted: 'share_owner_account_deleted',
-  /** Recipient-side: owner deleted a budget that was shared with the recipient. Distinct
+  /** Recipient-side: owner deleted a tracker that was shared with the recipient. Distinct
    *  from `shareRevoked` because the resource itself is gone – there's nothing to
    *  re-share, and any deep-link will 404. */
-  shareOwnerBudgetDeleted: 'share_owner_budget_deleted',
+  shareOwnerTrackerDeleted: 'share_owner_tracker_deleted',
   // Household membership lifecycle. Mirrors the per-resource set except for
   // the deleted-resource analog (a household has no single resource to delete)
   // and adds `householdMemberAccountDeleted` to distinguish system cascades
@@ -98,9 +100,9 @@ export type NotificationPriority = (typeof NOTIFICATION_PRIORITIES)[keyof typeof
  * Type-specific payload structures for notifications.
  * Using discriminated union pattern for type safety.
  */
-export interface BudgetAlertPayload {
-  budgetId: RecordId;
-  budgetName: string;
+export interface TrackerAlertPayload {
+  trackerId: RecordId;
+  trackerName: string;
   thresholdPercent: number;
   currentSpent: number;
   limitAmount: number;
@@ -140,6 +142,13 @@ export interface TagReminderNotificationPayload {
   transactionIds?: string[];
 }
 
+export interface TrackerAiMatchesNotificationPayload {
+  trackerId: RecordId;
+  trackerName: string;
+  linkedCount: number;
+  suggestedCount: number;
+}
+
 export interface StuckPendingNotificationPayload {
   transactionIds: RecordId[];
 }
@@ -153,7 +162,7 @@ export interface ShareInvitationNotificationPayload {
   /** Single-use token used to deep-link to the accept/decline page (`/shared-with-me/invitations/:token`).
    * Required so the frontend notification handler can navigate without an extra lookup. */
   token: string;
-  /** Reusable across notification types: 'account', 'budget', etc. */
+  /** Reusable across notification types: 'account', 'tracker', etc. */
   resourceType: ResourceType;
   /** String-encoded resource id, matches `ResourceShares.resourceId` shape. */
   resourceId: string;
@@ -208,11 +217,12 @@ export interface ShareInvitationSendFailedPayload {
 }
 
 export type NotificationPayload =
-  | BudgetAlertPayload
+  | TrackerAlertPayload
   | SystemNotificationPayload
   | ChangelogNotificationPayload
   | TagReminderNotificationPayload
   | StuckPendingNotificationPayload
+  | TrackerAiMatchesNotificationPayload
   | ShareInvitationNotificationPayload
   | ShareLifecycleNotificationPayload
   | ShareInvitationSendFailedPayload

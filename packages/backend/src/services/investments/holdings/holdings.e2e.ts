@@ -549,6 +549,22 @@ describe('Investment holdings', () => {
       expect(price?.priceClose.toNumber()).toBeCloseTo(40.82, 5);
     });
 
+    it('creates a holding from a test fixture security returned by search', async () => {
+      const results = await helpers.searchSecurities({ payload: { query: 'etest' }, raw: true });
+      const searchResult = results.find((r) => r.symbol === 'ETEST');
+      expect(searchResult).toMatchObject({ providerName: SECURITY_PROVIDER.fmp, currencyCode: 'USD' });
+
+      const response = await makeRequest({
+        method: 'post',
+        url: '/investments/holding',
+        payload: { portfolioId: investmentPortfolio.id, searchResult },
+      });
+
+      expect(response.statusCode).toBe(201);
+      const stored = await Securities.findOne({ where: { providerSymbol: 'ETEST' } });
+      expect(stored?.name).toBe('E2E Test Corp');
+    });
+
     describe('searchResult with priceSourceSymbol (Yahoo ISIN fallback path)', () => {
       it('persists priceSourceSymbol on the new security and routes initial price fetch through it', async () => {
         // The latest-price fetch must read the local ticker (priceSourceSymbol),

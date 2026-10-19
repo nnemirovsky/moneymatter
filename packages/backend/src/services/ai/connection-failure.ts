@@ -1,6 +1,6 @@
 // Shared by every AI feature so a dead connection gets the same status and message.
 
-import { AI_PROVIDER, type AICliProvider, FEATURES, asAiCliProvider } from '@bt/shared/types';
+import { AI_PROVIDER, type AICliProvider, asAiCliProvider, hasServerAiEntitlement } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { APICallError } from 'ai';
 
@@ -55,7 +55,7 @@ export async function describeMissingAiConfiguration({ userId }: { userId: numbe
   }
 
   const entitlements = await getEntitlementsByUserId({ userId });
-  if (entitlements.features.includes(FEATURES.operator_ai) && !(await isWithinAiAllowance({ userId, entitlements }))) {
+  if (hasServerAiEntitlement({ entitlements }) && !(await isWithinAiAllowance({ userId, entitlements }))) {
     return AI_ALLOWANCE_REACHED_ERROR_MESSAGE;
   }
 

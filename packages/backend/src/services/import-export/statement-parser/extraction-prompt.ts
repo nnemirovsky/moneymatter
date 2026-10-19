@@ -122,6 +122,8 @@ export function createImageExtractionPrompt({ today }: { today: string }): strin
 
 A receipt is ONE transaction: its grand total including tax, on the purchase date, with the store as the merchant. Never list a receipt's line items as separate transactions.
 
+A banking app usually titles a transaction with the merchant (e.g. "SP STUSSY EUROPE AMSTERDAM NLD"). Write that title as the merchant too, even though it is also the description.
+
 Today is ${today}. Resolve relative dates ("Today", "Yesterday") against it, and when a date shows no year, use the latest year that does not put it in the future.
 
 Output CSV only. First line metadata, then transactions.`;
@@ -170,17 +172,18 @@ const EXTERNAL_REFERENCE_MAX_LENGTH = 255;
  * optional. The model also copies full ISO timestamps out of app exports, so the `T`
  * separator, fractional seconds and a zone are all tolerated.
  */
-const DATE_PATTERN = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
+const DATE_PATTERN =
+  /^(\d{4}-\d{2}-\d{2})(?:[ T]([01]?\d|2[0-3]):([0-5]\d)(?::([0-5]\d)(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
 
 /** Drops sub-second precision and any zone designator, so the wall clock stands as the statement wrote it. */
 function normalizeDate({ date }: { date: string }): string | null {
   const match = DATE_PATTERN.exec(date);
   if (!match) return null;
 
-  const [, day, hours, minutes, seconds] = match;
-  if (hours === undefined) return day!;
+  const [, ymd, hours, minutes, seconds] = match;
+  if (hours === undefined) return ymd!;
 
-  return `${day} ${hours.padStart(2, '0')}:${minutes}:${seconds ?? '00'}`;
+  return `${ymd} ${hours.padStart(2, '0')}:${minutes}:${seconds ?? '00'}`;
 }
 
 interface TransactionFields {
@@ -257,6 +260,25 @@ function readOriginalAmount({
   if (originalAmount === null || originalAmount <= 0 || !isKnownCode) return {};
 
   return { originalAmount, originalCurrencyCode };
+}
+
+/** The model sometimes adds or drops a metadata field, which pushes a date into the currency slot. */
+function readCurrencyCode({ fields }: { fields: string[] }): string | null {
+  const code =
+    fields
+      .slice(1)
+      .map((field) => field.toUpperCase())
+      .find((field) => cc.code(field) !== undefined) ?? null;
+
+  const currencySlot = fields[4];
+  if (currencySlot && currencySlot.toUpperCase() !== code) {
+    logger.info('[Statement Parser] Metadata currency slot held no valid code', {
+      currencySlot,
+      resolvedCurrency: code,
+    });
+  }
+
+  return code;
 }
 
 /** `parseDecimalAmount` rejects signed input, and a balance can be negative when the account is overdrawn. */
@@ -339,7 +361,7 @@ export function parseAIResponse({
               to: metadataFields[3],
             }
           : null,
-      currencyCode: metadataFields[4] || null,
+      currencyCode: readCurrencyCode({ fields: metadataFields }),
     };
 
     // Parse transactions (remaining lines)

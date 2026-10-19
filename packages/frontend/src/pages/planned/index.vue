@@ -2,7 +2,7 @@
   <div
     :class="
       cn(
-        'flex flex-col gap-6 p-4 md:px-6',
+        'flex flex-col p-4 md:px-6',
         isMobileView
           ? 'min-h-[calc(100dvh-var(--header-height)-var(--bottom-navbar-height))]'
           : 'min-h-[calc(100dvh-var(--header-height))]',
@@ -39,8 +39,8 @@ const nestedRouteMap: Record<string, { parent: { name: string }; labelKey?: stri
     parent: { name: ROUTES_NAMES.plannedSubscriptions },
     labelKey: 'planned.subscriptions.backToList',
   },
-  [ROUTES_NAMES.plannedBudgetDetails]: {
-    parent: { name: ROUTES_NAMES.plannedBudgets },
+  [ROUTES_NAMES.plannedTrackerDetails]: {
+    parent: { name: ROUTES_NAMES.plannedTrackers },
     labelKey: 'planned.budgets.backToList',
   },
 };

@@ -11,7 +11,6 @@ import BillingSubscriptionsModel from './billing-subscriptions.model';
 import BillingWebhookEventsModel from './billing-webhook-events.model';
 import BrandLogosModel from './brand-logos.model';
 import BudgetAssignmentsModel from './budget-assignments.model';
-import BudgetCategoriesModel from './budget-categories.model';
 import BudgetLineCategoriesModel from './budget-line-categories.model';
 import BudgetLineGoalsModel from './budget-line-goals.model';
 import BudgetLineGroupsModel from './budget-line-groups.model';
@@ -19,8 +18,6 @@ import BudgetLinesModel from './budget-lines.model';
 import BudgetPeriodsModel from './budget-periods.model';
 import BudgetPlanAccountsModel from './budget-plan-accounts.model';
 import BudgetPlansModel from './budget-plans.model';
-import BudgetTransactionsModel from './budget-transactions.model';
-import BudgetModel from './budget.model';
 import CardAccountMappingsModel from './card-account-mappings.model';
 import CategoriesModel from './categories.model';
 import CategoryTagsModel from './category-tags.model';
@@ -65,6 +62,12 @@ import SubscriptionTransactionsModel from './subscription-transactions.model';
 import SubscriptionsModel from './subscriptions.model';
 import TagRemindersModel from './tag-reminders.model';
 import TagsModel from './tags.model';
+import TrackerCategoriesModel from './tracker-categories.model';
+import TrackerLineCategoriesModel from './tracker-line-categories.model';
+import TrackerLinesModel from './tracker-lines.model';
+import TrackerSuggestionsModel from './tracker-suggestions.model';
+import TrackerTransactionsModel from './tracker-transactions.model';
+import TrackersModel from './trackers.model';
 import TransactionAttachmentsModel from './transaction-attachments.model';
 import TransactionAutomationsModel from './transaction-automations.model';
 import TransactionGroupItemsModel from './transaction-group-items.model';
@@ -124,9 +127,12 @@ const models = [
   UsersCurrenciesModel,
   AccountGroupingModel,
   AccountGroupsModel,
-  BudgetModel,
-  BudgetCategoriesModel,
-  BudgetTransactionsModel,
+  TrackersModel,
+  TrackerCategoriesModel,
+  TrackerTransactionsModel,
+  TrackerLinesModel,
+  TrackerSuggestionsModel,
+  TrackerLineCategoriesModel,
   TagsModel,
   TagRemindersModel,
   TransactionTagsModel,

@@ -7,8 +7,6 @@ import BudgetLineGoals from '@models/budget-line-goals.model';
 import BudgetLineGroups from '@models/budget-line-groups.model';
 import BudgetLines from '@models/budget-lines.model';
 import BudgetPlans from '@models/budget-plans.model';
-import BudgetTransactions from '@models/budget-transactions.model';
-import Budgets from '@models/budget.model';
 import Categories from '@models/categories.model';
 import { namespace } from '@models/connection';
 import Currencies from '@models/currencies.model';
@@ -24,6 +22,8 @@ import SubscriptionTransactions from '@models/subscription-transactions.model';
 import Subscriptions from '@models/subscriptions.model';
 import TagReminders from '@models/tag-reminders.model';
 import Tags from '@models/tags.model';
+import TrackerTransactions from '@models/tracker-transactions.model';
+import Trackers from '@models/trackers.model';
 import TransactionAttachments from '@models/transaction-attachments.model';
 import TransactionSplits from '@models/transaction-splits.model';
 import TransactionTags from '@models/transaction-tags.model';
@@ -294,18 +294,18 @@ describe('entity loaders', () => {
   describe('shared entities', () => {
     const RECIPIENT_OWNER = 99;
 
-    it('finds a budget through the access the user has to it, and reads the owner row', async () => {
+    it('finds a tracker through the access the user has to it, and reads the owner row', async () => {
       jest
         .mocked(canUserAccessResource)
         .mockResolvedValue({ granted: true, isOwner: false, ownerUserId: RECIPIENT_OWNER } as never);
-      const find = jest.spyOn(Budgets, 'findOne').mockResolvedValue(record({ id: ID, name: 'Home' }) as never);
-      jest.spyOn(BudgetTransactions, 'count').mockResolvedValue(4);
+      const find = jest.spyOn(Trackers, 'findOne').mockResolvedValue(record({ id: ID, name: 'Home' }) as never);
+      jest.spyOn(TrackerTransactions, 'count').mockResolvedValue(4);
 
-      const loaded = await load({ kind: 'budget', targets: [ID] });
+      const loaded = await load({ kind: 'tracker', targets: [ID] });
 
       expect(jest.mocked(canUserAccessResource).mock.calls[0]![0]).toMatchObject({
         userId: USER,
-        resourceType: 'budget',
+        resourceType: 'tracker',
         resourceId: ID,
         requiredPermission: 'read',
       });
@@ -313,11 +313,11 @@ describe('entity loaders', () => {
       expect(loaded).toMatchObject({ row: { name: 'Home' }, counts: { transactionCount: 4 } });
     });
 
-    it('does not find a budget the user has no access to', async () => {
+    it('does not find a tracker the user has no access to', async () => {
       jest.mocked(canUserAccessResource).mockResolvedValue({ granted: false, ownerUserId: RECIPIENT_OWNER } as never);
-      const find = jest.spyOn(Budgets, 'findOne');
+      const find = jest.spyOn(Trackers, 'findOne');
 
-      expect(await load({ kind: 'budget', targets: [ID] })).toBeNull();
+      expect(await load({ kind: 'tracker', targets: [ID] })).toBeNull();
       expect(find).not.toHaveBeenCalled();
     });
 

@@ -27,6 +27,9 @@ const inputSchema = {
     'One or two characters shown as a monogram instead of a brand logo, or null to clear. Not together with logoDomain.',
   ),
   logoColor: updatePayeeBodyShape.logoColor.describe('Monogram background as #rrggbb, or null for the default tint.'),
+  logoIcon: updatePayeeBodyShape.logoIcon.describe(
+    'Icon name shown instead of a brand logo, or null to clear. Not together with logoDomain or logoInitials.',
+  ),
 };
 
 /** The logo either-or rule spans fields, so it runs on the REST body schema, not on the shape. */
@@ -62,6 +65,7 @@ export function registerUpdatePayee(server: McpServer) {
         logoDomain: body.logoDomain,
         logoInitials: body.logoInitials,
         logoColor: body.logoColor,
+        logoIcon: body.logoIcon,
       });
       return jsonContent({ data: presentPayee({ payee }) });
     },

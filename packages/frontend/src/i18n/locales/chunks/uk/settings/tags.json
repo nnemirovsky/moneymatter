@@ -16,8 +16,6 @@
         "color": "Колір",
         "icon": "Іконка",
         "iconPlaceholder": "Виберіть іконку",
-        "iconSearchPlaceholder": "Пошук іконок...",
-        "clearIcon": "Очистити іконку",
         "description": "Опис",
         "descriptionPlaceholder": "Необов'язковий опис",
         "saveButton": "Зберегти",

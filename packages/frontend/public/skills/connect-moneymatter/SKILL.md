@@ -53,7 +53,7 @@ page.
 
 ## Available tools
 
-The 250 tools are grouped as the server registers them. Tools marked with a scope need that OAuth scope; the rest only read.
+The 257 tools are grouped as the server registers them. Tools marked with a scope need that OAuth scope; the rest only read.
 
 ### Profile and accounts
 
@@ -181,20 +181,26 @@ Includes tag reminders.
 
 ### Trackers
 
-A tracker is a limit on categories over a date range. Its tools keep "budget" in their names; budget plans are a separate section below.
+A tracker is a limit on categories over a date range; budget plans are a separate section below.
 
-| Tool                              | Purpose                                                                                                          |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `get_budgets`                     | Trackers ("budget" in tool names) with progress and overspend state                                              |
-| `get_budget`                      | One tracker with its limit, categories and stats (income, expense, balance, limit used)                          |
-| `get_budget_transactions`         | Transactions a category tracker counts, newest first; manual trackers use `search_transactions` with `budgetIds` |
-| `create_budget`                   | Create a new tracker with limit, date range, categories (`finance:write`)                                        |
-| `update_budget`                   | Update name, date range, limit, or categories of a tracker (`finance:write`)                                     |
-| `delete_budget`                   | Permanently delete a tracker and its transaction links (`finance:delete`)                                        |
-| `archive_budget`                  | Archive or restore a tracker — active ↔ archived (`finance:write`)                                               |
-| `add_transactions_to_budget`      | Link transactions to a manual tracker (`finance:write`)                                                          |
-| `remove_transactions_from_budget` | Unlink transactions from a tracker (`finance:write`)                                                             |
-| `get_budget_spending_stats`       | Category breakdown and time-series spending for a tracker                                                        |
+| Tool                               | Purpose                                                                                                           |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `get_trackers`                     | Trackers with limits, categories and lines                                                                        |
+| `get_tracker`                      | One tracker with its limit, categories, lines and stats (income, expense, balance, limit used)                    |
+| `get_tracker_transactions`         | Transactions a category tracker counts, newest first; manual trackers use `search_transactions` with `trackerIds` |
+| `create_tracker`                   | Create a new tracker with limit, date range, categories, smart tracking (`finance:write`)                         |
+| `update_tracker`                   | Update name, dates, limit (null clears), categories, or smart tracking of a tracker (`finance:write`)             |
+| `delete_tracker`                   | Permanently delete a tracker and its transaction links (`finance:delete`)                                         |
+| `archive_tracker`                  | Archive or restore a tracker — active ↔ archived (`finance:write`)                                                |
+| `add_transactions_to_tracker`      | Link transactions to a manual tracker (`finance:write`)                                                           |
+| `remove_transactions_from_tracker` | Unlink transactions from a tracker (`finance:write`)                                                              |
+| `get_tracker_spending_stats`       | Category breakdown, time-series, per-line spent and "other" spending for a tracker                                |
+| `create_tracker_line`              | Add a line (category set + optional limit) to a tracker (`finance:write`)                                         |
+| `update_tracker_line`              | Update a tracker line's name, categories, limit, or position (`finance:write`)                                    |
+| `delete_tracker_line`              | Permanently delete a tracker line (`finance:delete`)                                                              |
+| `list_tracker_suggestions`         | Smart-tracking suggestions (score, AI reason), AI-matched transactions, scan status of an owned tracker           |
+| `accept_tracker_suggestions`       | Accept pending suggestions, linking their transactions (`finance:write`)                                          |
+| `reject_tracker_suggestions`       | Reject suggestions; also unlinks AI-linked or accepted ones (`finance:write`)                                     |
 
 ### Analytics
 
@@ -494,6 +500,14 @@ multi-currency data.
   saved rule in the app. The first rule that applies an action wins. Test conditions with `preview_transaction_automation` before
   saving a rule, and pass the full current id set to
   `reorder_transaction_automations`.
+- Tracker lines split a tracker's spending into named category sets, each with
+  an optional limit. A transaction lands in at most one line: the first by
+  `position` whose categories (expanded to children) contain it. Spending that
+  matches no line is reported as `otherSpent` by `get_tracker_spending_stats`.
+- Smart tracking (`aiEnabled`) is owner-only and works on manual trackers with
+  an `aiDescription` and a `startDate`. The AI links transactions it is sure of
+  (score >= 0.85) and suggests weaker matches (>= 0.5) as pending in
+  `list_tracker_suggestions`. Rejected transactions are not suggested again.
 - Portfolio queries are gated by `portfolioId`. Call `get_portfolios` first
   to discover ids before calling `get_portfolio_summary`,
   `get_portfolio_holdings`, or `get_portfolio_balances`.
@@ -528,7 +542,7 @@ multi-currency data.
 - A budget plan (`list_budget_plans`, the "Budget" in the app) is a set of lines
   that money is assigned to period by period, with what is available carried
   from one period to the next. It is not a tracker: the tools named
-  `get_budgets`, `get_budget` and the like read trackers, a limit on a set of
+  `get_trackers`, `get_tracker` and the like read trackers, a limit on a set of
   categories over a date range. Read a plan's periods with
   `list_budget_plan_periods`, then one period with `get_budget_plan_period`.
   Every plan amount is a decimal in the plan's own `currencyCode`.

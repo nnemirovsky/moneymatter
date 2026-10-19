@@ -57,9 +57,13 @@ const TARGETS: Partial<Record<ChatEntityKind, InvalidationTarget>> = {
       VUE_QUERY_CACHE_KEYS.payeesIgnoredNames,
     ],
   },
-  budget: {
+  tracker: {
     prefixes: [transactionChange],
-    keys: [VUE_QUERY_CACHE_KEYS.budgetsList, VUE_QUERY_CACHE_KEYS.budgetsListItem],
+    keys: [VUE_QUERY_CACHE_KEYS.trackersList, VUE_QUERY_CACHE_KEYS.trackersListItem],
+  },
+  trackerLine: {
+    prefixes: [transactionChange],
+    keys: [VUE_QUERY_CACHE_KEYS.trackersList, VUE_QUERY_CACHE_KEYS.trackersListItem],
   },
   budgetPlan: TRANSACTIONS,
   budgetPlanGroup: TRANSACTIONS,

@@ -19,7 +19,7 @@ export const FINANCIAL_DATA_GUIDE_CONTENT = `You are connected to MoneyMatter, a
 **Data Relationships:**
 - Transactions belong to one Account and one Category
 - Transactions can have multiple Tags
-- Trackers ("budget" in tool and field names) watch spending across one or more Categories or hand-picked Transactions. A budget plan (list_budget_plans, the "Budget" in the app) is a different thing: lines that money is assigned to period by period, read and changed with the budget-plan tools, in the plan's own currency
+- Trackers watch spending across one or more Categories or hand-picked Transactions. A budget plan (list_budget_plans, the "Budget" in the app) is a different thing: lines that money is assigned to period by period, read and changed with the budget-plan tools, in the plan's own currency
 - Categories can have parent-child hierarchy
 - Planned transactions are upcoming and unconfirmed. search_transactions hides them until endDate is set past their date; list them with isPlanned, and settle one with confirm_planned_transaction once the money has moved
 

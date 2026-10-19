@@ -17,8 +17,12 @@
  * - 2: money columns are exact decimal strings (DECIMAL storage) and the money
  *   fields inside JSON columns are decimals. A version 1 archive is converted
  *   to this shape on restore.
+ * - 3: trackers use their current names: `trackers`, `tracker-transactions` and
+ *   `tracker-categories` files, `trackerId` keys and tracker values inside stored
+ *   settings and notifications. Version 1 and 2 archives carry the older
+ *   "budget" names and are renamed on restore.
  */
-export const BACKUP_FORMAT_VERSION = 2;
+export const BACKUP_FORMAT_VERSION = 3;
 
 /**
  * Global-catalog subset embedded under `reference/`. Only the security

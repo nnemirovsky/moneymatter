@@ -30,7 +30,7 @@ import { checkBaseCurrencyLock } from '@middlewares/check-base-currency-lock';
 import { requireFeature } from '@middlewares/entitlements';
 import { Router } from 'express';
 
-// `/budget-plans` serves the user-facing "Budget"; budgets.route.ts serves "Trackers".
+// `/budget-plans` serves the user-facing "Budget"; trackers.route.ts serves "Trackers".
 const router = Router({});
 const gatedWrite = [authenticateSession, requireFeature(FEATURES.budget_plan), checkBaseCurrencyLock];
 

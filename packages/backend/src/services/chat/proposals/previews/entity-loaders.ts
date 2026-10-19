@@ -14,8 +14,6 @@ import BudgetLineCategories from '@models/budget-line-categories.model';
 import BudgetLineGoals from '@models/budget-line-goals.model';
 import BudgetLineGroups from '@models/budget-line-groups.model';
 import BudgetLines from '@models/budget-lines.model';
-import BudgetTransactions from '@models/budget-transactions.model';
-import Budgets from '@models/budget.model';
 import Categories from '@models/categories.model';
 import Currencies from '@models/currencies.model';
 import Holdings from '@models/investments/holdings.model';
@@ -31,6 +29,8 @@ import SubscriptionTransactions from '@models/subscription-transactions.model';
 import Subscriptions from '@models/subscriptions.model';
 import TagReminders from '@models/tag-reminders.model';
 import Tags from '@models/tags.model';
+import TrackerTransactions from '@models/tracker-transactions.model';
+import Trackers from '@models/trackers.model';
 import TransactionAttachments from '@models/transaction-attachments.model';
 import TransactionAutomations from '@models/transaction-automations.model';
 import TransactionGroupItems from '@models/transaction-group-items.model';
@@ -277,24 +277,24 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
     where: (targets) => ({ id: targets[1]!, payeeId: targets[0]! }),
   }),
 
-  // A shared budget is edited and archived by a recipient with write access, so the budget is found
+  // A shared tracker is edited and archived by a recipient with write access, so the tracker is found
   // through the user's access to it and read as its owner's row.
-  budget: async ({ userId, targets, lock }) => {
+  tracker: async ({ userId, targets, lock }) => {
     const id = targets[0]!;
     const access = await canUserAccessResource({
       userId,
-      resourceType: RESOURCE_TYPES.budget,
+      resourceType: RESOURCE_TYPES.tracker,
       resourceId: id,
       requiredPermission: SHARE_PERMISSIONS.read,
     });
     if (!access.granted) return null;
 
-    const record = await Budgets.findOne({ where: { id, userId: access.ownerUserId }, ...forUpdate({ lock }) });
+    const record = await Trackers.findOne({ where: { id, userId: access.ownerUserId }, ...forUpdate({ lock }) });
     if (!record) return null;
 
     return loaded({
       record,
-      related: { counts: { transactionCount: await BudgetTransactions.count({ where: { budgetId: id } }) } },
+      related: { counts: { transactionCount: await TrackerTransactions.count({ where: { trackerId: id } }) } },
     });
   },
 

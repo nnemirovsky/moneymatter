@@ -45,10 +45,10 @@ export type DemoBlockedFeature =
   | 'share_account_invite'
   | 'share_account_resend_invite'
   | 'share_account_revoke_member'
-  | 'share_budget_cancel_invite'
-  | 'share_budget_dialog_submit'
-  | 'share_budget_invite'
-  | 'share_budget_resend_invite'
-  | 'share_budget_revoke_member'
   | 'share_invitation_accept'
-  | 'share_invitation_decline';
+  | 'share_invitation_decline'
+  | 'share_tracker_cancel_invite'
+  | 'share_tracker_dialog_submit'
+  | 'share_tracker_invite'
+  | 'share_tracker_resend_invite'
+  | 'share_tracker_revoke_member';

@@ -34,9 +34,9 @@ describe('Notifications API', () => {
         [
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
-            title: 'Budget Alert 1',
-            message: 'You exceeded your budget',
+            type: NOTIFICATION_TYPES.trackerAlert,
+            title: 'Tracker Alert 1',
+            message: 'You exceeded your tracker limit',
             priority: NOTIFICATION_PRIORITIES.high,
           },
           {
@@ -66,20 +66,20 @@ describe('Notifications API', () => {
         [
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             title: 'Unread notification',
             status: NOTIFICATION_STATUSES.unread,
           },
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             title: 'Read notification',
             status: NOTIFICATION_STATUSES.read,
             readAt: new Date(),
           },
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             title: 'Dismissed notification',
             status: NOTIFICATION_STATUSES.dismissed,
           },
@@ -113,7 +113,7 @@ describe('Notifications API', () => {
       expect(
         titlesOf(
           await helpers.getNotifications({
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             raw: true,
           }),
         ),
@@ -190,10 +190,10 @@ describe('Notifications API', () => {
     it('returns a specific notification by ID', async () => {
       const notification = await Notifications.create({
         userId: testUserId,
-        type: NOTIFICATION_TYPES.budgetAlert,
+        type: NOTIFICATION_TYPES.trackerAlert,
         title: 'Specific notification',
         message: 'Details here',
-        payload: { budgetId: 123 },
+        payload: { trackerId: 123 },
       });
 
       const result = await helpers.getNotificationById({ id: notification.id, raw: true });
@@ -202,7 +202,7 @@ describe('Notifications API', () => {
         id: notification.id,
         title: 'Specific notification',
         message: 'Details here',
-        payload: { budgetId: 123 },
+        payload: { trackerId: 123 },
       });
       expect(result).not.toHaveProperty('userId');
     });
@@ -214,26 +214,26 @@ describe('Notifications API', () => {
         [
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             title: 'Unread 1',
             status: NOTIFICATION_STATUSES.unread,
           },
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             title: 'Unread 2',
             status: NOTIFICATION_STATUSES.unread,
           },
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             title: 'Read',
             status: NOTIFICATION_STATUSES.read,
             readAt: new Date(),
           },
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             title: 'Dismissed',
             status: NOTIFICATION_STATUSES.dismissed,
           },
@@ -251,7 +251,7 @@ describe('Notifications API', () => {
     it('marks a notification as read', async () => {
       const notification = await Notifications.create({
         userId: testUserId,
-        type: NOTIFICATION_TYPES.budgetAlert,
+        type: NOTIFICATION_TYPES.trackerAlert,
         title: 'To be read',
         status: NOTIFICATION_STATUSES.unread,
       });
@@ -269,7 +269,7 @@ describe('Notifications API', () => {
     it('returns success even when notification is already read', async () => {
       const notification = await Notifications.create({
         userId: testUserId,
-        type: NOTIFICATION_TYPES.budgetAlert,
+        type: NOTIFICATION_TYPES.trackerAlert,
         title: 'Already read',
         status: NOTIFICATION_STATUSES.read,
         readAt: new Date(),
@@ -287,19 +287,19 @@ describe('Notifications API', () => {
         [
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             title: 'Unread 1',
             status: NOTIFICATION_STATUSES.unread,
           },
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             title: 'Unread 2',
             status: NOTIFICATION_STATUSES.unread,
           },
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             title: 'Already read',
             status: NOTIFICATION_STATUSES.read,
             readAt: new Date(),
@@ -322,7 +322,7 @@ describe('Notifications API', () => {
     it('returns 0 when no unread notifications exist', async () => {
       await Notifications.create({
         userId: testUserId,
-        type: NOTIFICATION_TYPES.budgetAlert,
+        type: NOTIFICATION_TYPES.trackerAlert,
         title: 'Already read',
         status: NOTIFICATION_STATUSES.read,
         readAt: new Date(),
@@ -338,7 +338,7 @@ describe('Notifications API', () => {
     it('dismisses a notification, removing it from the default list and the unread count', async () => {
       const notification = await Notifications.create({
         userId: testUserId,
-        type: NOTIFICATION_TYPES.budgetAlert,
+        type: NOTIFICATION_TYPES.trackerAlert,
         title: 'To be dismissed',
         status: NOTIFICATION_STATUSES.unread,
       });
@@ -361,7 +361,7 @@ describe('Notifications API', () => {
     it('can dismiss a read notification', async () => {
       const notification = await Notifications.create({
         userId: testUserId,
-        type: NOTIFICATION_TYPES.budgetAlert,
+        type: NOTIFICATION_TYPES.trackerAlert,
         title: 'Read notification',
         status: NOTIFICATION_STATUSES.read,
         readAt: new Date(),
@@ -381,7 +381,7 @@ describe('Notifications API', () => {
       // Create a valid notification first, then use a different valid UUID that doesn't exist
       const notification = await Notifications.create({
         userId: testUserId,
-        type: NOTIFICATION_TYPES.budgetAlert,
+        type: NOTIFICATION_TYPES.trackerAlert,
         title: 'Test',
       });
       const existingId = notification.id;
@@ -397,7 +397,7 @@ describe('Notifications API', () => {
     it('includes all expected fields in response and preserves payload data', async () => {
       const now = new Date();
       const expiresAt = new Date(now.getTime() + 86400000); // +1 day
-      const payload = { budgetId: 42, threshold: 90, currentSpending: 950 };
+      const payload = { trackerId: 42, threshold: 90, currentSpending: 950 };
 
       await Notifications.create({
         userId: testUserId,

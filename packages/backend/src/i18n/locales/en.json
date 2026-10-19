@@ -157,11 +157,24 @@
   },
   "budgets": {
     "budgetNotFound": "Tracker not found",
+    "lineNotFound": "Tracker line not found",
+    "onlyOwnerCanDuplicate": "Only the owner can duplicate this tracker",
     "someTransactionIdsInvalid": "Some transactions IDs are invalid",
     "transactionsAddedSuccessfully": "Transactions added successfully",
     "cannotManuallyLinkToCategoryBudget": "Cannot manually link transactions to category-based trackers. Transactions are tracked automatically by category.",
     "someCategoryIdsInvalid": "Some category IDs are invalid or do not exist",
-    "notCategoryBudget": "This endpoint is only available for category-based trackers"
+    "notCategoryBudget": "This endpoint is only available for category-based trackers",
+    "lineCategoryOutsideTracker": "A tracker line can only use categories tracked by its tracker",
+    "startDateAfterEndDate": "Start date must be on or before the end date",
+    "smartTracking": {
+      "ownerOnly": "Only the tracker owner can change smart tracking.",
+      "manualOnly": "Smart tracking works only for manual trackers.",
+      "descriptionRequired": "Describe what this tracker is for to turn on smart tracking.",
+      "startDateRequired": "Set a start date to turn on smart tracking.",
+      "scanRunning": "Matching is running for this tracker. Try again when it finishes.",
+      "suggestionNotFound": "Suggestion not found.",
+      "suggestionAlreadyResolved": "This suggestion is already {{status}}."
+    }
   },
   "budgetPlans": {
     "planNotFound": "Budget plan not found.",
@@ -867,8 +880,13 @@
     "renameCollision": "Another payee already uses this name – merge them instead"
   },
   "brandLogos": {
-    "domainAndInitialsExclusive": "A brand logo and custom letters can't be set at the same time.",
-    "colorRequiresInitials": "A monogram color requires monogram letters."
+    "colorRequiresInitials": "A background color needs letters or an icon.",
+    "slotsExclusive": "Pick one logo type: brand, letters, icon, or image."
+  },
+  "logoImages": {
+    "invalidImage": "The file is not a PNG, JPEG, or WebP image.",
+    "tooLarge": "Logo images must be 50 KB or smaller.",
+    "notFound": "Logo image not found."
   },
   "venture": {
     "dealNotFound": "Venture deal not found",

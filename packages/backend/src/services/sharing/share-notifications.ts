@@ -212,11 +212,11 @@ const notifyShareRevoked = async ({
 };
 
 /**
- * Sent to a recipient when an owner deletes a shared budget. Mirrors
+ * Sent to a recipient when an owner deletes a shared tracker. Mirrors
  * `notifyShareOwnerAccountDeleted` — distinct from `shareRevoked` because the resource
  * itself is gone, so any deep-link will 404 and there's nothing to re-share.
  */
-export const notifyShareOwnerBudgetDeleted = async ({
+export const notifyShareOwnerTrackerDeleted = async ({
   recipientUserId,
   owner,
   shareId,
@@ -240,8 +240,8 @@ export const notifyShareOwnerBudgetDeleted = async ({
 
   return createNotification({
     userId: recipientUserId,
-    type: NOTIFICATION_TYPES.shareOwnerBudgetDeleted,
-    title: `The shared budget "${resource.name}" was deleted`,
+    type: NOTIFICATION_TYPES.shareOwnerTrackerDeleted,
+    title: `The shared tracker "${resource.name}" was deleted`,
     payload,
   });
 };
@@ -709,7 +709,7 @@ const notifyHouseholdInvitationSendFailed = async ({
  * at every send site, which was the pattern across 7+ services. Each entry's halves
  * are signature-compatible by construction (matching parameter shapes per event).
  *
- * Budgets reuse the per-resource (account-style) notifiers — the copy template
+ * Trackers reuse the per-resource (account-style) notifiers — the copy template
  * `${owner.username} shared "${resource.name}" with you` is resource-agnostic, so a
  * dedicated set wouldn't add anything.
  */
@@ -717,36 +717,36 @@ export const LIFECYCLE_NOTIFIERS = {
   invitationReceived: {
     [RESOURCE_TYPES.account]: notifyInvitationReceived,
     [RESOURCE_TYPES.household]: notifyHouseholdInvitationReceived,
-    [RESOURCE_TYPES.budget]: notifyInvitationReceived,
+    [RESOURCE_TYPES.tracker]: notifyInvitationReceived,
   },
   invitationAccepted: {
     [RESOURCE_TYPES.account]: notifyInvitationAccepted,
     [RESOURCE_TYPES.household]: notifyHouseholdAccepted,
-    [RESOURCE_TYPES.budget]: notifyInvitationAccepted,
+    [RESOURCE_TYPES.tracker]: notifyInvitationAccepted,
   },
   invitationDeclined: {
     [RESOURCE_TYPES.account]: notifyInvitationDeclined,
     [RESOURCE_TYPES.household]: notifyHouseholdDeclined,
-    [RESOURCE_TYPES.budget]: notifyInvitationDeclined,
+    [RESOURCE_TYPES.tracker]: notifyInvitationDeclined,
   },
   invitationExpired: {
     [RESOURCE_TYPES.account]: notifyInvitationExpired,
     [RESOURCE_TYPES.household]: notifyHouseholdExpired,
-    [RESOURCE_TYPES.budget]: notifyInvitationExpired,
+    [RESOURCE_TYPES.tracker]: notifyInvitationExpired,
   },
   invitationSendFailed: {
     [RESOURCE_TYPES.account]: notifyInvitationSendFailed,
     [RESOURCE_TYPES.household]: notifyHouseholdInvitationSendFailed,
-    [RESOURCE_TYPES.budget]: notifyInvitationSendFailed,
+    [RESOURCE_TYPES.tracker]: notifyInvitationSendFailed,
   },
   shareRevoked: {
     [RESOURCE_TYPES.account]: notifyShareRevoked,
     [RESOURCE_TYPES.household]: notifyHouseholdRevoked,
-    [RESOURCE_TYPES.budget]: notifyShareRevoked,
+    [RESOURCE_TYPES.tracker]: notifyShareRevoked,
   },
   shareLeft: {
     [RESOURCE_TYPES.account]: notifyShareLeft,
     [RESOURCE_TYPES.household]: notifyHouseholdLeft,
-    [RESOURCE_TYPES.budget]: notifyShareLeft,
+    [RESOURCE_TYPES.tracker]: notifyShareLeft,
   },
 } as const;

@@ -61,6 +61,14 @@ Container queries aren't needed everywhere — use judgement:
 - **Viewport breakpoints** (`md:`, `lg:`): showing/hiding the sidebar, header layout, simple show/hide toggles that genuinely depend on screen size
 - **`useWindowBreakpoints`**: JS-based responsive logic — toggling components, conditional rendering based on device class
 
+### KPI / summary cards collapse into rows when narrow
+
+A grid of stat cards (label on top, big value below) wastes vertical space on phones and small tablets. When the container is narrower than `@md`, render the same items as **rows**: label on the left, value (plus hint) right-aligned, one item per line, divided by hairlines. Switch to cards only from `@md` of the section's container up.
+
+- Analytics pages: use `pages/analytics/components/summary-rows.vue` for the narrow layout and the cards for wide.
+- Elsewhere: one markup with container variants, e.g. `flex items-baseline justify-between @md/section:block` on each cell and `grid-cols-1 @md/section:grid-cols-4` on the grid (see the header strip in `pages/trackers/trackers-info/tracker-details.vue`).
+- Never use a 2-column card grid as the phone fallback — it is the layout this rule replaces.
+
 ---
 
 ## Testing

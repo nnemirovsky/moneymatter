@@ -371,6 +371,7 @@
       "searchPlaceholder": "Search trackers",
       "noResults": "No trackers found",
       "unknownBudget": "Unknown tracker",
+      "blankOption": "Not in any tracker",
       "loadError": "Couldn't load trackers. Please try again."
     },
     "payeeSelect": {

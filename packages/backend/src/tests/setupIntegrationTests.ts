@@ -36,6 +36,7 @@ import {
   subscriptionReminderEmailQueue,
   subscriptionReminderEmailWorker,
 } from '@services/subscriptions/reminder-email-queue';
+import { trackerScanQueue, trackerScanWorker } from '@services/trackers/smart-tracking/tracker-scan-queue';
 import { createAppUserWithUniqueUsername, seedUserDefaults } from '@services/user/create-user-with-defaults.service';
 import { webPushQueue, webPushWorker } from '@services/web-push/push-queue';
 import { STRIPE_TEST_WEBHOOK_SECRET, extractCookies, makeAuthRequest, makeRequest } from '@tests/helpers';
@@ -536,6 +537,8 @@ async function closeAllE2eResources() {
 
     // The chat tail holds a connection of its own to Redis.
     await chatTailHub.close();
+    await trackerScanWorker.close();
+    await trackerScanQueue.close();
 
     // Now safe to close Redis client
     await redisClient.quit();

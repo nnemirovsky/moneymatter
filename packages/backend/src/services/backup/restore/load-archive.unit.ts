@@ -1,3 +1,4 @@
+import { BACKUP_FORMAT_VERSION } from '@bt/shared/types';
 import { i18nextReady, t } from '@i18n/index';
 import { beforeAll, describe, expect, it } from '@jest/globals';
 import JSZip from 'jszip';
@@ -201,7 +202,10 @@ describe('loadBackupArchive money format', () => {
   });
 
   it('rejects a version newer than this app writes', async () => {
-    const buffer = await buildArchiveFromFiles({ files: { 'data/transactions.json': rows }, formatVersion: 3 });
+    const buffer = await buildArchiveFromFiles({
+      files: { 'data/transactions.json': rows },
+      formatVersion: BACKUP_FORMAT_VERSION + 1,
+    });
 
     await expect(loadBackupArchive({ fileContent: buffer.toString('base64') })).rejects.toThrow(/newer than/);
   });

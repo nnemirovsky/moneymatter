@@ -9,7 +9,7 @@ export default createController(
     body: createAccountGroupBodySchema,
   }),
   async ({ user, body }) => {
-    const { name, parentGroupId, logoDomain, logoInitials, logoColor } = body;
+    const { name, parentGroupId, logoDomain, logoInitials, logoColor, logoIcon } = body;
 
     const data = await accountGroupService.createAccountGroup({
       userId: user.id,
@@ -18,6 +18,7 @@ export default createController(
       logoDomain,
       logoInitials,
       logoColor,
+      logoIcon,
     });
 
     return { data };

@@ -7,6 +7,7 @@
  */
 import type {
   CumulativePeriodData,
+  EntityLogoFields,
   GetCashFlowResponse,
   GetCumulativeResponse,
   GetInvestmentContributionsResponse,
@@ -25,6 +26,8 @@ import type { NetWorthDriversResultMinor } from '@services/stats/get-net-worth-d
 import type { NetWorthHistoryResultMinor } from '@services/stats/get-net-worth-history';
 import type { PivotReportResultMinor } from '@services/stats/get-pivot';
 import type { VentureContributionMinor } from '@services/stats/get-venture-contributions';
+
+import { serializeLogoFields } from './logo-fields.serializer';
 
 // ============================================================================
 // Balance History Serializers
@@ -236,9 +239,7 @@ export function serializePivotReport({
       label: row.label,
       color: row.color,
       // Only the payee dimension sets the logo fields; keep them off every other dimension's rows.
-      ...(row.logoDomain !== undefined ? { logoDomain: row.logoDomain } : {}),
-      ...(row.logoInitials !== undefined ? { logoInitials: row.logoInitials } : {}),
-      ...(row.logoColor !== undefined ? { logoColor: row.logoColor } : {}),
+      ...(row.logoDomain !== undefined ? serializeLogoFields({ entity: row as EntityLogoFields }) : {}),
       parentId: row.parentId,
       kind: row.kind,
       values: decimalizeMinorValues({ values: row.values, decimals }),

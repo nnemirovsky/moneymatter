@@ -23,7 +23,7 @@ const PERMISSION_LABELS: Record<SharePermission, string> = {
 const RESOURCE_TYPE_LABELS: Record<ResourceType, string> = {
   account: 'account',
   household: 'household',
-  budget: 'budget',
+  tracker: 'tracker',
 };
 
 const policySummary = ({ permission, policy }: { permission: SharePermission; policy: SharePolicy | null }) => {
@@ -89,7 +89,7 @@ export const sendInvitationEmail = async ({
   // the share-invitation dialog. The landing path matches the resource flavour so the
   // recipient lands somewhere they expect to see this share even before opening the
   // dialog; the dialog itself overlays whatever route the user ended up on.
-  const landingPath = resourceType === RESOURCE_TYPES.budget ? '/budgets' : '/accounts';
+  const landingPath = resourceType === RESOURCE_TYPES.tracker ? '/planned/trackers' : '/accounts';
   const acceptUrl = `${appUrl}${landingPath}?invitation_token=${encodeURIComponent(token)}`;
   const summaryLine = policySummary({ permission, policy });
   const html = buildEmailHtml({
@@ -117,7 +117,10 @@ export const sendInvitationEmail = async ({
     // depending on the dynamic message text or error class. logger.error already auto-captures
     // to Sentry (see logger.ts), so this is enrichment, not double-reporting.
     logger.error(
-      { message: '[ShareInvitationEmail] Failed to send invitation email', error: error as Error },
+      {
+        message: '[ShareInvitationEmail] Failed to send invitation email',
+        error: error as Error,
+      },
       { code: 'SHARE_INVITATION_EMAIL_FAILED', resourceType, resourceName },
     );
     return { status: 'failed' };

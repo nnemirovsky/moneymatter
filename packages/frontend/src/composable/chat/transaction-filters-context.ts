@@ -8,7 +8,7 @@ const MAX_IDS_PER_FILTER = 50;
 const DATE_FORMAT = 'yyyy-MM-dd';
 
 /** The id filters, under the key names the server reads to drop ids the user does not own. */
-const ID_FILTER_KEYS = ['accountIds', 'categoryIds', 'payeeIds', 'tagIds', 'budgetIds'] as const;
+const ID_FILTER_KEYS = ['accountIds', 'categoryIds', 'payeeIds', 'tagIds', 'trackerIds'] as const;
 
 /**
  * What the transactions page shows, as a chat page context: the period and the filters that narrow the

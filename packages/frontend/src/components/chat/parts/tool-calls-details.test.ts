@@ -42,7 +42,7 @@ describe('ToolCallsDetails', () => {
       parts: [
         call({ id: '1', args: { text: 'bolt' }, durationMs: 120, resultSummary: '3 transactions' }),
         call({ id: '2', toolName: 'get_account', status: 'error', error: 'Not found' }),
-        call({ id: '3', toolName: 'get_budget', status: 'running' }),
+        call({ id: '3', toolName: 'get_tracker', status: 'running' }),
       ],
     });
 

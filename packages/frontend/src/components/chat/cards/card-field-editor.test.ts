@@ -175,7 +175,7 @@ describe('CardFieldEditor', () => {
 
   it('shows an entity it has no picker for as read-only text', () => {
     const wrapper = mountEditor({
-      field: buildField({ path: 'budgetId', editable: { type: 'entity', entity: 'budget' } }),
+      field: buildField({ path: 'trackerId', editable: { type: 'entity', entity: 'tracker' } }),
       modelValue: 'b1',
     });
 
@@ -237,15 +237,15 @@ describe('CardFieldEditor', () => {
     it('names a record the editor cannot change, instead of showing its id', () => {
       const wrapper = mountEditor({
         field: buildField({
-          path: 'budgetId',
+          path: 'trackerId',
           value: BUDGET_ID,
-          display: { kind: 'entity', entity: { kind: 'budget', id: BUDGET_ID, label: '' } },
-          editable: { type: 'entity', entity: 'budget' },
+          display: { kind: 'entity', entity: { kind: 'tracker', id: BUDGET_ID, label: '' } },
+          editable: { type: 'entity', entity: 'tracker' },
         }),
         modelValue: BUDGET_ID,
       });
 
-      expect(wrapper.find('[data-testid="field-readonly"]').text()).toContain('Budget');
+      expect(wrapper.find('[data-testid="field-readonly"]').text()).toContain('Tracker');
       expect(wrapper.text()).not.toContain(BUDGET_ID);
     });
 

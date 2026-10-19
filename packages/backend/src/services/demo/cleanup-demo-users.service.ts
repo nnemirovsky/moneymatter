@@ -11,7 +11,7 @@ import { Op } from 'sequelize';
  * Uses the existing deleteUser service which handles:
  * - BullMQ queue cleanup
  * - Redis cache cleanup
- * - App data deletion via CASCADE (accounts, transactions, categories, budgets, etc.)
+ * - App data deletion via CASCADE (accounts, transactions, categories, trackers, etc.)
  * - Better-auth data (ba_user, ba_session, ba_account)
  */
 export async function cleanupDemoUser({ userId }: { userId: number }): Promise<void> {

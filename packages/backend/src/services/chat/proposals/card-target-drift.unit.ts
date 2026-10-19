@@ -12,7 +12,6 @@ import Accounts from '@models/accounts.model';
 import BudgetLineGoals from '@models/budget-line-goals.model';
 import BudgetLineGroups from '@models/budget-line-groups.model';
 import BudgetLines from '@models/budget-lines.model';
-import Budgets from '@models/budget.model';
 import Categories from '@models/categories.model';
 import Holdings from '@models/investments/holdings.model';
 import InvestmentTransactions from '@models/investments/investment-transaction.model';
@@ -24,6 +23,7 @@ import Payees from '@models/payees.model';
 import Subscriptions from '@models/subscriptions.model';
 import TagReminders from '@models/tag-reminders.model';
 import Tags from '@models/tags.model';
+import Trackers from '@models/trackers.model';
 import TransactionAttachments from '@models/transaction-attachments.model';
 import TransactionAutomations from '@models/transaction-automations.model';
 import TransactionGroups from '@models/transaction-groups.model';
@@ -55,8 +55,8 @@ const ENTITY_MODELS: Partial<Record<ChatEntityKind, { getAttributes: () => Recor
   tagReminder: TagReminders,
   payee: Payees,
   payeeAlias: PayeeAliases,
-  budget: Budgets,
-  budgetPlan: Budgets,
+  tracker: Trackers,
+  budgetPlan: Trackers,
   budgetPlanLine: BudgetLines,
   budgetPlanGroup: BudgetLineGroups,
   budgetPlanLineGoal: BudgetLineGoals,

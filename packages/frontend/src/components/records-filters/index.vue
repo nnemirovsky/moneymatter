@@ -68,10 +68,11 @@
       @update:payee-ids="$emit('update:filters', { ...filters, payeeIds: $event })"
     />
 
-    <BudgetMultiSelectField
-      v-if="!hideBudgets"
-      :budget-ids="filters.budgetIds"
-      @update:budget-ids="$emit('update:filters', { ...filters, budgetIds: $event })"
+    <TrackerMultiSelectField
+      v-if="!hideTrackers"
+      allow-blank
+      :tracker-ids="filters.trackerIds"
+      @update:tracker-ids="$emit('update:filters', { ...filters, trackerIds: $event })"
     />
   </div>
 
@@ -98,7 +99,7 @@ import UiButton from '@/components/lib/ui/button/Button.vue';
 import { cn } from '@/lib/utils';
 
 import AccountMultiSelectField from '@/components/fields/account-multi-select-field.vue';
-import BudgetMultiSelectField from '@/components/fields/budget-multi-select-field.vue';
+import TrackerMultiSelectField from '@/components/fields/tracker-multi-select-field.vue';
 import ComboboxCategories from '@/components/common/combobox-categories.vue';
 
 import { FiltersStruct } from './const';
@@ -119,8 +120,8 @@ withDefaults(
     isFiltersOutOfSync: boolean;
     /** Surface the sticky footer must blend with: the panel renders both in dialogs and inline on cards. */
     surface?: 'dialog' | 'card';
-    /** Hosts already scoped to one budget (the budget page) hide the budget picker. */
-    hideBudgets?: boolean;
+    /** Hosts already scoped to one tracker (the tracker page) hide the tracker picker. */
+    hideTrackers?: boolean;
     hidePlanned?: boolean;
   }>(),
   { surface: 'dialog' },

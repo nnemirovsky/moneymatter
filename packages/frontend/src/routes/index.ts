@@ -181,7 +181,7 @@ const routes: RouteRecordRaw[] = [
           },
         ],
       },
-      // The "Budget" (budget plans). "Trackers" are the `budgets` routes under /planned.
+      // The "Budget" (budget plans). Trackers live under /planned.
       {
         path: '/budget',
         name: ROUTES_NAMES.budget,
@@ -211,48 +211,21 @@ const routes: RouteRecordRaw[] = [
             name: ROUTES_NAMES.plannedSubscriptionDetails,
             component: () => import('@/pages/planned/subscriptions/subscription-details.vue'),
           },
-          // Shown as "Trackers"; route names, pages and the API keep "budgets".
           {
             path: 'trackers',
-            name: ROUTES_NAMES.plannedBudgets,
-            component: () => import('@/pages/budgets/budgets.vue'),
+            name: ROUTES_NAMES.plannedTrackers,
+            component: () => import('@/pages/trackers/trackers.vue'),
             meta: { i18nChunks: ['pages/budgets'] },
           },
           {
             path: 'trackers/:id',
-            name: ROUTES_NAMES.plannedBudgetDetails,
-            component: () => import('@/pages/budgets/budgets-info/index.vue'),
+            name: ROUTES_NAMES.plannedTrackerDetails,
+            component: () => import('@/pages/trackers/trackers-info/index.vue'),
             meta: {
               i18nChunks: ['pages/budgets', 'pages/budget-details', 'pages/transactions'],
             },
           },
         ],
-      },
-      // Backward-compat redirects for old budget URLs
-      {
-        path: '/budgets',
-        name: ROUTES_NAMES.budgets,
-        redirect: { name: ROUTES_NAMES.plannedBudgets },
-      },
-      {
-        path: '/budgets/:id',
-        name: ROUTES_NAMES.budgetsInfo,
-        redirect: (to) => ({
-          name: ROUTES_NAMES.plannedBudgetDetails,
-          params: { id: to.params.id },
-        }),
-      },
-      // /planned/budgets URLs are in bookmarks and sent notification links.
-      {
-        path: '/planned/budgets',
-        redirect: { name: ROUTES_NAMES.plannedBudgets },
-      },
-      {
-        path: '/planned/budgets/:id',
-        redirect: (to) => ({
-          name: ROUTES_NAMES.plannedBudgetDetails,
-          params: { id: to.params.id },
-        }),
       },
       // Backward-compat redirects for the old /planned/subscriptions URLs, so links
       // already sent (e.g. payment reminder emails) still resolve after the rename

@@ -57,6 +57,7 @@ export const createAccount = createController(
       logoDomain,
       logoInitials,
       logoColor,
+      logoIcon,
     } = body;
     const { id: userId } = user;
 
@@ -78,6 +79,7 @@ export const createAccount = createController(
       logoDomain,
       logoInitials,
       logoColor,
+      logoIcon,
     });
 
     if (account) await attachAccountCurrencyMeta({ accounts: [account] });
@@ -107,6 +109,7 @@ export const updateAccount = createController(
       logoDomain,
       logoInitials,
       logoColor,
+      logoIcon,
     } = body;
 
     await assertAccountUpdateAllowed({ userId, id, accountCategory, currentBalance });
@@ -132,6 +135,7 @@ export const updateAccount = createController(
         logoDomain,
         logoInitials,
         logoColor,
+        logoIcon,
       }),
     });
 

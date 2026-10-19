@@ -156,8 +156,8 @@ export const VUE_QUERY_CACHE_KEYS = Object.freeze({
   exchangeRates: ['exchange-rates'] as const,
   accountGroups: [transactionChange, 'account-groups'] as const,
 
-  budgetsList: ['budgets-list'] as const,
-  budgetsListItem: ['budgets-list-item'] as const,
+  trackersList: ['trackers-list'] as const,
+  trackersListItem: ['trackers-list-item'] as const,
 
   budgetPlans,
   budgetPlansList: [...budgetPlans, 'list'] as const,
@@ -169,11 +169,12 @@ export const VUE_QUERY_CACHE_KEYS = Object.freeze({
   budgetPlanScheduled: [...budgetPlans, 'scheduled'] as const,
   budgetSuggestionContext: [...budgetPlans, 'suggestion-context'] as const,
 
-  budgetTransactionList: [transactionChange, 'budget-transaction-list'] as const,
-  budgetAddingTransactionList: [transactionChange, 'budget-adding-transaction-list'] as const,
-  budgetStats: [transactionChange, 'budget-stats'] as const,
-  budgetSpendingStats: [transactionChange, 'budget-spending-stats'] as const,
-  budgetCategoryTransactions: [transactionChange, 'budget-category-transactions'] as const,
+  trackerAddingTransactionList: [transactionChange, 'tracker-adding-transaction-list'] as const,
+  trackerStats: [transactionChange, 'tracker-stats'] as const,
+  trackerSpendingStats: [transactionChange, 'tracker-spending-stats'] as const,
+  trackerCategoryTransactions: [transactionChange, 'tracker-category-transactions'] as const,
+  // append the trackerId when using
+  trackerSuggestions: [transactionChange, 'tracker-suggestions'] as const,
 
   /**
    * Investments

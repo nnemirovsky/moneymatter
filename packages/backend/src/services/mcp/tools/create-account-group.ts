@@ -29,7 +29,9 @@ export function registerCreateAccountGroup(server: McpServer) {
       await assertBaseCurrencyUnlocked({ userId });
       trackMcpToolUsed({ userId, tool: 'create_account_group', clientId: extra.authInfo?.clientId });
 
-      const { name, parentGroupId, logoDomain, logoInitials, logoColor } = validateCreateAccountGroupArgs({ args });
+      const { name, parentGroupId, logoDomain, logoInitials, logoColor, logoIcon } = validateCreateAccountGroupArgs({
+        args,
+      });
 
       const group = await createAccountGroup({
         userId,
@@ -38,6 +40,7 @@ export function registerCreateAccountGroup(server: McpServer) {
         logoDomain,
         logoInitials,
         logoColor,
+        logoIcon,
       });
 
       return jsonContent({ data: presentAccountGroup({ group }) });

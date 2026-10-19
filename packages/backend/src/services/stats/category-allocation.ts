@@ -73,8 +73,8 @@ export interface CategoryAllocations {
  * `resolveRefundPairs`. A side that was only fetched to resolve the pair contributed no positive
  * amount to the caller's report, so netting against it would invent money.
  *
- * Two siblings resolve refunds for other reports and stay separate on purpose: budgets'
- * `BudgetRefundPair` keys its scope flags on original/refund rather than expense/income, and the
+ * Two siblings resolve refunds for other reports and stay separate on purpose: trackers'
+ * `TrackerRefundPair` keys its scope flags on original/refund rather than expense/income, and the
  * pivot's `WholeTxRefund` carries payee/tag, which splits don't have.
  */
 export interface CategoryRefundPair {

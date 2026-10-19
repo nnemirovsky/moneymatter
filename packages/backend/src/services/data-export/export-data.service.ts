@@ -40,7 +40,7 @@ async function fetchUserHeader({ userId }: { userId: number }): Promise<{
   email: string | null;
   baseCurrency: string;
 }> {
-  // No defensive catch on getBaseCurrency: most other transformers (budgets,
+  // No defensive catch on getBaseCurrency: most other transformers (trackers,
   // transactions) depend on the same data, so a DB failure here is a real
   // export failure – masking it with `null` would emit an inconsistent
   // export. The legitimate "user has no base currency yet" case still

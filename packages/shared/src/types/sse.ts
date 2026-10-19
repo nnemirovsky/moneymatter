@@ -15,6 +15,7 @@ import type {
   StatementImportProgress,
   YnabImportProgress,
 } from './import-export';
+import type { TrackerScanStatusPayload } from './trackers';
 
 /**
  * SSE Event Types - event names sent via Server-Sent Events
@@ -32,6 +33,7 @@ export const SSE_EVENT_TYPES = {
   IMPORT_BATCH_DELETE_PROGRESS: 'import_batch_delete_progress',
   STATEMENT_IMPORT_PROGRESS: 'statement_import_progress',
   CHAT_THREAD_UPDATED: 'chat_thread_updated',
+  TRACKER_SCAN_STATUS: 'tracker_scan_status',
 } as const;
 
 export type SSEEventType = (typeof SSE_EVENT_TYPES)[keyof typeof SSE_EVENT_TYPES];
@@ -137,7 +139,8 @@ export type SSEEventPayload =
   | BackupRestoreSseProgress
   | ImportBatchDeleteProgress
   | StatementImportProgress
-  | ChatThreadUpdatedPayload;
+  | ChatThreadUpdatedPayload
+  | TrackerScanStatusPayload;
 
 /**
  * Maps each SSE event name to the payload its listeners receive. Lets a typed
@@ -159,4 +162,5 @@ export interface SSEEventPayloadMap {
   [SSE_EVENT_TYPES.IMPORT_BATCH_DELETE_PROGRESS]: ImportBatchDeleteProgress;
   [SSE_EVENT_TYPES.STATEMENT_IMPORT_PROGRESS]: StatementImportProgress;
   [SSE_EVENT_TYPES.CHAT_THREAD_UPDATED]: ChatThreadUpdatedPayload;
+  [SSE_EVENT_TYPES.TRACKER_SCAN_STATUS]: TrackerScanStatusPayload;
 }

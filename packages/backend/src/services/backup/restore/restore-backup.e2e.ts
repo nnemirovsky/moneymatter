@@ -11,6 +11,7 @@ import {
   type RecordId,
   SHARE_PERMISSIONS,
   SUBSCRIPTION_FREQUENCIES,
+  TRACKER_TYPES,
   TRANSACTION_TRANSFER_NATURE,
   TRANSACTION_TYPES,
   VEHICLE_CLASS,
@@ -22,6 +23,7 @@ import { generateRandomRecordId } from '@common/lib/record-id-helpers';
 import { t } from '@i18n/index';
 import { beforeEach, describe, expect, it } from '@jest/globals';
 import { RateLimitService } from '@services/common/rate-limit.service';
+import { PNG_1X1_BYTES, PNG_1X1_DATA_URL } from '@tests/fixtures/logo-images';
 import * as helpers from '@tests/helpers';
 import { VALID_ANTHROPIC_API_KEY } from '@tests/mocks/anthropic/mock-api';
 import { VALID_MONOBANK_TOKEN } from '@tests/mocks/monobank/mock-api';
@@ -190,14 +192,19 @@ async function seedRichData() {
   });
   await helpers.createSingleRefund({ originalTxId: expense!.id, refundTxId: refundTx!.id }, true);
 
-  // Budget over a category, with a linked transaction.
-  const budget = await helpers.createCustomBudget({
+  // Tracker over a category, with a linked transaction.
+  const tracker = await helpers.createTracker({
     name: 'Monthly',
     limitAmount: 50000,
     categoryIds: [parentCategory.id],
     raw: true,
   });
-  await helpers.addTransactionToCustomBudget({ id: budget.id, payload: { transactionIds: [expense!.id] }, raw: true });
+  await helpers.addTransactionsToTracker({ id: tracker.id, payload: { transactionIds: [expense!.id] }, raw: true });
+  await helpers.createTrackerLine({
+    trackerId: tracker.id,
+    payload: { name: 'Groceries', categoryIds: [childCategory.id] },
+    raw: true,
+  });
 
   // Subscription (generates periods).
   await helpers.createSubscription({
@@ -432,6 +439,14 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
       expect((firstArchive.readData({ name: 'transaction-template-tags' }) as unknown[]).length).toBeGreaterThan(0);
       expect((firstArchive.readData({ name: 'category-tags' }) as unknown[]).length).toBeGreaterThan(0);
       expect((firstArchive.readData({ name: 'card-account-mappings' }) as unknown[]).length).toBeGreaterThan(0);
+      expect((firstArchive.readData({ name: 'tracker-lines' }) as unknown[]).length).toBeGreaterThan(0);
+      expect((firstArchive.readData({ name: 'tracker-line-categories' }) as unknown[]).length).toBeGreaterThan(0);
+
+      for (const name of ['tracker-lines', 'tracker-transactions']) {
+        const rows = firstArchive.readData({ name }) as Record<string, unknown>[];
+        expect(rows.length).toBeGreaterThan(0);
+        expect(rows.every((r) => 'trackerId' in r && !('budgetId' in r))).toBe(true);
+      }
 
       const restore = await helpers.restoreBackup({ fileContent: first.base64 });
       expect(restore.statusCode).toBe(200);
@@ -703,6 +718,12 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
           expect(targetAccountIds.has(ruleAccountIds[0]!)).toBe(true);
 
           const targetCategoryIds = new Set<string>((await helpers.getCategoriesList()).map((row) => row.id));
+
+          const restoredTracker = (await helpers.getTrackers({ raw: true })).find((row) => row.name === 'Monthly');
+          const lineCategoryIds = restoredTracker!.lines.flatMap((line) => line.categories.map((row) => row.id));
+          expect(lineCategoryIds).toHaveLength(1);
+          expect(targetCategoryIds.has(lineCategoryIds[0]!)).toBe(true);
+
           expect(automations[0]!.actions).toHaveLength(2);
           for (const action of automations[0]!.actions) {
             if (action.type === 'set_category') expect(targetCategoryIds.has(action.categoryId)).toBe(true);
@@ -734,7 +755,7 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
         payload: helpers.buildPayeePayload({ name: 'View Payee' }),
         raw: true,
       });
-      const budget = await helpers.createCustomBudget({ name: 'View budget', raw: true });
+      const tracker = await helpers.createTracker({ name: 'View tracker', raw: true });
       await helpers.setUserBilling({ plan: PLANS.plus });
       await helpers.patchUserSettings({
         raw: true,
@@ -749,8 +770,8 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
                 categoryIds: [category.id],
                 tagIds: [tag.id],
                 payeeIds: [payee.id],
-                budgetIds: [budget.id],
-                excludedBudgetIds: [budget.id],
+                trackerIds: [tracker.id],
+                excludedTrackerIds: [tracker.id],
               },
             },
           ],
@@ -777,11 +798,11 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
           const targetAccount = (await helpers.getAccounts()).find((a) => a.name === 'View account');
           const targetTag = (await helpers.getTags({ raw: true })).find((t) => t.name === 'view-tag');
           const targetPayee = (await helpers.listPayees({ raw: true })).find((p) => p.name === 'View Payee');
-          const targetBudget = (await helpers.getCustomBudgets({ raw: true })).find((b) => b.name === 'View budget');
+          const targetTracker = (await helpers.getTrackers({ raw: true })).find((b) => b.name === 'View tracker');
           expect(targetAccount!.id).not.toBe(account.id);
           expect(targetTag!.id).not.toBe(tag.id);
           expect(targetPayee!.id).not.toBe(payee.id);
-          expect(targetBudget!.id).not.toBe(budget.id);
+          expect(targetTracker!.id).not.toBe(tracker.id);
 
           const { fire, incomeCategoryIds, savedTransactionViews } = await helpers.getUserSettings({ raw: true });
           expect(incomeCategoryIds).toEqual([targetCategories.find((c) => c.key === 'income')!.id]);
@@ -793,8 +814,8 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
             categoryIds: [targetCategory!.id],
             tagIds: [targetTag!.id],
             payeeIds: [targetPayee!.id],
-            budgetIds: [targetBudget!.id],
-            excludedBudgetIds: [targetBudget!.id],
+            trackerIds: [targetTracker!.id],
+            excludedTrackerIds: [targetTracker!.id],
           });
         },
       });
@@ -1067,6 +1088,36 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
   // existing row. The restore only accepts ids it inserted this run: a required
   // column drops the row, a nullable column is nulled, and the victim's data is
   // never touched.
+  describe('Tracker logo images', () => {
+    it('gives a tracker restored onto another user its own copy of the logo image', async () => {
+      const source = await helpers.createTracker({ name: 'Logo tracker', logoImage: PNG_1X1_DATA_URL, raw: true });
+      expect(source.logoImageId).toBeTruthy();
+      const { base64 } = await exportArchive();
+
+      const target = await helpers.provisionSecondUserWithBaseCurrency();
+      const restoredLogoImageId = await helpers.asUser({
+        cookies: target.cookies,
+        fn: async () => {
+          const restore = await helpers.withSelfHost(() => helpers.restoreBackup({ fileContent: base64 }));
+          expect(restore.statusCode).toBe(200);
+          const status = await helpers.waitForRestore({ jobId: restore.jobId! });
+          expect(status.status).toBe('completed');
+
+          const restored = (await helpers.getTrackers({ raw: true })).find((b) => b.name === 'Logo tracker');
+          expect(restored?.logoImageId).toBeTruthy();
+          expect(restored!.logoImageId).not.toBe(source.logoImageId);
+          return restored!.logoImageId!;
+        },
+      });
+
+      expect((await helpers.deleteTracker({ id: source.id })).statusCode).toBe(200);
+
+      const image = await helpers.getLogoImage({ id: restoredLogoImageId });
+      expect(image.statusCode).toBe(200);
+      expect(image.body.equals(PNG_1X1_BYTES)).toBe(true);
+    });
+  });
+
   describe('Cross-user reference forgery guard', () => {
     /** Provision a second user (the would-be victim) and seed a real account,
      *  category, payee and transaction whose ids a forged backup can point at. */
@@ -1538,6 +1589,163 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
       expect(accountsAfter.some((a) => a.id === accountA.id)).toBe(true);
       const txAfter = await helpers.getTransactions({ raw: true });
       expect(txAfter.map((t) => t.id).sort()).toEqual(txIdsBefore);
+    });
+  });
+
+  describe('Legacy archives (format 1 and 2)', () => {
+    const LEGACY_TRACKER_FILES: [string, string][] = [
+      ['trackers', 'budgets'],
+      ['tracker-transactions', 'budget-transactions'],
+      ['tracker-categories', 'budget-categories'],
+    ];
+
+    /** Rewrite a current archive into the v2 shape: budget-named tracker files, `budgetId` keys, old stored values. */
+    function toLegacyArchive({
+      files,
+      trackerId,
+      userId,
+    }: {
+      files: Map<string, Buffer>;
+      trackerId: string;
+      userId: number;
+    }) {
+      for (const [name, legacyName] of LEGACY_TRACKER_FILES) {
+        files.set(`data/${legacyName}.json`, files.get(`data/${name}.json`)!);
+        files.delete(`data/${name}.json`);
+      }
+      for (const name of ['tracker-lines', 'budget-transactions', 'budget-categories', 'tracker-suggestions']) {
+        const path = `data/${name}.json`;
+        const rows = readArchiveJson({ files, path }) as Row[];
+        const legacyRows = rows.map(({ trackerId: id, ...rest }) => ({ ...rest, budgetId: id }));
+        writeArchiveJson({ files, path, value: legacyRows });
+      }
+
+      const settingsPath = 'data/user-settings.json';
+      const [settingsRow] = readArchiveJson({ files, path: settingsPath }) as Row[];
+      const settings = settingsRow!.settings as Row;
+      settings.notifications = { enabled: true, types: { budget_alert: false, system: true, changelog: true } };
+      settings.savedTransactionViews = [
+        {
+          id: generateRandomRecordId(),
+          name: 'Legacy view',
+          filters: { budgetIds: [trackerId], excludedBudgetIds: [trackerId] },
+        },
+      ];
+      settings.ui = { transactionsTable: { visibleColumns: [], columnOrder: [], extraFilters: ['budgets', 'tags'] } };
+      settings.onboarding = { completedTasks: ['create-budget'], isDismissed: false, dismissedAt: null };
+      writeArchiveJson({ files, path: settingsPath, value: [settingsRow] });
+
+      const notificationRow = ({ type, payload }: { type: string; payload: Row }) => ({
+        id: generateRandomRecordId(),
+        userId,
+        type,
+        title: type,
+        message: null,
+        payload,
+        status: 'unread',
+        priority: 'normal',
+        createdAt: new Date().toISOString(),
+        readAt: null,
+        expiresAt: null,
+      });
+      writeArchiveJson({
+        files,
+        path: 'data/notifications.json',
+        value: [
+          notificationRow({ type: 'budget_alert', payload: { budgetId: trackerId, budgetName: 'Legacy tracker' } }),
+          notificationRow({
+            type: 'share_owner_budget_deleted',
+            payload: { resourceType: 'budget', resourceId: trackerId },
+          }),
+        ],
+      });
+
+      const manifest = readArchiveJson({ files, path: 'manifest.json' }) as Row;
+      manifest.formatVersion = 2;
+      writeArchiveJson({ files, path: 'manifest.json', value: manifest });
+    }
+
+    it('restores budget-named tracker files, budgetId keys and old stored values into tracker shapes', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const category = await helpers.addCustomCategory({ name: 'Legacy cat', color: '#123456', raw: true });
+      const [tx] = await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({
+          accountId: account.id,
+          amount: 1500,
+          transactionType: TRANSACTION_TYPES.expense,
+          categoryId: category.id,
+        }),
+        raw: true,
+      });
+      const tracker = await helpers.createTracker({ name: 'Legacy tracker', raw: true });
+      await helpers.createTracker({
+        name: 'Legacy category tracker',
+        type: TRACKER_TYPES.category,
+        categoryIds: [category.id],
+        raw: true,
+      });
+      await helpers.addTransactionsToTracker({ id: tracker.id, payload: { transactionIds: [tx!.id] }, raw: true });
+      await helpers.createTrackerLine({
+        trackerId: tracker.id,
+        payload: { name: 'Legacy line', categoryIds: [category.id] },
+        raw: true,
+      });
+
+      const { buffer } = await exportArchive();
+      const { files } = helpers.parseBackupArchive({ buffer });
+      toLegacyArchive({ files, trackerId: tracker.id, userId: await getCurrentUserId() });
+      const base64 = await helpers.repackBackup({ files });
+
+      const restore = await helpers.restoreBackup({ fileContent: base64 });
+      expect(restore.statusCode).toBe(200);
+      const status = await helpers.waitForRestore({ jobId: restore.jobId! });
+      expect(status.status).toBe('completed');
+      expect(status.summary?.warnings ?? []).toEqual([]);
+
+      const restored = helpers.parseBackupArchive({ buffer: (await exportArchive()).buffer });
+      const restoredTrackers = restored.readData({ name: 'trackers' }) as Row[];
+      expect(restoredTrackers).toHaveLength(2);
+      const restoredIdOf = ({ trackerName }: { trackerName: string }) =>
+        restoredTrackers.find((row) => row.name === trackerName)?.id;
+      const restoredTrackerId = restoredIdOf({ trackerName: 'Legacy tracker' });
+
+      for (const [name, trackerName] of [
+        ['tracker-lines', 'Legacy tracker'],
+        ['tracker-transactions', 'Legacy tracker'],
+        ['tracker-categories', 'Legacy category tracker'],
+      ] as const) {
+        const rows = restored.readData({ name }) as Row[];
+        expect({ name, count: rows.length }).toEqual({ name, count: 1 });
+        expect(rows[0]).toMatchObject({ trackerId: restoredIdOf({ trackerName }) });
+        expect(rows[0]).not.toHaveProperty('budgetId');
+      }
+
+      const [settingsRow] = restored.readData({ name: 'user-settings' }) as Row[];
+      const settings = settingsRow!.settings as {
+        notifications: { types: Row };
+        savedTransactionViews: { filters: Row }[];
+        ui: { transactionsTable: { extraFilters: string[] } };
+        onboarding: { completedTasks: string[] };
+      };
+      expect(settings.notifications.types.tracker_alert).toBe(false);
+      expect(settings.notifications.types).not.toHaveProperty('budget_alert');
+      expect(settings.savedTransactionViews[0]!.filters).toEqual({
+        trackerIds: [restoredTrackerId],
+        excludedTrackerIds: [restoredTrackerId],
+      });
+      expect(settings.ui.transactionsTable.extraFilters).toEqual(['trackers', 'tags']);
+      expect(settings.onboarding.completedTasks).toEqual(['create-tracker']);
+
+      const notifications = restored.readData({ name: 'notifications' }) as Row[];
+      expect(notifications.find((n) => n.type === 'tracker_alert')?.payload).toEqual({
+        trackerId: restoredTrackerId,
+        trackerName: 'Legacy tracker',
+      });
+      expect(notifications.find((n) => n.type === 'share_owner_tracker_deleted')?.payload).toEqual({
+        resourceType: 'tracker',
+        resourceId: tracker.id,
+      });
+      expect(notifications.some((n) => String(n.type).includes('budget'))).toBe(false);
     });
   });
 

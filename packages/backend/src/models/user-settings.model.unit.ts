@@ -82,7 +82,7 @@ describe('ZodSettingsSchema – notifications push groups', () => {
     const result = ZodSettingsSchema.safeParse({
       notifications: {
         enabled: true,
-        types: { budget_alert: false },
+        types: { tracker_alert: false },
         push: { groups: { releases: true } },
       },
     });
@@ -90,7 +90,7 @@ describe('ZodSettingsSchema – notifications push groups', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.notifications?.enabled).toBe(true);
-      expect(result.data.notifications?.types?.budget_alert).toBe(false);
+      expect(result.data.notifications?.types?.tracker_alert).toBe(false);
       expect(result.data.notifications?.push?.groups?.releases).toBe(true);
     }
   });

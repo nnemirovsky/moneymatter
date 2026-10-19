@@ -12,7 +12,6 @@ import AccountGroup from '@models/accounts-groups/account-groups.model';
 import Accounts from '@models/accounts.model';
 import BankDataProviderConnections from '@models/bank-data-provider-connections.model';
 import BudgetLines from '@models/budget-lines.model';
-import Budgets from '@models/budget.model';
 import Categories from '@models/categories.model';
 import PortfolioTransfers from '@models/investments/portfolio-transfers.model';
 import Portfolios from '@models/investments/portfolios.model';
@@ -21,6 +20,7 @@ import Payees from '@models/payees.model';
 import SubscriptionCandidates from '@models/subscription-candidates.model';
 import Subscriptions from '@models/subscriptions.model';
 import Tags from '@models/tags.model';
+import Trackers from '@models/trackers.model';
 import TransactionAutomations from '@models/transaction-automations.model';
 import Transactions from '@models/transactions.model';
 import VentureEventLinks from '@models/venture/venture-event-links.model';
@@ -135,7 +135,7 @@ export async function remapEmbeddedReferences({
     subscriptions: String(Subscriptions.getTableName()),
     payees: String(Payees.getTableName()),
     accounts: String(Accounts.getTableName()),
-    budgets: String(Budgets.getTableName()),
+    trackers: String(Trackers.getTableName()),
     tags: String(Tags.getTableName()),
     categories: String(Categories.getTableName()),
     accountGroups: String(AccountGroup.getTableName()),
@@ -261,7 +261,7 @@ export async function remapEmbeddedReferences({
     },
   });
 
-  // 6. Notifications.payload → budgetId (Budgets), tagId (Tags), transactionIds[] (Transactions).
+  // 6. Notifications.payload → trackerId (Trackers), tagId (Tags), transactionIds[] (Transactions).
   //    Share payloads' invitationId/shareId/resourceId reference cross-user data
   //    that isn't restored, so they're left verbatim.
   await rewriteColumn({
@@ -274,8 +274,8 @@ export async function remapEmbeddedReferences({
     mutate: ({ draft }) => {
       if (typeof draft !== 'object' || draft === null) return;
       const p = draft as Record<string, unknown>;
-      if (typeof p.budgetId === 'string')
-        p.budgetId = remapId({ insertedIds, targetTable: tables.budgets, oldId: p.budgetId });
+      if (typeof p.trackerId === 'string')
+        p.trackerId = remapId({ insertedIds, targetTable: tables.trackers, oldId: p.trackerId });
       if (typeof p.tagId === 'string') p.tagId = remapId({ insertedIds, targetTable: tables.tags, oldId: p.tagId });
       remapIdArrayInPlace({ arr: p.transactionIds, targetTable: tables.transactions, insertedIds });
     },
@@ -350,8 +350,8 @@ export function remapSavedTransactionViewIds({
     categoryIds: Categories,
     tagIds: Tags,
     payeeIds: Payees,
-    budgetIds: Budgets,
-    excludedBudgetIds: Budgets,
+    trackerIds: Trackers,
+    excludedTrackerIds: Trackers,
   };
 
   for (const view of views) {

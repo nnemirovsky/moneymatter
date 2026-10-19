@@ -76,6 +76,8 @@ const logoPlaceholderAccount = computed(() => ({
   logoDomain: null,
   logoInitials: null,
   logoColor: null,
+  logoIcon: null,
+  logoImageId: null,
   accountCategory: form.accountCategory,
 }));
 

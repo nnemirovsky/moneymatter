@@ -1,11 +1,11 @@
 import type { ChatEntityKind, ChatEntityRef } from '@bt/shared/types';
 import Accounts from '@models/accounts.model';
-import Budgets from '@models/budget.model';
 import Categories from '@models/categories.model';
 import Portfolios from '@models/investments/portfolios.model';
 import Payees from '@models/payees.model';
 import Subscriptions from '@models/subscriptions.model';
 import Tags from '@models/tags.model';
+import Trackers from '@models/trackers.model';
 import Transactions from '@models/transactions.model';
 import Vehicles from '@models/vehicles.model';
 import type { Model, ModelStatic } from 'sequelize';
@@ -20,7 +20,7 @@ const OWNED_MODELS: Partial<Record<ChatEntityKind, ModelStatic<Model>>> = {
   category: Categories,
   tag: Tags,
   payee: Payees,
-  budget: Budgets,
+  tracker: Trackers,
   subscription: Subscriptions,
   vehicle: Vehicles,
   portfolio: Portfolios,
@@ -34,7 +34,7 @@ const LABEL_SOURCES: Partial<Record<ChatEntityKind, { attributes: string[]; labe
   category: { attributes: ['name'], label: (row) => String(row.name) },
   tag: { attributes: ['name'], label: (row) => String(row.name) },
   payee: { attributes: ['name'], label: (row) => String(row.name) },
-  budget: { attributes: ['name'], label: (row) => String(row.name) },
+  tracker: { attributes: ['name'], label: (row) => String(row.name) },
   subscription: { attributes: ['name'], label: (row) => String(row.name) },
   portfolio: { attributes: ['name'], label: (row) => String(row.name) },
   vehicle: {

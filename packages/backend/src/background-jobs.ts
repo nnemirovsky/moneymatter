@@ -4,6 +4,7 @@ import { abortAllCliRuns } from '@services/ai/cli/cli-run-limiter';
 import { resetCliAuthSessions } from '@services/ai/cli/login/cli-auth-sessions';
 import { accountSyncWorker } from '@services/bank-data-providers/sync/account-sync-queue';
 
+import { aiUsageMonthEndCron } from './crons/ai-usage-month-end';
 import { attachmentsOrphanSweepCron } from './crons/attachments-orphan-sweep';
 import { balanceRevalueSweepCron } from './crons/balance-revalue-sweep';
 import { bankAccountsSyncCron } from './crons/bank-accounts-sync';
@@ -26,6 +27,7 @@ import { subscriptionAutoRecordCron } from './crons/subscription-auto-record';
 import { subscriptionCandidateDetectionCron } from './crons/subscription-candidate-detection';
 import { subscriptionRemindersCron } from './crons/subscription-reminders-check';
 import { tagRemindersCron } from './crons/tag-reminders-check';
+import { trackerSmartScanCron } from './crons/tracker-smart-scan';
 import { closeBridgeListener } from './services/chat/bridge/bridge-listener';
 import { shutdownChatRuns } from './services/chat/runs/run-manager';
 import { chatTailHub } from './services/chat/runs/tail-hub';
@@ -51,6 +53,8 @@ const prodOnlyCrons = [
   balanceRevalueSweepCron,
   attachmentsOrphanSweepCron,
   bankAccountsSyncCron,
+  trackerSmartScanCron,
+  aiUsageMonthEndCron,
 ];
 
 export function initializeBackgroundJobs() {

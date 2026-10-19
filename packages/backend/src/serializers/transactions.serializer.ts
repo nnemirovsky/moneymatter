@@ -96,13 +96,13 @@ export interface TransactionApiResponse {
      *  window. Populated when the group include computes the correlated count. */
     transactionCount: number;
   }>;
-  /** Recipient who attached this tx to a shared budget. Present (and possibly `null`)
-   *  only on budget-scoped fetches; absent on the global tx list and on detail lookups
-   *  outside a budget context. `null` means owner-attached (no chip needed in the UI). */
+  /** Recipient who attached this tx to a shared tracker. Present (and possibly `null`)
+   *  only on tracker-scoped fetches; absent on the global tx list and on detail lookups
+   *  outside a tracker context. `null` means owner-attached (no chip needed in the UI). */
   addedBy?: { id: number; username: string; avatar: string | null } | null;
   /** Whether the caller has write access to this row. The frontend uses this to render
    *  an inert "Transaction Details" dialog (disabled fields, hidden submit/delete) when
-   *  the caller can see the tx — typically via a budget share — but has no write claim
+   *  the caller can see the tx — typically via a tracker share — but has no write claim
    *  on the parent account. Absent on paths that don't compute it (single-tx writes,
    *  internal fetches). */
   canEdit?: boolean;
@@ -294,9 +294,9 @@ export function serializeTransaction(
           0,
       })),
     }),
-    // `addedBy` is included whenever the upstream service attached it (budget-scoped
+    // `addedBy` is included whenever the upstream service attached it (tracker-scoped
     // fetches). `null` is a meaningful value — "owner-attached" — and must be sent so
-    // the frontend can distinguish "no metadata yet" from "tx is owned by the budget
+    // the frontend can distinguish "no metadata yet" from "tx is owned by the tracker
     // owner". Use a property-existence check rather than truthiness to preserve null.
     ...('addedBy' in tx ? { addedBy: tx.addedBy ?? null } : {}),
     // `canEdit` is omitted on paths that don't compute it (write returns, internal

@@ -371,6 +371,7 @@
       "searchPlaceholder": "Пошук трекерів",
       "noResults": "Трекерів не знайдено",
       "unknownBudget": "Невідомий трекер",
+      "blankOption": "Не в жодному трекері",
       "loadError": "Не вдалося завантажити трекери. Спробуйте ще раз."
     },
     "payeeSelect": {

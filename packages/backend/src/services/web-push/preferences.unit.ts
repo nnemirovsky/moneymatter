@@ -38,7 +38,7 @@ describe('NOTIFICATION_PUSH_GROUP', () => {
   it('groups the remaining types as the plan lists them', () => {
     expect(NOTIFICATION_PUSH_GROUP.subscription_reminder).toBe(PUSH_GROUPS.reminders);
     expect(NOTIFICATION_PUSH_GROUP.tag_reminder).toBe(PUSH_GROUPS.reminders);
-    expect(NOTIFICATION_PUSH_GROUP.budget_alert).toBe(PUSH_GROUPS.reminders);
+    expect(NOTIFICATION_PUSH_GROUP.tracker_alert).toBe(PUSH_GROUPS.reminders);
     expect(NOTIFICATION_PUSH_GROUP.planned_confirmed).toBe(PUSH_GROUPS.bankSync);
     expect(NOTIFICATION_PUSH_GROUP.stuck_pending).toBe(PUSH_GROUPS.bankSync);
     expect(NOTIFICATION_PUSH_GROUP.system).toBe(PUSH_GROUPS.system);
@@ -83,7 +83,7 @@ describe('isPushGroupEnabled', () => {
   it('ignores the dormant notifications.enabled and types keys', () => {
     const settings = {
       locale: 'en' as const,
-      notifications: { enabled: false, types: { budget_alert: false, system: false, changelog: false } },
+      notifications: { enabled: false, types: { tracker_alert: false, system: false, changelog: false } },
     };
 
     expect(isPushGroupEnabled({ settings, group: PUSH_GROUPS.system })).toBe(true);

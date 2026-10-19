@@ -24,6 +24,7 @@ export enum AI_FEATURE {
   investmentTransactionsParsing = 'investment_transactions_parsing',
   receiptParsing = 'receipt_parsing',
   chat = 'chat',
+  trackerMatching = 'tracker_matching',
   // Future features:
   // insights = 'insights',
 }

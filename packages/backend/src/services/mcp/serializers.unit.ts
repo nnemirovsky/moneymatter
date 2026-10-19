@@ -35,6 +35,8 @@ const fullAccount: AccountApiResponse = {
   logoDomain: null,
   logoInitials: null,
   logoColor: null,
+  logoIcon: null,
+  logoImageId: null,
   needsRelink: true,
   share: { isOwner: true } as AccountApiResponse['share'],
 };
@@ -149,6 +151,8 @@ describe('MCP serializers', () => {
       logoDomain: null,
       logoInitials: 'SV',
       logoColor: '#ff0000',
+      logoIcon: null,
+      logoImageId: null,
       accounts: [fullAccount],
       childGroups: [],
       ...patch,
@@ -226,6 +230,8 @@ describe('MCP serializers', () => {
         logoDomain: 'example.com',
         logoInitials: null,
         logoColor: null,
+        logoIcon: null,
+        logoImageId: null,
         accounts: [],
         childGroups: [],
       });

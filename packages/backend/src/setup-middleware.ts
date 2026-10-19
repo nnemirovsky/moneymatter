@@ -18,23 +18,15 @@ export function setupMiddleware(app: Express) {
   // Drop the default `X-Powered-By: Express` info-disclosure header.
   app.disable('x-powered-by');
 
-  // `req.ip` keys the per-IP rate limits and, through setClientIpHeaderMiddleware, the address stored on
-  // auth sessions. Behind nginx, Traefik or a Cloudflare Tunnel the socket peer is the proxy, so Express
-  // has to read X-Forwarded-For. Trusting private ranges only (the default) means the first public
-  // address from the right wins, which a client cannot forge. TRUSTED_PROXIES overrides the list for a
-  // proxy that reaches the backend from a public address.
+  // `req.ip` keys the per-IP rate limits and the address stored on auth sessions. Trusting private ranges
+  // only (the default) means the first public address from the right wins, which a client cannot forge.
   app.set('trust proxy', resolveTrustedProxies({ raw: process.env[TRUSTED_PROXIES_ENV] }));
 
   app.use(requestIdMiddleware);
 
-  // Hand the proxy-aware client address to better-auth, which only sees headers. Runs ahead of every
-  // auth handler and overwrites whatever the caller sent in that header.
   app.use(setClientIpHeaderMiddleware);
 
-  // Behind Cloudflare Access every forwarded request carries a `CF_Authorization` cookie. The app
-  // never reads it, but better-auth sees a cookie, requires an `Origin` header, and rejects MCP/OAuth
-  // clients (which send none) with MISSING_OR_NULL_ORIGIN. Dropping Cloudflare's cookies here, ahead
-  // of every auth handler, makes those requests reach better-auth cookie-less.
+  // Must run before the auth routes, including the register patch, which treats any cookie as a session.
   app.use(stripCloudflareAccessCookiesMiddleware);
 
   // Opt-in (PERF_DEBUG=true): tag responses with per-request query count + timing.

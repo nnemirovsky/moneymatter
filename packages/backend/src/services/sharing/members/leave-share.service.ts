@@ -7,7 +7,7 @@ import { withTransaction } from '@services/common/with-transaction';
 import { Op } from 'sequelize';
 
 import { resolveResourceName } from '../auth/can-user-access-resource.service';
-import { sweepRecipientBudgetTransactions } from '../cleanup/cleanup-budget-shares.service';
+import { sweepRecipientTrackerTransactions } from '../cleanup/cleanup-tracker-shares.service';
 import { getEmailForUser } from '../find-user-by-email.service';
 import { convertCrossUserTransfersToOutOfWallet } from '../household/convert-cross-user-transfers.service';
 import { LIFECYCLE_NOTIFIERS } from '../share-notifications';
@@ -65,7 +65,11 @@ const leaveShareImpl = async (params: LeaveShareParams): Promise<LeaveShareImplR
         message: 'Authenticated caller has no Users row when leaving share',
         error: new Error(`Users.findByPk returned null for callerUserId=${callerUserId}`),
       },
-      { code: 'SHARE_LEAVE_RECIPIENT_USER_MISSING', callerUserId, shareId: sharedShareId },
+      {
+        code: 'SHARE_LEAVE_RECIPIENT_USER_MISSING',
+        callerUserId,
+        shareId: sharedShareId,
+      },
     );
     throw new UnexpectedError({ message: 'Unable to leave share' });
   }
@@ -76,13 +80,19 @@ const leaveShareImpl = async (params: LeaveShareParams): Promise<LeaveShareImplR
         message: 'Owner Users row missing when leaving share',
         error: new Error(`Users.findByPk returned null for ownerUserId=${ownerUserId}`),
       },
-      { code: 'SHARE_LEAVE_OWNER_USER_MISSING', ownerUserId, shareId: sharedShareId },
+      {
+        code: 'SHARE_LEAVE_OWNER_USER_MISSING',
+        ownerUserId,
+        shareId: sharedShareId,
+      },
     );
   }
 
   // 0 rows means a concurrent leave or the owner's account deletion removed the share
   // after our read; continuing would notify a possibly deleted user.
-  const deleted = await ResourceShares.destroy({ where: { id: sharedShareId } });
+  const deleted = await ResourceShares.destroy({
+    where: { id: sharedShareId },
+  });
   if (!deleted) {
     throw new NotFoundError({ message: 'Shared resource not found' });
   }
@@ -98,12 +108,12 @@ const leaveShareImpl = async (params: LeaveShareParams): Promise<LeaveShareImplR
     });
   }
 
-  // Budget leave: sweep this recipient's attached `BudgetTransactions` rows so the
-  // budget's contents stay consistent with who currently has access. Mirrors the
+  // Tracker leave: sweep this recipient's attached `TrackerTransactions` rows so the
+  // tracker's contents stay consistent with who currently has access. Mirrors the
   // revoke-member sweep.
-  if (resourceType === RESOURCE_TYPES.budget) {
-    await sweepRecipientBudgetTransactions({
-      budgetId: resourceIdStr,
+  if (resourceType === RESOURCE_TYPES.tracker) {
+    await sweepRecipientTrackerTransactions({
+      trackerId: resourceIdStr,
       recipientUserId: callerUserId,
     });
   }

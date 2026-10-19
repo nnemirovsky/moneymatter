@@ -3,8 +3,8 @@ import {
   AINativeProvider,
   AI_FEATURE,
   AI_PROVIDER,
-  FEATURES,
   asAiCliProvider,
+  hasServerAiEntitlement,
 } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { logger } from '@js/utils/logger';
@@ -113,7 +113,7 @@ export async function resolveAIConfiguration({
       ? findStoredFeatureConfig({ aiSettings, feature })
       : { feature, connectionId: pinnedConnectionId, ...(pinnedModelId ? { modelId: pinnedModelId } : {}) };
   const entitlements = await getEntitlementsByUserId({ userId });
-  const entitled = allowOperatorKey || entitlements.features.includes(FEATURES.operator_ai);
+  const entitled = allowOperatorKey || hasServerAiEntitlement({ entitlements, feature });
   const withinAllowance = entitled ? await isWithinAiAllowance({ userId, entitlements }) : undefined;
   const serverKeysAllowed = withinAllowance === true;
   const excludedConnectionIds = new Set<string>();

@@ -6,7 +6,7 @@ import { Op, literal } from 'sequelize';
  *
  * One purchase can carry several partial refunds, so dropping a single link says nothing about
  * whether the flag should go down. Every read path that nets refunds out of expenses starts from
- * this flag — `resolveRefundPairs`, `fetchBudgetRefundPairs` and the pivot equivalent only look up
+ * this flag — `resolveRefundPairs`, `fetchTrackerRefundPairs` and the pivot equivalent only look up
  * links for transactions that carry it — so a flag cleared while a link survives makes that refund
  * stop netting and the expense report overstate.
  *

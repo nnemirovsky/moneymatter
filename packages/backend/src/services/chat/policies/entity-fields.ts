@@ -34,7 +34,7 @@ const GLOBAL_ENTITY_FIELDS: Readonly<Record<string, ChatEntityKind>> = {
   destinationTransactionId: 'transaction',
   survivorId: 'transaction',
   splitId: 'split',
-  budgetId: 'budget',
+  trackerId: 'tracker',
   planId: 'budgetPlan',
   lineId: 'budgetPlanLine',
   ungroupedLineIds: 'budgetPlanLine',
@@ -79,6 +79,9 @@ export const UNMAPPED_ID_FIELDS: Readonly<Record<string, string[]>> = {
   create_holding: ['securityId'],
   delete_holding: ['securityId'],
   create_investment_transaction: ['securityId'],
+  // Tracker lines and smart-tracking suggestions are rows inside a tracker, without an entity page.
+  accept_tracker_suggestions: ['suggestionIds'],
+  reject_tracker_suggestions: ['suggestionIds'],
   // Subscription candidates and budget plan periods are short-lived rows without an entity page.
   dismiss_subscription_candidate: ['candidateId'],
   accept_subscription_candidate: ['candidateId'],

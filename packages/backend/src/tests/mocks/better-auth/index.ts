@@ -134,10 +134,8 @@ function resolveSession(
 }
 
 /**
- * Mirrors how better-auth derives the client address that it stores on a session: it walks
- * `advanced.ipAddress.ipAddressHeaders` (default `x-forwarded-for`) and accepts a header only when it
- * holds exactly one valid IP. Without `trustedProxies`, a multi-hop `X-Forwarded-For` yields no address.
- * An unresolved address is '', which is what the session insert stores in production.
+ * Approximates better-auth's `getIp`: first header in `ipAddressHeaders` holding exactly one valid IP.
+ * Skips its IPv6 /64 masking and its dev/test `127.0.0.1` fallback.
  */
 function resolveSessionIpAddress({ config, headers }: { config: BetterAuthConfig; headers: Headers }): string {
   const headerNames = config.advanced?.ipAddress?.ipAddressHeaders ?? ['x-forwarded-for'];
@@ -334,12 +332,8 @@ export function betterAuth(config: BetterAuthConfig): AuthInstance {
         });
       }
 
-      // Dynamic client registration. Mirrors the two real better-auth checks the register
-      // route depends on: a `Cookie` header demands an `Origin` header (403), and an
-      // unauthenticated request may only register a public client (401).
+      // Mirrors better-auth's origin check: any `Cookie` header demands an `Origin` header.
       if (path === '/oauth2/register' && request.method === 'POST') {
-        const body = (await request.json()) as Record<string, unknown>;
-
         if (request.headers.has('cookie') && !request.headers.get('origin')) {
           return new Response(JSON.stringify({ message: 'Missing or null Origin', code: 'MISSING_OR_NULL_ORIGIN' }), {
             status: 403,
@@ -347,22 +341,11 @@ export function betterAuth(config: BetterAuthConfig): AuthInstance {
           });
         }
 
-        const authMethod = (body.token_endpoint_auth_method as string | undefined) ?? 'client_secret_basic';
-        if (authMethod !== 'none' && !extractSessionToken(request.headers.get('cookie') ?? undefined)) {
-          return new Response(JSON.stringify({ error: 'invalid_client' }), {
-            status: 401,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
-
-        return new Response(
-          JSON.stringify({
-            ...body,
-            client_id: `test-registered-client-${Date.now()}`,
-            token_endpoint_auth_method: authMethod,
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
+        const body = (await request.json()) as Record<string, unknown>;
+        return new Response(JSON.stringify({ ...body, client_id: `test-registered-client-${crypto.randomUUID()}` }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
       }
 
       // Default: not found

@@ -257,11 +257,11 @@ describe('renderPushBody', () => {
       }
     });
 
-    it('uses one exported list: every share_ and household_ type is in it except share_owner_budget_deleted', () => {
+    it('uses one exported list: every share_ and household_ type is in it except share_owner_tracker_deleted', () => {
       const shareLike = Object.values(NOTIFICATION_TYPES).filter(
         (type) => type.startsWith('share_') || type.startsWith('household_'),
       );
-      const excluded: NotificationType[] = [NOTIFICATION_TYPES.shareOwnerBudgetDeleted];
+      const excluded: NotificationType[] = [NOTIFICATION_TYPES.shareOwnerTrackerDeleted];
 
       expect(shareLike.filter((type) => !SHARE_NOTIFICATION_TYPES.includes(type))).toEqual(excluded);
       expect(SHARE_NOTIFICATION_TYPES.filter((type) => !shareLike.includes(type))).toEqual([]);
@@ -295,16 +295,16 @@ describe('renderPushBody', () => {
       ).toBeNull();
     });
 
-    it('uses the stored message for share_owner_budget_deleted, not the share renderer', () => {
+    it('uses the stored message for share_owner_tracker_deleted, not the share renderer', () => {
       const body = renderPushBody({
         notification: notification({
-          type: NOTIFICATION_TYPES.shareOwnerBudgetDeleted,
-          message: 'alice deleted the budget Holiday',
+          type: NOTIFICATION_TYPES.shareOwnerTrackerDeleted,
+          message: 'alice deleted the tracker Holiday',
           payload: { counterpartUser: { id: 3, username: 'carol', avatar: null }, resourceName: 'Holiday' },
         }),
         locale: 'en',
       });
-      expect(body).toBe('alice deleted the budget Holiday');
+      expect(body).toBe('alice deleted the tracker Holiday');
     });
   });
 });

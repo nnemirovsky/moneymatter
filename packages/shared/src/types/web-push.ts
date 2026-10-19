@@ -20,7 +20,8 @@ export type PushGroup = (typeof PUSH_GROUPS)[keyof typeof PUSH_GROUPS];
 export const NOTIFICATION_PUSH_GROUP: Record<NotificationType, PushGroup> = {
   [NOTIFICATION_TYPES.subscriptionReminder]: PUSH_GROUPS.reminders,
   [NOTIFICATION_TYPES.tagReminder]: PUSH_GROUPS.reminders,
-  [NOTIFICATION_TYPES.budgetAlert]: PUSH_GROUPS.reminders,
+  [NOTIFICATION_TYPES.trackerAlert]: PUSH_GROUPS.reminders,
+  [NOTIFICATION_TYPES.trackerAiMatches]: PUSH_GROUPS.reminders,
 
   [NOTIFICATION_TYPES.plannedConfirmed]: PUSH_GROUPS.bankSync,
   [NOTIFICATION_TYPES.stuckPending]: PUSH_GROUPS.bankSync,
@@ -33,7 +34,7 @@ export const NOTIFICATION_PUSH_GROUP: Record<NotificationType, PushGroup> = {
   [NOTIFICATION_TYPES.shareLeft]: PUSH_GROUPS.sharing,
   [NOTIFICATION_TYPES.shareExpired]: PUSH_GROUPS.sharing,
   [NOTIFICATION_TYPES.shareOwnerAccountDeleted]: PUSH_GROUPS.sharing,
-  [NOTIFICATION_TYPES.shareOwnerBudgetDeleted]: PUSH_GROUPS.sharing,
+  [NOTIFICATION_TYPES.shareOwnerTrackerDeleted]: PUSH_GROUPS.sharing,
   [NOTIFICATION_TYPES.householdInvitationReceived]: PUSH_GROUPS.sharing,
   [NOTIFICATION_TYPES.householdInvitationSendFailed]: PUSH_GROUPS.sharing,
   [NOTIFICATION_TYPES.householdAccepted]: PUSH_GROUPS.sharing,

@@ -7,7 +7,7 @@ import { withTransaction } from '@services/common/with-transaction';
 import { Op } from 'sequelize';
 
 import { canUserAccessResource, resolveResourceName } from '../auth/can-user-access-resource.service';
-import { sweepRecipientBudgetTransactions } from '../cleanup/cleanup-budget-shares.service';
+import { sweepRecipientTrackerTransactions } from '../cleanup/cleanup-tracker-shares.service';
 import { getEmailForUser } from '../find-user-by-email.service';
 import { convertCrossUserTransfersToOutOfWallet } from '../household/convert-cross-user-transfers.service';
 import { LIFECYCLE_NOTIFIERS } from '../share-notifications';
@@ -46,7 +46,9 @@ const revokeMemberImpl = async (params: RevokeMemberParams): Promise<RevokeMembe
     // Defensive: there's no ResourceShares row for the owner so this would just 404
     // anyway, but a clean validation error is friendlier and matches the update-member
     // surface.
-    throw new ValidationError({ message: 'Cannot revoke the owner of a shared resource.' });
+    throw new ValidationError({
+      message: 'Cannot revoke the owner of a shared resource.',
+    });
   }
 
   if (memberUserId === callerUserId) {
@@ -69,7 +71,9 @@ const revokeMemberImpl = async (params: RevokeMemberParams): Promise<RevokeMembe
     },
   });
   if (!share) {
-    throw new NotFoundError({ message: 'Member not found on this shared resource.' });
+    throw new NotFoundError({
+      message: 'Member not found on this shared resource.',
+    });
   }
 
   const resourceName = (await resolveResourceName({ resourceType, resourceId: resourceIdStr })) ?? 'Shared resource';
@@ -81,9 +85,13 @@ const revokeMemberImpl = async (params: RevokeMemberParams): Promise<RevokeMembe
 
   // 0 rows means a concurrent revoke or the member's account deletion removed the share
   // after our read; continuing would notify a possibly deleted user.
-  const deleted = await ResourceShares.destroy({ where: { id: sharedShareId } });
+  const deleted = await ResourceShares.destroy({
+    where: { id: sharedShareId },
+  });
   if (!deleted) {
-    throw new NotFoundError({ message: 'Member not found on this shared resource.' });
+    throw new NotFoundError({
+      message: 'Member not found on this shared resource.',
+    });
   }
 
   // Household revoke severs the broad write-grant between owner and recipient —
@@ -97,13 +105,13 @@ const revokeMemberImpl = async (params: RevokeMemberParams): Promise<RevokeMembe
     });
   }
 
-  // Budget revoke: sweep the recipient's attached `BudgetTransactions` rows so the
-  // budget's contents stay consistent with who currently has access. Owner-attached
+  // Tracker revoke: sweep the recipient's attached `TrackerTransactions` rows so the
+  // tracker's contents stay consistent with who currently has access. Owner-attached
   // rows (metadata null) and the recipient's underlying `Transactions` rows are
-  // untouched — only their link to the budget goes.
-  if (resourceType === RESOURCE_TYPES.budget) {
-    await sweepRecipientBudgetTransactions({
-      budgetId: resourceIdStr,
+  // untouched — only their link to the tracker goes.
+  if (resourceType === RESOURCE_TYPES.tracker) {
+    await sweepRecipientTrackerTransactions({
+      trackerId: resourceIdStr,
       recipientUserId: memberUserId,
     });
   }

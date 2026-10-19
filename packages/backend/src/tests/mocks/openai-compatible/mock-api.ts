@@ -1,4 +1,4 @@
-import { HttpResponse, http } from 'msw';
+import { HttpResponse, delay, http } from 'msw';
 
 /**
  * Stand-in for a user-supplied OpenAI-compatible endpoint (Ollama, vLLM, LiteLLM). msw
@@ -167,6 +167,22 @@ export const getCustomEndpointContentMock = ({
   http.post(chatCompletionsUrl({ baseUrl }), async ({ request }) =>
     completionResponse({ model: await requestedModel({ request }), content }),
   );
+
+/** Answers each request with what `respond` builds from its JSON body, for tests that read the prompt. */
+export const getCustomEndpointDynamicMock = ({
+  respond,
+  delayMs = 0,
+  baseUrl = CUSTOM_ENDPOINT_BASE_URL,
+}: {
+  respond: (params: { body: { model?: string; messages?: { role: string; content: unknown }[] } }) => string;
+  delayMs?: number;
+  baseUrl?: string;
+}) =>
+  http.post(chatCompletionsUrl({ baseUrl }), async ({ request }) => {
+    if (delayMs) await delay(delayMs);
+    const body = (await request.json()) as { model?: string; messages?: { role: string; content: unknown }[] };
+    return completionResponse({ model: body.model ?? '', content: respond({ body }) });
+  });
 
 /**
  * vLLM's `/chat/completions`: rejects OpenAI's `file` content part (how the SDK sends a PDF)

@@ -16,7 +16,7 @@ export const ENTITY_LOADER_KINDS: readonly ChatEntityKind[] = [
   'tagReminder',
   'payee',
   'payeeAlias',
-  'budget',
+  'tracker',
   'budgetPlan',
   'budgetPlanGroup',
   'budgetPlanLine',
@@ -61,6 +61,7 @@ interface ExplicitPolicy {
 const ACCOUNT_GROUP = { groupId: 'accountGroup' } as const;
 const TRANSACTION_GROUP = { groupId: 'transactionGroup' } as const;
 const BUDGET_PLAN_GROUP = { groupId: 'budgetPlanGroup' } as const;
+const TRACKER_LINE = { lineId: 'trackerLine' } as const;
 
 export const EXPLICIT_POLICIES: Readonly<Record<string, ExplicitPolicy>> = {
   // Accounts
@@ -122,10 +123,15 @@ export const EXPLICIT_POLICIES: Readonly<Record<string, ExplicitPolicy>> = {
   apply_payee_tags_to_transactions: { entity: 'payee', previewResolver: 'applyPayeeTags' },
   delete_payee_alias: { targetFields: ['payeeId', 'aliasId'] },
 
-  // Budgets
-  archive_budget: { kind: 'update', entity: 'budget' },
-  add_transactions_to_budget: { kind: 'link', entity: 'budget' },
-  remove_transactions_from_budget: { entity: 'budget' },
+  // Trackers
+  archive_tracker: { kind: 'update', entity: 'tracker' },
+  add_transactions_to_tracker: { kind: 'link', entity: 'tracker' },
+  remove_transactions_from_tracker: { entity: 'tracker' },
+  create_tracker_line: { entity: 'tracker' },
+  update_tracker_line: { entity: 'tracker', targetFields: ['trackerId'], entityFields: TRACKER_LINE },
+  delete_tracker_line: { entity: 'tracker', targetFields: ['trackerId'], entityFields: TRACKER_LINE },
+  accept_tracker_suggestions: { kind: 'link', entity: 'tracker' },
+  reject_tracker_suggestions: { kind: 'link', entity: 'tracker' },
 
   // Investments
   delete_holding: { targetFields: ['portfolioId', 'securityId'] },

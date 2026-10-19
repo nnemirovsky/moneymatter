@@ -25,7 +25,7 @@ interface WholeTxRefund {
  * The original + refund txs are loaded fresh (some sit outside the report window) with only the
  * attributes the caller's dimension needs.
  *
- * The category resolvers (`resolveRefundPairs`, `fetchBudgetRefundPairs`) can't stand in here:
+ * The category resolvers (`resolveRefundPairs`, `fetchTrackerRefundPairs`) can't stand in here:
  * they resolve a refund down to the split it targeted, and splits carry no payee or tag.
  */
 export const resolveWholeTxRefunds = async ({

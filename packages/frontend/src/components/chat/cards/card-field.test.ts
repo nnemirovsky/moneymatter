@@ -85,14 +85,14 @@ describe('CardField', () => {
   it('falls back to the entity kind when the name is not known', () => {
     const wrapper = mountField({
       field: buildField({
-        path: 'budgetId',
+        path: 'trackerId',
         value: 'b1',
         display: { kind: 'entity' },
-        editable: { type: 'entity', entity: 'budget' },
+        editable: { type: 'entity', entity: 'tracker' },
       }),
     });
 
-    expect(wrapper.text()).toContain('Budget');
+    expect(wrapper.text()).toContain('Tracker');
   });
 
   it('shows a ref to a pending card as a link to that card', () => {

@@ -11,6 +11,7 @@ import {
   type ShareInvitationSendFailedPayload,
   type ShareLifecycleNotificationPayload,
   TagReminderNotificationPayload,
+  type TrackerAiMatchesNotificationPayload,
 } from '@bt/shared/types';
 import {
   AlertTriangleIcon,
@@ -54,11 +55,12 @@ const { formatDistanceToNow } = useDateLocale();
 
 const getIcon = (type: NotificationType) => {
   switch (type) {
-    case NOTIFICATION_TYPES.budgetAlert:
+    case NOTIFICATION_TYPES.trackerAlert:
       return WalletIcon;
     case NOTIFICATION_TYPES.system:
       return AlertTriangleIcon;
     case NOTIFICATION_TYPES.changelog:
+    case NOTIFICATION_TYPES.trackerAiMatches:
       return SparklesIcon;
     case NOTIFICATION_TYPES.tagReminder:
       return TagIcon;
@@ -103,12 +105,14 @@ const getIcon = (type: NotificationType) => {
 
 const getIconBg = (type: NotificationType) => {
   switch (type) {
-    case NOTIFICATION_TYPES.budgetAlert:
+    case NOTIFICATION_TYPES.trackerAlert:
       return 'bg-orange-500';
     case NOTIFICATION_TYPES.system:
       return 'bg-blue-500';
     case NOTIFICATION_TYPES.changelog:
       return 'bg-purple-500';
+    case NOTIFICATION_TYPES.trackerAiMatches:
+      return 'bg-primary';
     case NOTIFICATION_TYPES.tagReminder:
       return 'bg-amber-500';
     case NOTIFICATION_TYPES.subscriptionReminder:
@@ -154,6 +158,20 @@ const getTitle = (notification: NotificationStruct): string => {
     return payload?.version
       ? t('notifications.newVersion', { version: payload.version })
       : t('notifications.newRelease');
+  }
+  if (notification.type === NOTIFICATION_TYPES.trackerAiMatches) {
+    const { trackerName, linkedCount, suggestedCount } = notification.payload as TrackerAiMatchesNotificationPayload;
+    const added = t('notifications.trackerAiMatches.added', { count: linkedCount }, linkedCount);
+    const toReview = t('notifications.trackerAiMatches.toReview', { count: suggestedCount }, suggestedCount);
+    let summary = added;
+    if (!linkedCount) summary = toReview;
+    else if (suggestedCount) {
+      summary = t('notifications.trackerAiMatches.both', {
+        added,
+        toReview: t('notifications.trackerAiMatches.toReviewShort', { count: suggestedCount }),
+      });
+    }
+    return t('notifications.trackerAiMatches.title', { name: trackerName, summary });
   }
   return notification.title || '';
 };

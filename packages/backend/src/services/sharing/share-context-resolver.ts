@@ -62,7 +62,7 @@ export interface ResolvedShareSource<TRow> {
  * One mechanism by which a user gets access to a resource (per-resource share,
  * household membership, future team/org grant, etc.). Each source owns both the
  * grant query and the row-to-grant mapping so divergent mechanisms (e.g. selective
- * household-budget vs all-or-nothing household-account) plug in independently.
+ * household-tracker vs all-or-nothing household-account) plug in independently.
  */
 export interface ShareSource<TRow> {
   /**

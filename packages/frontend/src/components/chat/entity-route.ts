@@ -11,7 +11,7 @@ const ENTITY_ROUTES: Readonly<Partial<Record<ChatEntityKind, { name: string; par
   ventureDeal: { name: ROUTES_NAMES.ventureDealDetail, param: 'dealId' },
   budgetPlan: { name: ROUTES_NAMES.budgetPlan, param: 'planId' },
   subscription: { name: ROUTES_NAMES.plannedSubscriptionDetails, param: 'id' },
-  budget: { name: ROUTES_NAMES.plannedBudgetDetails, param: 'id' },
+  tracker: { name: ROUTES_NAMES.plannedTrackerDetails, param: 'id' },
   payee: { name: ROUTES_NAMES.settingsPayeeDetail, param: 'id' },
   transactionAutomation: { name: ROUTES_NAMES.automationDetails, param: 'id' },
 };

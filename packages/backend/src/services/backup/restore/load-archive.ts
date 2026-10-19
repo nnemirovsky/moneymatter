@@ -8,6 +8,7 @@ import { BACKUP_TABLES, type BackupFileName } from '../registry';
 import { sha256Hex } from '../sha256';
 import { FIRST_DECIMAL_MONEY_FORMAT_VERSION, convertV1MoneyToDecimal } from './convert-v1-money';
 import { fillUserRateEffectiveDates } from './fill-user-rate-effective-dates';
+import { normalizeLegacyArchive } from './normalize-legacy-archive';
 
 const BACKUP_FILE_NAMES = BACKUP_TABLES.map((t) => t.fileName);
 
@@ -220,6 +221,8 @@ export async function loadBackupArchive({
     }
     parsedByPath.set(path, parseJson({ buffer: bytes, path }));
   }
+
+  normalizeLegacyArchive({ formatVersion, parsedByPath });
 
   const data = new Map<BackupFileName, Row[]>();
   let user: Row | null = null;

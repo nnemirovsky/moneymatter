@@ -11,6 +11,8 @@ const config: KnipConfig = {
     'e2e/**/**',
     // keep them all for now
     'src/components/lib/**/**',
+    // Only consumer is the kept-but-unused lib ActionButton
+    'src/composable/use-action-state.ts',
     // Loaded by a <script src="/config.js"> tag in index.html, which knip does
     // not follow. The self-host container entrypoint overwrites it at boot.
     'public/config.js',

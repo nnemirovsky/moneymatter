@@ -15,6 +15,7 @@ export function presentPayee({ payee }: { payee: Payees }) {
     logoDomain: payee.logoDomain,
     logoInitials: payee.logoInitials,
     logoColor: payee.logoColor,
+    logoIcon: payee.logoIcon,
     ...(payee.aliases
       ? {
           aliases: payee.aliases.map((alias) => ({
