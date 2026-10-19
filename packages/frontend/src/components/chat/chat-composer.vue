@@ -354,6 +354,11 @@ defineExpose({
         <SendIcon class="size-4" aria-hidden="true" />
       </Button>
     </div>
-    <p class="text-muted-foreground hidden px-1 text-xs @sm/chat-conversation:block">{{ $t('chat.composer.hint') }}</p>
+    <div class="flex items-center justify-between gap-3">
+      <slot name="connection" />
+      <p class="text-muted-foreground ml-auto hidden px-1 text-xs @sm/chat-conversation:block">
+        {{ $t('chat.composer.hint') }}
+      </p>
+    </div>
   </div>
 </template>

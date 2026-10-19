@@ -7,6 +7,7 @@ import {
   setAiFeatureConfig,
   setCustomInstructions,
 } from '@/api/ai-settings';
+import { pickConfigurableFeatureStatuses } from '@/common/const/ai-features';
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const/vue-query';
 import { AI_FEATURE } from '@bt/shared/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
@@ -60,6 +61,11 @@ export const useAiSettings = () => {
 
   const featuresStatus = computed(() => featuresStatusQuery.data.value?.features ?? []);
 
+  /** The features whose model Settings picks; chat takes its model per conversation. */
+  const configurableFeaturesStatus = computed(() =>
+    pickConfigurableFeatureStatuses({ statuses: featuresStatus.value }),
+  );
+
   /**
    * An empty `featuresStatus` means nothing here: the request failed.
    * Screens reading a feature's config must show a retry, not a "not configured" state.
@@ -81,6 +87,7 @@ export const useAiSettings = () => {
     // Data
     customInstructions,
     featuresStatus,
+    configurableFeaturesStatus,
     featuresUnknown,
     isRefetchingFeatures: featuresStatusQuery.isFetching,
     refetchFeatures: featuresStatusQuery.refetch,

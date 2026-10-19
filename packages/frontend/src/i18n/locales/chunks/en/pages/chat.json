@@ -642,6 +642,13 @@
         "label": "From this page: {label}"
       }
     },
+    "connection": {
+      "label": "Model for this chat",
+      "placeholder": "Choose a model",
+      "included": "Included model",
+      "option": "{name} ({model})",
+      "optionNeedsAttention": "{name} ({model}) - needs attention"
+    },
     "context": {
       "pages": {
         "transactions": "Transactions",

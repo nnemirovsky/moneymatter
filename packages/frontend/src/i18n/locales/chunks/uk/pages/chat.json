@@ -642,6 +642,13 @@
         "label": "З цієї сторінки: {label}"
       }
     },
+    "connection": {
+      "label": "Модель для цього чату",
+      "placeholder": "Виберіть модель",
+      "included": "Вбудована модель",
+      "option": "{name} ({model})",
+      "optionNeedsAttention": "{name} ({model}) - потребує уваги"
+    },
     "context": {
       "pages": {
         "transactions": "Транзакції",

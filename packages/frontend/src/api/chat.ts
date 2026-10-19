@@ -11,6 +11,8 @@ import {
   type ChatAttachment,
   type ChatCancelRunResponse,
   type ChatCardActionResponse,
+  type ChatCreateThreadRequest,
+  type ChatDefaultConnection,
   type ChatEditProposalRequest,
   type ChatProposalCard,
   type ChatRetentionDays,
@@ -21,6 +23,7 @@ import {
   type ChatThread,
   type ChatThreadListPage,
   type ChatThreadWithMessages,
+  type ChatUpdateThreadRequest,
 } from '@bt/shared/types';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 
@@ -34,8 +37,14 @@ export const listChatThreads = ({
   limit?: number;
 } = {}): Promise<ChatThreadListPage> => api.get('/chat/threads', { q, cursor, limit });
 
-export const createChatThread = ({ title }: { title?: string } = {}): Promise<ChatThread> =>
-  api.post('/chat/threads', title === undefined ? {} : { title });
+export const createChatThread = ({ title, connectionId }: ChatCreateThreadRequest = {}): Promise<ChatThread> =>
+  api.post('/chat/threads', {
+    ...(title === undefined ? {} : { title }),
+    ...(connectionId === undefined ? {} : { connectionId }),
+  });
+
+/** The connection a new conversation starts on when the user picks none. */
+export const getChatDefaultConnection = (): Promise<ChatDefaultConnection> => api.get('/chat/default-connection');
 
 /** The latest page of a thread, or the page just before the message `before`. */
 export const getChatThread = ({
@@ -53,7 +62,7 @@ export const updateChatThread = ({
   payload,
 }: {
   threadId: string;
-  payload: { title?: string; pinned?: boolean };
+  payload: ChatUpdateThreadRequest;
 }): Promise<ChatThread> => api.patch(`/chat/threads/${threadId}`, payload);
 
 export const deleteChatThread = async ({ threadId }: { threadId: string }): Promise<void> => {

@@ -258,6 +258,7 @@ export const VUE_QUERY_CACHE_KEYS = Object.freeze({
   chatThreads: ['chat', 'threads'] as const,
   chatThread: ['chat', 'thread'] as const,
   chatAppliedCards: ['chat', 'applied'] as const,
+  chatDefaultConnection: ['chat', 'default-connection'] as const,
 
   // MCP connected apps
   mcpConnectedApps: ['mcp-connected-apps'] as const,

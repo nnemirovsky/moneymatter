@@ -121,7 +121,7 @@
 </template>
 
 <script setup lang="ts">
-import { getAIFeatureDisplayInfo } from '@/common/const';
+import { type ConfigurableAIFeatureStatus, getAIFeatureDisplayInfo } from '@/common/const';
 import ApiKeySourceBadge from '@/components/common/api-key-source-badge.vue';
 import SelectField from '@/components/fields/select-field.vue';
 import { Button } from '@/components/lib/ui/button';
@@ -149,7 +149,7 @@ import { type ModelFitWarning, checkModelFit } from './model-fit';
 import ModelGuidePopover from './model-guide-popover.vue';
 
 const props = defineProps<{
-  featureStatus: AIFeatureStatus;
+  featureStatus: ConfigurableAIFeatureStatus;
 }>();
 
 const { t } = useI18n();
