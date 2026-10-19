@@ -162,13 +162,17 @@ describe('getDefaultCliModel', () => {
 describe('getCliModelOptions', () => {
   const findPreset = ({ id }: { id: string }) => AI_CONNECTION_PRESETS.find((preset) => preset.id === id)!;
 
-  it('lists one labelled option per Claude model, aliases only', () => {
-    expect(getCliModelOptions({ preset: findPreset({ id: 'claudeCode' }) })).toEqual([
-      { id: 'sonnet', label: 'Claude Sonnet 5.5' },
-      { id: 'opus', label: 'Claude Opus 5.5' },
-      { id: 'haiku', label: 'Claude Haiku 5.5' },
-      { id: 'fable', label: 'Claude Fable 5.1' },
+  it('lists the Claude aliases first, as the moving ones they are, then the versioned ids as they are', () => {
+    const options = getCliModelOptions({ preset: findPreset({ id: 'claudeCode' }) });
+
+    expect(options.slice(0, 5)).toEqual([
+      { id: 'sonnet', label: 'sonnet (latest)' },
+      { id: 'opus', label: 'opus (latest)' },
+      { id: 'haiku', label: 'haiku (latest)' },
+      { id: 'fable', label: 'fable (latest)' },
+      { id: 'claude-fable-5-1', label: 'claude-fable-5-1' },
     ]);
+    expect(options).toContainEqual({ id: 'claude-opus-5-5', label: 'claude-opus-5-5' });
   });
 
   it('lists the Codex models with their labels', () => {
@@ -186,10 +190,10 @@ describe('getCliModelOptions', () => {
     }
   });
 
-  it('adds no extra option for a legacy pinned id, which shows as its alias', () => {
+  it('adds no extra option for a stored versioned id, which the list offers itself', () => {
     const preset = findPreset({ id: 'claudeCode' });
 
-    expect(getCliModelOptions({ preset, currentModel: 'claude-opus-5-5' })).toHaveLength(4);
+    expect(getCliModelOptions({ preset, currentModel: 'claude-opus-5-5' })).toEqual(getCliModelOptions({ preset }));
   });
 
   it('keeps an unknown stored model as an option under its own name', () => {
@@ -206,9 +210,9 @@ describe('getCliModelOptions', () => {
 describe('resolveCliModelId', () => {
   const claude = AI_CONNECTION_PRESETS.find((preset) => preset.id === 'claudeCode')!;
 
-  it('maps a legacy pinned id to its alias', () => {
-    expect(resolveCliModelId({ preset: claude, model: 'claude-sonnet-5-5' })).toBe('sonnet');
-    expect(resolveCliModelId({ preset: claude, model: 'claude-fable-5-1' })).toBe('fable');
+  it('keeps a versioned id as its own option, apart from the alias that follows it', () => {
+    expect(resolveCliModelId({ preset: claude, model: 'claude-sonnet-5-5' })).toBe('claude-sonnet-5-5');
+    expect(resolveCliModelId({ preset: claude, model: 'sonnet' })).toBe('sonnet');
   });
 
   it('keeps a current or unknown id as it is', () => {

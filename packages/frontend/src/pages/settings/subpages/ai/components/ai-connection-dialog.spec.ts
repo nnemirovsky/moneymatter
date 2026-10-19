@@ -101,31 +101,27 @@ const modelField = (wrapper: Awaited<ReturnType<typeof mountDialog>>) =>
   wrapper.find('[data-field="settings.ai.connections.form.modelLabel"]');
 
 describe('AiConnectionDialog model field for a subscription preset', () => {
-  it('renders a select with exactly the four Claude models, not a combobox', async () => {
+  it('renders a select of the Claude aliases and versioned ids, not a combobox', async () => {
     const wrapper = await mountDialog({ connection: makeConnection() });
     const field = modelField(wrapper);
 
     expect(wrapper.find('[data-autocomplete]').exists()).toBe(false);
-    expect(field.findAll('[data-option]').map((option) => option.attributes('data-option'))).toEqual([
-      'sonnet',
-      'opus',
-      'haiku',
-      'fable',
-    ]);
-    expect(field.findAll('[data-option]').map((option) => option.text())).toEqual([
-      'Claude Sonnet 5.5',
-      'Claude Opus 5.5',
-      'Claude Haiku 5.5',
-      'Claude Fable 5.1',
-    ]);
+    const ids = field.findAll('[data-option]').map((option) => option.attributes('data-option'));
+    expect(ids.slice(0, 5)).toEqual(['sonnet', 'opus', 'haiku', 'fable', 'claude-fable-5-1']);
+    expect(ids).toContain('claude-haiku-5-5');
+    expect(
+      field
+        .findAll('[data-option]')
+        .slice(0, 5)
+        .map((option) => option.text()),
+    ).toEqual(['sonnet (latest)', 'opus (latest)', 'haiku (latest)', 'fable (latest)', 'claude-fable-5-1']);
   });
 
-  it('shows a legacy pinned id as its alias option', async () => {
+  it('shows a stored versioned id as its own option, not as the alias', async () => {
     const wrapper = await mountDialog({ connection: makeConnection({ model: 'claude-opus-5-5' }) });
     const field = modelField(wrapper);
 
-    expect(field.find('[data-selected]').text()).toBe('opus');
-    expect(field.findAll('[data-option]')).toHaveLength(4);
+    expect(field.find('[data-selected]').text()).toBe('claude-opus-5-5');
   });
 
   it('lists the Codex models and selects the stored one', async () => {
