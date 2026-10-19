@@ -9,7 +9,7 @@ const { mockLink } = vi.hoisted(() => ({ mockLink: { current: null as unknown } 
 
 vi.mock('../composables/use-shortcut-link', () => ({ useShortcutLink: () => mockLink.current }));
 
-const FILE = '/shortcuts/moneymatter-log-card-payment.shortcut';
+const FILE = '/shortcuts/log-card-payment.shortcut';
 const ICLOUD = 'https://www.icloud.com/shortcuts/abc123';
 
 const mountButton = ({ href }: { href: string | null }) => {

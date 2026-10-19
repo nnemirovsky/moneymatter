@@ -125,11 +125,11 @@ import { useQuery } from '@tanstack/vue-query';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import CreateTokenDialog from '../components/create-token-dialog.vue';
+import CreateTokenDialog from './create-token-dialog.vue';
 import { formatTokenStart, getIngestScopeLabelKey } from '../ingest-tokens';
 
 defineOptions({
-  name: 'settings-integrations-ingest-tokens',
+  name: 'apple-pay-ingest-devices',
 });
 
 const LABEL_ROOT = 'settings.integrations.ingestTokens';

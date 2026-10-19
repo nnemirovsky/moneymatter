@@ -5,7 +5,12 @@
         "titleSelect": "Додати інтеграцію",
         "titleConnect": "Підключити {provider}",
         "selectProviderHint": "Оберіть провайдера банківських даних для підключення",
-        "betaBadge": "Бета"
+        "betaBadge": "Бета",
+        "applePay": {
+          "name": "Apple Pay",
+          "description": "Записуйте кожен платіж Apple Pay автоматично за допомогою ярлика iOS.",
+          "badge": "Налаштування"
+        }
       },
       "providers": {
         "monobank": {

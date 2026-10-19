@@ -4,26 +4,30 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Ref } from 'vue';
 import { defineComponent, h, ref } from 'vue';
 
-import * as shortcutModule from '../composables/use-shortcut-link';
-import { createGlobalPlugins } from '../test-support';
-import ApplePay from './apple-pay.vue';
+import ApplePay from './apple-pay-details.vue';
+import * as shortcutModule from './composables/use-shortcut-link';
+import { createGlobalPlugins } from './test-support';
 
-const { mockCreateSetupCode, mockLogWaiting, mockConfig, mockAddError } = vi.hoisted(() => ({
+const { mockCreateSetupCode, mockLogWaiting, mockConfig, mockAddError, mockPush } = vi.hoisted(() => ({
   mockCreateSetupCode: vi.fn(),
   mockLogWaiting: vi.fn(),
   mockConfig: { isSelfHost: false, docsUrl: 'https://docs.example.com' },
   mockAddError: vi.fn(),
+  mockPush: vi.fn(),
 }));
+
+vi.mock('vue-router', () => ({ useRouter: () => ({ push: mockPush }) }));
+vi.mock('@/routes', () => ({ ROUTES_NAMES: { accounts: 'accounts' } }));
 
 vi.mock('@/api/ingest', () => ({ createCardPaymentSetupCode: mockCreateSetupCode }));
 vi.mock('@/api/api-base-url', () => ({ API_HTTP: 'https://money.example.com', API_VER: '/api/v1' }));
 vi.mock('@/common/config', () => ({ config: mockConfig }));
-vi.mock('../composables/use-shortcut-link', async () => {
+vi.mock('./composables/use-shortcut-link', async () => {
   const { ref: createRef } = await import('vue');
   const shortcut = { href: createRef<string | null>(null), isResolved: createRef(true) };
   return { useShortcutLink: () => shortcut, shortcut };
 });
-vi.mock('../composables/use-log-waiting-payments', () => ({
+vi.mock('./composables/use-log-waiting-payments', () => ({
   useLogWaitingPayments: () => ({ logWaitingPayments: mockLogWaiting, isLogging: ref(false) }),
 }));
 vi.mock('@/composable/data-queries/use-invalidating-mutation', () => ({ notifyMutationError: vi.fn() }));
@@ -35,10 +39,10 @@ vi.mock('@/components/notification-center', () => ({
   }),
 }));
 vi.mock('@/components/common/responsive-dialog.vue', async () => ({
-  default: (await import('../test-support')).createResponsiveDialogStub(),
+  default: (await import('./test-support')).createResponsiveDialogStub(),
 }));
 vi.mock('@/components/common/responsive-alert-dialog.vue', async () => ({
-  default: (await import('../test-support')).createResponsiveAlertDialogStub(),
+  default: (await import('./test-support')).createResponsiveAlertDialogStub(),
 }));
 
 /** The module is mocked above and exports the refs the page reads. */
@@ -96,6 +100,7 @@ const CardLinkDialogStub = defineComponent({
 
 const stubs = {
   CardLinks: stub('CardLinksStub', 'card-links-stub'),
+  IngestDevices: stub('IngestDevicesStub', 'devices-stub'),
   UnlinkedCards: UnlinkedCardsStub,
   WaitingPayments: stub('WaitingPaymentsStub', 'waiting-stub'),
   UnconfirmedPayments: stub('UnconfirmedPaymentsStub', 'unconfirmed-stub'),
@@ -131,7 +136,7 @@ describe('Apple Pay page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockConfig.isSelfHost = false;
-    mockShortcut.href.value = '/shortcuts/moneymatter-log-card-payment.shortcut';
+    mockShortcut.href.value = '/shortcuts/log-card-payment.shortcut';
     mockShortcut.isResolved.value = true;
     mockCreateSetupCode.mockResolvedValue({ token: { id: 't1' }, setupCode: CODE });
   });
@@ -246,6 +251,16 @@ describe('Apple Pay page', () => {
     const link = wrapper.get('[data-testid="manual-guide"] a');
     expect(link.attributes('href')).toBe('https://docs.example.com/integrations/apple-pay/');
     expect(link.text()).toContain('manual setup guide');
+  });
+
+  it('lists the devices below the payments and goes back to the accounts', async () => {
+    const { wrapper } = mountPage();
+
+    expect(wrapper.find('[data-testid="devices-stub"]').exists()).toBe(true);
+
+    await wrapper.get('[data-testid="apple-pay-back"]').trigger('click');
+
+    expect(mockPush).toHaveBeenCalledWith({ name: 'accounts' });
   });
 
   it('walks through the automation on the phone', () => {

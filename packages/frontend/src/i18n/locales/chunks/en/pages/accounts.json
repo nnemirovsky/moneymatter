@@ -43,6 +43,11 @@
       "active": "Active",
       "expiringSoon": "Expiring soon",
       "expired": "Expired"
+    },
+    "applePay": {
+      "name": "Apple Pay",
+      "cardsLinked": "{count} card linked | {count} cards linked",
+      "waiting": "{count} waiting"
     }
   }
 }

@@ -55,6 +55,12 @@ const routes: RouteRecordRaw[] = [
         redirect: { name: ROUTES_NAMES.accounts },
       },
       {
+        path: '/accounts/integrations/apple-pay',
+        name: ROUTES_NAMES.accountApplePay,
+        component: () => import('@/pages/accounts/integrations/apple-pay/apple-pay-details.vue'),
+        meta: { navSection: 'accounts', i18nChunks: ['settings/integrations'] },
+      },
+      {
         path: '/accounts/integrations/:connectionId',
         name: ROUTES_NAMES.accountIntegrationDetails,
         component: () => import('@/pages/accounts/integrations/details.vue'),
@@ -529,25 +535,8 @@ const routes: RouteRecordRaw[] = [
               { path: 'endpoints', redirect: { name: ROUTES_NAMES.settingsAiModels } },
             ],
           },
-          {
-            path: 'integrations',
-            name: ROUTES_NAMES.settingsIntegrations,
-            component: () => import('@/pages/settings/subpages/integrations/index.vue'),
-            redirect: { name: ROUTES_NAMES.settingsIntegrationsIngestTokens },
-            meta: { i18nChunks: ['settings/integrations'] },
-            children: [
-              {
-                path: 'ingest-tokens',
-                name: ROUTES_NAMES.settingsIntegrationsIngestTokens,
-                component: () => import('@/pages/settings/subpages/integrations/pages/ingest-tokens.vue'),
-              },
-              {
-                path: 'apple-pay',
-                name: ROUTES_NAMES.settingsIntegrationsApplePay,
-                component: () => import('@/pages/settings/subpages/integrations/pages/apple-pay.vue'),
-              },
-            ],
-          },
+          // Apple Pay setup moved next to the bank connections.
+          { path: 'integrations/:pathMatch(.*)*', redirect: { name: ROUTES_NAMES.accountApplePay } },
           {
             path: 'security',
             name: ROUTES_NAMES.settingsSecurity,

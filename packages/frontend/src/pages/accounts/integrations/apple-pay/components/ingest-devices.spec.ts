@@ -6,7 +6,7 @@ import { type VueWrapper, flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createI18n } from 'vue-i18n';
 
-import IngestTokens from './ingest-tokens.vue';
+import IngestDevices from './ingest-devices.vue';
 
 const { mockGetIngestTokens, mockRevokeIngestToken, mockAddSuccess, mockNotifyError } = vi.hoisted(() => ({
   mockGetIngestTokens: vi.fn(),
@@ -86,7 +86,7 @@ const i18n = createI18n({
 });
 
 const mountPage = () =>
-  mount(IngestTokens, {
+  mount(IngestDevices, {
     global: {
       plugins: [
         i18n,
@@ -104,7 +104,7 @@ const mountWithTokens = async (tokens: IngestTokenDto[]) => {
   return wrapper;
 };
 
-describe('Ingest tokens page', () => {
+describe('Ingest devices', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers({ toFake: ['Date'] });
@@ -165,7 +165,7 @@ describe('Ingest tokens page', () => {
       const wrapper = await mountWithTokens([]);
 
       expect(rows(wrapper)).toHaveLength(0);
-      expect(wrapper.get('[data-testid="ingest-tokens-empty"]').text()).toContain('No tokens yet');
+      expect(wrapper.get('[data-testid="ingest-tokens-empty"]').text()).toContain('No devices yet');
     });
 
     it('says the list could not be loaded instead of claiming there are no tokens', async () => {

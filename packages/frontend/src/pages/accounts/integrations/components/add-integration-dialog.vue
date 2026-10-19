@@ -125,6 +125,27 @@
         />
       </template>
     </PlanRestricted>
+
+    <!-- Apple Pay is not a bank provider, so it sits outside the bank-provider plan gate. -->
+    <div v-if="currentStep === 'select-provider'" class="border-border/60 mt-2 border-t pt-2">
+      <UiButton
+        variant="ghost"
+        class="h-auto w-full min-w-0 justify-start gap-3 px-3 py-2.5"
+        data-testid="add-apple-pay"
+        @click="handleSelectApplePay"
+      >
+        <CreditCardIcon class="text-muted-foreground size-9 shrink-0 p-1.5" aria-hidden="true" />
+
+        <span class="min-w-0 flex-1 text-left">
+          <span class="block truncate text-sm font-medium">{{ t('pages.integrations.addDialog.applePay.name') }}</span>
+          <span class="text-muted-foreground block truncate text-xs font-normal">
+            {{ t('pages.integrations.addDialog.applePay.description') }}
+          </span>
+        </span>
+
+        <ChevronRightIcon class="text-muted-foreground size-4 shrink-0" />
+      </UiButton>
+    </div>
   </ResponsiveDialog>
 </template>
 
@@ -147,9 +168,11 @@ import UiButton from '@/components/lib/ui/button/Button.vue';
 import { trackAnalyticsEvent } from '@/lib/posthog';
 import { cn } from '@/lib/utils';
 import { BANK_PROVIDER_TYPE, FEATURES } from '@bt/shared/types';
-import { ChevronRightIcon, InfoIcon } from '@lucide/vue';
+import { ROUTES_NAMES } from '@/routes';
+import { ChevronRightIcon, CreditCardIcon, InfoIcon } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 
 import EnableBankingConnector from './enable-banking-connector.vue';
 import LunchFlowConnector from './lunchflow-connector.vue';
@@ -158,6 +181,7 @@ import SimplefinConnector from './simplefin-connector.vue';
 import WalutomatConnector from './walutomat-connector.vue';
 
 const { t } = useI18n();
+const router = useRouter();
 
 interface Props {
   open: boolean;
@@ -237,6 +261,12 @@ const handleSelectProvider = (providerType: string) => {
     event: 'bank_connection_opened',
     properties: { provider: providerType },
   });
+};
+
+/** Apple Pay has no bank to authorize: its setup, cards and devices live on one page. */
+const handleSelectApplePay = () => {
+  emit('update:open', false);
+  router.push({ name: ROUTES_NAMES.accountApplePay });
 };
 
 const handleProviderConnected = () => {

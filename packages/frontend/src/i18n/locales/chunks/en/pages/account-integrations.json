@@ -5,7 +5,12 @@
         "titleSelect": "Add Integration",
         "titleConnect": "Connect {provider}",
         "selectProviderHint": "Where do you bank? Pick a region to see what works there.",
-        "betaBadge": "Beta"
+        "betaBadge": "Beta",
+        "applePay": {
+          "name": "Apple Pay",
+          "description": "Log every Apple Pay payment automatically with an iOS shortcut.",
+          "badge": "Set up"
+        }
       },
       "providers": {
         "monobank": {

@@ -43,6 +43,11 @@
       "active": "Активний",
       "expiringSoon": "Скоро закінчиться",
       "expired": "Закінчився"
+    },
+    "applePay": {
+      "name": "Apple Pay",
+      "cardsLinked": "{count} картку прив’язано | {count} картки прив’язано | {count} карток прив’язано",
+      "waiting": "{count} очікують"
     }
   }
 }
