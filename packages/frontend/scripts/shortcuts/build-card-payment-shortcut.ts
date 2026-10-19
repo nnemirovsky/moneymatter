@@ -1,5 +1,5 @@
 /**
- * Generates the unsigned "MoneyMatter: log card payment" Shortcut as an XML property list.
+ * Generates the unsigned "MoneyMatter - Log card payment" Shortcut as an XML property list.
  *
  * `npm run shortcuts:build` writes `shortcuts/log-card-payment.plist`; the maintainer signs that
  * file on macOS (`shortcuts sign`, see `public/shortcuts/README.md`). The output is
@@ -36,6 +36,7 @@ export const SHORTCUT_ACTIONS = {
   downloadUrl: 'is.workflow.actions.downloadurl',
   setVariable: 'is.workflow.actions.setvariable',
   notification: 'is.workflow.actions.notification',
+  exit: 'is.workflow.actions.exit',
 } as const;
 
 export const SHORTCUT_PARAMS = {
@@ -75,8 +76,10 @@ export const CONDITION_CODES = { 'Has Any Value': 100, 'Does Not Have Any Value'
 const PLACEHOLDER = '￼';
 
 const SEED = 'moneymatter-log-card-payment-shortcut-v1';
-const SHORTCUT_NAME = 'MoneyMatter: log card payment';
+const SHORTCUT_NAME = 'MoneyMatter - Log card payment';
 const IMPORT_QUESTION = 'Paste the setup code from the Apple Pay page in MoneyMatter (Accounts → Apple Pay).';
+const SETUP_ERROR =
+  'MoneyMatter setup code is missing or invalid. Generate a new one on the Apple Pay page and set the shortcut up again.';
 const KEY_TIME_FORMAT = "yyyy-MM-dd'T'HH:mmZZZZZ";
 const SOURCE = 'apple-pay';
 const IMPORT_QUESTION_ACTION_INDEX = 0;
@@ -340,6 +343,24 @@ export const buildCardPaymentShortcut = (): Dict => {
     });
 
   // 9-..: the Wallet automation passes the payment as Shortcut Input; a manual run has none.
+  // No setup code (or a bad one) leaves `url` or `token` empty; stop with a message instead of
+  // letting Get Contents of URL fail with "No URL Specified". The Cloudflare pair is optional.
+  const stopWhenEmpty = ({ group, value }: { group: number; value: Output }) => {
+    conditional({ group, mode: 0, subject: from({ output: value }), condition: 'Does Not Have Any Value' });
+    add({
+      identifier: SHORTCUT_ACTIONS.notification,
+      name: 'Notification',
+      parameters: {
+        [SHORTCUT_PARAMS.notificationTitle]: SHORTCUT_NAME,
+        [SHORTCUT_PARAMS.notificationBody]: tokenString({ parts: [SETUP_ERROR] }),
+      },
+    });
+    add({ identifier: SHORTCUT_ACTIONS.exit, name: 'Stop', parameters: {} });
+    conditional({ group, mode: 2 });
+  };
+  stopWhenEmpty({ group: 1002, value: url });
+  stopWhenEmpty({ group: 1003, value: token });
+
   conditional({ group: 1000, mode: 0, subject: shortcutInput(), condition: 'Has Any Value' });
 
   const now = add({
