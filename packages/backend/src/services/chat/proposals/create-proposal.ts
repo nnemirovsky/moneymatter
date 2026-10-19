@@ -91,6 +91,7 @@ export async function createProposal({
     userId: run.user.id,
     toolName: policy.name,
     args,
+    targetAccountId: preview?.before?.accountId,
     uncertain: meta.uncertain && meta.uncertain.length > 0 ? meta.uncertain : null,
   });
 

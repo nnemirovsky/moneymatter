@@ -31,14 +31,18 @@ export async function markAccountHistoryMismatch({
   userId,
   toolName,
   args,
+  targetAccountId,
   uncertain,
 }: {
   userId: number;
   toolName: string;
   args: Record<string, unknown>;
+  /** The account of the transaction an update targets, read by the preview; used when the call does not move it. */
+  targetAccountId?: unknown;
   uncertain: ChatUncertainField[] | null;
 }): Promise<ChatUncertainField[] | null> {
-  const { accountId, paymentType } = args;
+  const { paymentType } = args;
+  const accountId = args.accountId ?? targetAccountId;
   if (toolName !== 'create_transaction' && toolName !== 'update_transaction') return uncertain;
   if (typeof accountId !== 'string' || !UUID.test(accountId) || typeof paymentType !== 'string') return uncertain;
 

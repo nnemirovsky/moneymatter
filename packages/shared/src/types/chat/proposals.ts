@@ -46,7 +46,10 @@ export type ChatUncertaintyReason =
   | (typeof CHAT_UNCERTAINTY_REASONS)[number]
   | (typeof CHAT_SERVER_UNCERTAINTY_REASONS)[number];
 
-/** The model's `_chat.uncertain` entry, stored on the proposal and shown as a highlighted field. */
+/**
+ * A field of a card the user should check, shown highlighted: the model's own `_chat.uncertain` entry, or the
+ * server's mark from a check against the user's data (`accountHistoryMismatch`). Stored on the proposal.
+ */
 export interface ChatUncertainField {
   field: string;
   reason: ChatUncertaintyReason;
