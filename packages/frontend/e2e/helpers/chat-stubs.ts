@@ -195,7 +195,7 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
       rewrite(body);
       await route.fulfill({ response, json: body });
     } catch (error) {
-      if (page.isClosed() || /closed/i.test(String(error))) return;
+      if (page.isClosed() || /closed|disposed/i.test(String(error))) return;
       throw error;
     }
   };
