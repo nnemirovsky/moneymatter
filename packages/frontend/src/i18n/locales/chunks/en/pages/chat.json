@@ -337,7 +337,7 @@
         "willBeChanged": "These records will be changed."
       },
       "counts": {
-        "title": "Related records: {items}",
+        "title": "Includes: {items}",
         "items": {
           "transactionCount": "{count} transaction | {count} transactions",
           "accountCount": "{count} account | {count} accounts",

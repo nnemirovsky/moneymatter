@@ -52,7 +52,7 @@ describe('ProposalCardDanger', () => {
       });
 
       const counts = wrapper.get('[data-testid="card-counts"]').text();
-      expect(counts).toContain('Related records');
+      expect(counts).toContain('Includes');
       expect(counts).toContain('1 transfer leg');
       expect(counts).toContain('2 splits');
       expect(counts).toContain('6 periods');

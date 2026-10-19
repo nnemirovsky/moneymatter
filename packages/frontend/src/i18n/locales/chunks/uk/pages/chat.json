@@ -337,7 +337,7 @@
         "willBeChanged": "Ці записи буде змінено."
       },
       "counts": {
-        "title": "Пов’язані записи: {items}",
+        "title": "Охоплює: {items}",
         "items": {
           "transactionCount": "{count} транзакція | {count} транзакції | {count} транзакцій",
           "accountCount": "{count} рахунок | {count} рахунки | {count} рахунків",
