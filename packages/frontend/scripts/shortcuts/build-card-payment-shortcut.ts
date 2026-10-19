@@ -76,7 +76,7 @@ const PLACEHOLDER = '￼';
 
 const SEED = 'moneymatter-log-card-payment-shortcut-v1';
 const SHORTCUT_NAME = 'MoneyMatter: log card payment';
-const IMPORT_QUESTION = 'Paste the setup code from MoneyMatter (Settings → Integrations → Apple Pay).';
+const IMPORT_QUESTION = 'Paste the setup code from the Apple Pay page in MoneyMatter (Accounts → Apple Pay).';
 const KEY_TIME_FORMAT = "yyyy-MM-dd'T'HH:mmZZZZZ";
 const SOURCE = 'apple-pay';
 const IMPORT_QUESTION_ACTION_INDEX = 0;

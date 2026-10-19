@@ -106,7 +106,7 @@ MoneyMatter still requires its own ingest token on every request to that path, s
 
 ### Apple Pay shortcut link
 
-The Apple Pay page in Settings can offer an **Add Shortcut** button that points to an iCloud link for the "MoneyMatter: log card payment" shortcut. Set the link with `CARD_PAYMENT_SHORTCUT_ICLOUD_URL` in `.env`, then run `docker compose up -d`. It is read when the frontend container starts, so no rebuild is needed. Leave it empty if you have no link. The page then falls back to the [manual guide](/integrations/apple-pay/#build-the-shortcut-by-hand).
+The Apple Pay page (Accounts → Apple Pay) can offer an **Add Shortcut** button that points to an iCloud link for the "MoneyMatter: log card payment" shortcut. Set the link with `CARD_PAYMENT_SHORTCUT_ICLOUD_URL` in `.env`, then run `docker compose up -d`. It is read when the frontend container starts, so no rebuild is needed. Leave it empty if you have no link. The page then falls back to the [manual guide](/integrations/apple-pay/#build-the-shortcut-by-hand).
 
 An iCloud link can only be created on an iPhone: import the shortcut, then share it and copy the link.
 

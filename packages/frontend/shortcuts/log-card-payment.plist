@@ -1333,7 +1333,7 @@
 				<key>ParameterKey</key>
 				<string>WFTextActionText</string>
 				<key>Text</key>
-				<string>Paste the setup code from MoneyMatter (Settings → Integrations → Apple Pay).</string>
+				<string>Paste the setup code from the Apple Pay page in MoneyMatter (Accounts → Apple Pay).</string>
 			</dict>
 		</array>
 		<key>WFWorkflowInputContentItemClasses</key>

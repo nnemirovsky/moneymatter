@@ -17,20 +17,19 @@ The [Apple Pay guide](/integrations/apple-pay/) uses a token. Any script that ca
 
 A token can do exactly one thing: add card payments (the scope is shown as **Log card payments**). It cannot read your accounts or transactions, change anything else, or open the app as you. If a token leaks, the worst an attacker can do is add fake payments to your account, and you stop that by revoking the token.
 
-## Open the token list
+## Open the device list
 
 <Steps>
 
-1. Click the gear button (**Settings**) at the top right of the app.
-2. Under **Workspace**, choose **Integrations**.
-3. Open the **Ingest tokens** tab.
+1. Open **Accounts**. In **Bank connections**, click **Connect** and choose **Apple Pay**, or open the **Apple Pay** row if it is already there.
+2. Scroll to **Devices**.
 
 </Steps>
 
 <Screenshot
   src="/screenshots/integrations/ingest-tokens.png"
-  alt="The Ingest tokens tab with two tokens listed, each with its scope, when it was created, when it was last used and when it expires, and a Revoke button."
-  hint="Open /settings/integrations as the docs test user with two tokens created (one used by a dryRun request). Crop to the tab content."
+  alt="The Devices section of the Apple Pay page with two tokens listed, each with its scope, when it was created, when it was last used and when it expires, and a Revoke button."
+  hint="Open /accounts/integrations/apple-pay as the docs test user with two tokens created (one used by a dryRun request). Crop to the Devices section."
 />
 
 Each token shows its name, the start of its secret, its scope, when it was created, when it was **Last used** and when it expires. A token that was never used says **Never**.

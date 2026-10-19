@@ -1,6 +1,6 @@
 # Card-payment Shortcut
 
-`moneymatter-log-card-payment.shortcut` is the signed Shortcut that Settings → Integrations → Apple Pay offers as **Add Shortcut**. The page hides the button while the file is missing (a HEAD probe), so the file can be added later. nginx serves this directory at `/shortcuts/` as a download.
+`log-card-payment.shortcut` is the signed Shortcut that the Apple Pay page (Accounts → Apple Pay) offers as **Add Shortcut**. The page hides the button while the file is missing (a HEAD probe), so the file can be added later. nginx serves this directory at `/shortcuts/` as a download.
 
 ## Where it comes from
 
@@ -22,7 +22,7 @@ cd packages/frontend
 npm run shortcuts:build
 shortcuts sign --mode anyone \
   --input shortcuts/log-card-payment.plist \
-  --output public/shortcuts/moneymatter-log-card-payment.shortcut
+  --output public/shortcuts/log-card-payment.shortcut
 ```
 
 If the CLI refuses the XML, convert it first: `plutil -convert binary1 -o /tmp/log-card-payment.bin shortcuts/log-card-payment.plist` and sign that. Check what the signature exposes about the signing identity before committing the file to a public repository.
@@ -30,7 +30,7 @@ If the CLI refuses the XML, convert it first: `plutil -convert binary1 -o /tmp/l
 ## Verifying
 
 1. AirDrop the signed file to an iPhone and import it. The import asks for one thing, the setup code.
-2. Paste a setup code from the instance (Settings → Integrations → Apple Pay → **Generate setup code**).
+2. Paste a setup code from the instance (Accounts → Apple Pay → **Generate setup code**).
 3. Run the Shortcut by hand. With no input it sends a dry run and shows `Connected as <username>. …`.
 4. Create the Transaction automation, tap a linked card and check that the notification reads `Logged …`.
 
