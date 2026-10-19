@@ -48,6 +48,7 @@ import {
   RepeatIcon,
   SettingsIcon,
   SkipForwardIcon,
+  StickyNoteIcon,
   Trash2Icon,
   UndoIcon,
   UnlinkIcon,
@@ -62,6 +63,7 @@ import { AUTOMATION_MODES, type AutomationMode, deriveAutomationMode } from './a
 import EditAutomationDialog from './components/edit-automation-dialog.vue';
 import EditBasicsDialog from './components/edit-basics-dialog.vue';
 import EditOrganizeDialog from './components/edit-organize-dialog.vue';
+import EditPeriodNoteDialog from './components/edit-period-note-dialog.vue';
 import EditScheduleDialog from './components/edit-schedule-dialog.vue';
 import LinkedTransactionsSection from './components/linked-transactions-section.vue';
 import SubscriptionMarkPaidDialog from './components/subscription-mark-paid-dialog.vue';
@@ -443,6 +445,15 @@ const revertDescriptionKey = computed(() => {
     return 'planned.subscriptions.periods.dialogs.revertDescriptionUnlinksTransaction';
   }
   return 'planned.subscriptions.periods.dialogs.revertDescription';
+});
+
+// Edit period note
+const noteTarget = ref<SubscriptionPeriodModel | null>(null);
+const isNoteDialogOpen = computed({
+  get: () => !!noteTarget.value,
+  set: (val: boolean) => {
+    if (!val) noteTarget.value = null;
+  },
 });
 
 const isPeriodActionPending = computed(
@@ -949,6 +960,17 @@ async function openTransaction({ transactionId }: { transactionId: string }) {
                     <SkipForwardIcon class="size-4" />
                   </Button>
                 </DesktopOnlyTooltip>
+                <DesktopOnlyTooltip :content="$t('planned.subscriptions.periods.tooltips.editNote')">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    :aria-label="$t('planned.subscriptions.periods.tooltips.editNote')"
+                    :disabled="isPeriodActionPending"
+                    @click="noteTarget = period"
+                  >
+                    <StickyNoteIcon class="size-4" />
+                  </Button>
+                </DesktopOnlyTooltip>
                 <DesktopOnlyTooltip
                   v-if="period.transactionId"
                   :content="$t('planned.subscriptions.periods.tooltips.unlinkTransaction')"
@@ -1074,6 +1096,8 @@ async function openTransaction({ transactionId }: { transactionId: string }) {
         {{ $t(revertDescriptionKey, { date: revertTarget?.dueDate }) }}
       </template>
     </ResponsiveAlertDialog>
+
+    <EditPeriodNoteDialog v-model:open="isNoteDialogOpen" :subscription-id="subscription.id" :period="noteTarget" />
 
     <!-- Mark-paid flow (decides instant vs. amount dialog internally) -->
     <SubscriptionMarkPaidDialog ref="markPaidRef" @paid="invalidateQueries" />
