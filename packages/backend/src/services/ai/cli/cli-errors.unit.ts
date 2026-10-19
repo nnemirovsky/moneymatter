@@ -1,5 +1,6 @@
 import { AI_PROVIDER } from '@bt/shared/types';
-import { describe, expect, it } from '@jest/globals';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { logger } from '@js/utils/logger';
 import { APICallError, RetryError } from 'ai';
 
 import { classifyAiCallFailure } from '../ai-error-classifiers';
@@ -12,7 +13,12 @@ import {
   redactCliSecrets,
 } from './cli-errors';
 
+jest.mock('@js/utils/logger', () => ({ logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() } }));
+
 const provider = AI_PROVIDER.claudeCode;
+
+const CODEX_OUT_OF_CREDITS =
+  'Your workspace is out of credits. Ask your workspace owner to refill in order to continue.';
 
 const map = (params: { text: string; apiErrorStatus?: number | null; exitCode?: number | null }) =>
   mapCliFailure({ provider, ...params });
@@ -37,6 +43,21 @@ describe('mapCliFailure', () => {
     ['an upstream 529', { text: 'API Error: 529 Overloaded', apiErrorStatus: 529 }, 503, 'temporary'],
     ['an overloaded message', { text: 'server_overloaded: retry later' }, 503, 'temporary'],
     ['an unmapped exit', { text: 'segfault', exitCode: 139 }, 502, 'temporary'],
+    ['a Codex workspace out of credits', { text: CODEX_OUT_OF_CREDITS, exitCode: 1 }, 402, 'quota-exhausted'],
+    [
+      'the same message inside a Codex error event',
+      { text: JSON.stringify({ type: 'error', message: CODEX_OUT_OF_CREDITS }) },
+      402,
+      'quota-exhausted',
+    ],
+    [
+      'a Claude Code low credit balance',
+      { text: 'Credit balance is too low · Add funds: https://console.anthropic.com/settings/billing' },
+      402,
+      'quota-exhausted',
+    ],
+    ['an exhausted insufficient_quota', { text: '{"error":{"code":"insufficient_quota"}}' }, 402, 'quota-exhausted'],
+    ['credits that come back at a reset time', { text: "You're out of extra usage · resets 3pm" }, 429, 'rate-limited'],
   ])('maps %s', (_name, params, statusCode, kind) => {
     const error = map(params);
 
@@ -72,12 +93,74 @@ describe('mapCliFailure', () => {
     expect(error.message).toBe('The Claude Code CLI exited with code 3: something odd');
   });
 
+  it('names the cause and carries the CLI own words for an exhausted subscription', () => {
+    const error = mapCliFailure({ provider: AI_PROVIDER.codex, text: CODEX_OUT_OF_CREDITS });
+
+    expect(error.message).toBe(CODEX_OUT_OF_CREDITS);
+    expect(error.isRetryable).toBe(false);
+    expect(JSON.parse(error.responseBody!)).toMatchObject({ error: { type: 'quota_exhausted' } });
+  });
+
+  describe('logging', () => {
+    beforeEach(() => {
+      jest.mocked(logger.warn).mockClear();
+    });
+
+    it.each([
+      ['an unmapped exit', { text: 'segfault at 0x0', exitCode: 139 }],
+      ['an overloaded service', { text: 'server_overloaded: retry later' }],
+    ])('logs %s at warn level with the tail of what the CLI printed', (_name, params) => {
+      map(params);
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        'A CLI run failed',
+        expect.objectContaining({ provider, tail: params.text }),
+      );
+    });
+
+    it('keeps the end of a long output, with tokens and the bridge bearer redacted', () => {
+      const text = [
+        'x'.repeat(5000),
+        'Authorization: Bearer mmchat_AbCdEf123456_-xyz',
+        'MM_CHAT_TOKEN=mmchat_AbCdEf123456_-xyz sk-ant-oat01-abcdefghijklmnopqrstuvwxyz',
+        'final line',
+      ].join('\n');
+
+      map({ text, exitCode: 1 });
+
+      const tail = (jest.mocked(logger.warn).mock.calls[0]![1] as { tail: string }).tail;
+      expect(tail.length).toBeLessThanOrEqual(1000);
+      expect(tail.endsWith('final line')).toBe(true);
+      expect(tail).not.toContain('AbCdEf123456');
+      expect(tail).not.toContain('abcdefghijklmnop');
+    });
+
+    it('does not log a failure that names its cause', () => {
+      map({ text: CODEX_OUT_OF_CREDITS });
+      map({ text: 'Claude AI usage limit reached|1893456000' });
+      map({ text: 'Not logged in' });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+  });
+
   it('redacts tokens from messages and response bodies', () => {
     const error = map({ text: 'boom sk-ant-oat01-abcdefghijklmnopqrstuvwxyz and "refresh_token":"abc123secret"' });
 
     expect(error.message).not.toContain('abcdefghijklmnop');
     expect(error.message).not.toContain('abc123secret');
     expect(error.responseBody).not.toContain('abcdefghijklmnop');
+  });
+});
+
+describe('redactCliSecrets', () => {
+  it.each([
+    ['a chat bridge token', 'token mmchat_AbCdEf123456_-xyz here', 'AbCdEf123456'],
+    ['a bearer header', 'Authorization: Bearer abc.def-ghi_jkl123', 'abc.def-ghi_jkl123'],
+    ['the bridge token variable', 'MM_CHAT_TOKEN=supersecretvalue1', 'supersecretvalue1'],
+    ['an OpenAI key', 'key sk-proj-abcdefghijklmnopqrstuvwx', 'abcdefghijklmnopqrstuvwx'],
+  ])('removes %s', (_name, text, secret) => {
+    expect(redactCliSecrets({ text })).not.toContain(secret);
   });
 });
 

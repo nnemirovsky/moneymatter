@@ -1,4 +1,5 @@
 import { AI_PROVIDER, AICliProvider } from '@bt/shared/types';
+import { logger } from '@js/utils/logger';
 import { APICallError } from 'ai';
 
 import { unwrapRetryError } from '../ai-error-classifiers';
@@ -14,6 +15,7 @@ export const CLI_PROVIDER_LABEL: Record<AICliProvider, string> = {
 export const CLI_ERROR_TYPE = {
   auth: 'authentication_failed',
   limit: 'usage_limit_reached',
+  quotaExhausted: 'quota_exhausted',
   modelNotFound: 'model_not_found',
   overloaded: 'overloaded',
   failed: 'cli_failed',
@@ -25,6 +27,7 @@ type CliErrorType = (typeof CLI_ERROR_TYPE)[keyof typeof CLI_ERROR_TYPE];
 const STATUS_BY_TYPE: Record<CliErrorType, number> = {
   [CLI_ERROR_TYPE.auth]: 401,
   [CLI_ERROR_TYPE.limit]: 429,
+  [CLI_ERROR_TYPE.quotaExhausted]: 402,
   [CLI_ERROR_TYPE.modelNotFound]: 404,
   [CLI_ERROR_TYPE.overloaded]: 503,
   [CLI_ERROR_TYPE.failed]: 502,
@@ -35,6 +38,11 @@ const SECRET_PATTERNS: [RegExp, string][] = [
   [/sk-ant-[A-Za-z0-9_-]{8,}/g, 'sk-ant-[redacted]'],
   [/eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*/g, '[redacted-jwt]'],
   [/("?(?:refresh|access|id)_token"?\s*[:=]\s*"?)[^"\s,}]+/gi, '$1[redacted]'],
+  // The chat bridge token a CLI run carries in its environment and its Authorization header.
+  [/mmchat_[A-Za-z0-9_-]+/g, 'mmchat_[redacted]'],
+  [/(\bMM_CHAT_TOKEN\s*[:=]\s*)[^\s"',}]+/g, '$1[redacted]'],
+  [/(\bBearer\s+)[A-Za-z0-9._~+/=-]+/gi, '$1[redacted]'],
+  [/\bsk-[A-Za-z0-9_-]{16,}/g, 'sk-[redacted]'],
 ];
 
 /** Strips token-shaped strings from CLI output before it reaches a message, log or response body. */
@@ -140,6 +148,17 @@ const AUTH_PATTERN =
 const LIMIT_PATTERN =
   /usage[_ ]limit|rate[_ ]limit|limit reached|quota[_ ]exceeded|too many requests|hit your (?:usage )?limit|\b429\b/i;
 
+/**
+ * A subscription or workspace out of credits: the cause is the balance, not a limit that resets, so the
+ * fix is to top up or use another connection. Claude Code prints "Credit balance is too low"; the Codex
+ * CLI relays "Your workspace is out of credits".
+ */
+const QUOTA_PATTERN =
+  /out of (?:extra )?(?:credits?|usage)|no (?:remaining |more )?credits|credits? (?:have been |has been |are |is )?(?:exhausted|depleted|used up)|credit balance (?:is )?too low|insufficient[_ ]quota|exceeded your current quota/i;
+
+/** Wording that promises the allowance comes back by itself, which makes the failure a limit rather than a balance. */
+const RESET_PATTERN = /\bresets?\b/i;
+
 const MODEL_PATTERN =
   /model_not_found|selected model|unknown model|invalid model|model\b.{0,80}\b(?:not found|not supported|does not exist|not available|may not exist)/i;
 
@@ -170,6 +189,34 @@ function parseResetTime({ text }: { text: string }): Date | null {
   return null;
 }
 
+const LOGGED_TAIL_CHARS = 1000;
+
+/**
+ * Logs a failure that no class names (it ends as temporary or unknown, which tells the user nothing), with
+ * the end of what the CLI printed: the line that explains it comes last. The tail is redacted of tokens,
+ * the chat bridge token and bearer headers.
+ */
+function warnUnnamedFailure({
+  provider,
+  text,
+  exitCode,
+  apiErrorStatus,
+}: {
+  provider: AICliProvider;
+  text: string;
+  exitCode?: number | null;
+  apiErrorStatus?: number | null;
+}): void {
+  const tail = redactCliSecrets({ text }).replace(/\s+/g, ' ').trim().slice(-LOGGED_TAIL_CHARS);
+
+  logger.warn('A CLI run failed', {
+    provider,
+    exitCode: exitCode ?? null,
+    apiErrorStatus: apiErrorStatus ?? null,
+    tail,
+  });
+}
+
 /**
  * Maps the text a failed CLI run left behind (its `result`/`error` message, stderr tail) to the
  * synthetic HTTP-shaped error of Technical Details → Error mapping. `apiErrorStatus` is the upstream
@@ -197,7 +244,15 @@ export function mapCliFailure({
     });
   }
 
-  if (apiErrorStatus === 429 || LIMIT_PATTERN.test(body)) {
+  if (QUOTA_PATTERN.test(body) && !RESET_PATTERN.test(body)) {
+    return createCliApiError({
+      provider,
+      type: CLI_ERROR_TYPE.quotaExhausted,
+      message: body || `${label} is out of credits`,
+    });
+  }
+
+  if (apiErrorStatus === 429 || LIMIT_PATTERN.test(body) || QUOTA_PATTERN.test(body)) {
     const resetsAt = parseResetTime({ text: body });
     const suffix = resetsAt ? ` (resets at ${resetsAt.toISOString()})` : '';
 
@@ -218,12 +273,16 @@ export function mapCliFailure({
   }
 
   if (apiErrorStatus === 529 || apiErrorStatus === 503 || OVERLOADED_PATTERN.test(body)) {
+    warnUnnamedFailure({ provider, text: body, exitCode, apiErrorStatus });
+
     return createCliApiError({
       provider,
       type: CLI_ERROR_TYPE.overloaded,
       message: body || `${label} is overloaded`,
     });
   }
+
+  warnUnnamedFailure({ provider, text: body, exitCode, apiErrorStatus });
 
   const fallback =
     exitCode === undefined || exitCode === null

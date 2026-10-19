@@ -488,6 +488,15 @@ describe('CLI connection verdicts', () => {
       });
     });
 
+    it('accepts an exhausted subscription: the sign-in and the model were recognised', () => {
+      const error = mapCliFailure({
+        provider: AI_PROVIDER.codex,
+        text: 'Your workspace is out of credits. Ask your workspace owner to refill in order to continue.',
+      });
+
+      expect(judge({ error, provider: AI_PROVIDER.codex })).toEqual({ isValid: true });
+    });
+
     it('accepts an overloaded service (503)', () => {
       expect(judge({ error: mapCliFailure({ provider: claude, text: 'Overloaded', apiErrorStatus: 529 }) })).toEqual({
         isValid: true,

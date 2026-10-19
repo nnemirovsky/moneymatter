@@ -3,6 +3,7 @@ import {
   type AIClientResult,
   buildUnsupportedRequestMessage,
   classifyAiCallFailure,
+  describeQuotaExhausted,
   describeRateLimited,
   isUserFixableEndpointDown,
   markConnectionRejected,
@@ -79,6 +80,12 @@ export async function resolveAiExtractionFailure({
       const message = await markModelNotServed({ userId, aiClient });
 
       return { error: { code: 'AI_ERROR', message, details }, cause };
+    }
+
+    case 'quota-exhausted': {
+      logger.info(`${logPrefix} AI subscription is out of credits`, { modelId: aiClient.modelId });
+
+      return { error: { code: 'AI_ERROR', message: describeQuotaExhausted({ aiClient }), details }, cause };
     }
 
     case 'rate-limited': {

@@ -391,6 +391,26 @@ describe('CLI bridge chat runner', () => {
     );
 
     it(
+      'names a subscription that is out of credits and keeps the connection valid',
+      async () => {
+        await createSignedInConnection({ provider, model });
+        useFakeCliResponses({ responses: [{ scenario: 'out-of-credits' }] });
+        const threadId = (await helpers.createChatThread({ raw: true })).id;
+
+        const { events, message } = await send({ threadId });
+
+        expect(events.at(-1)).toMatchObject({
+          type: 'run.finished',
+          status: 'failed',
+          error: { code: 'quotaExhausted', messageKey: 'chat.errors.quotaExhausted' },
+        });
+        expect(message.error).toMatchObject({ code: 'quotaExhausted' });
+        expect((await helpers.getAiConnections({ raw: true }))[0]).toMatchObject({ status: 'valid' });
+      },
+      TEST_TIMEOUT_MS,
+    );
+
+    it(
       'fails a run that outlives its timeout, ends the process and revokes the token',
       async () => {
         process.env.AI_CLI_CHAT_RUN_TIMEOUT_MS = '3000';

@@ -382,6 +382,9 @@ switch (scenario) {
       }),
     });
     break;
+  case 'out-of-credits':
+    failTurn({ message: 'Your workspace is out of credits. Ask your workspace owner to refill in order to continue.' });
+    break;
   case 'overloaded':
     failTurn({ message: 'server_overloaded: the service is overloaded, retry later' });
     break;

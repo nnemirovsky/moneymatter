@@ -349,7 +349,9 @@ export function judgeCliProbeFailure({
   const { kind, cause, httpStatus } = classifyAiCallFailure({ error });
 
   switch (kind) {
+    // The sign-in and the model were recognised; the balance is the user's to top up.
     case 'rate-limited':
+    case 'quota-exhausted':
       return { isValid: true };
     case 'temporary':
       return httpStatus === 503

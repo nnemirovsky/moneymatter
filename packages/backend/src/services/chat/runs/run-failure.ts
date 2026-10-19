@@ -59,6 +59,9 @@ export async function describeRunFailure({
     case 'model-not-found':
       await markModelNotServed({ userId, aiClient });
       return failure({ code: 'modelNotFound' });
+    // The connection works; its subscription has no credits left, so nothing is flagged.
+    case 'quota-exhausted':
+      return failure({ code: 'quotaExhausted' });
     case 'auth':
       await markConnectionRejected({ userId, aiClient });
       return failure({ code: 'auth' });
