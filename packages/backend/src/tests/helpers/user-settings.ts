@@ -237,20 +237,22 @@ export async function getAiFeatureConfig<R extends boolean | undefined = undefin
   });
 }
 
-/** `connectionId: null` pins the included server model. */
+/** `connectionId: null` pins the included server model. `modelId` runs the feature on another model of the connection. */
 export async function setAiFeatureConfig<R extends boolean | undefined = undefined>({
   feature,
   connectionId,
+  modelId,
   raw,
 }: {
   feature: AI_FEATURE;
   connectionId: string | null;
+  modelId?: string;
   raw?: R;
 }) {
   return makeRequest<AIFeatureStatus, R>({
     method: 'put',
     url: `/user/settings/ai/features/${feature}`,
-    payload: { connectionId },
+    payload: { connectionId, ...(modelId === undefined ? {} : { modelId }) },
     raw,
   });
 }

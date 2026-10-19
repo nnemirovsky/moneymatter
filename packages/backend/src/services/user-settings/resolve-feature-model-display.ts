@@ -56,15 +56,17 @@ export async function resolveFeatureStatus({
     case 'default-connection':
     case 'all-connections-down': {
       const { connection } = step;
-      const modelId = buildConnectionModelId(connection);
+      const configuredModelId = step.kind === 'configured' ? step.modelId : undefined;
+      const answering = { ...connection, model: configuredModelId ?? connection.model };
 
       return {
         feature,
         isConfigured: step.kind === 'configured',
         configuredConnectionId: step.kind === 'configured' ? connection.id : undefined,
+        configuredModelId,
         servedBy: step.kind === 'all-connections-down' ? null : 'connection',
-        modelId,
-        ...(await describeModel(connection)),
+        modelId: buildConnectionModelId(answering),
+        ...(await describeModel(answering)),
         usingUserKey: true,
         billing: isAiCliProvider({ provider: connection.provider }) ? 'subscription' : 'per-token',
         connectionId: connection.id,

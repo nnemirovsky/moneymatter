@@ -18,6 +18,7 @@ import { MODELS_DEV_CATALOG, MODELS_DEV_URL, modelsDevUnavailableMock } from '@t
 import {
   CUSTOM_ENDPOINT_LOOPBACK_BASE_URL,
   CUSTOM_ENDPOINT_MODEL,
+  CUSTOM_ENDPOINT_UNKNOWN_MODEL,
   getCustomEndpointCallCountingMock,
 } from '@tests/mocks/openai-compatible/mock-api';
 import { randomUUID } from 'node:crypto';
@@ -230,6 +231,98 @@ describe('AI feature settings', () => {
 
       expect(response.statusCode).toBe(200);
       expect(connectionCalls).toBe(0);
+    });
+
+    describe('model override', () => {
+      it('stores the model next to the connection and reports it as what answers', async () => {
+        const userId = await getTestUserId();
+        await createFirstConnection();
+        const second = await createSecondConnection();
+
+        const status = await helpers.setAiFeatureConfig({
+          feature: FEATURE,
+          connectionId: second.id,
+          modelId: CUSTOM_ENDPOINT_MODEL,
+          raw: true,
+        });
+
+        expect(status).toMatchObject({
+          isConfigured: true,
+          configuredConnectionId: second.id,
+          configuredModelId: CUSTOM_ENDPOINT_MODEL,
+          connectionId: second.id,
+          modelId: FIRST_MODEL_ID,
+          modelName: CUSTOM_ENDPOINT_MODEL,
+        });
+        expect(await readStoredFeatureConfigs({ userId })).toEqual([
+          { feature: FEATURE, connectionId: second.id, modelId: CUSTOM_ENDPOINT_MODEL },
+        ]);
+        expect(await helpers.getAiFeatureConfig({ feature: FEATURE, raw: true })).toMatchObject({
+          configuredModelId: CUSTOM_ENDPOINT_MODEL,
+        });
+      });
+
+      it('refuses a model the connection cannot serve and keeps the stored pick', async () => {
+        const userId = await getTestUserId();
+        const first = await createFirstConnection();
+        const second = await createSecondConnection();
+        await helpers.setAiFeatureConfig({ feature: FEATURE, connectionId: first.id, raw: true });
+
+        const response = await helpers.setAiFeatureConfig({
+          feature: FEATURE,
+          connectionId: second.id,
+          modelId: CUSTOM_ENDPOINT_UNKNOWN_MODEL,
+        });
+
+        expect(response.statusCode).toBe(ERROR_CODES.ValidationError);
+        expect(await readStoredFeatureConfigs({ userId })).toEqual([{ feature: FEATURE, connectionId: first.id }]);
+      });
+
+      it('refuses a model for the included server model', async () => {
+        enableServerModel();
+        await createFirstConnection();
+
+        const response = await helpers.setAiFeatureConfig({
+          feature: FEATURE,
+          connectionId: null,
+          modelId: CUSTOM_ENDPOINT_MODEL,
+        });
+
+        expect(response.statusCode).toBe(ERROR_CODES.ValidationError);
+      });
+
+      it('stores the connection default as no override, so it follows the connection when that changes', async () => {
+        const userId = await getTestUserId();
+        await createFirstConnection();
+        const second = await createSecondConnection();
+
+        const status = await helpers.setAiFeatureConfig({
+          feature: FEATURE,
+          connectionId: second.id,
+          modelId: SECOND_CONNECTION_MODEL,
+          raw: true,
+        });
+
+        expect(status.configuredModelId).toBeUndefined();
+        expect(await readStoredFeatureConfigs({ userId })).toEqual([{ feature: FEATURE, connectionId: second.id }]);
+      });
+
+      it('drops the override when the pick is saved again without one', async () => {
+        const userId = await getTestUserId();
+        await createFirstConnection();
+        const second = await createSecondConnection();
+        await helpers.setAiFeatureConfig({
+          feature: FEATURE,
+          connectionId: second.id,
+          modelId: CUSTOM_ENDPOINT_MODEL,
+          raw: true,
+        });
+
+        const status = await helpers.setAiFeatureConfig({ feature: FEATURE, connectionId: second.id, raw: true });
+
+        expect(status).toMatchObject({ modelId: SECOND_MODEL_ID });
+        expect(await readStoredFeatureConfigs({ userId })).toEqual([{ feature: FEATURE, connectionId: second.id }]);
+      });
     });
 
     it('rejects an unknown connection and keeps the stored pick', async () => {

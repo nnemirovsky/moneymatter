@@ -632,6 +632,8 @@
     "connectionProviderUnreachable": "Не вдалося з'єднатися з провайдером. Спробуйте ще раз за мить.",
     "connectionValidationFailed": "Провайдер відхилив тестовий запит: {{reason}}",
     "serverModelUnavailable": "Модель MoneyMatter AI недоступна на вашому плані.",
+    "connectionModelNotOffered": "Ваша підписка не пропонує цю модель ШІ: {{model}}.",
+    "includedModelHasNoChoice": "Вбудована модель MoneyMatter AI має фіксований вибір, тому її не можна змінити.",
     "connectionKeyNotInBackup": "API-ключ не зберігається в резервних копіях. Відредагуйте цю модель і введіть ключ знову.",
     "customEndpointUnreachable": "Не вдалося з'єднатися з ендпоінтом. Перевірте базовий URL і переконайтеся, що сервер працює та доступний з інтернету.",
     "customEndpointAuthFailed": "Ендпоінт відхилив API-ключ. Перевірте, що ключ правильний і має необхідні дозволи.",

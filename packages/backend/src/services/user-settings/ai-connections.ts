@@ -925,6 +925,49 @@ export const listAvailableModels = async ({
   return listConnectionModels({ provider, baseUrl: effectiveBaseUrl, apiKey: effectiveApiKey });
 };
 
+/**
+ * Throws unless `connectionId` can serve `modelId`, so a feature or a chat thread never stores a model
+ * the connection's provider does not offer. The connection's own model always passes: it is what the
+ * connection was validated with. A subscription provider is checked against its curated list; the
+ * others get the probe a connection create or update runs.
+ */
+export const assertConnectionServesModel = async ({
+  userId,
+  connectionId,
+  modelId,
+}: {
+  userId: number;
+  connectionId: string;
+  modelId: string;
+}): Promise<void> => {
+  const connection = findConnectionOrThrow({ connections: await readStoredConnections({ userId }), connectionId });
+  const model = normalizeModel({ model: modelId });
+
+  if (model === connection.model) return;
+
+  const cliProvider = asAiCliProvider({ provider: connection.provider });
+
+  if (cliProvider) {
+    await assertCliAiAllowed({ userId });
+
+    if (!(await listConnectionModels({ provider: cliProvider, apiKey: null })).includes(model)) {
+      throw new ValidationError({ message: t({ key: 'ai.connectionModelNotOffered', variables: { model } }) });
+    }
+    return;
+  }
+
+  const validation = await validateConnection({
+    provider: connection.provider,
+    model,
+    apiKey: readStoredKey({ connection, userId }),
+    baseUrl: connection.baseUrl,
+  });
+
+  if (!validation.isValid) {
+    throw new ValidationError({ message: validation.error });
+  }
+};
+
 async function patchConnectionStatus({
   userId,
   connectionId,

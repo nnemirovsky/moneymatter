@@ -5,6 +5,7 @@ import { setFeatureConfig } from '@services/user-settings/ai-feature-settings';
 import { resolveFeatureStatus } from '@services/user-settings/resolve-feature-model-display';
 import { z } from 'zod';
 
+import { modelField } from '../ai-connections/connection-field-schemas';
 import { isRequestWithinAiAllowance, resolveEntitledToServerKeys } from './build-feature-status-payload';
 
 const schema = z.object({
@@ -15,6 +16,8 @@ const schema = z.object({
   body: z.object({
     // null pins the included server model
     connectionId: z.uuid().nullable(),
+    // A model of that connection's provider; omitted, the connection's own model
+    modelId: modelField.optional(),
   }),
 });
 
@@ -24,7 +27,13 @@ export const setFeatureConfigController = createController(schema, async ({ user
 
   const entitledToServerKeys = await resolveEntitledToServerKeys({ req, feature });
 
-  await setFeatureConfig({ userId, feature, connectionId: body.connectionId, entitledToServerKeys });
+  await setFeatureConfig({
+    userId,
+    feature,
+    connectionId: body.connectionId,
+    modelId: body.modelId,
+    entitledToServerKeys,
+  });
 
   return {
     data: await resolveFeatureStatus({

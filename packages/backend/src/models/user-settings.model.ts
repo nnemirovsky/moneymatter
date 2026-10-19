@@ -52,6 +52,8 @@ import Users from './users.model';
 const ZodAiFeatureConfigSchema = z.object({
   feature: z.nativeEnum(AI_FEATURE),
   connectionId: z.string().nullable(),
+  /** A model of the connection's provider; never set with a null `connectionId`. */
+  modelId: modelField.optional(),
 });
 
 // Field constraints are shared with the create/update routes so a restored row can't be
