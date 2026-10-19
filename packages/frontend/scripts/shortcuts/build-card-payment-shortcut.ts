@@ -27,6 +27,7 @@ export const SHORTCUT_ACTIONS = {
   text: 'is.workflow.actions.gettext',
   replaceText: 'is.workflow.actions.text.replace',
   base64: 'is.workflow.actions.base64encode',
+  detectText: 'is.workflow.actions.detect.text',
   detectDictionary: 'is.workflow.actions.detect.dictionary',
   getValue: 'is.workflow.actions.getvalueforkey',
   conditional: 'is.workflow.actions.conditional',
@@ -78,8 +79,10 @@ const PLACEHOLDER = '￼';
 const SEED = 'moneymatter-log-card-payment-shortcut-v1';
 const SHORTCUT_NAME = 'MoneyMatter - Log card payment';
 const IMPORT_QUESTION = 'Paste the setup code from the Apple Pay page in MoneyMatter (Accounts → Apple Pay).';
-const SETUP_ERROR =
-  'MoneyMatter setup code is missing or invalid. Generate a new one on the Apple Pay page and set the shortcut up again.';
+const NO_CODE_ERROR =
+  'No MoneyMatter setup code was entered. Generate one on the Apple Pay page and add the shortcut again.';
+const UNREADABLE_CODE_ERROR =
+  'The MoneyMatter setup code could not be read. Generate a new one on the Apple Pay page and add the shortcut again.';
 const KEY_TIME_FORMAT = "yyyy-MM-dd'T'HH:mmZZZZZ";
 const SOURCE = 'apple-pay';
 const IMPORT_QUESTION_ACTION_INDEX = 0;
@@ -273,10 +276,16 @@ export const buildCardPaymentShortcut = (): Dict => {
       [SHORTCUT_PARAMS.input]: tokenAttachment({ reference: from({ output: stripped }) }),
     },
   });
+  // Base64 Decode yields untyped data; reading it as text first makes the next step parse JSON.
+  const decodedText = add({
+    identifier: SHORTCUT_ACTIONS.detectText,
+    name: 'Text',
+    parameters: { [SHORTCUT_PARAMS.input]: tokenAttachment({ reference: from({ output: decoded }) }) },
+  });
   const setup = add({
     identifier: SHORTCUT_ACTIONS.detectDictionary,
     name: 'Dictionary',
-    parameters: { [SHORTCUT_PARAMS.input]: tokenAttachment({ reference: from({ output: decoded }) }) },
+    parameters: { [SHORTCUT_PARAMS.input]: tokenAttachment({ reference: from({ output: decodedText }) }) },
   });
   const getSetupValue = ({ key }: { key: string }) =>
     add({
@@ -343,23 +352,24 @@ export const buildCardPaymentShortcut = (): Dict => {
     });
 
   // 9-..: the Wallet automation passes the payment as Shortcut Input; a manual run has none.
-  // No setup code (or a bad one) leaves `url` or `token` empty; stop with a message instead of
+  // No setup code, or one that cannot be read, leaves `url` or `token` empty; stop with a message instead of
   // letting Get Contents of URL fail with "No URL Specified". The Cloudflare pair is optional.
-  const stopWhenEmpty = ({ group, value }: { group: number; value: Output }) => {
+  const stopWhenEmpty = ({ group, value, message }: { group: number; value: Output; message: string }) => {
     conditional({ group, mode: 0, subject: from({ output: value }), condition: 'Does Not Have Any Value' });
     add({
       identifier: SHORTCUT_ACTIONS.notification,
       name: 'Notification',
       parameters: {
         [SHORTCUT_PARAMS.notificationTitle]: SHORTCUT_NAME,
-        [SHORTCUT_PARAMS.notificationBody]: tokenString({ parts: [SETUP_ERROR] }),
+        [SHORTCUT_PARAMS.notificationBody]: tokenString({ parts: [message] }),
       },
     });
     add({ identifier: SHORTCUT_ACTIONS.exit, name: 'Stop', parameters: {} });
     conditional({ group, mode: 2 });
   };
-  stopWhenEmpty({ group: 1002, value: url });
-  stopWhenEmpty({ group: 1003, value: token });
+  stopWhenEmpty({ group: 1002, value: code, message: NO_CODE_ERROR });
+  stopWhenEmpty({ group: 1003, value: url, message: UNREADABLE_CODE_ERROR });
+  stopWhenEmpty({ group: 1004, value: token, message: UNREADABLE_CODE_ERROR });
 
   conditional({ group: 1000, mode: 0, subject: shortcutInput(), condition: 'Has Any Value' });
 

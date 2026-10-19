@@ -55,29 +55,27 @@ describe('card-payment shortcut generator', () => {
   });
 
   it('orders the setup actions as in the plan', () => {
-    expect(actions.slice(0, 8).map(id)).toEqual([
+    expect(actions.slice(0, 9).map(id)).toEqual([
       SHORTCUT_ACTIONS.text,
       SHORTCUT_ACTIONS.replaceText,
       SHORTCUT_ACTIONS.base64,
+      SHORTCUT_ACTIONS.detectText,
       SHORTCUT_ACTIONS.detectDictionary,
       SHORTCUT_ACTIONS.getValue,
       SHORTCUT_ACTIONS.getValue,
       SHORTCUT_ACTIONS.getValue,
       SHORTCUT_ACTIONS.getValue,
     ]);
-    // The setup guards (url, token) come before the payment branch.
-    expect(actions.slice(8, 16).map(id)).toEqual([
+    // Three setup guards (code, url, token) come before the payment branch.
+    const guard = [
       SHORTCUT_ACTIONS.conditional,
       SHORTCUT_ACTIONS.notification,
       SHORTCUT_ACTIONS.exit,
       SHORTCUT_ACTIONS.conditional,
-      SHORTCUT_ACTIONS.conditional,
-      SHORTCUT_ACTIONS.notification,
-      SHORTCUT_ACTIONS.exit,
-      SHORTCUT_ACTIONS.conditional,
-    ]);
-    expect(actions[16] && id(actions[16])).toBe(SHORTCUT_ACTIONS.conditional);
-    expect(byId(SHORTCUT_ACTIONS.notification)).toHaveLength(3);
+    ];
+    expect(actions.slice(9, 21).map(id)).toEqual([...guard, ...guard, ...guard]);
+    expect(actions[21] && id(actions[21])).toBe(SHORTCUT_ACTIONS.conditional);
+    expect(byId(SHORTCUT_ACTIONS.notification)).toHaveLength(4);
     expect(id(actions[actions.length - 1]!)).toBe(SHORTCUT_ACTIONS.notification);
   });
 
@@ -167,11 +165,11 @@ describe('card-payment shortcut generator', () => {
         .filter((value) => value !== undefined);
 
       expect(CONDITION_CODES).toEqual({ 'Has Any Value': 100, 'Does Not Have Any Value': 101 });
-      expect(conditions).toEqual([101, 101, 100, 101]);
+      expect(conditions).toEqual([101, 101, 101, 100, 101]);
     });
 
     it('guards the payment branch with a has-any-value check on the shortcut input', () => {
-      const conditional = actions[16]!;
+      const conditional = actions[21]!;
 
       expect(params(conditional)[SHORTCUT_PARAMS.controlFlowMode]).toBe(0);
       expect(params(conditional)[SHORTCUT_PARAMS.condition]).toBe(100);
@@ -228,28 +226,46 @@ describe('card-payment shortcut generator', () => {
       });
     });
 
-    it('stops with a message when the url or the token is missing', () => {
-      const guards = [actions[8]!, actions[12]!];
+    it('reads the decoded bytes as text before parsing them as a dictionary', () => {
+      const [, , decode, text, dictionary] = actions;
+      const reads = (action: Dict) => params(action)[SHORTCUT_PARAMS.input].Value.OutputUUID;
+
+      expect(actions.slice(1, 5).map(id)).toEqual([
+        SHORTCUT_ACTIONS.replaceText,
+        SHORTCUT_ACTIONS.base64,
+        SHORTCUT_ACTIONS.detectText,
+        SHORTCUT_ACTIONS.detectDictionary,
+      ]);
+      expect(reads(actions[1]!)).toBe(params(actions[0]!).UUID);
+      expect(reads(decode!)).toBe(params(actions[1]!).UUID);
+      expect(reads(text!)).toBe(params(decode!).UUID);
+      expect(reads(dictionary!)).toBe(params(text!).UUID);
+    });
+
+    it('stops with a message that names what failed when the code, url or token is empty', () => {
+      const guards = [actions[9]!, actions[13]!, actions[17]!];
       const [urlValue, tokenValue] = getValues;
 
-      expect(guards.map((guard) => params(guard)[SHORTCUT_PARAMS.condition])).toEqual([101, 101]);
-      expect(guards.map((guard) => params(guard)[SHORTCUT_PARAMS.input].Variable.Value.OutputUUID)).toEqual([
+      expect(guards.map((g) => params(g)[SHORTCUT_PARAMS.condition])).toEqual([101, 101, 101]);
+      expect(guards.map((g) => params(g)[SHORTCUT_PARAMS.input].Variable.Value.OutputUUID)).toEqual([
+        params(actions[0]!).UUID,
         params(urlValue!).UUID,
         params(tokenValue!).UUID,
       ]);
 
-      for (const [notify, stop] of [
-        [actions[9]!, actions[10]!],
-        [actions[13]!, actions[14]!],
-      ] as const) {
-        expect(params(notify)[SHORTCUT_PARAMS.notificationBody].Value.string).toBe(
-          'MoneyMatter setup code is missing or invalid. Generate a new one on the Apple Pay page and set the shortcut up again.',
-        );
-        expect(id(stop)).toBe(SHORTCUT_ACTIONS.exit);
+      const messages = [9, 13, 17].map(
+        (index) => params(actions[index + 1]!)[SHORTCUT_PARAMS.notificationBody].Value.string,
+      );
+      expect(messages[0]).toContain('No MoneyMatter setup code was entered');
+      expect(messages[1]).toContain('setup code could not be read');
+      expect(messages[2]).toBe(messages[1]);
+
+      for (const index of [9, 13, 17]) {
+        expect(id(actions[index + 2]!)).toBe(SHORTCUT_ACTIONS.exit);
+        // Each guard is closed before the next block starts.
+        expect(params(actions[index + 3]!)[SHORTCUT_PARAMS.controlFlowMode]).toBe(2);
       }
-      // Each guard is closed before the next block starts.
-      expect([actions[11]!, actions[15]!].map((end) => params(end)[SHORTCUT_PARAMS.controlFlowMode])).toEqual([2, 2]);
-      expect(params(actions[7]!)[SHORTCUT_PARAMS.dictionaryKey]).toBe('cfAccessSecret');
+      expect(params(actions[8]!)[SHORTCUT_PARAMS.dictionaryKey]).toBe('cfAccessSecret');
     });
 
     it('builds a code the strict iOS Base64 Decode accepts', () => {
