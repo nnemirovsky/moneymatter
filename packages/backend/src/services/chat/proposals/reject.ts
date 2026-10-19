@@ -1,6 +1,9 @@
 import type { ChatCardActionResponse, ChatProposalStatus } from '@bt/shared/types';
+import { t } from '@i18n/index';
+import { NotFoundError } from '@js/errors';
 import ChatProposals from '@models/chat-proposals.model';
 import { withTransaction } from '@services/common/with-transaction';
+import { Op } from 'sequelize';
 
 import { notifyThreadUpdated } from '../threads/thread-events';
 import { cardConflict } from './card-conflict';
@@ -39,7 +42,20 @@ function dependentsOf({ rootId, rows }: { rootId: string; rows: ChatProposals[] 
 
 const rejectTransaction = withTransaction(
   async ({ userId, proposalId }: { userId: number; proposalId: string }): Promise<RejectOutcome> => {
-    const target = await findOwnedProposal({ userId, proposalId, lock: true });
+    // The thread is read first, without a lock, to know which siblings to lock with the target.
+    const { threadId } = await findOwnedProposal({ userId, proposalId });
+
+    // One query takes the target and every card that may depend on it, ids ascending: the order an
+    // approval locks its chain in, so a reject and an approval (or two rejects) queue up instead of
+    // each holding a card the other wants.
+    const locked = await ChatProposals.findAll({
+      where: { userId, threadId, [Op.or]: [{ id: proposalId }, { status: [...BLOCKABLE] }] },
+      order: [['id', 'ASC']],
+      lock: true,
+    });
+    const target = locked.find((row) => row.id === proposalId);
+    if (!target) throw new NotFoundError({ message: t({ key: 'chat.proposalNotFound' }) });
+
     if (target.status === 'rejected') return { kind: 'already', ids: [proposalId] };
     if (isExpiryDue({ row: target })) {
       await expireDueCards({ ids: [proposalId] });
@@ -49,10 +65,7 @@ const rejectTransaction = withTransaction(
       return { kind: 'conflict', reason: target.status === 'expired' ? 'expired' : 'notPending' };
     }
 
-    const siblings = await ChatProposals.findAll({
-      where: { userId, threadId: target.threadId, status: [...BLOCKABLE] },
-      lock: true,
-    });
+    const siblings = locked.filter((row) => BLOCKABLE.includes(row.status));
     const dependents = dependentsOf({ rootId: proposalId, rows: siblings });
     const decidedAt = new Date();
 

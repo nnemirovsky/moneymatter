@@ -3,6 +3,7 @@ import { describe, expect, it } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
 import ChatMessages from '@models/chat-messages.model';
 import ChatProposals from '@models/chat-proposals.model';
+import { connection } from '@models/index';
 import * as helpers from '@tests/helpers';
 import { useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
 import { cardFor, proposalRefsIn, proposeCards } from '@tests/helpers/chat-cards';
@@ -47,6 +48,20 @@ const oneCategory = ({ name }: { name: string }) => [
   { toolCalls: [{ name: 'create_category', arguments: { name, color: '#4CAF50' } }] },
   { text: 'Done.' },
 ];
+
+/** Polls until a statement that locks card rows waits on another transaction's row lock. */
+const waitForBlockedCardLock = async () => {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const [blocked] = (await connection.sequelize.query(
+      `SELECT 1 FROM pg_stat_activity
+       WHERE wait_event_type = 'Lock' AND query LIKE '%FOR UPDATE%' AND query LIKE '%ChatProposals%'
+         AND pid <> pg_backend_pid()`,
+    )) as [unknown[], unknown];
+    if (blocked.length) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error('The reject never waited on the card lock');
+};
 
 const proposeNoteUpdate = async () => {
   const account = await helpers.createAccount({ raw: true });
@@ -206,6 +221,45 @@ describe('Chat card actions', () => {
       expect(again.body.response.card.status).toBe('rejected');
       expect(late.statusCode).toBe(ERROR_CODES.ConflictError);
       expect((await helpers.getChatProposal({ proposalId: kept.id, raw: true })).status).toBe('applied');
+    });
+
+    it('takes the card locks in id order, so a reject waiting on a lower card holds none of the higher ones', async () => {
+      const { cards } = await proposeCards({
+        turns: [
+          {
+            toolCalls: [
+              { name: 'create_category', arguments: { name: 'Chat Lock A', color: '#4CAF50' } },
+              { name: 'create_category', arguments: { name: 'Chat Lock B', color: '#4CAF50' } },
+            ],
+          },
+          { text: 'Done.' },
+        ],
+      });
+      const [low, high] = cards.map((card) => card.id).toSorted();
+
+      // Another transaction (an approval walking its chain) holds the lower card.
+      const holder = await connection.sequelize.transaction();
+      await ChatProposals.findOne({ where: { id: low }, transaction: holder, lock: holder.LOCK.UPDATE });
+
+      const reject = helpers.rejectChatProposal({ proposalId: high! });
+      await waitForBlockedCardLock();
+
+      // The reject is queued behind the lower card. It must not hold the higher one meanwhile, or an
+      // approval that holds the higher card and wants the lower one would deadlock with it.
+      const probe = await connection.sequelize.transaction();
+      try {
+        await connection.sequelize.query(`SELECT 1 FROM "ChatProposals" WHERE id = :id FOR UPDATE NOWAIT`, {
+          replacements: { id: high },
+          transaction: probe,
+        });
+      } finally {
+        await probe.rollback();
+        await holder.commit();
+      }
+
+      const rejected = await reject;
+      expect(rejected.statusCode).toBe(200);
+      expect(rejected.body.response.card).toMatchObject({ id: high, status: 'rejected' });
     });
 
     it('does not let a rejected card be approved', async () => {
