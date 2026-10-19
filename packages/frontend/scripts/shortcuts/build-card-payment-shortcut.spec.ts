@@ -226,9 +226,46 @@ describe('card-payment shortcut generator', () => {
       });
     });
 
+    it('serializes each variable slot the way Shortcuts reads it', () => {
+      const serialization = (identifier: string, key: string) =>
+        byId(identifier).map((action) => params(action)[key].WFSerializationType);
+
+      // Typed-into slots take a text token; variable-only slots take a bare attachment.
+      expect(serialization(SHORTCUT_ACTIONS.replaceText, SHORTCUT_PARAMS.input)).toEqual(['WFTextTokenString']);
+      expect(serialization(SHORTCUT_ACTIONS.formatDate, SHORTCUT_PARAMS.date)).toEqual([
+        'WFTextTokenString',
+        'WFTextTokenString',
+      ]);
+      expect(serialization(SHORTCUT_ACTIONS.base64, SHORTCUT_PARAMS.input)).toEqual(['WFTextTokenAttachment']);
+      expect(serialization(SHORTCUT_ACTIONS.detectText, SHORTCUT_PARAMS.input)).toEqual(['WFTextTokenAttachment']);
+      expect(serialization(SHORTCUT_ACTIONS.detectDictionary, SHORTCUT_PARAMS.input)).toEqual([
+        'WFTextTokenAttachment',
+      ]);
+      expect(new Set(serialization(SHORTCUT_ACTIONS.getValue, SHORTCUT_PARAMS.input))).toEqual(
+        new Set(['WFTextTokenAttachment']),
+      );
+      expect(serialization(SHORTCUT_ACTIONS.hash, SHORTCUT_PARAMS.input)).toEqual(['WFTextTokenAttachment']);
+      expect(new Set(serialization(SHORTCUT_ACTIONS.setVariable, SHORTCUT_PARAMS.input))).toEqual(
+        new Set(['WFTextTokenAttachment']),
+      );
+      expect(serialization(SHORTCUT_ACTIONS.downloadUrl, SHORTCUT_PARAMS.url)).toEqual([
+        'WFTextTokenString',
+        'WFTextTokenString',
+      ]);
+      expect(serialization(SHORTCUT_ACTIONS.notification, SHORTCUT_PARAMS.notificationBody)).toEqual(
+        Array(4).fill('WFTextTokenString'),
+      );
+    });
+
     it('reads the decoded bytes as text before parsing them as a dictionary', () => {
       const [, , decode, text, dictionary] = actions;
-      const reads = (action: Dict) => params(action)[SHORTCUT_PARAMS.input].Value.OutputUUID;
+      const reads = (action: Dict) => {
+        const input = params(action)[SHORTCUT_PARAMS.input];
+
+        return input.WFSerializationType === 'WFTextTokenString'
+          ? tokenAttachments(input)[0]!.OutputUUID
+          : input.Value.OutputUUID;
+      };
 
       expect(actions.slice(1, 5).map(id)).toEqual([
         SHORTCUT_ACTIONS.replaceText,

@@ -265,7 +265,9 @@ export const buildCardPaymentShortcut = (): Dict => {
       [SHORTCUT_PARAMS.replaceWith]: '',
       [SHORTCUT_PARAMS.replaceRegex]: true,
       [SHORTCUT_PARAMS.replaceCaseSensitive]: true,
-      [SHORTCUT_PARAMS.input]: tokenAttachment({ reference: from({ output: code }) }),
+      // A typed-into slot: Shortcuts serializes it as a text token, like `WFDate`. Pure variable slots
+      // (Decode, Get Text, Get Dictionary, Get Value, Hash, Set Variable) take a bare attachment.
+      [SHORTCUT_PARAMS.input]: tokenString({ parts: [from({ output: code })] }),
     },
   });
   const decoded = add({
