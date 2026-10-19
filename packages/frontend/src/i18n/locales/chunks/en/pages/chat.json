@@ -691,8 +691,8 @@
     },
     "panel": {
       "title": "AI chat",
-      "close": "Close the chat panel",
-      "resize": "Resize the chat panel",
+      "close": "Close the AI chat panel",
+      "resize": "Resize the AI chat panel",
       "openInPage": "Open in the AI chat page",
       "newChat": "New chat"
     }

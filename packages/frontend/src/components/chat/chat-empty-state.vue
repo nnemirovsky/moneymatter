@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { Button } from '@/components/lib/ui/button';
 import { ROUTES_NAMES } from '@/routes/constants';
-import { MessageSquareIcon, SettingsIcon } from '@lucide/vue';
+import { SettingsIcon } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
+
+import { AiChatIcon } from './chat-icon';
 
 defineProps<{
   /** Whether Chat has a model of the user's own to run on. */
@@ -20,7 +22,7 @@ const PROMPT_KEYS = ['spending', 'biggest', 'subscriptions', 'duplicates'] as co
   <div class="flex flex-col items-center gap-3 px-4 py-10 text-center" data-testid="chat-empty-state">
     <template v-if="isConfigured">
       <div class="bg-primary/10 flex size-12 items-center justify-center rounded-full">
-        <MessageSquareIcon class="text-primary-text size-6" aria-hidden="true" />
+        <AiChatIcon class="text-primary-text size-6" aria-hidden="true" />
       </div>
       <h2 class="font-medium">{{ $t('chat.empty.title') }}</h2>
       <p class="text-muted-foreground max-w-md text-sm">{{ $t('chat.empty.description') }}</p>

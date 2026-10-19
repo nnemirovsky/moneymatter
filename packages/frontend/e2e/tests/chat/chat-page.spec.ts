@@ -179,6 +179,11 @@ test.describe('Chat page', () => {
       const picker = page.getByTestId('chat-connection-picker').getByRole('combobox');
       await expect(picker).toContainText('Home Ollama (llama3.2)');
 
+      // The model is chosen above the message box.
+      const pickerBox = await picker.boundingBox();
+      const inputBox = await page.getByPlaceholder(COMPOSER_PLACEHOLDER).boundingBox();
+      expect(pickerBox!.y).toBeLessThan(inputBox!.y);
+
       await picker.click();
       await page.getByRole('option', { name: 'Studio vLLM (qwen2.5)' }).click();
 
