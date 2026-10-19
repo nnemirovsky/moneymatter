@@ -14,17 +14,31 @@ import {
   createChatScript,
   failOnUnscriptedChatRequests,
 } from '@tests/mocks/openai-compatible/chat-script';
-import { CUSTOM_ENDPOINT_BASE_URL, CUSTOM_ENDPOINT_LOOPBACK_BASE_URL } from '@tests/mocks/openai-compatible/mock-api';
+import {
+  CUSTOM_ENDPOINT_BASE_URL,
+  CUSTOM_ENDPOINT_LOOPBACK_BASE_URL,
+  CUSTOM_ENDPOINT_UNKNOWN_MODEL,
+  getCustomEndpointModelNotFoundMock,
+} from '@tests/mocks/openai-compatible/mock-api';
 
 useSelfHostWithoutServerAiKeys();
 failOnUnscriptedChatRequests();
 
 const HOLD: ChatScriptTurn = { text: ['Working', ' on it', ' still'], pieceDelayMs: 8_000 };
 
+/** A model the first connection (llama3.2) also serves; the mock endpoints serve every name but one. */
+const FIRST_OVERRIDE_MODEL = 'llama3.2:70b';
+/** The default model of the second connection. */
+const SECOND_MODEL = 'qwen2.5';
+
 const settle = () => new Promise((resolve) => setTimeout(resolve, 300));
 
-/** Two connections: the first is the default, the second answers on its own endpoint and model. */
-async function arrangeConnections() {
+/**
+ * Two connections: the first is the default, the second answers on its own endpoint and model. The scripts
+ * answer every request to their endpoints, probes included, so a test that picks a model (which probes the
+ * provider) defers them until the pick is made.
+ */
+async function arrangeConnections({ deferScripts = false }: { deferScripts?: boolean } = {}) {
   const first = await helpers.createFirstConnection();
   const second = await helpers.createSecondConnection();
   const firstScript = createChatScript({ turns: [{ text: 'From the first' }], baseUrl: CUSTOM_ENDPOINT_BASE_URL });
@@ -32,9 +46,10 @@ async function arrangeConnections() {
     turns: [{ text: 'From the second' }],
     baseUrl: CUSTOM_ENDPOINT_LOOPBACK_BASE_URL,
   });
-  global.mswMockServer.use(firstScript.handler, secondScript.handler);
+  const installScripts = () => global.mswMockServer.use(firstScript.handler, secondScript.handler);
+  if (!deferScripts) installScripts();
 
-  return { first, second, firstScript, secondScript };
+  return { first, second, firstScript, secondScript, installScripts };
 }
 
 async function sendAndFinish({ threadId }: { threadId: string }) {
@@ -171,17 +186,99 @@ describe('Chat thread connection', () => {
     });
   });
 
+  describe('model choice on POST /chat/threads', () => {
+    it('starts the thread on a model of the connection and reports it everywhere the thread is read', async () => {
+      const { first } = await arrangeConnections({ deferScripts: true });
+
+      const thread = await helpers.createChatThread({
+        connectionId: first.id,
+        modelId: FIRST_OVERRIDE_MODEL,
+        raw: true,
+      });
+
+      expect(thread.modelId).toBe(FIRST_OVERRIDE_MODEL);
+      expect((await helpers.getChatThread({ threadId: thread.id, raw: true })).thread.modelId).toBe(
+        FIRST_OVERRIDE_MODEL,
+      );
+      expect((await helpers.listChatThreads({ raw: true })).threads[0]!.modelId).toBe(FIRST_OVERRIDE_MODEL);
+    });
+
+    it('starts on the connection default when no model is named', async () => {
+      const { first } = await arrangeConnections({ deferScripts: true });
+
+      expect((await helpers.createChatThread({ connectionId: first.id, raw: true })).modelId).toBeNull();
+    });
+
+    it('keeps the connection default when the named model is the default', async () => {
+      const { second } = await arrangeConnections({ deferScripts: true });
+
+      const thread = await helpers.createChatThread({ connectionId: second.id, modelId: SECOND_MODEL, raw: true });
+
+      expect(thread.modelId).toBeNull();
+    });
+
+    it('refuses a model the connection cannot serve, and a model without a connection', async () => {
+      const { first } = await arrangeConnections({ deferScripts: true });
+
+      const unserved = await helpers.createChatThread({
+        connectionId: first.id,
+        modelId: CUSTOM_ENDPOINT_UNKNOWN_MODEL,
+      });
+      expect(unserved.statusCode).toBe(ERROR_CODES.ValidationError);
+
+      const withoutConnection = await helpers.createChatThread({ modelId: FIRST_OVERRIDE_MODEL });
+      expect(withoutConnection.statusCode).toBe(ERROR_CODES.ValidationError);
+
+      expect((await helpers.listChatThreads({ raw: true })).threads).toEqual([]);
+    });
+
+    it('inherits the model together with the connection of the most recently used thread', async () => {
+      const { first } = await arrangeConnections({ deferScripts: true });
+      await helpers.createChatThread({ connectionId: first.id, modelId: FIRST_OVERRIDE_MODEL, raw: true });
+
+      const inherited = await helpers.createChatThread({ raw: true });
+
+      expect(inherited).toMatchObject({ connectionId: first.id, modelId: FIRST_OVERRIDE_MODEL });
+    });
+
+    it('drops the inherited model when the connection can no longer be inherited', async () => {
+      const { first, second } = await arrangeConnections({ deferScripts: true });
+      await helpers.createChatThread({ connectionId: second.id, modelId: 'qwen2.5-coder', raw: true });
+      await helpers.patchStoredConnection({
+        connectionId: second.id,
+        patch: { status: 'invalid', lastError: 'down' },
+      });
+
+      const inherited = await helpers.createChatThread({ raw: true });
+
+      expect(inherited).toMatchObject({ connectionId: first.id, modelId: null });
+    });
+  });
+
   describe('GET /chat/default-connection', () => {
     it('names the connection a new thread would start on', async () => {
       const { first, second } = await arrangeConnections();
-      expect(await helpers.getChatDefaultConnection({ raw: true })).toEqual({ connectionId: first.id });
+      expect(await helpers.getChatDefaultConnection({ raw: true })).toEqual({ connectionId: first.id, modelId: null });
 
       await helpers.createChatThread({ connectionId: second.id, raw: true });
-      expect(await helpers.getChatDefaultConnection({ raw: true })).toEqual({ connectionId: second.id });
+      expect(await helpers.getChatDefaultConnection({ raw: true })).toEqual({
+        connectionId: second.id,
+        modelId: null,
+      });
+    });
+
+    it('names the model a new thread would inherit', async () => {
+      const { first } = await arrangeConnections({ deferScripts: true });
+      await helpers.createChatThread({ connectionId: first.id, modelId: FIRST_OVERRIDE_MODEL, raw: true });
+
+      expect(await helpers.getChatDefaultConnection({ raw: true })).toEqual({
+        connectionId: first.id,
+        modelId: FIRST_OVERRIDE_MODEL,
+      });
     });
 
     it('answers null when nothing can answer', async () => {
-      expect(await helpers.getChatDefaultConnection({ raw: true })).toEqual({ connectionId: null });
+      expect(await helpers.getChatDefaultConnection({ raw: true })).toEqual({ connectionId: null, modelId: null });
     });
   });
 
@@ -196,6 +293,85 @@ describe('Chat thread connection', () => {
       expect(updated.statusCode).toBe(200);
       expect(updated.body.response.connectionId).toBe(second.id);
       expect((await helpers.getChatThread({ threadId: thread.id, raw: true })).thread.connectionId).toBe(second.id);
+    });
+
+    describe('model choice', () => {
+      it('picks a model of the thread connection, and null returns to the connection default', async () => {
+        const { first } = await arrangeConnections({ deferScripts: true });
+        const thread = await helpers.createChatThread({ raw: true });
+
+        const picked = await helpers.updateChatThread({
+          threadId: thread.id,
+          payload: { modelId: FIRST_OVERRIDE_MODEL },
+        });
+        expect(picked.statusCode).toBe(200);
+        expect(picked.body.response).toMatchObject({ connectionId: first.id, modelId: FIRST_OVERRIDE_MODEL });
+
+        const reset = await helpers.updateChatThread({ threadId: thread.id, payload: { modelId: null } });
+        expect(reset.body.response.modelId).toBeNull();
+      });
+
+      it('resets the model to the default of the new connection when the connection changes', async () => {
+        const { first, second } = await arrangeConnections({ deferScripts: true });
+        const thread = await helpers.createChatThread({
+          connectionId: first.id,
+          modelId: FIRST_OVERRIDE_MODEL,
+          raw: true,
+        });
+
+        const switched = await helpers.updateChatThread({ threadId: thread.id, payload: { connectionId: second.id } });
+
+        expect(switched.body.response).toMatchObject({ connectionId: second.id, modelId: null });
+      });
+
+      it('applies a model named together with the new connection to that connection', async () => {
+        const { second } = await arrangeConnections({ deferScripts: true });
+        const thread = await helpers.createChatThread({ raw: true });
+
+        const switched = await helpers.updateChatThread({
+          threadId: thread.id,
+          payload: { connectionId: second.id, modelId: 'qwen2.5-coder' },
+        });
+
+        expect(switched.body.response).toMatchObject({ connectionId: second.id, modelId: 'qwen2.5-coder' });
+      });
+
+      it('refuses a model the connection cannot serve and keeps the thread as it was', async () => {
+        const { first } = await arrangeConnections({ deferScripts: true });
+        const thread = await helpers.createChatThread({
+          connectionId: first.id,
+          modelId: FIRST_OVERRIDE_MODEL,
+          raw: true,
+        });
+
+        const response = await helpers.updateChatThread({
+          threadId: thread.id,
+          payload: { modelId: CUSTOM_ENDPOINT_UNKNOWN_MODEL },
+        });
+
+        expect(response.statusCode).toBe(ERROR_CODES.ValidationError);
+        expect((await helpers.getChatThread({ threadId: thread.id, raw: true })).thread.modelId).toBe(
+          FIRST_OVERRIDE_MODEL,
+        );
+      });
+
+      it('answers 409 to a model switch while a run is active', async () => {
+        await arrangeConnections();
+        const script = createChatScript({ turns: [HOLD] });
+        global.mswMockServer.use(script.handler);
+        const thread = await helpers.createChatThread({ raw: true });
+        const sent = await helpers.sendChatMessage({ threadId: thread.id, payload: { text: 'Hello' }, raw: true });
+        await settle();
+
+        const refused = await helpers.updateChatThread({
+          threadId: thread.id,
+          payload: { modelId: FIRST_OVERRIDE_MODEL },
+        });
+        expect(refused.statusCode).toBe(ERROR_CODES.ConflictError);
+
+        await helpers.cancelChatRun({ runId: sent.runId });
+        await helpers.getChatRunEvents({ runId: sent.runId });
+      });
     });
 
     it('refuses a connection that is not the user’s or does not exist, and changes nothing', async () => {
@@ -275,6 +451,87 @@ describe('Chat thread connection', () => {
         modelId: 'custom/qwen2.5',
       });
       expect(loaded.thread.connectionId).toBe(second.id);
+    });
+
+    it('answers on the model the thread names, and shows it on the message', async () => {
+      const { first, firstScript, installScripts } = await arrangeConnections({ deferScripts: true });
+      const thread = await helpers.createChatThread({
+        connectionId: first.id,
+        modelId: FIRST_OVERRIDE_MODEL,
+        raw: true,
+      });
+      installScripts();
+
+      const sent = await sendAndFinish({ threadId: thread.id });
+
+      expect(firstScript.requests.map((request) => request.model)).toEqual([FIRST_OVERRIDE_MODEL]);
+      const loaded = await helpers.getChatThread({ threadId: thread.id, raw: true });
+      expect(loaded.messages.find((message) => message.id === sent.messageId)).toMatchObject({
+        status: 'complete',
+        modelId: `custom/${FIRST_OVERRIDE_MODEL}`,
+      });
+    });
+
+    it('switches to the connection default on the next message after the model is reset', async () => {
+      const { first } = await arrangeConnections({ deferScripts: true });
+      const thread = await helpers.createChatThread({
+        connectionId: first.id,
+        modelId: FIRST_OVERRIDE_MODEL,
+        raw: true,
+      });
+      const script = createChatScript({ turns: [{ text: 'One' }, { text: 'Two' }], baseUrl: CUSTOM_ENDPOINT_BASE_URL });
+      global.mswMockServer.use(script.handler);
+      await sendAndFinish({ threadId: thread.id });
+
+      await helpers.updateChatThread({ threadId: thread.id, payload: { modelId: null } });
+      await sendAndFinish({ threadId: thread.id });
+
+      expect(script.requests.map((request) => request.model)).toEqual([FIRST_OVERRIDE_MODEL, 'llama3.2']);
+    });
+
+    it('fails a model the provider stopped serving without moving to another, and keeps the connection healthy', async () => {
+      const { first } = await arrangeConnections({ deferScripts: true });
+      const thread = await helpers.createChatThread({
+        connectionId: first.id,
+        modelId: FIRST_OVERRIDE_MODEL,
+        raw: true,
+      });
+      let calls = 0;
+      global.mswMockServer.use(
+        getCustomEndpointModelNotFoundMock({ onCall: () => (calls += 1), baseUrl: CUSTOM_ENDPOINT_BASE_URL }),
+      );
+
+      const sent = await helpers.sendChatMessage({ threadId: thread.id, payload: { text: 'Hello' }, raw: true });
+      await helpers.getChatRunEvents({ runId: sent.runId });
+
+      const loaded = await helpers.getChatThread({ threadId: thread.id, raw: true });
+      expect(loaded.messages.find((message) => message.id === sent.messageId)).toMatchObject({
+        status: 'failed',
+        error: { code: 'modelNotFound' },
+      });
+      expect(calls).toBeGreaterThan(0);
+      expect(loaded.thread).toMatchObject({ connectionId: first.id, modelId: FIRST_OVERRIDE_MODEL });
+      const connections = await helpers.getAiConnections({ raw: true });
+      expect(connections.find((connection) => connection.id === first.id)?.status).toBe('valid');
+    });
+
+    it('drops the model when the thread falls back from a deleted connection', async () => {
+      const { first, second, firstScript, installScripts } = await arrangeConnections({ deferScripts: true });
+      const thread = await helpers.createChatThread({
+        connectionId: second.id,
+        modelId: 'qwen2.5-coder',
+        raw: true,
+      });
+      await helpers.deleteAiConnection({ id: second.id });
+      installScripts();
+
+      await sendAndFinish({ threadId: thread.id });
+
+      expect(firstScript.requests.map((request) => request.model)).toEqual(['llama3.2']);
+      expect((await helpers.getChatThread({ threadId: thread.id, raw: true })).thread).toMatchObject({
+        connectionId: first.id,
+        modelId: null,
+      });
     });
 
     it('uses the new connection on the message after a switch, and keeps the history', async () => {

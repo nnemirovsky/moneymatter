@@ -1,5 +1,6 @@
 import { recordId } from '@common/lib/zod/custom-types';
 import { createController } from '@controllers/helpers/controller-factory';
+import { modelField } from '@controllers/user-settings/ai-connections/connection-field-schemas';
 import { updateThread } from '@services/chat/threads/update.service';
 import { z } from 'zod';
 
@@ -13,10 +14,17 @@ const schema = z.object({
       pinned: z.boolean().optional(),
       // null picks the included model
       connectionId: z.uuid().nullable().optional(),
+      // null picks the connection's own model
+      modelId: modelField.nullable().optional(),
     })
-    .refine((body) => body.title !== undefined || body.pinned !== undefined || body.connectionId !== undefined, {
-      message: 'Provide a title, pinned or connectionId',
-    }),
+    .refine(
+      (body) =>
+        body.title !== undefined ||
+        body.pinned !== undefined ||
+        body.connectionId !== undefined ||
+        body.modelId !== undefined,
+      { message: 'Provide a title, pinned, connectionId or modelId' },
+    ),
 });
 
 export default createController(schema, async ({ user, params, body }) => ({
@@ -26,5 +34,6 @@ export default createController(schema, async ({ user, params, body }) => ({
     title: body.title,
     pinned: body.pinned,
     connectionId: body.connectionId,
+    modelId: body.modelId,
   }),
 }));
