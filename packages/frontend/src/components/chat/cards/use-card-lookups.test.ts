@@ -54,4 +54,23 @@ describe('useCardLookups', () => {
 
     expect(toValue(vi.mocked(usePayeesByIds).mock.calls.at(-1)![0].ids)).toEqual(['payee-target']);
   });
+
+  it('fetches the payees the alternatives of an uncertain field point to', () => {
+    const card = buildCard({
+      fields: [
+        {
+          ...entityField({ path: 'payeeId', id: 'payee-main', kind: 'payee' }),
+          uncertain: { reason: 'ambiguousMatch', alternatives: ['payee-alt-1', 'payee-alt-2'] },
+        },
+      ],
+    });
+
+    useCardLookups({ card });
+
+    expect([...toValue(vi.mocked(usePayeesByIds).mock.calls.at(-1)![0].ids)].toSorted()).toEqual([
+      'payee-alt-1',
+      'payee-alt-2',
+      'payee-main',
+    ]);
+  });
 });

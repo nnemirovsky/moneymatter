@@ -2,7 +2,7 @@ import { type Page, expect, test } from '@playwright/test';
 
 import { completeOnboarding, createAccount, extractId, signInViaApi } from '../../helpers/api-client';
 import { loginViaUI } from '../../helpers/auth';
-import { type ChatStub, stubChatApi, textRun } from '../../helpers/chat-stubs';
+import { type ChatStub, buildMessage, stubChatApi, textRun } from '../../helpers/chat-stubs';
 import { buildTestCredentials, signUpAndVerify } from '../../helpers/test-setup';
 
 const CURRENCY = 'USD';
@@ -300,5 +300,47 @@ test.describe('Chat page', () => {
         expect(created?.body).toEqual({ modelId: null });
       });
     });
+  });
+  test('shows an attached image as a thumbnail that opens larger, and a PDF as a named chip', async ({ page }) => {
+    stub.addThread({
+      id: 'thread-img',
+      title: 'Receipt',
+      messages: [
+        buildMessage({
+          id: 'user-img',
+          role: 'user',
+          threadId: 'thread-img',
+          parts: [
+            {
+              type: 'attachment',
+              id: 'a1',
+              attachmentId: 'att-img',
+              fileName: 'receipt.png',
+              mimeType: 'image/png',
+              kind: 'image',
+            },
+            {
+              type: 'attachment',
+              id: 'a2',
+              attachmentId: 'att-pdf',
+              fileName: 'statement.pdf',
+              mimeType: 'application/pdf',
+              kind: 'pdf',
+            },
+          ],
+        }),
+      ],
+    });
+    await page.goto('/chat/thread-img');
+
+    const thumbnail = page.getByTestId('attachment-thumbnail');
+    await expect(thumbnail.locator('img')).toBeVisible();
+    await expect(page.getByTestId('attachment-chip')).toContainText('statement.pdf');
+    expect(stub.calls.filter((call) => call.path.endsWith('/image')).map((call) => call.path)).toEqual([
+      '/attachments/att-img/image',
+    ]);
+
+    await thumbnail.click();
+    await expect(page.getByRole('dialog').locator('img')).toBeVisible();
   });
 });

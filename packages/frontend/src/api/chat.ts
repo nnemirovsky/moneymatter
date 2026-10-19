@@ -1,4 +1,5 @@
 import { api } from '@/api/_api';
+import { fetchBinaryDownload } from '@/api/_binary-download';
 import { API_HTTP, API_VER } from '@/api/api-base-url';
 import { getCurrentLocale } from '@/i18n';
 import {
@@ -273,3 +274,15 @@ export async function streamChatRunEvents({
 
   return 'aborted';
 }
+
+/** The bytes of an image attached to a message, with the type the server read from them. */
+export const loadChatAttachmentImage = async ({ attachmentId }: { attachmentId: string }): Promise<Blob> => {
+  const { blob } = await fetchBinaryDownload({
+    path: `/chat/attachments/${attachmentId}/image`,
+    method: 'GET',
+    accept: 'image/*, application/json',
+    feature: 'chat-attachment-image',
+  });
+
+  return blob;
+};

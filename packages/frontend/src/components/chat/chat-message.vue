@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type {
+  ChatAttachmentPart,
   ChatClarificationAnswerInput,
   ChatMessage,
   ChatMessagePart,
@@ -7,7 +8,6 @@ import type {
   ChatSendMessageResponse,
   ChatToolCallPart,
 } from '@bt/shared/types';
-import { PaperclipIcon } from '@lucide/vue';
 import { computed } from 'vue';
 
 import ApproveAllBar from './cards/approve-all-bar.vue';
@@ -17,6 +17,7 @@ import AnalysisPart from './parts/analysis-part.vue';
 import ClarificationCard from './parts/clarification-card.vue';
 import NoticePart from './parts/notice-part.vue';
 import ToolCallsDetails from './parts/tool-calls-details.vue';
+import UserAttachment from './parts/user-attachment.vue';
 import SafeText from './safe-text.vue';
 import ChatChart from './visuals/chat-chart.vue';
 import ChatKpis from './visuals/chat-kpis.vue';
@@ -50,7 +51,9 @@ const userComments = computed(() =>
 const hasClarificationAnswer = computed(() => props.message.parts.some((part) => part.type === 'clarificationAnswer'));
 /** The server keeps the answer as text on the message; the part itself only holds option ids. */
 const answerText = computed(() => (hasClarificationAnswer.value ? (props.message.plainText ?? '') : ''));
-const attachmentCount = computed(() => props.message.parts.filter((part) => part.type === 'attachment').length);
+const attachmentParts = computed(() =>
+  props.message.parts.filter((part): part is ChatAttachmentPart => part.type === 'attachment'),
+);
 
 const proposalParts = computed(() => props.message.parts.filter((part) => part.type === 'proposal'));
 const firstProposalPartId = computed(() => proposalParts.value[0]?.id ?? null);
@@ -95,16 +98,14 @@ const partKey = ({ part }: { part: ChatMessagePart }) => part.id;
         </p>
       </template>
       <p v-if="answerText" class="text-sm wrap-anywhere whitespace-pre-wrap">{{ answerText }}</p>
-      <div v-if="attachmentCount > 0" class="flex flex-wrap gap-1.5">
-        <span
-          v-for="index in attachmentCount"
-          :key="index"
-          class="bg-background/60 text-muted-foreground inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
+      <div v-if="attachmentParts.length > 0" class="flex flex-wrap gap-1.5">
+        <UserAttachment
+          v-for="attachment in attachmentParts"
+          :key="attachment.id"
+          :part="attachment"
           data-testid="user-attachment"
-        >
-          <PaperclipIcon class="size-3" aria-hidden="true" />
-          {{ $t('chat.message.attachment') }}
-        </span>
+          :data-attachment-id="attachment.attachmentId"
+        />
       </div>
     </div>
   </div>

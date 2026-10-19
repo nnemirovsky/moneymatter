@@ -41,7 +41,9 @@ export const useCardLookups = ({ card }: { card: MaybeRefOrGetter<ChatProposalCa
   const payeeIds = computed(() => [
     ...new Set(
       [...toValue(card).fields, ...(toValue(card).target ?? [])].flatMap((field) =>
-        fieldEntityKind({ field }) === 'payee' ? idsOf({ value: field.value }) : [],
+        fieldEntityKind({ field }) === 'payee'
+          ? [...idsOf({ value: field.value }), ...idsOf({ value: field.uncertain?.alternatives ?? [] })]
+          : [],
       ),
     ),
   ]);

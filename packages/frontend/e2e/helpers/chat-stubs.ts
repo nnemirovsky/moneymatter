@@ -61,6 +61,10 @@ const notFound = ({ route }: { route: Route }) =>
     body: JSON.stringify({ status: 'error', response: { code: 'NotFoundError', message: 'Not found' } }),
   });
 
+/** A 1x1 PNG, the bytes the stubbed image endpoint serves. */
+const PNG_1X1_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
 const ZERO_USAGE = { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 };
 
 export const buildCard = (overrides: Json & { id: string }): Json & { id: string } => ({
@@ -371,6 +375,11 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
     if (method === 'PUT' && path === '/settings') {
       stub.retentionDays = (body?.retentionDays ?? null) as number | null;
       return ok({ route, response: { retentionDays: stub.retentionDays } });
+    }
+
+    const imageMatch = path.match(/^\/attachments\/([^/]+)\/image$/);
+    if (method === 'GET' && imageMatch) {
+      return route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from(PNG_1X1_BASE64, 'base64') });
     }
 
     if (method === 'GET' && path === '/applied') {

@@ -260,4 +260,40 @@ describe('CardField', () => {
       expect(wrapper.text()).toContain('Debit card');
     });
   });
+
+  describe('other options of an uncertain field', () => {
+    const uncertainCategory = (alternatives: unknown[]) =>
+      buildField({
+        path: 'categoryId',
+        value: 'cat-1',
+        display: { kind: 'entity', entity: { kind: 'category', id: 'cat-1', label: '' } },
+        editable: { type: 'entity', entity: 'category' },
+        uncertain: { reason: 'ambiguousMatch', alternatives },
+      });
+
+    it('names the records the alternatives point to, as the main value is named', () => {
+      const wrapper = mountField({
+        field: uncertainCategory(['cat-2', 'cat-3']),
+        names: { 'category:cat-1': 'Groceries', 'category:cat-2': 'Dining', 'category:cat-3': 'Transport' },
+      });
+
+      const options = wrapper.findAll('[data-testid="alternative"]').map((item) => item.text());
+      expect(options).toEqual(['Dining', 'Transport']);
+    });
+
+    it('shows an alternative that is a name and not an id as that name', () => {
+      const wrapper = mountField({ field: uncertainCategory(['Coffee shops']), names: {} });
+
+      expect(wrapper.find('[data-testid="alternative"]').text()).toBe('Coffee shops');
+    });
+
+    it('shows the kind of a record it cannot name', () => {
+      const wrapper = mountField({
+        field: uncertainCategory(['3f1b9c2e-8d4a-4b6e-9c1d-2a7e5f0b8c11']),
+        names: {},
+      });
+
+      expect(wrapper.find('[data-testid="alternative"]').text()).toBe('Category');
+    });
+  });
 });

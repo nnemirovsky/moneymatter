@@ -28,6 +28,8 @@ const emit = defineEmits<{ choose: [value: unknown] }>();
 const { t } = useI18n();
 const { keyText, entityLabel, titleText } = useChatText();
 
+const LOOKS_LIKE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 interface ValuePart {
   text: string;
   to?: ReturnType<typeof chatEntityRoute>;
@@ -49,8 +51,10 @@ const entityParts = ({ value }: { value: unknown }): ValuePart[] => {
     if (!kind) return { text: summarizeValue({ value: id }) };
 
     const name = props.lookups.entityName({ kind, id: String(id) });
+    // A model may offer an alternative by its name; that name reads better than the kind of record.
+    const written = typeof id === 'string' && !LOOKS_LIKE_ID.test(id) ? id : null;
     const to = chatEntityRoute({ entity: { kind, id: String(id) } });
-    return { text: name ?? entityLabel({ kind }), ...(to ? { to } : {}) };
+    return { text: name ?? written ?? entityLabel({ kind }), ...(to && !(written && !name) ? { to } : {}) };
   });
 };
 

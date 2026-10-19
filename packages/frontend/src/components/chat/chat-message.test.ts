@@ -33,6 +33,11 @@ const STUBS = {
   ChatKpis: stub({ testId: 'kpis', props: ['spec'] }),
   AnalysisPart: stub({ testId: 'analysis', props: ['part'] }),
   ToolCallsDetails: stub({ testId: 'tool-calls', props: ['parts'] }),
+  UserAttachment: defineComponent({
+    props: ['part'],
+    setup: (props) => () =>
+      h('div', { 'data-testid': 'user-attachment', 'data-attachment-id': props.part.attachmentId }),
+  }),
 };
 
 const message = (overrides: Partial<ChatMessage> & { parts: ChatMessagePart[] }): ChatMessage => ({
@@ -98,7 +103,7 @@ describe('ChatMessage', () => {
       expect(wrapper.text()).toContain('<img src=x onerror=alert(1)>');
     });
 
-    it('marks the attachments of the message', () => {
+    it('shows each attachment of the message', () => {
       const wrapper = mountMessage({
         value: message({
           role: 'user',
@@ -111,6 +116,9 @@ describe('ChatMessage', () => {
       });
 
       expect(wrapper.findAll('[data-testid="user-attachment"]')).toHaveLength(2);
+      expect(
+        wrapper.findAll('[data-testid="user-attachment"]').map((item) => item.attributes('data-attachment-id')),
+      ).toEqual(['att-1', 'att-2']);
     });
 
     it('shows the comment on a card as a comment', () => {
