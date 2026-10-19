@@ -23,13 +23,22 @@ export interface ChatThread {
    * Connections live in the user's settings, so the client joins this id with its connection list.
    */
   connectionId: string | null;
+  /**
+   * A model of the connection's provider that the next run uses instead of the connection's own model.
+   * Null: the connection's own model.
+   */
+  modelId: string | null;
   createdAt: string;
 }
 
-/** What `POST /chat/threads` takes; both fields are optional. `connectionId` null picks the included model. */
+/**
+ * What `POST /chat/threads` takes; every field is optional. `connectionId` null picks the included model.
+ * `modelId` needs a `connectionId`; omitted, the thread inherits the model along with the connection.
+ */
 export interface ChatCreateThreadRequest {
   title?: string;
   connectionId?: string | null;
+  modelId?: string | null;
 }
 
 /** What `PATCH /chat/threads/:id` takes: at least one field. */
@@ -37,11 +46,14 @@ export interface ChatUpdateThreadRequest {
   title?: string;
   pinned?: boolean;
   connectionId?: string | null;
+  /** Switching the connection resets this to null unless the request names a model of the new one. */
+  modelId?: string | null;
 }
 
 /** `GET /chat/default-connection`: the connection a new thread would start on. */
 export interface ChatDefaultConnection {
   connectionId: string | null;
+  modelId: string | null;
 }
 
 /** A thread found by a search: `snippet` is plain text around the matching words of a message. */

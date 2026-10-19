@@ -73,6 +73,16 @@
             </template>
           </SelectField>
 
+          <ConnectionModelSelect
+            v-if="pickedConnection"
+            class="mt-3"
+            :connection="pickedConnection"
+            :model-id="featureStatus.configuredModelId ?? null"
+            :label="$t('ai.connectionModel.label')"
+            :disabled="isUpdating"
+            @select="handleModelChange"
+          />
+
           <Callout
             v-if="!featureStatus.servedBy && featureStatus.connectionId"
             variant="destructive"
@@ -114,6 +124,7 @@
 
 <script setup lang="ts">
 import { type ConfigurableAIFeatureStatus, getAIFeatureDisplayInfo } from '@/common/const';
+import ConnectionModelSelect from '@/components/common/ai-connection-model/connection-model-select.vue';
 import AiUsageBadge from '@/components/common/ai-usage/ai-usage-badge.vue';
 import ApiKeySourceBadge from '@/components/common/api-key-source-badge.vue';
 import SelectField from '@/components/fields/select-field.vue';
@@ -152,6 +163,13 @@ const isUpdating = computed(() => isSettingFeatureConfig.value || isResettingFea
 
 const hasNothingToPick = computed(
   () => !props.featureStatus.connectionId && props.featureStatus.serverModelName === null,
+);
+
+/** The connection the feature is pinned to: the one whose model can be chosen. Automatic has none. */
+const pickedConnection = computed(() =>
+  props.featureStatus.isConfigured && props.featureStatus.configuredConnectionId
+    ? (connections.value.find(({ id }) => id === props.featureStatus.configuredConnectionId) ?? null)
+    : null,
 );
 
 const options = computed(() =>
@@ -277,6 +295,23 @@ const handleSelectChange = async (option: FeatureModelOption | null) => {
       ? 'settings.ai.modelSelector.notifications.resetFailed'
       : 'settings.ai.modelSelector.notifications.updateFailed';
     addErrorNotification(extractApiErrorMessage(error) ?? t(fallbackKey));
+  }
+};
+
+/** The model within the picked connection; null returns to the connection's own model. */
+const handleModelChange = async (modelId: string | null) => {
+  const connection = pickedConnection.value;
+  if (!connection) return;
+
+  try {
+    await setFeatureConfig({
+      feature: props.featureStatus.feature,
+      connectionId: connection.id,
+      modelId: modelId ?? undefined,
+    });
+    addSuccessNotification(t('settings.ai.modelSelector.notifications.updateSuccess'));
+  } catch (error) {
+    addErrorNotification(extractApiErrorMessage(error) ?? t('settings.ai.modelSelector.notifications.updateFailed'));
   }
 };
 </script>

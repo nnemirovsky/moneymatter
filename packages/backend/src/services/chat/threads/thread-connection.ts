@@ -7,7 +7,7 @@ import type { AIClientResult } from '@services/ai/ai-client-factory';
 import { resolveAIConfiguration } from '@services/ai/ai-model-resolver';
 import { assertCliAiAllowed, getCliAiAccess } from '@services/ai/cli/cli-access';
 import { withTransaction } from '@services/common/with-transaction';
-import { getStoredAiSettings } from '@services/user-settings/ai-connections';
+import { assertConnectionServesModel, getStoredAiSettings } from '@services/user-settings/ai-connections';
 
 import { findThreadOrThrow } from './find-thread';
 
@@ -40,6 +40,29 @@ export async function assertSelectableConnection({
   if (isAiCliProvider({ provider: connection.provider })) await assertCliAiAllowed({ userId });
 }
 
+/**
+ * Checks that a thread on `connectionId` may run `modelId`, and returns what the thread stores: the model,
+ * or null for the connection's own model (a null request, or the connection's default named outright).
+ * The included model has no choice of model.
+ */
+export async function resolveThreadModel({
+  userId,
+  connectionId,
+  modelId,
+}: {
+  userId: number;
+  connectionId: string | null;
+  modelId: string | null;
+}): Promise<string | null> {
+  if (modelId === null) return null;
+
+  if (connectionId === null) {
+    throw new ValidationError({ message: t({ key: 'ai.includedModelHasNoChoice' }) });
+  }
+
+  return assertConnectionServesModel({ userId, connectionId, modelId });
+}
+
 /** A connection a new thread may inherit: it exists, is not flagged down and its provider may run here. */
 async function isInheritable({ userId, connectionId }: { userId: number; connectionId: string }): Promise<boolean> {
   const connection = (await getConnections({ userId })).find((candidate) => candidate.id === connectionId);
@@ -48,40 +71,50 @@ async function isInheritable({ userId, connectionId }: { userId: number; connect
   return !isAiCliProvider({ provider: connection.provider }) || (await getCliAiAccess({ userId })).allowed;
 }
 
+export interface ThreadModelChoice {
+  connectionId: string | null;
+  /** Null: the connection's own model. */
+  modelId: string | null;
+}
+
 /**
- * The connection a new thread starts on: the one the user's most recently used thread has, while it is
- * still usable; else the connection that answers by default; else the included model where one serves
- * chat. Null when nothing can answer yet.
+ * What a new thread starts on: the connection and model the user's most recently used thread has, while
+ * the connection is still usable; else the connection that answers by default, on its own model; else the
+ * included model where one serves chat. A null connection means nothing can answer yet.
  */
-export async function pickDefaultConnectionId({ userId }: { userId: number }): Promise<string | null> {
+export async function pickDefaultThreadChoice({ userId }: { userId: number }): Promise<ThreadModelChoice> {
   const latest = await ChatThreads.findOne({
     where: { userId },
     order: [
       ['lastMessageAt', 'DESC'],
       ['id', 'DESC'],
     ],
-    attributes: ['connectionId'],
+    attributes: ['connectionId', 'modelId'],
   });
 
   if (latest?.connectionId && (await isInheritable({ userId, connectionId: latest.connectionId }))) {
-    return latest.connectionId;
+    return { connectionId: latest.connectionId, modelId: latest.modelId };
   }
 
   const resolution = await resolveAIConfiguration({ userId, feature: AI_FEATURE.chat });
 
-  return resolution?.kind === 'connection' ? resolution.connectionId : null;
+  return { connectionId: resolution?.kind === 'connection' ? resolution.connectionId : null, modelId: null };
 }
 
-/** The thread's connection id, read under the row lock so a switch that is still being written is waited for. */
-const readThreadConnectionId = withTransaction(
-  async ({ userId, threadId }: { userId: number; threadId: string }): Promise<string | null> =>
-    (await findThreadOrThrow({ userId, threadId, lock: true })).connectionId,
+/** The thread's connection and model, read under the row lock so a switch that is still being written is waited for. */
+const readThreadChoice = withTransaction(
+  async ({ userId, threadId }: { userId: number; threadId: string }): Promise<ThreadModelChoice> => {
+    const { connectionId, modelId } = await findThreadOrThrow({ userId, threadId, lock: true });
+    return { connectionId, modelId };
+  },
 );
 
 /**
- * The AI client for a thread's next run, built on the thread's connection. A connection deleted since the
- * thread picked it falls back as for a new thread. When the client that answers is not the one the thread
- * names (the fallback, or a connection that could not be dialled), the thread keeps the one that answers.
+ * The AI client for a thread's next run, built on the thread's connection and model. A connection deleted
+ * since the thread picked it falls back as for a new thread. When the client that answers is not the one the
+ * thread names (the fallback, or a connection that could not be dialled), the thread keeps the one that
+ * answers, on that connection's own model. A model the provider no longer serves is not replaced: the run
+ * fails on it.
  */
 export async function createThreadAiClient({
   userId,
@@ -90,16 +123,28 @@ export async function createThreadAiClient({
   userId: number;
   threadId: string;
 }): Promise<AIClientResult | null> {
-  const connectionId = await readThreadConnectionId({ userId, threadId });
+  const stored = await readThreadChoice({ userId, threadId });
   const deleted =
-    connectionId !== null && !(await getConnections({ userId })).some((candidate) => candidate.id === connectionId);
-  const pinnedConnectionId = deleted ? await pickDefaultConnectionId({ userId }) : connectionId;
+    stored.connectionId !== null &&
+    !(await getConnections({ userId })).some((candidate) => candidate.id === stored.connectionId);
+  const pinned = deleted ? await pickDefaultThreadChoice({ userId }) : stored;
 
-  const aiClient = await createAIClient({ userId, feature: AI_FEATURE.chat, pinnedConnectionId });
+  const aiClient = await createAIClient({
+    userId,
+    feature: AI_FEATURE.chat,
+    pinnedConnectionId: pinned.connectionId,
+    pinnedModelId: pinned.modelId,
+  });
 
-  const answeringConnectionId = aiClient ? (aiClient.connectionId ?? null) : connectionId;
-  if (aiClient && answeringConnectionId !== connectionId) {
-    await ChatThreads.update({ connectionId: answeringConnectionId }, { where: { id: threadId, userId } });
+  if (aiClient) {
+    const answering: ThreadModelChoice = {
+      connectionId: aiClient.connectionId ?? null,
+      modelId: aiClient.modelOverridden ? pinned.modelId : null,
+    };
+
+    if (answering.connectionId !== stored.connectionId || answering.modelId !== stored.modelId) {
+      await ChatThreads.update(answering, { where: { id: threadId, userId } });
+    }
   }
 
   return aiClient;

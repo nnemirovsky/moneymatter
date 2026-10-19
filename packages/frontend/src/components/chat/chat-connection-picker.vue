@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ConnectionModelSelect from '@/components/common/ai-connection-model/connection-model-select.vue';
 import SelectField from '@/components/fields/select-field.vue';
 import { useAiSettings } from '@/composable/data-queries/ai-settings';
 import { useAiConnectionsList } from '@/composable/data-queries/use-ai-connections';
@@ -16,12 +17,14 @@ const props = withDefaults(
   defineProps<{
     /** The connection the conversation runs on; null is the included model. */
     connectionId: string | null;
+    /** The model picked within the connection; null is the connection's own model. */
+    modelId?: string | null;
     disabled?: boolean;
   }>(),
-  { disabled: false },
+  { modelId: null, disabled: false },
 );
 
-const emit = defineEmits<{ select: [connectionId: string | null] }>();
+const emit = defineEmits<{ select: [connectionId: string | null]; 'select-model': [modelId: string | null] }>();
 
 const { t } = useI18n();
 const { connections } = useAiConnectionsList();
@@ -36,6 +39,9 @@ const options = computed(() =>
 const selected = computed(() =>
   findSelectedChatConnectionOption({ options: options.value, connectionId: props.connectionId }),
 );
+
+// The included model has no choice of model, and a connection gone from the list has nothing to list.
+const selectedConnection = computed(() => connections.value.find(({ id }) => id === props.connectionId) ?? null);
 
 const formatOption = (option: ChatConnectionOption) => {
   if (option.kind === 'included') return t('chat.connection.included');
@@ -59,19 +65,30 @@ const onSelect = (option: ChatConnectionOption | null) => {
     :aria-label="$t('chat.connection.label')"
     data-testid="chat-connection-picker"
   >
-    <SelectField
-      class="w-full @md/chat-conversation:max-w-80"
-      :model-value="selected"
-      :values="options"
-      :label-key="formatOption"
-      value-key="value"
-      :placeholder="$t('chat.connection.placeholder')"
-      :disabled="disabled"
-      @update:model-value="onSelect"
-    >
-      <template #trigger="{ label }">
-        <span class="block truncate" :title="label">{{ label }}</span>
-      </template>
-    </SelectField>
+    <!-- Stacked in a narrow conversation, so both labels stay readable; side by side from 420px. -->
+    <div class="flex min-w-0 flex-col gap-2 @[420px]/chat-conversation:flex-row">
+      <SelectField
+        class="w-full min-w-0 @[420px]/chat-conversation:w-auto @[420px]/chat-conversation:flex-1 @md/chat-conversation:max-w-80"
+        :model-value="selected"
+        :values="options"
+        :label-key="formatOption"
+        value-key="value"
+        :placeholder="$t('chat.connection.placeholder')"
+        :disabled="disabled"
+        @update:model-value="onSelect"
+      >
+        <template #trigger="{ label }">
+          <span class="block truncate" :title="label">{{ label }}</span>
+        </template>
+      </SelectField>
+      <ConnectionModelSelect
+        v-if="selectedConnection"
+        class="w-full min-w-0 @[420px]/chat-conversation:w-auto @[420px]/chat-conversation:flex-1 @md/chat-conversation:max-w-64"
+        :connection="selectedConnection"
+        :model-id="modelId"
+        :disabled="disabled"
+        @select="(next) => emit('select-model', next)"
+      />
+    </div>
   </div>
 </template>

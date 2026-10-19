@@ -31,9 +31,9 @@ Chat uses the same tools as the [MoneyMatter MCP server](/ai/connect-claude-chat
 
 </Steps>
 
-Each conversation has its own model, so you switch it in the chat and not in Settings. The list shows all your models, plus **Included model** where your instance offers one. A new conversation starts on the model of your latest one, or on your default model if you have none yet. Change the model at any time: it applies from the next message, and the earlier messages stay as they are. You can't switch while an answer is being written.
+Each conversation has its own model, so you switch it in the chat and not in Settings. The first list shows all your models, plus **Included model** where your instance offers one. Next to it, a second list offers the other models of the same provider, such as Sonnet and Haiku on a Claude connection. **Default** keeps the model you set on the connection, and it is the choice again whenever you pick another connection. The second list is left out when the provider offers nothing else to choose from. A new conversation starts on the model of your latest one, with the model you chose there, or on your default model if you have none yet. Change either at any time: it applies from the next message, and the earlier messages stay as they are. You can't switch while an answer is being written.
 
-If you delete the model a conversation uses, the next message runs on the model of your latest conversation, or on your default model when that one is gone too, and the conversation keeps that choice.
+If you delete the model a conversation uses, the next message runs on the model of your latest conversation, or on your default model when that one is gone too, and the conversation keeps that choice. If the provider stops offering the extra model you chose, the message fails with "The model is not available on this connection" and the connection stays as it is. Pick another model, or **Default**, to carry on.
 
 Until you have a model, the AI chat page says "Connect a model to start" and links to the AI settings.
 

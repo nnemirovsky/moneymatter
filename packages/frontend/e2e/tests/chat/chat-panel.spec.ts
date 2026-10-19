@@ -1,8 +1,8 @@
-import { expect, test } from '@playwright/test';
+import { type Locator, type Page, expect, test } from '@playwright/test';
 
 import { completeOnboarding, createAccount, extractId, signInViaApi } from '../../helpers/api-client';
 import { loginViaUI } from '../../helpers/auth';
-import { stubChatApi } from '../../helpers/chat-stubs';
+import { type ChatStub, stubChatApi } from '../../helpers/chat-stubs';
 import { buildTestCredentials, signUpAndVerify } from '../../helpers/test-setup';
 
 const CURRENCY = 'USD';
@@ -22,8 +22,10 @@ test.describe('Chat panel', () => {
     );
   });
 
+  let stub: ChatStub;
+
   test.beforeEach(async ({ page }) => {
-    await stubChatApi({ page });
+    stub = await stubChatApi({ page });
     await loginViaUI({ page, email: creds.email, password: creds.password });
   });
 
@@ -68,6 +70,74 @@ test.describe('Chat panel', () => {
     await page.getByTestId('chat-panel').getByTestId('context-remove').click();
 
     await expect(page.getByTestId('context-chip')).toHaveCount(0);
+  });
+
+  const openPanelWithModels = async ({ page, width }: { page: Page; width: number }) => {
+    stub.connections = [
+      {
+        id: 'conn-1',
+        provider: 'anthropic',
+        name: 'My Claude Account',
+        model: 'claude-haiku-5-5',
+        status: 'valid',
+        hasApiKey: true,
+        createdAt: '2026-03-05T10:00:00.000Z',
+        lastValidatedAt: '2026-03-05T10:00:00.000Z',
+      },
+    ];
+    stub.connectionModels = ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5'];
+    stub.defaultConnectionId = 'conn-1';
+    await page.addInitScript((panelWidth) => {
+      localStorage.setItem('chat-panel', JSON.stringify({ isOpen: false, width: panelWidth }));
+    }, width);
+    await page.goto(`/account/${accountId}`);
+    await page.getByTestId('chat-header-button').click();
+
+    const panel = page.getByTestId('chat-panel');
+    await expect(page.getByTestId('panel-resize')).toHaveAttribute('aria-valuenow', String(width));
+    const selects = panel.getByTestId('chat-connection-picker').getByRole('combobox');
+    await expect(selects).toHaveCount(2);
+
+    return { panel, selects };
+  };
+
+  /** Whether the label inside a select shows in full, without an ellipsis. */
+  const showsFullLabel = ({ select }: { select: Locator }) =>
+    select.evaluate((element) => {
+      const label = element.querySelector('.truncate');
+      return label !== null && label.scrollWidth <= label.clientWidth;
+    });
+
+  test('stacks the connection and model selects in a panel at its minimum width', async ({ page }) => {
+    const { panel, selects } = await openPanelWithModels({ page, width: 360 });
+
+    const panelBox = (await panel.boundingBox())!;
+    expect(panelBox.width).toBeLessThanOrEqual(360);
+    const [connection, model] = await Promise.all([selects.nth(0).boundingBox(), selects.nth(1).boundingBox()]);
+    for (const box of [connection!, model!]) {
+      expect(box.width).toBeGreaterThan(300);
+      expect(box.x).toBeGreaterThanOrEqual(panelBox.x);
+      expect(box.x + box.width).toBeLessThanOrEqual(panelBox.x + panelBox.width);
+    }
+    // The model select sits on its own row under the connection select.
+    expect(model!.y).toBeGreaterThanOrEqual(connection!.y + connection!.height);
+    expect(await panel.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await expect(selects.nth(0)).toContainText('My Claude Account');
+    await expect(selects.nth(1)).toContainText('Default (claude-haiku-5-5)');
+    expect(await showsFullLabel({ select: selects.nth(0) })).toBe(true);
+    expect(await showsFullLabel({ select: selects.nth(1) })).toBe(true);
+
+    await panel.screenshot({ path: test.info().outputPath('panel-360.png') });
+  });
+
+  test('puts the connection and model selects side by side in a wide panel', async ({ page }) => {
+    const { panel, selects } = await openPanelWithModels({ page, width: 560 });
+
+    const [connection, model] = await Promise.all([selects.nth(0).boundingBox(), selects.nth(1).boundingBox()]);
+    expect(Math.abs(connection!.y - model!.y)).toBeLessThan(4);
+    expect(connection!.x + connection!.width).toBeLessThanOrEqual(model!.x);
+
+    await panel.screenshot({ path: test.info().outputPath('panel-560.png') });
   });
 
   test('is not offered on the Chat page itself', async ({ page }) => {

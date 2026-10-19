@@ -159,8 +159,24 @@ test.describe('Chat page', () => {
   });
   test.describe('model picker', () => {
     const CONNECTIONS = [
-      { id: 'conn-1', provider: 'custom', name: 'Home Ollama', model: 'llama3.2', status: 'valid', hasApiKey: false },
-      { id: 'conn-2', provider: 'custom', name: 'Studio vLLM', model: 'qwen2.5', status: 'valid', hasApiKey: false },
+      {
+        id: 'conn-1',
+        provider: 'custom',
+        name: 'Home Ollama',
+        baseUrl: 'http://ollama.lan/v1',
+        model: 'llama3.2',
+        status: 'valid',
+        hasApiKey: false,
+      },
+      {
+        id: 'conn-2',
+        provider: 'custom',
+        name: 'Studio vLLM',
+        baseUrl: 'http://vllm.lan/v1',
+        model: 'qwen2.5',
+        status: 'valid',
+        hasApiKey: false,
+      },
     ];
 
     test.beforeEach(() => {
@@ -176,7 +192,7 @@ test.describe('Chat page', () => {
       stub.addThread({ id: 'thread-1', title: 'Budget talk', connectionId: 'conn-1' });
       await page.goto('/chat/thread-1');
 
-      const picker = page.getByTestId('chat-connection-picker').getByRole('combobox');
+      const picker = page.getByTestId('chat-connection-picker').getByRole('combobox').first();
       await expect(picker).toContainText('Home Ollama (llama3.2)');
 
       // The model is chosen above the message box.
@@ -196,7 +212,7 @@ test.describe('Chat page', () => {
       stub.nextRun = textRun({ text: 'Hello there.' });
       await page.goto('/chat');
 
-      const picker = page.getByTestId('chat-connection-picker').getByRole('combobox');
+      const picker = page.getByTestId('chat-connection-picker').getByRole('combobox').first();
       await expect(picker).toContainText('Home Ollama (llama3.2)');
       await picker.click();
       await page.getByRole('option', { name: 'Studio vLLM (qwen2.5)' }).click();
@@ -206,7 +222,79 @@ test.describe('Chat page', () => {
 
       await expect(page.getByText('Hello there.')).toBeVisible();
       const created = stub.calls.find((call) => call.method === 'POST' && call.path === '/threads');
-      expect(created?.body).toEqual({ connectionId: 'conn-2' });
+      // Switching connection starts on that connection's own model, sent outright.
+      expect(created?.body).toEqual({ connectionId: 'conn-2', modelId: null });
+    });
+
+    test.describe('model within the connection', () => {
+      test.beforeEach(() => {
+        stub.connectionModels = ['llama3.2', 'llama3.2:70b', 'llama3.2:1b'];
+      });
+
+      test('picks a model for a conversation and returns to the default', async ({ page }) => {
+        stub.addThread({ id: 'thread-1', title: 'Budget talk', connectionId: 'conn-1' });
+        await page.goto('/chat/thread-1');
+
+        const models = page.getByTestId('chat-connection-picker').getByRole('combobox').nth(1);
+        await expect(models).toContainText('Default (llama3.2)');
+
+        // The page is wide, so the two selects share a row.
+        const connectionBox = await page
+          .getByTestId('chat-connection-picker')
+          .getByRole('combobox')
+          .first()
+          .boundingBox();
+        const modelBox = await models.boundingBox();
+        expect(Math.abs(connectionBox!.y - modelBox!.y)).toBeLessThan(4);
+
+        await models.click();
+        await page.getByRole('option', { name: 'llama3.2:70b' }).click();
+
+        await expect(models).toContainText('llama3.2:70b');
+        const picked = stub.calls.findLast((call) => call.method === 'PATCH' && call.path === '/threads/thread-1');
+        expect(picked?.body).toEqual({ modelId: 'llama3.2:70b' });
+
+        await models.click();
+        await page.getByRole('option', { name: 'Default (llama3.2)' }).click();
+
+        await expect
+          .poll(() => stub.calls.findLast((call) => call.method === 'PATCH' && call.path === '/threads/thread-1')?.body)
+          .toEqual({ modelId: null });
+      });
+
+      test('starts a new conversation on the model picked before the first message', async ({ page }) => {
+        stub.nextRun = textRun({ text: 'Hello there.' });
+        await page.goto('/chat');
+
+        const models = page.getByTestId('chat-connection-picker').getByRole('combobox').nth(1);
+        await models.click();
+        await page.getByRole('option', { name: 'llama3.2:1b' }).click();
+
+        await page.getByPlaceholder(COMPOSER_PLACEHOLDER).fill('Hi');
+        await page.getByTestId('send').click();
+
+        await expect(page.getByText('Hello there.')).toBeVisible();
+        const created = stub.calls.find((call) => call.method === 'POST' && call.path === '/threads');
+        expect(created?.body).toEqual({ connectionId: 'conn-1', modelId: 'llama3.2:1b' });
+      });
+
+      test('sends the default outright when it is picked over an inherited model', async ({ page }) => {
+        stub.defaultModelId = 'llama3.2:70b';
+        stub.nextRun = textRun({ text: 'Hello there.' });
+        await page.goto('/chat');
+
+        const models = page.getByTestId('chat-connection-picker').getByRole('combobox').nth(1);
+        await expect(models).toContainText('llama3.2:70b');
+        await models.click();
+        await page.getByRole('option', { name: 'Default (llama3.2)' }).click();
+
+        await page.getByPlaceholder(COMPOSER_PLACEHOLDER).fill('Hi');
+        await page.getByTestId('send').click();
+
+        await expect(page.getByText('Hello there.')).toBeVisible();
+        const created = stub.calls.find((call) => call.method === 'POST' && call.path === '/threads');
+        expect(created?.body).toEqual({ modelId: null });
+      });
     });
   });
 });

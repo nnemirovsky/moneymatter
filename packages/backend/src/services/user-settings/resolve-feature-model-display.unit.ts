@@ -119,6 +119,32 @@ describe('resolveFeatureStatus', () => {
     });
   });
 
+  it('names the model override of the configured connection and reports it as configured', async () => {
+    expect(
+      await status({
+        connections: [OLLAMA, CLAUDE],
+        config: { feature: FEATURE, connectionId: CLAUDE.id, modelId: 'claude-haiku-5-5' },
+      }),
+    ).toMatchObject({
+      isConfigured: true,
+      configuredConnectionId: CLAUDE.id,
+      configuredModelId: 'claude-haiku-5-5',
+      modelId: 'anthropic/claude-haiku-5-5',
+      modelName: 'claude-haiku-5-5',
+      connectionId: CLAUDE.id,
+    });
+  });
+
+  it('reports no configured model for a pick that keeps the connection default', async () => {
+    const result = await status({
+      connections: [CLAUDE],
+      config: { feature: FEATURE, connectionId: CLAUDE.id },
+    });
+
+    expect(result.configuredModelId).toBeUndefined();
+    expect(result.modelId).toBe('anthropic/claude-sonnet-5');
+  });
+
   it.each<[AI_PROVIDER, string]>([
     [AI_PROVIDER.claudeCode, 'sonnet'],
     [AI_PROVIDER.codex, 'gpt-6-astra'],

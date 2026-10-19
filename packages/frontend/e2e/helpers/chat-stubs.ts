@@ -16,6 +16,8 @@ export interface StubThread {
   lastMessageAt: string;
   /** The connection the thread runs on; null is the included model. */
   connectionId: string | null;
+  /** A model of that connection picked for the thread; null is the connection's own model. */
+  modelId: string | null;
   messages: Json[];
 }
 
@@ -32,8 +34,12 @@ export interface ChatStub {
   retentionDays: number | null;
   /** The user's AI connections, as the settings API lists them; null leaves the real list in place. */
   connections: Json[] | null;
+  /** The model ids the providers list for a connection; null leaves the real listing in place. */
+  connectionModels: string[] | null;
   /** What a new conversation starts on. */
   defaultConnectionId: string | null;
+  /** The model a new conversation inherits along with the connection; null is the connection's own. */
+  defaultModelId: string | null;
   /** The script the next message (or comment) starts. */
   nextRun: RunScript;
   /** Every request the page made to the chat API, in order. */
@@ -109,6 +115,7 @@ const asListItem = ({ thread, query }: { thread: StubThread; query: string }) =>
   expiresAt: null,
   usage: ZERO_USAGE,
   connectionId: thread.connectionId,
+  modelId: thread.modelId,
   createdAt: NOW,
   ...(query ? { snippet: `…${thread.title}…` } : {}),
 });
@@ -127,7 +134,9 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
     appliedChanges: [],
     retentionDays: 30,
     connections: null,
+    connectionModels: null,
     defaultConnectionId: null,
+    defaultModelId: null,
     nextRun: { events: [{ type: 'run.finished', status: 'complete' }], finalParts: [] },
     calls: [],
     addThread: (thread) => {
@@ -136,6 +145,7 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
         pinned: false,
         lastMessageAt: NOW,
         connectionId: null,
+        modelId: null,
         messages: [],
         ...thread,
       };
@@ -216,6 +226,11 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
     return ok({ route, response: stub.connections });
   });
 
+  await page.route('**/api/v1/user/settings/ai/connections/models', (route) => {
+    if (route.request().method() !== 'POST' || stub.connectionModels === null) return route.fallback();
+    return ok({ route, response: { models: stub.connectionModels } });
+  });
+
   await page.route('**/api/v1/user/settings', async (route) => {
     if (route.request().method() !== 'GET') return route.fallback();
     return rewriteRealResponse({
@@ -246,13 +261,14 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
     }
 
     if (method === 'GET' && path === '/default-connection') {
-      return ok({ route, response: { connectionId: stub.defaultConnectionId } });
+      return ok({ route, response: { connectionId: stub.defaultConnectionId, modelId: stub.defaultModelId } });
     }
 
     if (method === 'POST' && path === '/threads') {
       const thread = stub.addThread({
         id: `thread-${stub.threads.length + 1}`,
         connectionId: 'connectionId' in (body ?? {}) ? (body!.connectionId as string | null) : stub.defaultConnectionId,
+        modelId: 'modelId' in (body ?? {}) ? (body!.modelId as string | null) : stub.defaultModelId,
       });
       return ok({ route, response: asListItem({ thread, query: '' }), status: 201 });
     }
@@ -276,7 +292,11 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
       if (method === 'PATCH') {
         if (typeof body?.title === 'string') thread.title = body.title;
         if (typeof body?.pinned === 'boolean') thread.pinned = body.pinned;
-        if (body && 'connectionId' in body) thread.connectionId = body.connectionId as string | null;
+        if (body && 'connectionId' in body) {
+          thread.connectionId = body.connectionId as string | null;
+          thread.modelId = null;
+        }
+        if (body && 'modelId' in body) thread.modelId = body.modelId as string | null;
         return ok({ route, response: asListItem({ thread, query: '' }) });
       }
       if (method === 'DELETE') {

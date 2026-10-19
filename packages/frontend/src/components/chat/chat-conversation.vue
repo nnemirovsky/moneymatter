@@ -13,6 +13,7 @@ import { notifyMutationError } from '@/composable/data-queries/use-invalidating-
 import {
   AI_FEATURE,
   type ChatClarificationAnswerInput,
+  type ChatCreateThreadRequest,
   type ChatMessage as ChatMessageModel,
   type ChatPageContext,
   type ChatSendMessageRequest,
@@ -44,10 +45,15 @@ const SKELETON_COUNT = 3;
 const activeThreadId = ref(props.threadId);
 // A pick belongs to the thread it was made for, so another thread starts without one.
 const pickedConnectionId = ref<string | null | undefined>(undefined);
+// The model picked within the connection; null is the connection's own model.
+const pickedModelId = ref<string | null | undefined>(undefined);
 watch(
   () => props.threadId,
   (id) => {
-    if (id !== activeThreadId.value) pickedConnectionId.value = undefined;
+    if (id !== activeThreadId.value) {
+      pickedConnectionId.value = undefined;
+      pickedModelId.value = undefined;
+    }
     activeThreadId.value = id;
   },
 );
@@ -127,24 +133,70 @@ const shownConnectionId = computed<string | null>(() => {
   if (thread.value) return thread.value.connectionId;
   return activeThreadId.value === null ? (defaultConnection.value?.connectionId ?? null) : null;
 });
+const shownModelId = computed<string | null>(() => {
+  if (pickedModelId.value !== undefined) return pickedModelId.value;
+  if (thread.value) return thread.value.modelId;
+  return activeThreadId.value === null ? (defaultConnection.value?.modelId ?? null) : null;
+});
 // The stored thread is the source of truth once it has loaded.
 watch(thread, (loaded) => {
-  if (loaded && !updateThread.isPending.value) pickedConnectionId.value = undefined;
+  if (loaded && !updateThread.isPending.value) {
+    pickedConnectionId.value = undefined;
+    pickedModelId.value = undefined;
+  }
 });
 
 const onPickConnection = async ({ connectionId }: { connectionId: string | null }) => {
-  const previous = pickedConnectionId.value;
+  const previous = { connectionId: pickedConnectionId.value, modelId: pickedModelId.value };
   pickedConnectionId.value = connectionId;
+  // A model belongs to its connection: the new one starts on its own model.
+  pickedModelId.value = null;
   if (!activeThreadId.value) return;
 
   try {
     await updateThread.mutateAsync({ threadId: activeThreadId.value, payload: { connectionId } });
   } catch {
-    // The mutation reports the failure; the picker goes back to the stored connection.
-    pickedConnectionId.value = previous;
+    // The mutation reports the failure; the picker goes back to the stored connection and model.
+    pickedConnectionId.value = previous.connectionId;
+    pickedModelId.value = previous.modelId;
     return;
   }
   pickedConnectionId.value = undefined;
+  pickedModelId.value = undefined;
+};
+
+const onPickModel = async ({ modelId }: { modelId: string | null }) => {
+  const previous = pickedModelId.value;
+  pickedModelId.value = modelId;
+  if (!activeThreadId.value) return;
+
+  try {
+    await updateThread.mutateAsync({ threadId: activeThreadId.value, payload: { modelId } });
+  } catch {
+    pickedModelId.value = previous;
+    return;
+  }
+  pickedModelId.value = undefined;
+};
+
+/**
+ * What the first message creates the thread with. A model rides on the connection it was picked for, so a
+ * model picked on the connection shown by default names that connection too. Choosing the connection default
+ * is sent as an explicit null: left out, the new thread would inherit the model of the latest one.
+ */
+const buildCreateRequest = (): ChatCreateThreadRequest => {
+  const modelId = pickedModelId.value;
+  const connectionId =
+    pickedConnectionId.value !== undefined
+      ? pickedConnectionId.value
+      : typeof modelId === 'string'
+        ? shownConnectionId.value
+        : undefined;
+
+  return {
+    ...(connectionId === undefined ? {} : { connectionId }),
+    ...(modelId === undefined ? {} : { modelId }),
+  };
 };
 
 const isLive = ({ message }: { message: ChatMessageModel }) =>
@@ -176,11 +228,12 @@ const ensureThread = (): Promise<string> => {
 
   // Two attachments dropped together must not create two threads.
   creatingThread ??= createThread
-    .mutateAsync(pickedConnectionId.value === undefined ? {} : { connectionId: pickedConnectionId.value })
+    .mutateAsync(buildCreateRequest())
     .then((created) => {
       activeThreadId.value = created.id;
       // The stored thread is still loading; until it has, the picker names the connection it was created on.
       pickedConnectionId.value = created.connectionId;
+      pickedModelId.value = created.modelId;
       emit('thread-created', created.id);
       return created.id;
     })
@@ -273,8 +326,10 @@ onMounted(scrollToBottom);
   <div class="@container/chat-conversation flex h-full min-h-0 flex-col">
     <ChatConnectionPicker
       :connection-id="shownConnectionId"
+      :model-id="shownModelId"
       :disabled="isBusy || updateThread.isPending.value"
       @select="(connectionId) => onPickConnection({ connectionId })"
+      @select-model="(modelId) => onPickModel({ modelId })"
     />
 
     <ScrollArea ref="scrollAreaRef" class="min-h-0 flex-1" :scroll-y="onScroll">

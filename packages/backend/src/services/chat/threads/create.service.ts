@@ -1,9 +1,16 @@
 import type { ChatThread } from '@bt/shared/types';
+import { t } from '@i18n/index';
+import { ValidationError } from '@js/errors';
 import ChatThreads from '@models/chat-threads.model';
 import { withTransaction } from '@services/common/with-transaction';
 
 import { getChatRetentionDays } from './retention.service';
-import { assertSelectableConnection, pickDefaultConnectionId } from './thread-connection';
+import {
+  type ThreadModelChoice,
+  assertSelectableConnection,
+  pickDefaultThreadChoice,
+  resolveThreadModel,
+} from './thread-connection';
 import { notifyThreadUpdated } from './thread-events';
 import { computeThreadExpiry } from './thread-expiry';
 import { toChatThread } from './to-chat-thread';
@@ -11,15 +18,21 @@ import { toChatThread } from './to-chat-thread';
 interface CreateThreadParams {
   userId: number;
   title?: string;
-  /** Omitted: the thread starts on the connection `pickDefaultConnectionId` names. Null picks the included model. */
+  /** Omitted: the thread starts on the connection and model `pickDefaultThreadChoice` names. Null picks the included model. */
   connectionId?: string | null;
+  /**
+   * A model of the named connection. Null asks for the connection's own model outright, where omitted
+   * lets a thread that inherits its connection inherit the model too. A model needs `connectionId`.
+   */
+  modelId?: string | null;
 }
 
 const createThreadImpl = async ({
   userId,
   title,
   connectionId,
-}: CreateThreadParams & { connectionId: string | null }): Promise<ChatThread> => {
+  modelId,
+}: Pick<CreateThreadParams, 'userId' | 'title'> & ThreadModelChoice): Promise<ChatThread> => {
   const retentionDays = await getChatRetentionDays({ userId, lock: true });
   const lastMessageAt = new Date();
 
@@ -30,6 +43,7 @@ const createThreadImpl = async ({
     titleSource: title === undefined ? 'auto' : 'user',
     pinned: false,
     connectionId,
+    modelId,
     lastMessageAt,
     expiresAt: computeThreadExpiry({ lastMessageAt, pinned: false, retentionDays }),
   });
@@ -40,15 +54,28 @@ const createThreadImpl = async ({
 const createThreadTransactional = withTransaction(createThreadImpl);
 
 export const createThread = async (params: CreateThreadParams): Promise<ChatThread> => {
-  let connectionId: string | null;
+  const { userId } = params;
+  let choice: ThreadModelChoice;
+
   if (params.connectionId === undefined) {
-    connectionId = await pickDefaultConnectionId({ userId: params.userId });
+    // A model names a connection's model, so it can't ride on a connection picked for the user.
+    if (params.modelId) throw new ValidationError({ message: t({ key: 'chat.modelNeedsConnection' }) });
+    choice = await pickDefaultThreadChoice({ userId });
+    // An explicit null keeps the inherited connection but not its model.
+    if (params.modelId === null) choice = { connectionId: choice.connectionId, modelId: null };
   } else {
-    connectionId = params.connectionId;
-    await assertSelectableConnection({ userId: params.userId, connectionId });
+    await assertSelectableConnection({ userId, connectionId: params.connectionId });
+    choice = {
+      connectionId: params.connectionId,
+      modelId: await resolveThreadModel({
+        userId,
+        connectionId: params.connectionId,
+        modelId: params.modelId ?? null,
+      }),
+    };
   }
 
-  const thread = await createThreadTransactional({ ...params, connectionId });
-  notifyThreadUpdated({ userId: params.userId, threadId: thread.id });
+  const thread = await createThreadTransactional({ userId, title: params.title, ...choice });
+  notifyThreadUpdated({ userId, threadId: thread.id });
   return thread;
 };

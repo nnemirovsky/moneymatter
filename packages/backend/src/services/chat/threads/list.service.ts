@@ -61,7 +61,7 @@ export const listThreads = async ({
   }
 
   const rows = await connection.sequelize.query(
-    `SELECT t.id, t.title, t."titleSource", t.pinned, t."lastMessageAt", t."expiresAt", t."connectionId",
+    `SELECT t.id, t.title, t."titleSource", t.pinned, t."lastMessageAt", t."expiresAt", t."connectionId", t."modelId",
             t."inputTokens", t."outputTokens", t."cachedInputTokens", t."createdAt",
             ${tsQuery ? 'm."plainText"' : 'NULL::text'} AS "matchText"
      FROM "ChatThreads" AS t

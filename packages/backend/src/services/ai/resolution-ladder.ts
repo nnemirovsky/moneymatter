@@ -102,7 +102,7 @@ export interface LadderConnection {
 
 type ResolutionStep<C extends LadderConnection> =
   /** An explicit pick is dialled even while flagged invalid, so a recovered connection heals itself on the next run. */
-  | { kind: 'configured'; connection: C }
+  | { kind: 'configured'; connection: C; modelId?: string }
   | { kind: 'configured-server'; model: ServerModel }
   /** No usable config: the first connection not flagged invalid answers. */
   | { kind: 'default-connection'; connection: C }
@@ -113,7 +113,7 @@ type ResolutionStep<C extends LadderConnection> =
   | { kind: 'unserved' };
 
 /**
- * Priority order: explicit feature config, then the user's first dialable connection, then
+ * Priority order: explicit feature config (with its model override), then the user's first dialable connection, then
  * the included server model, but only for a user who owns no connections at all. Pure over
  * its inputs plus the server-key env vars and the Anthropic key suspension.
  *
@@ -146,7 +146,8 @@ export function pickResolutionStep<C extends LadderConnection>({
       const connection = connections.find(
         (candidate) => candidate.id === config.connectionId && !excluded.has(candidate.id),
       );
-      if (connection) return { kind: 'configured', connection };
+      // The override belongs to the picked connection: a fall-through to another one runs on its own model.
+      if (connection) return { kind: 'configured', connection, ...(config.modelId ? { modelId: config.modelId } : {}) };
     }
   }
 

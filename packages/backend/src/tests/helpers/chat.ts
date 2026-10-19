@@ -39,14 +39,16 @@ const buildQuery = ({ params }: { params: Record<string, string | number | undef
 export async function createChatThread<R extends boolean | undefined = undefined>({
   title,
   connectionId,
+  modelId,
   raw,
-}: { title?: string; connectionId?: string | null; raw?: R } = {}) {
+}: { title?: string; connectionId?: string | null; modelId?: string | null; raw?: R } = {}) {
   return makeRequest<ChatThread, R>({
     method: 'post',
     url: '/chat/threads',
     payload: {
       ...(title === undefined ? {} : { title }),
       ...(connectionId === undefined ? {} : { connectionId }),
+      ...(modelId === undefined ? {} : { modelId }),
     },
     raw,
   });

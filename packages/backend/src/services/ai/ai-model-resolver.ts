@@ -29,7 +29,14 @@ import {
 } from './resolution-ladder';
 
 type AIConfigResolution =
-  | (ProviderModelSpec & { kind: 'connection'; modelId: string; connectionId: string; usingUserKey: true })
+  | (ProviderModelSpec & {
+      kind: 'connection';
+      modelId: string;
+      connectionId: string;
+      usingUserKey: true;
+      /** The run uses a model picked for the feature or thread, not the connection's own */
+      modelOverridden?: true;
+    })
   | { kind: 'server'; provider: AINativeProvider; model: string; modelId: string; apiKey: string; usingUserKey: false };
 
 /**
@@ -38,14 +45,19 @@ type AIConfigResolution =
  * A CLI connection is dialled through a credential source and is never decrypted here.
  */
 function toProviderModelSpec({
-  connection,
+  connection: stored,
+  model,
   apiKey,
   userId,
 }: {
   connection: StoredConnection;
+  /** The model to dial: the connection's own, or the override picked for the feature or thread. */
+  model: string;
   apiKey: string | null;
   userId: number;
 }): ProviderModelSpec | null {
+  const connection = { ...stored, model };
+
   if (connection.provider === AI_PROVIDER.claudeCode || connection.provider === AI_PROVIDER.codex) {
     return connection.keyEncrypted
       ? {
@@ -80,6 +92,7 @@ export async function resolveAIConfiguration({
   feature,
   allowOperatorKey = false,
   pinnedConnectionId,
+  pinnedModelId,
 }: {
   userId: number;
   feature: AI_FEATURE;
@@ -90,13 +103,15 @@ export async function resolveAIConfiguration({
    * Omitted, the stored config applies (chat has none: its threads carry the pick).
    */
   pinnedConnectionId?: string | null;
+  /** With a pinned connection: a model of that connection's provider to run instead of its own. */
+  pinnedModelId?: string | null;
 }): Promise<AIConfigResolution | null> {
   const aiSettings = await getStoredAiSettings({ userId });
   const connections = aiSettings?.connections ?? [];
   const config: AIFeatureConfig | null =
     pinnedConnectionId === undefined
       ? findStoredFeatureConfig({ aiSettings, feature })
-      : { feature, connectionId: pinnedConnectionId };
+      : { feature, connectionId: pinnedConnectionId, ...(pinnedModelId ? { modelId: pinnedModelId } : {}) };
   const entitlements = await getEntitlementsByUserId({ userId });
   const entitled = allowOperatorKey || entitlements.features.includes(FEATURES.operator_ai);
   const withinAllowance = entitled ? await isWithinAiAllowance({ userId, entitlements }) : undefined;
@@ -140,8 +155,11 @@ export async function resolveAIConfiguration({
           continue;
         }
 
+        // Only the picked connection takes the override. A walk that landed on another one runs its own model.
+        const model = (step.kind === 'configured' && step.modelId) || connection.model;
         const spec = toProviderModelSpec({
           connection,
+          model,
           apiKey: asAiCliProvider({ provider: connection.provider })
             ? null
             : decryptConnectionKey({ connection, userId }),
@@ -164,9 +182,10 @@ export async function resolveAIConfiguration({
         return {
           ...spec,
           kind: 'connection',
-          modelId: buildConnectionModelId(connection),
+          modelId: buildConnectionModelId({ provider: connection.provider, model }),
           connectionId: connection.id,
           usingUserKey: true,
+          ...(model === connection.model ? {} : { modelOverridden: true as const }),
         };
       }
 
