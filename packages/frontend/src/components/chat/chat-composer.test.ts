@@ -30,9 +30,8 @@ const attachment = ({ id, fileName }: { id: string; fileName: string }): ChatAtt
 
 const ACCOUNT_CONTEXT: ChatPageContext = { route: 'dashboard.account', entity: { kind: 'account', id: 'a1' } };
 
-const mountComposer = (props: Partial<InstanceType<typeof ChatComposer>['$props']> = {}, slots = {}) =>
+const mountComposer = (props: Partial<InstanceType<typeof ChatComposer>['$props']> = {}) =>
   mount(ChatComposer, {
-    slots,
     props: {
       isStreaming: false,
       context: null,
@@ -281,21 +280,6 @@ describe('ChatComposer', () => {
       expect(uploadChatAttachment).toHaveBeenLastCalledWith({ threadId: 'thread-1', file, password: 'secret' });
       expect(wrapper.find('[data-testid="attachment"]').text()).toContain('statement.pdf');
       expect(wrapper.find('[data-testid="attachment-password"]').exists()).toBe(false);
-    });
-  });
-
-  describe('connection slot', () => {
-    it('puts the connection picker above the page context and the message box', () => {
-      const wrapper = mountComposer({ context: ACCOUNT_CONTEXT }, { connection: '<div data-testid="picker-slot" />' });
-
-      const html = wrapper.html();
-      expect(html.indexOf('picker-slot')).toBeGreaterThan(-1);
-      expect(html.indexOf('picker-slot')).toBeLessThan(html.indexOf('context-chip'));
-      expect(html.indexOf('picker-slot')).toBeLessThan(html.indexOf('<textarea'));
-    });
-
-    it('adds no empty row without a picker', () => {
-      expect(mountComposer().find('[data-testid="picker-slot"]').exists()).toBe(false);
     });
   });
 });

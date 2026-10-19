@@ -271,6 +271,12 @@ onMounted(scrollToBottom);
 
 <template>
   <div class="@container/chat-conversation flex h-full min-h-0 flex-col">
+    <ChatConnectionPicker
+      :connection-id="shownConnectionId"
+      :disabled="isBusy || updateThread.isPending.value"
+      @select="(connectionId) => onPickConnection({ connectionId })"
+    />
+
     <ScrollArea ref="scrollAreaRef" class="min-h-0 flex-1" :scroll-y="onScroll">
       <div class="mx-auto flex w-full max-w-3xl flex-col gap-5 px-3 py-4 @sm/chat-conversation:px-5">
         <div v-if="showSkeleton" class="flex flex-col gap-4" data-testid="conversation-skeleton">
@@ -331,15 +337,7 @@ onMounted(scrollToBottom);
         :ensure-thread="ensureThread"
         @send="onSend"
         @cancel="chatRun.cancel()"
-      >
-        <template #connection>
-          <ChatConnectionPicker
-            :connection-id="shownConnectionId"
-            :disabled="isBusy || updateThread.isPending.value"
-            @select="(connectionId) => onPickConnection({ connectionId })"
-          />
-        </template>
-      </ChatComposer>
+      />
     </div>
   </div>
 </template>

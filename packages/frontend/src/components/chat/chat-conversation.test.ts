@@ -73,20 +73,16 @@ const fill = vi.fn();
 const ComposerStub = defineComponent({
   props: ['isStreaming', 'disabled', 'context', 'ensureThread'],
   emits: ['send', 'cancel'],
-  setup: (props, { emit, expose, slots }) => {
+  setup: (props, { emit, expose }) => {
     expose({ fill });
     return () =>
-      h(
-        'div',
-        {
-          'data-testid': 'composer',
-          'data-streaming': String(props.isStreaming),
-          'data-disabled': String(props.disabled),
-          onClick: () => emit('send', { text: 'Ask', attachmentIds: ['att-1'], pageContext: { route: 'x' } }),
-          onDblclick: () => emit('cancel'),
-        },
-        slots.connection?.(),
-      );
+      h('div', {
+        'data-testid': 'composer',
+        'data-streaming': String(props.isStreaming),
+        'data-disabled': String(props.disabled),
+        onClick: () => emit('send', { text: 'Ask', attachmentIds: ['att-1'], pageContext: { route: 'x' } }),
+        onDblclick: () => emit('cancel'),
+      });
   },
 });
 
@@ -450,6 +446,13 @@ describe('ChatConversation', () => {
     expect(mountConversation().find('[data-testid="conversation-skeleton"]').exists()).toBe(true);
   });
   describe('connection picker', () => {
+    it('sits at the top of the conversation, above the messages and the composer', () => {
+      const html = mountConversation().html();
+
+      expect(html.indexOf('data-testid="picker"')).toBeGreaterThan(-1);
+      expect(html.indexOf('data-testid="picker"')).toBeLessThan(html.indexOf('data-testid="composer"'));
+    });
+
     const picker = (wrapper: ReturnType<typeof mountConversation>) => wrapper.find('[data-testid="picker"]');
 
     it('shows the connection of the thread', () => {
