@@ -32,6 +32,38 @@ const FEATURE = AI_FEATURE.categorization;
 const FIRST_MODEL_ID = `custom/${CUSTOM_ENDPOINT_MODEL}`;
 const SECOND_MODEL_ID = `custom/${SECOND_CONNECTION_MODEL}`;
 
+/** A connection whose endpoint lists its models, counting what the endpoint is asked. */
+const arrangeListingConnection = async () => {
+  const counts = { listings: 0, completions: 0 };
+  global.mswMockServer.use(
+    http.get(`${CUSTOM_ENDPOINT_LISTING_BASE_URL}/models`, () => {
+      counts.listings += 1;
+      return HttpResponse.json({
+        object: 'list',
+        data: CUSTOM_ENDPOINT_LISTED_MODELS.map((id) => ({ id, object: 'model' })),
+      });
+    }),
+    getCustomEndpointCallCountingMock({
+      baseUrl: CUSTOM_ENDPOINT_LISTING_BASE_URL,
+      onCall: () => {
+        counts.completions += 1;
+      },
+    }),
+  );
+  const connection = await helpers.createAiConnection({
+    provider: AI_PROVIDER.custom,
+    name: 'Listing server',
+    baseUrl: CUSTOM_ENDPOINT_LISTING_BASE_URL,
+    model: CUSTOM_ENDPOINT_MODEL,
+    raw: true,
+  });
+  // Saving the connection probed it already.
+  counts.listings = 0;
+  counts.completions = 0;
+
+  return { connection, counts };
+};
+
 describe('AI feature settings', () => {
   useSelfHostWithoutServerAiKeys();
 
@@ -287,38 +319,6 @@ describe('AI feature settings', () => {
         beforeEach(() => {
           clearServedModelsCache();
         });
-
-        /** A connection whose endpoint lists its models, counting what the endpoint is asked. */
-        const arrangeListingConnection = async () => {
-          const counts = { listings: 0, completions: 0 };
-          global.mswMockServer.use(
-            http.get(`${CUSTOM_ENDPOINT_LISTING_BASE_URL}/models`, () => {
-              counts.listings += 1;
-              return HttpResponse.json({
-                object: 'list',
-                data: CUSTOM_ENDPOINT_LISTED_MODELS.map((id) => ({ id, object: 'model' })),
-              });
-            }),
-            getCustomEndpointCallCountingMock({
-              baseUrl: CUSTOM_ENDPOINT_LISTING_BASE_URL,
-              onCall: () => {
-                counts.completions += 1;
-              },
-            }),
-          );
-          const connection = await helpers.createAiConnection({
-            provider: AI_PROVIDER.custom,
-            name: 'Listing server',
-            baseUrl: CUSTOM_ENDPOINT_LISTING_BASE_URL,
-            model: CUSTOM_ENDPOINT_MODEL,
-            raw: true,
-          });
-          // Saving the connection probed it already.
-          counts.listings = 0;
-          counts.completions = 0;
-
-          return { connection, counts };
-        };
 
         it('checks a model against the provider listing, without a generate call', async () => {
           const { connection, counts } = await arrangeListingConnection();
