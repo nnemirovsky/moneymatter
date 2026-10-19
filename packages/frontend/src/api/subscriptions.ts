@@ -270,3 +270,16 @@ export const getSubscriptionPayPreview = async ({
 }): Promise<SubscriptionPayPreview> => {
   return api.get(`/subscriptions/${id}/pay-preview`, { periodId });
 };
+
+export const updateSubscriptionPeriodNotes = async ({
+  id,
+  periodId,
+  notes,
+}: {
+  id: string;
+  periodId: string;
+  /** `null` or a blank string clears the note. */
+  notes: string | null;
+}): Promise<SubscriptionPeriodModel> => {
+  return api.patch(`/subscriptions/${id}/periods/${periodId}`, { notes });
+};

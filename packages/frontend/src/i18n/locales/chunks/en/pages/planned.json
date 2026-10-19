@@ -270,14 +270,20 @@
           "markAsPaid": "Mark as paid",
           "skip": "Skip",
           "unlinkTransaction": "Unlink transaction",
-          "revert": "Revert"
+          "revert": "Revert",
+          "editNote": "Edit note"
         },
         "dialogs": {
           "revertTitle": "Revert period",
           "revertConfirm": "Revert",
           "revertDescription": "This period will be marked as unpaid again.",
           "revertDescriptionUnlinksTransaction": "The linked transaction will be detached, and this period will be marked as unpaid.",
-          "revertDescriptionDeletesTransaction": "The generated transaction will be deleted, and this period will be marked as unpaid."
+          "revertDescriptionDeletesTransaction": "The generated transaction will be deleted, and this period will be marked as unpaid.",
+          "editNoteTitle": "Edit note",
+          "editNoteDescription": "The note for the period due {date}. Leave it empty to remove the note.",
+          "noteLabel": "Note",
+          "notePlaceholder": "Add a note for this period",
+          "noteSave": "Save"
         },
         "notifications": {
           "periodSkipped": "Period skipped",
@@ -286,7 +292,9 @@
           "unlinkFailed": "Failed to unlink transaction",
           "periodReverted": "Period reverted",
           "revertFailed": "Failed to revert period",
-          "transactionLoadFailed": "Failed to load transaction"
+          "transactionLoadFailed": "Failed to load transaction",
+          "noteUpdated": "Note updated",
+          "noteUpdateFailed": "Failed to update note"
         }
       },
       "actions": {

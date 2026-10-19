@@ -270,14 +270,20 @@
           "markAsPaid": "Позначити як сплачено",
           "skip": "Пропустити",
           "unlinkTransaction": "Відв'язати транзакцію",
-          "revert": "Скинути"
+          "revert": "Скинути",
+          "editNote": "Редагувати примітку"
         },
         "dialogs": {
           "revertTitle": "Скинути статус періоду",
           "revertConfirm": "Скинути",
           "revertDescription": "Цей період буде знову позначено як несплачений.",
           "revertDescriptionUnlinksTransaction": "Прив'язану транзакцію буде відв'язано, а цей період буде позначено як несплачений.",
-          "revertDescriptionDeletesTransaction": "Згенеровану транзакцію буде видалено, а цей період буде позначено як несплачений."
+          "revertDescriptionDeletesTransaction": "Згенеровану транзакцію буде видалено, а цей період буде позначено як несплачений.",
+          "editNoteTitle": "Редагувати примітку",
+          "editNoteDescription": "Примітка до періоду з терміном оплати {date}. Залиште поле порожнім, щоб видалити примітку.",
+          "noteLabel": "Примітка",
+          "notePlaceholder": "Додайте примітку до цього періоду",
+          "noteSave": "Зберегти"
         },
         "notifications": {
           "periodSkipped": "Період пропущено",
@@ -286,7 +292,9 @@
           "unlinkFailed": "Не вдалося відв'язати транзакцію",
           "periodReverted": "Статус періоду скинуто",
           "revertFailed": "Не вдалося скинути статус періоду",
-          "transactionLoadFailed": "Не вдалося завантажити транзакцію"
+          "transactionLoadFailed": "Не вдалося завантажити транзакцію",
+          "noteUpdated": "Примітку оновлено",
+          "noteUpdateFailed": "Не вдалося оновити примітку"
         }
       },
       "actions": {
