@@ -108,7 +108,7 @@ export function registerCreateTransaction(server: McpServer) {
     'create_transaction',
     {
       description:
-        "Create a new transaction (income, expense, or transfer). Requires accountId, amount (decimal), transactionType, paymentType, and transferNature. For transfers, also provide destinationAccountId and destinationAmount. Use splits to categorize portions of the amount. Use originalAmount + originalCurrencyCode to record what the purchase cost in its invoice currency when that differs from the account currency. Use payeeId to link an existing payee, or merchantName to let the server resolve a payee from a raw merchant name (it matches an existing payee by name or alias and follows the instance's normal promotion rules, so it may not create a payee on first sight); the two cannot be combined.",
+        "Create a new transaction (income, expense, or transfer). Requires accountId, amount (decimal), transactionType, paymentType, and transferNature. Take the payment type from the account's other transactions; never pick cash for an account that is not paid in cash. For transfers, also provide destinationAccountId and destinationAmount. Use splits to categorize portions of the amount. Use originalAmount + originalCurrencyCode to record what the purchase cost in its invoice currency when that differs from the account currency. Use payeeId to link an existing payee, or merchantName to let the server resolve a payee from a raw merchant name (it matches an existing payee by name or alias and follows the instance's normal promotion rules, so it may not create a payee on first sight); the two cannot be combined.",
       inputSchema,
     },
     async (args, extra) => {

@@ -14,7 +14,7 @@ export function registerDeleteTransaction(server: McpServer) {
     'delete_transaction',
     {
       description:
-        'Permanently delete a transaction by ID. DESTRUCTIVE: this cannot be undone. For transfer transactions, both sides of the transfer are deleted.',
+        'Permanently delete a transaction by ID. DESTRUCTIVE: this cannot be undone. For transfer transactions, both sides of the transfer are deleted. Call it only for a record you have read and whose amount, date, payee and account match what the user described; if any of them differ, say so and ask instead of deleting.',
       inputSchema,
     },
     async (args, extra) => {

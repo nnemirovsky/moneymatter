@@ -22,6 +22,10 @@ import {
 } from '@tests/helpers/chat-toolkit';
 
 // The import chains of the services behind the catalog's tools open Redis connections.
+// The payment-type check reads the account's history from the database.
+jest.mock('../proposals/account-history-guard', () => ({
+  markAccountHistoryMismatch: jest.fn(async ({ uncertain }: { uncertain: unknown }) => uncertain),
+}));
 jest.mock('@services/categories.service', () => ({ getCategories: jest.fn() }));
 jest.mock('@services/accounts.service', () => ({ getAccounts: jest.fn() }));
 // Storing a card opens a transaction; a unit test has no database, so the body just runs.

@@ -6,6 +6,7 @@ import { withTransaction } from '@services/common/with-transaction';
 import { findToolCatalogEntry } from '../../mcp/tool-catalog';
 import { resolveToolPolicy } from '../policies';
 import { notifyThreadUpdated } from '../threads/thread-events';
+import { markAccountHistoryMismatch } from './account-history-guard';
 import { cardConflict } from './card-conflict';
 import { expireDueCards, isExpiryDue } from './card-expiry';
 import { findOwnedProposal, loadCards } from './card-load';
@@ -81,14 +82,28 @@ const editTransaction = withTransaction(
     const changed = [...new Set([...Object.keys(row.args), ...Object.keys(args)])].filter(
       (key) => !sameValue({ a: row.args[key], b: args[key] }),
     );
-    const stillUnsure = (row.uncertainFields ?? []).filter((field) => !changed.includes(field.field));
+    // The server's own mark is recomputed against the new account; a payment type the user chose is no guess.
+    const stillUnsure = (row.uncertainFields ?? []).filter(
+      (field) => !changed.includes(field.field) && field.reason !== 'accountHistoryMismatch',
+    );
+    const uncertainFields = changed.includes('paymentType')
+      ? stillUnsure.length > 0
+        ? stillUnsure
+        : null
+      : await markAccountHistoryMismatch({
+          userId,
+          toolName: policy.name,
+          args,
+          targetAccountId: state.preview?.before?.accountId,
+          uncertain: stillUnsure.length > 0 ? stillUnsure : null,
+        });
 
     await ChatProposals.update(
       {
         args,
         editedFields: [...new Set([...row.editedFields, ...changed])],
         // A field the user changed is no longer a guess.
-        uncertainFields: stillUnsure.length > 0 ? stillUnsure : null,
+        uncertainFields,
         dependsOn: refs,
         status: 'pending',
         statusReason: null,

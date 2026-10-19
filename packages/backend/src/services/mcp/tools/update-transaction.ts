@@ -107,7 +107,7 @@ export function registerUpdateTransaction(server: McpServer) {
     'update_transaction',
     {
       description:
-        'Update an existing transaction by ID. All fields except id are optional — only provide what you want to change. Pass tagIds: null to clear all tags, or tagIds: [] to do the same. Pass splits: null to clear all splits. Use payeeId to link an existing payee, or payeeId: null to clear it. Use originalAmount + originalCurrencyCode to record what the purchase cost in its invoice currency when that differs from the account currency.',
+        'Update an existing transaction by ID. Call it only for a record you have read and whose amount, date, payee and account match what the user described; if any of them differ, say so and ask instead of updating. All fields except id are optional — only provide what you want to change. Pass tagIds: null to clear all tags, or tagIds: [] to do the same. Pass splits: null to clear all splits. Use payeeId to link an existing payee, or payeeId: null to clear it. Use originalAmount + originalCurrencyCode to record what the purchase cost in its invoice currency when that differs from the account currency.',
       inputSchema,
     },
     async (args, extra) => {

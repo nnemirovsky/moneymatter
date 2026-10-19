@@ -240,7 +240,8 @@
       "weekday": "Weekday",
       "withSuggestedLines": "Add suggested lines",
       "year": "Year",
-      "zeroSum": "Zero-sum budget"
+      "zeroSum": "Zero-sum budget",
+      "filename": "File name"
     },
     "entities": {
       "transaction": "transaction",
@@ -397,7 +398,8 @@
         "alternatives": "Other options"
       },
       "uncertainty": {
-        "guessedFromHistory": "Guessed from your history",
+        "guessedFromHistory": "The assistant guessed this from your history",
+        "accountHistoryMismatch": "Differs from how this account is usually paid",
         "guessedFromAttachment": "Read from the attachment, not certain",
         "ambiguousMatch": "More than one match",
         "missingInSource": "Not in the source, so this is a guess",
@@ -487,7 +489,33 @@
         "rate": "Rate",
         "source": "Source"
       },
-      "appliedToast": "Change applied"
+      "appliedToast": "Change applied",
+      "enumValues": {
+        "transactionType": {
+          "expense": "Expense",
+          "income": "Income"
+        },
+        "transferNature": {
+          "not_transfer": "Not a transfer",
+          "transfer_between_user_accounts": "Between your accounts",
+          "transfer_out_wallet": "Out of your accounts",
+          "transfer_to_portfolio": "To a portfolio",
+          "transfer_to_venture": "To a venture",
+          "transfer_to_loan": "To a loan"
+        },
+        "paymentType": {
+          "bankTransfer": "Bank transfer",
+          "voucher": "Voucher",
+          "webPayment": "Web payment",
+          "cash": "Cash",
+          "mobilePayment": "Mobile payment",
+          "creditCard": "Credit card",
+          "debitCard": "Debit card"
+        }
+      },
+      "target": {
+        "title": "The record this changes"
+      }
     },
     "errors": {
       "threadAction": "Could not update the conversation. Try again.",

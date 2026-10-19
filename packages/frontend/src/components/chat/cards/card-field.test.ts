@@ -154,7 +154,7 @@ describe('CardField', () => {
       const wrapper = mountField({ field: uncertain, names });
 
       expect(wrapper.find('[data-testid="uncertain"]').exists()).toBe(true);
-      expect(wrapper.text()).toContain('Guessed from your history');
+      expect(wrapper.text()).toContain('The assistant guessed this from your history');
     });
 
     it('offers each alternative as a one-tap choice', async () => {
@@ -187,6 +187,77 @@ describe('CardField', () => {
       });
 
       expect(wrapper.find('[data-testid="alternative"]').attributes('disabled')).toBeDefined();
+    });
+  });
+
+  describe('values a person reads', () => {
+    it('shows a date and time in the locale, not as ISO text', () => {
+      const wrapper = mountField({
+        field: buildField({ path: 'time', value: '2026-10-19T07:26:00Z', display: { kind: 'datetime' } }),
+      });
+
+      expect(wrapper.text()).toContain('Oct 19, 2026');
+      expect(wrapper.text()).not.toContain('2026-10-19T');
+    });
+
+    it.each([
+      ['transactionType', 'expense', 'Expense'],
+      ['transactionType', 'income', 'Income'],
+      ['transferNature', 'not_transfer', 'Not a transfer'],
+      ['transferNature', 'transfer_between_user_accounts', 'Between your accounts'],
+      ['paymentType', 'debitCard', 'Debit card'],
+      ['paymentType', 'cash', 'Cash'],
+    ])('shows %s %s as "%s"', (path, value, label) => {
+      const wrapper = mountField({ field: buildField({ path, value, display: { kind: 'enum' } }) });
+
+      expect(wrapper.find('[data-testid="field-value"]').text()).toBe(label);
+    });
+
+    it('falls back to the value for an option it has no name for', () => {
+      const wrapper = mountField({
+        field: buildField({ path: 'someChoice', value: 'odd_value', display: { kind: 'enum' } }),
+      });
+
+      expect(wrapper.find('[data-testid="field-value"]').text()).toBe('odd_value');
+    });
+
+    it('takes the currency of a money value from the field itself when it carries one', () => {
+      const wrapper = mountField({
+        field: buildField({ path: 'amount', value: 28.1, display: { kind: 'money', currencyCode: 'GEL' } }),
+        currencyCode: 'USD',
+      });
+
+      expect(wrapper.text()).toContain('GEL');
+      expect(wrapper.text()).not.toContain('$');
+    });
+  });
+
+  describe('doubt about a field', () => {
+    it('says the assistant guessed from the history, without claiming it was checked', () => {
+      const wrapper = mountField({
+        field: buildField({
+          path: 'paymentType',
+          value: 'cash',
+          display: { kind: 'enum' },
+          uncertain: { reason: 'guessedFromHistory' },
+        }),
+      });
+
+      expect(wrapper.text()).toContain('The assistant guessed this from your history');
+    });
+
+    it('says the account is usually paid another way and offers that way', () => {
+      const wrapper = mountField({
+        field: buildField({
+          path: 'paymentType',
+          value: 'cash',
+          display: { kind: 'enum' },
+          uncertain: { reason: 'accountHistoryMismatch', alternatives: ['debitCard'] },
+        }),
+      });
+
+      expect(wrapper.text()).toContain('Differs from how this account is usually paid');
+      expect(wrapper.text()).toContain('Debit card');
     });
   });
 });

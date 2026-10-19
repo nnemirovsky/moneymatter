@@ -350,6 +350,25 @@ const isDetailsOpen = ref(false);
       @update:typed="typed = $event"
     />
 
+    <section
+      v-if="card.target && card.target.length > 0"
+      class="bg-muted/40 flex flex-col gap-1 rounded-md px-1 py-1.5"
+      data-testid="card-target"
+    >
+      <p class="text-muted-foreground px-2 text-xs font-medium">{{ $t('chat.cards.target.title') }}</p>
+      <dl class="flex flex-col gap-0.5">
+        <CardField
+          v-for="field in card.target"
+          :key="field.path"
+          :field="field"
+          :lookups="lookups"
+          :currency-code="null"
+          :depends-on="card.dependsOn"
+          disabled
+        />
+      </dl>
+    </section>
+
     <dl v-if="!isEditing" class="flex flex-col gap-0.5">
       <CardField
         v-for="field in card.fields"

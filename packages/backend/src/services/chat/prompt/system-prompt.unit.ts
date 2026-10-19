@@ -45,6 +45,19 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toMatch(/never (restate|quote)[^.]*(differ|visual)/i);
   });
 
+  it('stops a delete or an update whose record differs from what the user said, and asks instead', () => {
+    const prompt = buildSystemPrompt(params);
+
+    expect(prompt).toMatch(/amount, date, payee and account/i);
+    expect(prompt).toMatch(/differs?[^.]*do not propose/i);
+    expect(prompt).toMatch(/clarification option[^.]*(amount|date)/i);
+  });
+
+  it('takes the payment type from the account history and never guesses cash', () => {
+    expect(buildSystemPrompt(params)).toMatch(/paymentType[^.]*(recent transactions|same account)/i);
+    expect(buildSystemPrompt(params)).toMatch(/never[^.]*cash/i);
+  });
+
   it('has the card rules: one call per change, refs, uncertain fields, clarification', () => {
     const prompt = buildSystemPrompt(params);
 
