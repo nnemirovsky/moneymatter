@@ -76,7 +76,8 @@
       "connectBank": "Підключити банк",
       "syncingAccounts": "Синхронізація {count} рахунків",
       "stuck": "Синхронізація зависла",
-      "failed": "Синхронізацію не вдалося виконати, деякі рахунки потребують уваги"
+      "failed": "Синхронізацію не вдалося виконати, деякі рахунки потребують уваги",
+      "applePayWaiting": "Платежі Apple Pay очікують на вас"
     },
     "categorization": {
       "title": "AI-категоризація",
@@ -158,6 +159,13 @@
       "weeksAgo": "{count} тиждень тому | {count} тижні тому | {count} тижнів тому",
       "monthsAgo": "{count} місяць тому | {count} місяці тому | {count} місяців тому",
       "yearsAgo": "{count} рік тому | {count} роки тому | {count} років тому"
+    },
+    "applePay": {
+      "title": "Apple Pay",
+      "lastPayment": "Останній платіж {time}",
+      "noPayments": "Платежів ще немає",
+      "waiting": "Очікують: {count}",
+      "open": "Відкрити"
     }
   },
   "banners": {

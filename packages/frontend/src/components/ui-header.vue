@@ -128,13 +128,16 @@
               <Button variant="secondary" size="icon" :aria-label="syncButtonLabel">
                 <RefreshCcw v-if="syncStatus.isSyncing.value" class="animate-spin" :size="16" />
                 <AlertTriangleIcon v-else-if="syncStatus.syncStuck.value" class="text-destructive-text" :size="16" />
-                <CloudAlertIcon v-else-if="syncStatus.hasSyncIssue.value" class="text-destructive-text size-4" />
+                <CloudAlertIcon
+                  v-else-if="syncStatus.hasSyncIssue.value || applePayWaitingCount > 0"
+                  class="text-destructive-text size-4"
+                />
                 <SparklesIcon
                   v-else-if="categorizationStatus.isCategorizing.value"
                   class="text-primary-text animate-pulse"
                   :size="16"
                 />
-                <CloudCheckIcon v-else-if="hasConnections" class="text-success-text size-4" />
+                <CloudCheckIcon v-else-if="hasConnections || isApplePaySetUp" class="text-success-text size-4" />
                 <CloudCheckIcon v-else class="size-4" />
               </Button>
             </Popover.PopoverTrigger>
@@ -152,6 +155,9 @@
                 :is-categorizing="categorizationStatus.isCategorizing.value"
                 :categorization-progress="categorizationStatus.progress.value"
                 :categorization-just-completed="categorizationStatus.justCompleted.value"
+                :apple-pay="
+                  isApplePaySetUp ? { waitingCount: applePayWaitingCount, lastPaymentAt: applePayLastPaymentAt } : null
+                "
                 @trigger-sync="handleSyncClick"
               />
             </Popover.PopoverContent>
@@ -194,6 +200,7 @@ import NotificationsPopover from '@/components/notifications-popover/index.vue';
 import Sidebar from '@/components/sidebar/index.vue';
 import SyncConfirmationDialog from '@/components/sync-confirmation-dialog.vue';
 import SyncStatusTooltip from '@/components/sync-status-tooltip.vue';
+import { useApplePayStatus } from '@/pages/accounts/integrations/apple-pay/composables/use-apple-pay-status';
 import {
   createTransactionPrefill,
   isCreateTransactionDialogOpen,
@@ -283,11 +290,18 @@ const lastSyncRelativeTime = computed(() => {
 
 const hasConnections = computed(() => syncStatus.accountStatuses.value.length > 0);
 
+const {
+  isSetUp: isApplePaySetUp,
+  waitingCount: applePayWaitingCount,
+  lastPaymentAt: applePayLastPaymentAt,
+} = useApplePayStatus();
+
 // Sync button is icon-only, so its meaning lives in the accessible name.
 const syncButtonLabel = computed(() => {
   if (syncStatus.isSyncing.value) return t('header.sync.syncing');
   if (syncStatus.syncStuck.value) return t('header.sync.stuck');
   if (syncStatus.hasSyncIssue.value) return t('header.sync.failed');
+  if (applePayWaitingCount.value > 0) return t('header.sync.applePayWaiting');
   if (categorizationStatus.isCategorizing.value) return t('header.categorization.categorizing');
   if (hasConnections.value) {
     return lastSyncRelativeTime.value

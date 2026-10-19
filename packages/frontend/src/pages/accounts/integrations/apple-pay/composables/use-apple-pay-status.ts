@@ -4,8 +4,9 @@ import { useQuery } from '@tanstack/vue-query';
 import { computed } from 'vue';
 
 /**
- * What the Accounts page needs to show Apple Pay next to the bank connections: whether it is set
- * up (a card is linked or a device token exists) and how much waits for the user. The queries
+ * What the Accounts page and the header's sync popover need to show Apple Pay next to the bank
+ * connections: whether it is set up (a card is linked or a device token exists), how much waits
+ * for the user, and when the last payment arrived. The queries
  * share their cache with the details page, so opening it costs no extra requests.
  */
 export const useApplePayStatus = () => {
@@ -20,5 +21,19 @@ export const useApplePayStatus = () => {
   const waitingCount = computed(() => waiting.value?.length ?? 0);
   const isSetUp = computed(() => linkedCardsCount.value > 0 || (tokens.value?.length ?? 0) > 0);
 
-  return { isSetUp, linkedCardsCount, waitingCount };
+  // Only read once Apple Pay is set up: the log is of no use to a user without it.
+  const { data: recent } = useQuery({
+    queryKey: [...VUE_QUERY_CACHE_KEYS.cardPaymentRequests, 'recent'],
+    queryFn: () => getCardPaymentRequests({ status: 'recent' }),
+    enabled: isSetUp,
+  });
+
+  /** When the newest request reached the server (any outcome), or `null` when none has. */
+  const lastPaymentAt = computed<string | null>(() => {
+    const times = (recent.value ?? []).map((request) => request.createdAt).sort();
+
+    return times.length ? times[times.length - 1]! : null;
+  });
+
+  return { isSetUp, linkedCardsCount, waitingCount, lastPaymentAt };
 };

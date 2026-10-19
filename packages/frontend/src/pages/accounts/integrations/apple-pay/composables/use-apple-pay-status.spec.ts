@@ -76,6 +76,26 @@ describe('useApplePayStatus', () => {
     expect((await mountStatus()).waitingCount.value).toBe(3);
   });
 
+  it('reports the newest request time as the last payment', async () => {
+    mockGetMappings.mockResolvedValue([{ id: 'm1' }]);
+    mockGetRequests.mockResolvedValue([
+      { id: 'r1', createdAt: '2026-10-19T09:00:00.000Z' },
+      { id: 'r2', createdAt: '2026-10-19T12:30:00.000Z' },
+      { id: 'r3', createdAt: '2026-10-18T23:00:00.000Z' },
+    ]);
+
+    expect((await mountStatus()).lastPaymentAt.value).toBe('2026-10-19T12:30:00.000Z');
+  });
+
+  it('has no last payment before any request, and reads no log before Apple Pay is set up', async () => {
+    const status = await mountStatus();
+
+    expect(status.lastPaymentAt.value).toBeNull();
+    // The parked view is always read; the recent view only once Apple Pay is set up.
+    expect(mockGetRequests).toHaveBeenCalledTimes(1);
+    expect(mockGetRequests).toHaveBeenCalledWith({ status: 'parked' });
+  });
+
   it('stays not set up when the requests fail', async () => {
     mockGetMappings.mockRejectedValue(new Error('offline'));
     mockGetTokens.mockRejectedValue(new Error('offline'));

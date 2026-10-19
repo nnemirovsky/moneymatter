@@ -76,7 +76,8 @@
       "connectBank": "Connect bank",
       "syncingAccounts": "Syncing {count} accounts",
       "stuck": "Sync stuck",
-      "failed": "Sync failed, some accounts need attention"
+      "failed": "Sync failed, some accounts need attention",
+      "applePayWaiting": "Apple Pay payments are waiting for you"
     },
     "categorization": {
       "title": "AI categorization",
@@ -158,6 +159,13 @@
       "weeksAgo": "{count} week ago | {count} weeks ago",
       "monthsAgo": "{count} month ago | {count} months ago",
       "yearsAgo": "{count} year ago | {count} years ago"
+    },
+    "applePay": {
+      "title": "Apple Pay",
+      "lastPayment": "Last payment {time}",
+      "noPayments": "No payments yet",
+      "waiting": "{count} waiting",
+      "open": "Open"
     }
   },
   "banners": {
