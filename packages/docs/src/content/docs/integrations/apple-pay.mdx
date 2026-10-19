@@ -1,0 +1,303 @@
+---
+title: Log Apple Pay payments automatically
+description: Set up an iOS Shortcut that sends every Apple Pay payment to MoneyMatter the moment you tap, then see how cards, currencies, categories and bank-connected accounts are handled.
+sidebar:
+  order: 1
+  label: Apple Pay
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Screenshot from '~/components/screenshot.astro';
+
+Every time you pay with Apple Pay, your iPhone can tell MoneyMatter about it within seconds, without you typing anything. MoneyMatter files the payment on the account linked to the card, finds or creates the payee, picks a category, converts the currency when it needs to, and answers with one line that your iPhone shows as a notification:
+
+> Logged 47.00 GEL at Cafe Heart of Batumi → Bar, cafe
+
+It works through an iOS **Shortcut** that Apple's Wallet app starts after each payment. The shortcut sends the payment to MoneyMatter with a personal [ingest token](/integrations/ingest-tokens/).
+
+## What you need
+
+- An iPhone with the Shortcuts app (it comes with iOS) and your cards in Apple Wallet.
+- A MoneyMatter account with at least one account for each card you want to track.
+- About fifteen minutes the first time.
+
+<Aside type="note" title="What iOS tells the shortcut">
+After a Wallet payment, iOS gives the shortcut only the **Amount**, the **Merchant**, the **Card or Pass** (its name) and a **Name**. It does not give the card's last four digits, a currency field or the time of the payment. That is why MoneyMatter links cards by name, reads the currency from the amount text, and uses the time the shortcut ran.
+</Aside>
+
+## How setup works
+
+1. **Link each card** to a MoneyMatter account (Settings → Integrations → Apple Pay).
+2. **Create the shortcut** on your iPhone, following the [manual guide](#build-the-shortcut-by-hand) below.
+3. **Create the automation** that starts the shortcut after each payment.
+4. **Send a test request** to check the connection.
+
+{/* ONE-TAP-SHORTCUT: update this section when the signed shortcut ships (plan Task 11). Until then the Add Shortcut button in Settings has no file to offer, and the manual guide is the way to set up. */}
+
+<Aside type="note" title="One-tap setup is coming">
+MoneyMatter's Settings page can already generate a **setup code** (the address of your instance and a new token in one string), and it will offer a ready-made shortcut named "MoneyMatter: log card payment" that asks for that code once. That shortcut isn't shipped yet, so **Add Shortcut** has nothing to add on most instances. Until it is, build the shortcut by hand. It takes about ten actions, and you only do it once.
+</Aside>
+
+## Step 1: Link your cards
+
+Apple Wallet gives each card a name, such as `TBC Visa`. MoneyMatter needs to know which account that name belongs to.
+
+<Steps>
+
+1. Click the gear button (**Settings**) at the top right of the app.
+2. Under **Workspace**, choose **Integrations**, then open the **Apple Pay** tab.
+3. In **Card links**, click **Link a card**.
+4. Enter the **Card name** exactly as Apple Wallet shows it. Capitals and a trailing number such as `•••• 1234` don't matter.
+5. Choose the **Account** and click **Save**.
+
+</Steps>
+
+<Screenshot
+  src="/screenshots/integrations/apple-pay-card-links.png"
+  alt="The Apple Pay tab with the Card links section listing one linked card and its account, and the Link a card button above it."
+  hint="Open /settings/integrations, tab Apple Pay, as the docs test user with the card TBC Visa linked to Everyday Checking. Crop to the Card links section."
+/>
+
+You can link several cards to the same account, and every card you pay with needs its own link. A payment from a card without a link isn't lost: see [Payments that wait](#payments-that-wait).
+
+## Step 2: Create a token
+
+<Steps>
+
+1. In **Settings**, **Integrations**, open the **Ingest tokens** tab.
+2. Click **Create token**, name it `iPhone shortcut` and choose when it expires.
+3. Copy the token. MoneyMatter shows it only once.
+
+</Steps>
+
+Keep the token on your phone, for example in a note you delete afterwards. See [Ingest tokens](/integrations/ingest-tokens/) for what a token can and can't do.
+
+You also need your instance's ingest address: the address you open MoneyMatter on, followed by `/api/v1/ingest/card-payment`. For an instance at `https://money.example.com` that is:
+
+```
+https://money.example.com/api/v1/ingest/card-payment
+```
+
+If your instance serves its API from a separate address, use that address instead.
+
+<Aside type="tip" title="Behind Cloudflare Access?">
+If a service such as Cloudflare Access asks for a login before it lets requests reach your instance, the shortcut has to send that service's headers too. Create a service token there, and keep its **Client ID** and **Client secret** next to your MoneyMatter token. The guide below says where to add them.
+</Aside>
+
+## Build the shortcut by hand
+
+Open the Shortcuts app, tap **+** to create a new shortcut and name it `MoneyMatter: log card payment`. Then add these actions in order. Where an action reads a value from an earlier action, tap the field and pick the earlier action's result from the variable list.
+
+<Steps>
+
+1. **Dictionary.** This action holds the payment. Add four **Text** items:
+
+   | Key        | Value                                                           |
+   | ---------- | --------------------------------------------------------------- |
+   | `amount`   | **Amount** from **Shortcut Input**                              |
+   | `merchant` | **Merchant** from **Shortcut Input**                            |
+   | `card`     | **Card or Pass** from **Shortcut Input**                        |
+   | `name`     | **Name** from **Shortcut Input** (optional)                     |
+
+   Send the amount as it is. MoneyMatter reads the number, the separators, and the currency code or symbol from the text.
+
+2. **Current Date**, then **Format Date**. Set **Date Format** to **ISO 8601**. This is the payment time.
+
+3. **Format Date** again on the current date, with **Date Format** set to **Custom** and the format `yyyy-MM-dd'T'HH:mmZZZZZ`. This is the time to the minute, used in the next step.
+
+4. **Text.** Join four values with `|` between them: the card, the merchant, the amount and the time to the minute from step 3.
+
+   ```
+   <card>|<merchant>|<amount>|<time to the minute>
+   ```
+
+5. **Generate Hash.** Choose **SHA-256** and give it the text from step 4. The result is the idempotency key. Sending the same key twice never logs a payment twice, so the shortcut can retry safely.
+
+6. **Get Contents of URL.** Set the URL to your ingest address, then expand the action:
+
+   - **Method:** `POST`
+   - **Headers:** add `Authorization` with the value `Bearer ` followed by your token (the word `Bearer`, a space, then the token).
+   - If a gateway such as Cloudflare Access is in front of your instance, add two more headers: `CF-Access-Client-Id` and `CF-Access-Client-Secret`, with the service token's values.
+   - **Request Body:** `JSON`. Add these fields:
+
+     | Key              | Type   | Value                                  |
+     | ---------------- | ------ | -------------------------------------- |
+     | `idempotencyKey` | Text   | the hash from step 5                   |
+     | `amount`         | Text   | `amount` from the dictionary           |
+     | `merchant`       | Text   | `merchant` from the dictionary         |
+     | `card`           | Text   | `card` from the dictionary             |
+     | `name`           | Text   | `name` from the dictionary             |
+     | `time`           | Text   | the ISO 8601 date from step 2          |
+
+7. **Get Dictionary Value.** Set it to **Value** for the key `response`, on the result of **Get Contents of URL**.
+
+8. **Get Dictionary Value** again, for the key `summary`, on the result of step 7.
+
+9. **Show Notification.** Put the `summary` from step 8 in the body.
+
+</Steps>
+
+If you run the shortcut from the Shortcuts app instead of Wallet, it has no payment to read. Use the [test request](#send-a-test-request) below to check your setup.
+
+## Create the automation
+
+iOS doesn't let apps share automations, so this part is done on the phone.
+
+<Steps>
+
+1. In Shortcuts, open **Automation** and tap **+**.
+2. Choose **Transaction**.
+3. Choose your cards.
+4. Select **Run Immediately**, then tap **Next**.
+5. Pick the shortcut "MoneyMatter: log card payment" and tap **Done**.
+
+</Steps>
+
+**Run Immediately** matters. Without it, iOS asks you to confirm each run and the payment waits until you do.
+
+## Send a test request
+
+Run this from any computer before you trust the automation. It sends a dry run, which checks the token, the address and a card link without writing anything.
+
+```bash
+curl -sS https://money.example.com/api/v1/ingest/card-payment \
+  -H "Authorization: Bearer $MM_INGEST_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"dryRun": true, "card": "TBC Visa"}'
+```
+
+If the card is linked, the answer names the account:
+
+```json
+{
+  "status": "success",
+  "response": {
+    "outcome": "dryRun",
+    "summary": "Connected as alex. Card \"TBC Visa\" → Everyday Checking"
+  }
+}
+```
+
+Without `card`, the summary says how many cards are linked. If the card isn't linked yet, it says so.
+
+Then send one real payment with a made-up key to see the full answer, and delete the transaction afterwards:
+
+```bash
+curl -sS https://money.example.com/api/v1/ingest/card-payment \
+  -H "Authorization: Bearer $MM_INGEST_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "idempotencyKey": "docs-test-0001",
+    "card": "TBC Visa",
+    "merchant": "Cafe Heart of Batumi",
+    "amount": "47.00 GEL"
+  }'
+```
+
+```json
+{
+  "status": "success",
+  "response": {
+    "outcome": "logged",
+    "summary": "Logged 47.00 GEL at Cafe Heart of Batumi → Bar, cafe",
+    "transactionId": 1234,
+    "planned": false,
+    "categoryPending": false
+  }
+}
+```
+
+Sending the same request again answers `Already logged …` and adds nothing. For every field and answer, see the [API reference](https://github.com/letehaha/moneymatter/blob/main/packages/backend/docs/card-payment-ingest.md).
+
+## What happens to a payment
+
+### Which account
+
+The card name picks the account through your card links. The payment is an expense on that account.
+
+### Currencies
+
+MoneyMatter takes the payment currency from, in this order: a `currency` field if one was sent, a code written in the amount (`47.00 GEL`), a symbol written in the amount (`₾47`), and finally the account's own currency. A shared symbol such as `$` is settled by the currencies you actually hold.
+
+When the payment currency differs from the account's, MoneyMatter converts the amount at the rate for the payment date. The transaction keeps the original amount and currency, and the notification shows both: `Logged 20.00 EUR (57.40 GEL) at …`. If there is no rate for that currency and date, the payment waits (see below).
+
+### Payee and category
+
+The merchant name becomes a payee the first time you pay there, with its logo when one is found. The category is the first that applies:
+
+1. your automation rules and the payee's default category (see [Categories](/transactions/categories/) and [Payees](/transactions/payees/));
+2. the category you most often used for that payee in the last 12 months;
+3. AI categorization, when it is set up. The notification waits up to 8 seconds for the answer. If it takes longer, the notification says `categorizing…` and the category is filled in a moment later;
+4. your default category.
+
+### Bank-connected accounts
+
+A connected account doesn't accept hand-written transactions, so a payment on one is stored as a **planned** transaction and the notification says `Noted … the bank sync will confirm it`. When the bank reports its own transaction, it settles the planned one in place: no duplicate, and your category and payee stay.
+
+The bank's amount can differ from what Wallet showed (a tip, a foreign-currency hold). It still settles the payment when the amounts are within 25%, the dates are within 7 days, and the bank's merchant text shares words with the merchant you paid. City and shop-type words such as `Batumi` or `Cafe` don't count, because different shops share them. A bank text that clearly belongs to another payee never settles it.
+
+If the bank never reports a matching transaction within 7 days, the planned payment appears under **Not confirmed by the bank** in Settings. If the bank's own transaction is already there under another description, delete the note; otherwise keep it.
+
+<Aside type="note" title="A limit with Enable Banking">
+When a bank connected through Enable Banking first reports a payment as pending and later books it at a different amount, the bank sync can't link the two, and both rows appear. This happens with or without Apple Pay. Delete the extra row.
+</Aside>
+
+On a manual account there is no bank to wait for. The transaction is final and counts in the balance at once.
+
+### Repeats
+
+The same payment can arrive twice: the automation fires twice, you run the shortcut by hand, or two automations cover one card. A second payment with the same card, merchant and amount within two minutes of a logged one is treated as a repeat. The notification says `Already logged …` and nothing is added.
+
+If you really paid twice in two minutes at the same place for the same amount, add the second payment by hand.
+
+### Payments that wait
+
+A payment that can't be logged yet is kept, not dropped, and the notification says why:
+
+| Notification starts with                | Why                                                  | What to do                                                   |
+| --------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------ |
+| `Not logged yet: link the card "…"`     | The card has no link.                                | Link the card under **Cards without a link**.                |
+| `Not logged yet: no EUR→GEL rate …`     | There is no exchange rate for that currency and date. | **Retry** it later from **Waiting payments**.                |
+| `Not logged yet: MoneyMatter could not process it …` | An unexpected error.                      | **Retry** it from **Waiting payments**.                      |
+
+On the **Apple Pay** tab, **Cards without a link** shows each card that has payments waiting. Click **Link**, choose the account, and MoneyMatter offers to log the waiting payments right away. **Waiting payments** lists everything else with **Retry** and **Dismiss**. **Show recent payments** lists what the shortcut sent lately and what became of each payment.
+
+<Screenshot
+  src="/screenshots/integrations/apple-pay-waiting.png"
+  alt="The Apple Pay tab with a Cards without a link section showing TBC Visa with two payments waiting and a Link button, and a Waiting payments section with one payment, its reason, and Retry and Dismiss buttons."
+  hint="Open /settings/integrations, tab Apple Pay, as the docs test user after sending two ingest requests for an unlinked card and one with a missing rate. Crop to the two sections."
+/>
+
+Payments are kept in the list for 90 days after they are logged, refused or dismissed.
+
+## Troubleshooting
+
+### The shortcut says "unauthorized" or nothing happens (401)
+
+The token is missing, mistyped, revoked or expired. Check that the header reads `Bearer`, a space, and then the whole token. Open **Ingest tokens** and look at **Last used**: if it is old, the requests aren't getting through. A password reset revokes all tokens, so create a new one. After 20 wrong tokens in 15 minutes from one address, even a correct token is refused for a while.
+
+### A 403 page from Cloudflare
+
+If the answer is an HTML page rather than JSON, the gateway in front of MoneyMatter refused the request before it reached the app. Check that the shortcut sends `CF-Access-Client-Id` and `CF-Access-Client-Secret`, that the service token hasn't expired, and that the Access policy allows service tokens on the path `/api/v1/ingest/`. See [Self-hosting](/getting-started/self-hosting/#reverse-proxies-with-access-control) for the setup.
+
+### The payment shows "iOS sent no amount or merchant"
+
+Sometimes iOS runs the automation with an empty amount or merchant. MoneyMatter refuses an empty payment rather than guess. It appears under **Waiting payments** with that reason. Add the payment by hand and click **Dismiss**.
+
+### The card was renamed
+
+If you rename a card in Wallet, its payments arrive under the new name and wait for a link. Link the new name under **Cards without a link**, or edit the old link with the new name.
+
+### The amount is wrong by a factor of ten or a thousand
+
+The amount text may use separators in a way MoneyMatter can't tell apart: `1,234` is read as 1234, and `1,23` as 1.23. Open **Show recent payments** to see the amount exactly as the shortcut sent it. If it's a case you can reproduce, [open an issue](https://github.com/letehaha/moneymatter/issues) with that text.
+
+### Nothing arrives for one card
+
+The automation fires only for the cards you chose when you created it. Open it in Shortcuts, tap **Transaction** and check the card list.
+
+## Sharing the shortcut
+
+An app can't generate an iCloud link to a shortcut. The link comes from sharing the shortcut from an iPhone, which only a person can do. For that reason, the one-tap shortcut is shared once by the person who runs the MoneyMatter instance. On a self-hosted instance, the administrator sets that link with `CARD_PAYMENT_SHORTCUT_ICLOUD_URL`. See [Self-hosting](/getting-started/self-hosting/#apple-pay-shortcut-link).
+
+Whoever imports a shared shortcut still enters their own setup code or token, so the link is safe to share.

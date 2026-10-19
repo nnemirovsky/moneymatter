@@ -1,0 +1,83 @@
+---
+title: Ingest tokens
+description: Create, name, revoke and understand the personal tokens that let an iOS Shortcut or a script add card payments to MoneyMatter without signing in as you.
+sidebar:
+  order: 2
+  label: Ingest tokens
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Screenshot from '~/components/screenshot.astro';
+
+An ingest token lets one shortcut or script send card payments to your MoneyMatter account. It is a long secret that the shortcut sends with each payment, so the shortcut never needs your password and never signs in as you.
+
+The [Apple Pay guide](/integrations/apple-pay/) uses a token. Any script that calls the [card-payment API](https://github.com/letehaha/moneymatter/blob/main/packages/backend/docs/card-payment-ingest.md) uses one too.
+
+## What a token can do
+
+A token can do exactly one thing: add card payments (the scope is shown as **Log card payments**). It cannot read your accounts or transactions, change anything else, or open the app as you. If a token leaks, the worst an attacker can do is add fake payments to your account, and you stop that by revoking the token.
+
+## Open the token list
+
+<Steps>
+
+1. Click the gear button (**Settings**) at the top right of the app.
+2. Under **Workspace**, choose **Integrations**.
+3. Open the **Ingest tokens** tab.
+
+</Steps>
+
+<Screenshot
+  src="/screenshots/integrations/ingest-tokens.png"
+  alt="The Ingest tokens tab with two tokens listed, each with its scope, when it was created, when it was last used and when it expires, and a Revoke button."
+  hint="Open /settings/integrations as the docs test user with two tokens created (one used by a dryRun request). Crop to the tab content."
+/>
+
+Each token shows its name, the start of its secret, its scope, when it was created, when it was **Last used** and when it expires. A token that was never used says **Never**.
+
+## Create a token
+
+<Steps>
+
+1. Click **Create token**.
+2. Enter a **Name**. Name it after what will use it, for example `iPhone shortcut`, so you can tell tokens apart later.
+3. Choose when the token **Expires**: **Never**, **In 30 days**, **In 90 days** or **In 1 year**.
+4. Click **Create token**.
+5. Click **Copy token** and paste it where the shortcut or script needs it.
+6. Click **Done**.
+
+</Steps>
+
+<Aside type="caution" title="The token is shown once">
+MoneyMatter stores only a scrambled form of the token, so it can't show it to you again. If you lose it, revoke it and create a new one.
+</Aside>
+
+The token starts with `mm_ingest_`, so you can recognize it, and a leaked one in a code repository is easy to spot.
+
+## See whether a token is in use
+
+**Last used** shows when a token last reached MoneyMatter. It updates at most once a minute. If a shortcut stops logging payments, a **Last used** time from days ago tells you the shortcut stopped calling, rather than MoneyMatter refusing it.
+
+## Revoke a token
+
+<Steps>
+
+1. Click **Revoke** next to the token.
+2. Confirm with **Revoke token**.
+
+</Steps>
+
+The token stops working at once. Whatever uses it gets an authorization error until you give it a new token. Payments already logged stay as they are.
+
+## When a token is revoked for you
+
+- **A password reset** revokes every ingest token you have. After you reset your password, create a new token and put it into your shortcut again.
+- **An expired token** stops working on its expiry date. It stays in the list until you revoke it.
+- **Generating a setup code** for the Apple Pay shortcut creates a new token and, unless you turn it off, revokes the previous Apple Pay token. See [Apple Pay](/integrations/apple-pay/).
+
+## Keep tokens safe
+
+- Use one token per shortcut or script, so you can revoke one without breaking the others.
+- Don't paste a token into a chat, a screenshot or a shared note.
+- If a token may have leaked, revoke it first and create the replacement second.
+- A failed sign-in attempt with a wrong token counts against the sender's IP address. After 20 failures in 15 minutes, even a correct token is refused from that address until the time runs out.

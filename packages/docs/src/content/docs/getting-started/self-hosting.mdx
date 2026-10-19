@@ -95,6 +95,21 @@ If `BETTER_AUTH_URL` and `AUTH_ORIGIN` don't match the address in the browser, s
 
 The [reverse proxy guide](https://github.com/letehaha/moneymatter/blob/main/self-hosting/docs/reverse-proxies.md) has recipes for Nginx Proxy Manager, Caddy, Traefik and plain nginx, and explains how to close the port. If you don't run a proxy, the [Traefik overlay](https://github.com/letehaha/moneymatter/blob/main/self-hosting/docs/traefik-overlay.md) adds one with free Let's Encrypt certificates.
 
+### Reverse proxies with access control
+
+If your proxy or gateway asks people to sign in before it lets requests through (Cloudflare Access, Authelia, an OAuth proxy), the [Apple Pay shortcut](/integrations/apple-pay/) can't use that login: it runs on a phone and sends plain requests. Leave the gateway's login on the app, and give the shortcut its own way through for one path only:
+
+- **Cloudflare Access:** create a service token, then a second Access application for the path `/api/v1/ingest/` with one **Service Auth** policy that includes that token. The more specific path takes precedence over the site-wide application. Never add a bypass policy. In **Settings**, **Integrations**, **Apple Pay**, enter the token's **Client ID** and **Client secret** so the shortcut sends them as `CF-Access-Client-Id` and `CF-Access-Client-Secret`.
+- **Other gateways:** allow requests to `/api/v1/ingest/` through the gateway's own check only when they carry a header you set, and keep MoneyMatter's token as the real credential.
+
+MoneyMatter still requires its own ingest token on every request to that path, so opening it at the gateway doesn't open the app.
+
+### Apple Pay shortcut link
+
+The Apple Pay page in Settings can offer an **Add Shortcut** button that points to an iCloud link for the "MoneyMatter: log card payment" shortcut. Set the link with `CARD_PAYMENT_SHORTCUT_ICLOUD_URL` in `.env`, then run `docker compose up -d`. It is read when the frontend container starts, so no rebuild is needed. Leave it empty if you have no link. The page then falls back to the [manual guide](/integrations/apple-pay/#build-the-shortcut-by-hand).
+
+An iCloud link can only be created on an iPhone: import the shortcut, then share it and copy the link.
+
 ## Update
 
 ```bash

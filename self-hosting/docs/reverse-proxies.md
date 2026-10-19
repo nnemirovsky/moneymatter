@@ -36,6 +36,22 @@ set to the URL people type in the browser (e.g. `https://budget.example.com`)
 – see [setup-guide.md](setup-guide.md#3-behind-your-own-reverse-proxy),
 step 2.
 
+## Proxies with access control
+
+If the proxy or a gateway in front of it makes people sign in (Cloudflare Access,
+Authelia, an OAuth proxy), the Apple Pay shortcut cannot pass that login: it runs
+on a phone and sends plain HTTP requests. Keep the login on the app and open a
+single path to the shortcut with its own machine credential:
+
+- Scope the exception to `/api/v1/ingest/` only. Nothing else needs it.
+- Use a credential the shortcut can send as a header: a Cloudflare Access service
+  token (`CF-Access-Client-Id` and `CF-Access-Client-Secret`, a **Service Auth**
+  policy on that path), or a header your gateway checks. Never use a bypass rule.
+- The app still requires its own ingest token on that path, so the gateway
+  exception doesn't open the app.
+- Enter the service token's id and secret under Settings → Integrations → Apple
+  Pay so the setup code carries them.
+
 ## Nginx Proxy Manager
 
 Add a **Proxy Host**: forward to `http://<host>:8080`, and enable
