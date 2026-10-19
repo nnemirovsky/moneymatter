@@ -630,6 +630,35 @@ describe('Chat card actions', () => {
       expect(refreshed).toMatchObject({ id: category.id, status: 'pending', revision: 2 });
     });
 
+    it('re-previews a transfer delete after its other leg changed, and applies with the fresh snapshot', async () => {
+      const from = await helpers.createAccount({ raw: true });
+      const to = await helpers.createAccount({ raw: true });
+      const [base, opposite] = await helpers.createTransaction({
+        payload: {
+          ...helpers.buildTransactionPayload({ accountId: from.id, amount: 300 }),
+          transferNature: TRANSACTION_TRANSFER_NATURE.common_transfer,
+          destinationAmount: 300,
+          destinationAccountId: to.id,
+        },
+        raw: true,
+      });
+      const { cards } = await proposeCards({
+        turns: [{ toolCalls: [{ name: 'delete_transaction', arguments: { id: base.id } }] }, { text: 'Done.' }],
+      });
+      const card = cardFor({ cards, toolName: 'delete_transaction' });
+      await helpers.bulkUpdateTransactions({ payload: { transactionIds: [opposite!.id], note: 'Edited' }, raw: true });
+
+      const refreshed = await helpers.refreshChatProposal({ proposalId: card.id, raw: true });
+      const approved = await helpers.approveChatProposal({
+        proposalId: card.id,
+        payload: { revision: 2, confirmation: '2' },
+      });
+
+      expect(refreshed).toMatchObject({ status: 'pending', revision: 2, affected: { count: 2 } });
+      expect(approved.statusCode).toBe(200);
+      expect(await helpers.getTransactions({ raw: true })).toHaveLength(0);
+    });
+
     it('refuses to refresh an applied card', async () => {
       const { cards } = await proposeCards({ turns: oneCategory({ name: 'Chat Done' }) });
       const category = cardFor({ cards, toolName: 'create_category' });

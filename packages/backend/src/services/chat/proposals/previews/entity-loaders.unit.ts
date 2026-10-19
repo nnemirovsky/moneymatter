@@ -1,17 +1,27 @@
+import { TRANSACTION_TRANSFER_NATURE } from '@bt/shared/types';
 import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals';
 import Accounts from '@models/accounts.model';
+import BudgetAssignments from '@models/budget-assignments.model';
+import BudgetLineCategories from '@models/budget-line-categories.model';
 import BudgetLineGoals from '@models/budget-line-goals.model';
+import BudgetLineGroups from '@models/budget-line-groups.model';
 import BudgetLines from '@models/budget-lines.model';
 import BudgetPlans from '@models/budget-plans.model';
 import BudgetTransactions from '@models/budget-transactions.model';
 import Budgets from '@models/budget.model';
 import Categories from '@models/categories.model';
+import { namespace } from '@models/connection';
 import Currencies from '@models/currencies.model';
 import Holdings from '@models/investments/holdings.model';
 import InvestmentTransactions from '@models/investments/investment-transaction.model';
+import PortfolioTransfers from '@models/investments/portfolio-transfers.model';
 import Portfolios from '@models/investments/portfolios.model';
 import PayeeAliases from '@models/payee-aliases.model';
 import Payees from '@models/payees.model';
+import RefundTransactions from '@models/refund-transactions.model';
+import SubscriptionPeriods from '@models/subscription-periods.model';
+import SubscriptionTransactions from '@models/subscription-transactions.model';
+import Subscriptions from '@models/subscriptions.model';
 import TagReminders from '@models/tag-reminders.model';
 import Tags from '@models/tags.model';
 import TransactionAttachments from '@models/transaction-attachments.model';
@@ -20,12 +30,14 @@ import TransactionTags from '@models/transaction-tags.model';
 import UsersCurrencies from '@models/users-currencies.model';
 import VentureEventLinks from '@models/venture/venture-event-links.model';
 import VentureEvents from '@models/venture/venture-events.model';
+import { Op } from 'sequelize';
 
 import { ENTITY_LOADER_KINDS } from '../../policies/explicit';
 
 jest.mock('@models/transactions-query', () => ({
   ...(jest.requireActual('@models/transactions-query') as object),
   findOneTransaction: jest.fn(),
+  findTransactions: jest.fn(),
   countTransactions: jest.fn(),
 }));
 
@@ -64,6 +76,21 @@ describe('entity loaders', () => {
   beforeEach(() => {
     jest.mocked(transactionsQuery.countTransactions).mockResolvedValue(0);
     jest.mocked(transactionsQuery.findOneTransaction).mockResolvedValue(null);
+    jest
+      .mocked(transactionsQuery.findTransactions)
+      .mockReset()
+      .mockResolvedValue([] as never);
+    for (const model of [
+      TransactionSplits,
+      RefundTransactions,
+      SubscriptionTransactions,
+      SubscriptionPeriods,
+      PortfolioTransfers,
+      BudgetAssignments,
+      BudgetLineCategories,
+    ]) {
+      jest.spyOn(model as never as typeof TransactionSplits, 'count').mockResolvedValue(0 as never);
+    }
   });
 
   afterEach(() => {
@@ -324,6 +351,199 @@ describe('entity loaders', () => {
       expect((await load({ kind: 'split', targets: [ID] }))?.row).toMatchObject({ id: ID });
 
       expect(whereOf(find).where).toEqual({ id: ID, userId: USER });
+    });
+  });
+
+  describe('transfer legs and the rows a transaction takes with it', () => {
+    const TWIN = '5d2e8f40-7a13-4c9b-b0e5-6f4a2c1d8e37';
+    const TRANSFER = '7b1c3d5e-9f20-4a68-8c4e-0d2f4b6a8c13';
+    const TWIN_UPDATED = new Date('2026-10-18T10:00:00.000Z');
+
+    const leg = (values: Record<string, unknown> = {}) =>
+      record({ id: ID, transferId: TRANSFER, transferNature: TRANSACTION_TRANSFER_NATURE.common_transfer, ...values });
+
+    it('loads the other leg of a two-leg transfer by its transfer id, whoever wrote it, and lists both legs', async () => {
+      const target = leg();
+      const twin = record({ id: TWIN, transferId: TRANSFER, updatedAt: TWIN_UPDATED });
+      jest.mocked(transactionsQuery.findOneTransaction).mockResolvedValue(target as never);
+      jest.mocked(transactionsQuery.findTransactions).mockResolvedValue([twin] as never);
+
+      const loaded = await load({ kind: 'transaction', targets: [ID] });
+
+      expect(loaded?.legs).toEqual([target, twin]);
+      expect(loaded?.counts).toMatchObject({ transferTwinCount: 1 });
+      expect(jest.mocked(transactionsQuery.findTransactions).mock.calls[0]![0]).toMatchObject({
+        access: 'unscoped-internal',
+        where: { transferId: [TRANSFER], id: { [Op.notIn]: [ID] } },
+      });
+    });
+
+    it('holds the other leg FOR UPDATE with the first, only when asked to lock', async () => {
+      jest.mocked(transactionsQuery.findOneTransaction).mockResolvedValue(leg() as never);
+
+      await ENTITY_LOADERS.transaction!({ userId: USER, targets: [ID] });
+      await ENTITY_LOADERS.transaction!({ userId: USER, targets: [ID], lock: true });
+
+      const calls = jest.mocked(transactionsQuery.findTransactions).mock.calls;
+      expect(calls[0]![0]).not.toHaveProperty('lock');
+      expect(calls[1]![0]).toMatchObject({ lock: true });
+    });
+
+    it('reads no other leg for a transaction that is not a two-leg transfer, or whose pair is gone', async () => {
+      jest
+        .mocked(transactionsQuery.findOneTransaction)
+        .mockResolvedValueOnce(
+          record({ id: ID, transferId: null, transferNature: TRANSACTION_TRANSFER_NATURE.not_transfer }) as never,
+        )
+        .mockResolvedValueOnce(
+          record({ id: ID, transferId: null, transferNature: TRANSACTION_TRANSFER_NATURE.common_transfer }) as never,
+        )
+        .mockResolvedValueOnce(
+          record({
+            id: ID,
+            transferId: TRANSFER,
+            transferNature: TRANSACTION_TRANSFER_NATURE.transfer_out_wallet,
+          }) as never,
+        );
+
+      for (let i = 0; i < 3; i++) {
+        const loaded = await load({ kind: 'transaction', targets: [ID] });
+        expect(loaded?.legs).toBeUndefined();
+        expect(loaded?.counts).not.toHaveProperty('transferTwinCount');
+      }
+      expect(transactionsQuery.findTransactions).not.toHaveBeenCalled();
+    });
+
+    it('counts the splits, refund links, subscription links and portfolio transfer that go with a transaction', async () => {
+      jest
+        .mocked(transactionsQuery.findOneTransaction)
+        .mockResolvedValue(
+          record({ id: ID, transferNature: TRANSACTION_TRANSFER_NATURE.transfer_to_portfolio }) as never,
+        );
+      const splits = jest.spyOn(TransactionSplits, 'count').mockResolvedValue(2);
+      const refunds = jest.spyOn(RefundTransactions, 'count').mockResolvedValue(3);
+      const subscriptions = jest.spyOn(SubscriptionTransactions, 'count').mockResolvedValue(1);
+      const portfolioTransfers = jest.spyOn(PortfolioTransfers, 'count').mockResolvedValue(1);
+
+      const loaded = await load({ kind: 'transaction', targets: [ID] });
+
+      expect(loaded?.counts).toEqual({
+        splitCount: 2,
+        refundLinkCount: 3,
+        subscriptionLinkCount: 1,
+        portfolioTransferCount: 1,
+      });
+      expect(whereOf(splits).where).toEqual({ transactionId: ID });
+      expect(whereOf(refunds).where).toEqual({ [Op.or]: [{ originalTxId: ID }, { refundTxId: ID }] });
+      expect(whereOf(subscriptions).where).toEqual({ transactionId: ID });
+      expect(whereOf(portfolioTransfers).where).toEqual({ transactionId: ID });
+    });
+
+    it('lists no count a transaction has none of', async () => {
+      jest.mocked(transactionsQuery.findOneTransaction).mockResolvedValue(record({ id: ID }) as never);
+
+      expect((await load({ kind: 'transaction', targets: [ID] }))?.counts).toEqual({});
+    });
+  });
+
+  describe('other rows a delete or update takes with its target', () => {
+    it('counts the transactions and periods a subscription delete unlinks', async () => {
+      jest.spyOn(Subscriptions, 'findOne').mockResolvedValue(record({ id: ID }) as never);
+      const links = jest.spyOn(SubscriptionTransactions, 'count').mockResolvedValue(6);
+      const periods = jest.spyOn(SubscriptionPeriods, 'count').mockResolvedValue(4);
+
+      const loaded = await load({ kind: 'subscription', targets: [ID] });
+
+      expect(whereOf(links).where).toEqual({ subscriptionId: ID });
+      expect(whereOf(periods).where).toEqual({ subscriptionId: ID });
+      expect(loaded?.counts).toEqual({ linkedTransactionCount: 6, periodCount: 4 });
+    });
+
+    it('counts the assignments and categories a budget plan line delete cascades', async () => {
+      jest.spyOn(BudgetPlans, 'findOne').mockResolvedValue(record({ id: ID }) as never);
+      jest.spyOn(BudgetLines, 'findOne').mockResolvedValue(record({ id: OTHER }) as never);
+      const assignments = jest.spyOn(BudgetAssignments, 'count').mockResolvedValue(12);
+      const categories = jest.spyOn(BudgetLineCategories, 'count').mockResolvedValue(2);
+
+      const loaded = await load({ kind: 'budgetPlanLine', targets: [ID, OTHER] });
+
+      expect(whereOf(assignments).where).toEqual({ lineId: OTHER });
+      expect(whereOf(categories).where).toEqual({ lineId: OTHER });
+      expect(loaded?.counts).toEqual({ assignmentCount: 12, categoryCount: 2 });
+    });
+
+    it('counts the account transaction a portfolio transfer delete removes with it, only when asked to', async () => {
+      jest.spyOn(PortfolioTransfers, 'findOne').mockResolvedValue(record({ id: ID, transactionId: OTHER }) as never);
+      const run = (args: Record<string, unknown>) =>
+        ENTITY_LOADERS.portfolioTransfer!({ userId: USER, targets: [ID], args });
+
+      expect(await run({ deleteLinkedTransaction: true })).toMatchObject({
+        counts: { linkedTransactionCount: 1 },
+        removes: 1,
+      });
+      expect(await run({ deleteLinkedTransaction: false })).toMatchObject({ counts: {}, removes: 0 });
+      expect(await run({})).toMatchObject({ counts: {}, removes: 0 });
+
+      jest.spyOn(PortfolioTransfers, 'findOne').mockResolvedValue(record({ id: ID, transactionId: null }) as never);
+      expect(await run({ deleteLinkedTransaction: true })).toMatchObject({ counts: {}, removes: 0 });
+    });
+  });
+
+  describe('lock order', () => {
+    const PLAN_LOCK = 'NO KEY UPDATE';
+    const inTransaction = <T>(fn: () => Promise<T>) =>
+      namespace.runAndReturn(async () => {
+        namespace.set('transaction', { LOCK: { NO_KEY_UPDATE: PLAN_LOCK } });
+        return fn();
+      });
+
+    const lockedLoad = ({ kind, targets }: { kind: string; targets: string[] }) =>
+      inTransaction(() =>
+        (ENTITY_LOADERS as Record<string, NonNullable<(typeof ENTITY_LOADERS)[keyof typeof ENTITY_LOADERS]>>)[kind]!({
+          userId: USER,
+          targets,
+          lock: true,
+        }),
+      );
+
+    it.each([
+      { kind: 'budgetPlanLine', model: BudgetLines, targets: [ID, OTHER] },
+      { kind: 'budgetPlanGroup', model: BudgetLineGroups, targets: [ID, OTHER] },
+      { kind: 'budgetPlanLineGoal', model: BudgetLineGoals, targets: [ID, OTHER] },
+    ])('locks the plan of a $kind before its own row, as the budget services do', async ({ kind, model, targets }) => {
+      const plan = jest.spyOn(BudgetPlans, 'findOne').mockResolvedValue(record({ id: ID }) as never);
+      const line = jest.spyOn(BudgetLines, 'findOne').mockResolvedValue(record({ id: OTHER }) as never);
+      const own = (
+        model === BudgetLines ? line : jest.spyOn(model as never as typeof BudgetLines, 'findOne')
+      ).mockResolvedValue(record({ id: OTHER }) as never);
+      jest.spyOn(BudgetAssignments, 'count').mockResolvedValue(0);
+      jest.spyOn(BudgetLineCategories, 'count').mockResolvedValue(0);
+
+      await lockedLoad({ kind, targets });
+
+      expect(plan.mock.calls[0]![0]).toMatchObject({ lock: PLAN_LOCK } as never);
+      expect(own.mock.calls[0]![0]).toMatchObject({ lock: true } as never);
+      expect(plan.mock.invocationCallOrder[0]).toBeLessThan(own.mock.invocationCallOrder[0]!);
+    });
+
+    it('locks a budget plan the way the plan services do, not harder', async () => {
+      const plan = jest.spyOn(BudgetPlans, 'findOne').mockResolvedValue(record({ id: ID }) as never);
+      jest.spyOn(BudgetLines, 'count').mockResolvedValue(0);
+
+      await lockedLoad({ kind: 'budgetPlan', targets: [ID] });
+
+      expect(plan.mock.calls[0]![0]).toMatchObject({ lock: PLAN_LOCK, where: { id: ID, userId: USER } } as never);
+    });
+
+    it('leaves the plan unlocked when the preview is not under approval', async () => {
+      const plan = jest.spyOn(BudgetPlans, 'findOne').mockResolvedValue(record({ id: ID }) as never);
+      jest.spyOn(BudgetLines, 'findOne').mockResolvedValue(record({ id: OTHER }) as never);
+      jest.spyOn(BudgetAssignments, 'count').mockResolvedValue(0);
+      jest.spyOn(BudgetLineCategories, 'count').mockResolvedValue(0);
+
+      await load({ kind: 'budgetPlanLine', targets: [ID, OTHER] });
+
+      expect((plan.mock.calls[0]![0] as any).lock).toBeUndefined();
     });
   });
 

@@ -1,4 +1,12 @@
-import { afterEach, describe, expect, it, jest } from '@jest/globals';
+import { TRANSACTION_TYPES } from '@bt/shared/types';
+import { Money } from '@common/types/money';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+
+jest.mock('@services/sharing/auth/get-accessible-account-ids.service', () => ({
+  getAccessibleAccountIdsForUser: jest.fn(),
+}));
+
+import { getAccessibleAccountIdsForUser } from '@services/sharing/auth/get-accessible-account-ids.service';
 
 import { resolveToolPolicy } from '../../policies';
 import { hashTargetIds } from '../snapshot';
@@ -21,9 +29,9 @@ const loaded = (overrides: Partial<LoadedEntity> = {}): LoadedEntity => ({
 });
 
 const stubLoader = ({ kind, result }: { kind: string; result: LoadedEntity | null }) => {
-  const loader = jest.fn<(params: { userId: number; targets: string[] }) => Promise<LoadedEntity | null>>(
-    async () => result,
-  );
+  const loader = jest.fn<
+    (params: { userId: number; targets: string[]; args: Record<string, unknown> }) => Promise<LoadedEntity | null>
+  >(async () => result);
   (ENTITY_LOADERS as Record<string, unknown>)[kind] = loader;
   return loader;
 };
@@ -47,7 +55,11 @@ describe('entity preview resolver', () => {
       args: { accountId: ID, name: 'Wallet' },
     });
 
-    expect(loader).toHaveBeenCalledWith({ userId: USER, targets: [ID] });
+    expect(loader).toHaveBeenCalledWith({
+      userId: USER,
+      targets: [ID],
+      args: { accountId: ID, name: 'Wallet' },
+    });
     expect(preview.before).toEqual({ id: ID, name: 'Cash', amount: 10 });
     expect(snapshot).toEqual({
       updatedAt: '2026-10-18T09:00:00.000Z',
@@ -62,7 +74,7 @@ describe('entity preview resolver', () => {
 
     await resolve({ toolName: 'delete_budget_plan_line', args: { planId: PLAN, lineId: LINE } });
 
-    expect(loader).toHaveBeenCalledWith({ userId: USER, targets: [PLAN, LINE] });
+    expect(loader).toHaveBeenCalledWith({ userId: USER, targets: [PLAN, LINE], args: { planId: PLAN, lineId: LINE } });
   });
 
   it('carries the row and the related counts on a delete card', async () => {
@@ -133,5 +145,99 @@ describe('entity preview resolver', () => {
     await expect(resolve({ toolName: 'update_account', args: { name: 'Wallet' } })).rejects.toBeInstanceOf(
       PreviewError,
     );
+  });
+  describe('a transaction with transfer legs', () => {
+    const TWIN = '5d2e8f40-7a13-4c9b-b0e5-6f4a2c1d8e37';
+    const TRANSFER = '7b1c3d5e-9f20-4a68-8c4e-0d2f4b6a8c13';
+    const HIDDEN_ACCOUNT = '8c3d5f70-1a24-4b6e-9d8f-3e5a7c9b1d02';
+    const SEEN_ACCOUNT = '2b4d6f80-3c15-4e7a-8f9b-4a6c8e0b2d14';
+    const TWIN_UPDATED = new Date('2026-10-18T11:30:00.000Z');
+
+    const leg = ({ id, accountId, updatedAt }: { id: string; accountId: string; updatedAt: Date }) => ({
+      id,
+      accountId,
+      updatedAt,
+      time: new Date('2026-10-01T00:00:00.000Z'),
+      transactionType: TRANSACTION_TYPES.expense,
+      amount: Money.fromDecimal(5),
+      currencyCode: 'USD',
+      categoryId: null,
+      payeeId: null,
+      note: '',
+      transferId: TRANSFER,
+    });
+
+    const withLegs = () => {
+      const legs = [
+        leg({ id: ID, accountId: SEEN_ACCOUNT, updatedAt: UPDATED }),
+        leg({ id: TWIN, accountId: HIDDEN_ACCOUNT, updatedAt: TWIN_UPDATED }),
+      ];
+      stubLoader({
+        kind: 'transaction',
+        result: loaded({ counts: { transferTwinCount: 1 }, legs: legs as never }),
+      });
+      return legs;
+    };
+
+    beforeEach(() => {
+      jest.mocked(getAccessibleAccountIdsForUser).mockReset().mockResolvedValue([SEEN_ACCOUNT]);
+    });
+
+    it('counts both legs on a delete, lists only the one on an account the user can see, and types the count', async () => {
+      withLegs();
+
+      const { preview, affectedCount, warnings } = await resolve({ toolName: 'delete_transaction', args: { id: ID } });
+
+      expect(affectedCount).toBe(2);
+      expect(preview.affected).toMatchObject({ count: 2, truncated: false });
+      expect(preview.affected!.rows).toHaveLength(1);
+      expect(preview.affected!.rows[0]).toMatchObject({ account: { id: SEEN_ACCOUNT } });
+      expect(preview.counts).toEqual({ transferTwinCount: 1 });
+      expect(warnings).toEqual([{ key: 'chat.warnings.transferTwins', params: { count: 1 } }]);
+    });
+
+    it('snapshots every leg: the newest update, both ids and the count', async () => {
+      withLegs();
+
+      const { snapshot } = await resolve({ toolName: 'delete_transaction', args: { id: ID } });
+
+      expect(snapshot).toEqual({
+        updatedAt: TWIN_UPDATED.toISOString(),
+        targetHash: hashTargetIds({ ids: [ID, TWIN] }),
+        targetCount: 2,
+      });
+    });
+
+    it('snapshots the other leg of an update too, and lists the legs, but removes nothing', async () => {
+      withLegs();
+
+      const { snapshot, affectedCount, warnings, preview } = await resolve({
+        toolName: 'update_transaction',
+        args: { id: ID, note: 'x' },
+      });
+
+      expect(snapshot).toMatchObject({ targetHash: hashTargetIds({ ids: [ID, TWIN] }), targetCount: 2 });
+      expect(affectedCount).toBeUndefined();
+      expect(warnings).toBeUndefined();
+      expect(preview.affected).toMatchObject({ count: 2 });
+    });
+
+    it('shows no affected block for a transaction without another leg', async () => {
+      stubLoader({ kind: 'transaction', result: loaded() });
+
+      const { preview, snapshot, warnings } = await resolve({ toolName: 'delete_transaction', args: { id: ID } });
+
+      expect(preview.affected).toBeUndefined();
+      expect(warnings).toBeUndefined();
+      expect(snapshot.targetCount).toBe(1);
+    });
+
+    it('counts the rows an entity delete takes on top of the entity, as before', async () => {
+      stubLoader({ kind: 'portfolioTransfer', result: loaded({ counts: { linkedTransactionCount: 1 }, removes: 1 }) });
+
+      const { affectedCount } = await resolve({ toolName: 'delete_portfolio_transfer', args: { transferId: ID } });
+
+      expect(affectedCount).toBe(2);
+    });
   });
 });

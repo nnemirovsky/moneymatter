@@ -1,6 +1,14 @@
+import type { ChatCardWarning } from '@bt/shared/types';
+
 import { hashTargetIds, latestUpdatedAt } from '../snapshot';
 import { ENTITY_LOADERS } from './entity-loaders';
-import { assertConcreteTargets, PreviewError, targetNotFound } from './preview-helpers';
+import {
+  assertConcreteTargets,
+  keepVisibleRows,
+  PreviewError,
+  targetNotFound,
+  transactionsAffected,
+} from './preview-helpers';
 import type { PreviewResolver } from './types';
 
 /**
@@ -25,21 +33,37 @@ export const resolveEntityPreview: PreviewResolver = async ({ userId, args, poli
     return value;
   });
 
-  const entity = await loader({ userId, targets, lock });
+  const entity = await loader({ userId, targets, args, lock });
   if (!entity) throw targetNotFound({ what: policy.entity });
 
   const existing = entity.row !== null;
+  // The target leg of a transfer comes first. A delete takes the other legs with it; an update
+  // changes them. Either way the card counts them, lists those on accounts the user can see, and
+  // snapshots them, so an edit of the other leg alone makes the card stale.
+  const legs = entity.legs ?? [];
+  const twins = legs.slice(1);
+  const deletesTwins = policy.kind === 'delete' && twins.length > 0;
+  const removes = entity.removes + (deletesTwins ? twins.length : 0);
+  const warnings: ChatCardWarning[] = deletesTwins
+    ? [{ key: 'chat.warnings.transferTwins', params: { count: twins.length } }]
+    : [];
 
   return {
     preview: {
       before: entity.row,
       ...(Object.keys(entity.counts).length > 0 ? { counts: entity.counts } : {}),
+      ...(twins.length > 0
+        ? {
+            affected: transactionsAffected({ rows: await keepVisibleRows({ userId, rows: legs }), count: legs.length }),
+          }
+        : {}),
     },
     snapshot: {
-      updatedAt: latestUpdatedAt({ dates: [entity.updatedAt] }),
-      targetHash: hashTargetIds({ ids: existing ? [targets.join(':')] : [] }),
-      targetCount: existing ? 1 : 0,
+      updatedAt: latestUpdatedAt({ dates: [entity.updatedAt, ...twins.map((twin) => twin.updatedAt)] }),
+      targetHash: hashTargetIds({ ids: existing ? [targets.join(':'), ...twins.map((twin) => twin.id)] : [] }),
+      targetCount: existing ? 1 + twins.length : 0,
     },
-    ...(policy.danger === 'highImpact' || entity.removes > 0 ? { affectedCount: 1 + entity.removes } : {}),
+    ...(policy.danger === 'highImpact' || removes > 0 ? { affectedCount: 1 + removes } : {}),
+    ...(warnings.length > 0 ? { warnings } : {}),
   };
 };

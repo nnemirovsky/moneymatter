@@ -54,6 +54,25 @@ const chainTurns = ({ accountId }: { accountId: string }) => [
   { text: 'Done.' },
 ];
 
+/** A transfer between two accounts of the user: its two legs, base leg first. */
+const createTransfer = async () => {
+  const from = await helpers.createAccount({ raw: true });
+  const to = await helpers.createAccount({ raw: true });
+  const [base, opposite] = await helpers.createTransaction({
+    payload: {
+      ...helpers.buildTransactionPayload({ accountId: from.id, amount: 500 }),
+      transferNature: TRANSACTION_TRANSFER_NATURE.common_transfer,
+      destinationAmount: 500,
+      destinationAccountId: to.id,
+    },
+    raw: true,
+  });
+  return { base, opposite: opposite! };
+};
+
+const proposeDelete = ({ id }: { id: string }) =>
+  proposeCards({ turns: [{ toolCalls: [{ name: 'delete_transaction', arguments: { id } }] }, { text: 'Done.' }] });
+
 const errorOf = ({ response }: { response: { body: { response: unknown } } }) =>
   response.body.response as { message: string; code: string; details?: Record<string, any> };
 
@@ -326,6 +345,34 @@ describe('POST /chat/proposals/:id/approve', () => {
       expect(remaining.map((item) => item.id)).toEqual([ids[2]]);
     });
 
+    it('counts both legs of a transfer on a single delete, asks for the typed count and deletes both', async () => {
+      const { base, opposite } = await createTransfer();
+      const { cards } = await proposeDelete({ id: base.id });
+      const card = cardFor({ cards, toolName: 'delete_transaction' });
+
+      expect(card.confirmation).toEqual({ mode: 'typed', phrase: '2' });
+      expect(card.affected).toMatchObject({ count: 2 });
+      expect(card.affected!.rows).toHaveLength(2);
+      expect(card.warnings).toEqual([{ key: 'chat.warnings.transferTwins', params: { count: 1 } }]);
+
+      const wrong = await helpers.approveChatProposal({
+        proposalId: card.id,
+        payload: { revision: 1, confirmation: 'confirm' },
+      });
+      expect(wrong.statusCode).toBe(ERROR_CODES.ValidationError);
+      expect(await helpers.getTransactions({ raw: true })).toHaveLength(2);
+
+      const approved = await helpers.approveChatProposal({
+        proposalId: card.id,
+        payload: { revision: 1, confirmation: '2' },
+      });
+
+      expect(approved.statusCode).toBe(200);
+      const remaining = await helpers.getTransactions({ raw: true });
+      expect(remaining.map((item) => item.id)).not.toContain(base.id);
+      expect(remaining.map((item) => item.id)).not.toContain(opposite.id);
+    });
+
     it('answers 409 stale when a filter-based bulk card now matches another set, and applies the refreshed set with a new count', async () => {
       const account = await helpers.createAccount({ raw: true });
       const other = await helpers.createAccount({ raw: true });
@@ -471,6 +518,28 @@ describe('POST /chat/proposals/:id/approve', () => {
   });
 
   describe('freshness', () => {
+    it('answers 409 stale when only the other leg of a deleted transfer was edited', async () => {
+      const { base, opposite } = await createTransfer();
+      const { cards } = await proposeDelete({ id: base.id });
+      const card = cardFor({ cards, toolName: 'delete_transaction' });
+      await helpers.bulkUpdateTransactions({
+        payload: { transactionIds: [opposite.id], note: 'Edited elsewhere' },
+        raw: true,
+      });
+
+      const stale = await helpers.approveChatProposal({
+        proposalId: card.id,
+        payload: { revision: 1, confirmation: '2' },
+      });
+
+      expect(stale.statusCode).toBe(ERROR_CODES.ConflictError);
+      expect(errorOf({ response: stale }).details).toMatchObject({
+        reason: 'stale',
+        stale: { reasonKey: 'chat.stale.updated' },
+      });
+      expect(await helpers.getTransactions({ raw: true })).toHaveLength(2);
+    });
+
     it('answers 409 stale with the diff when the target was edited through REST, and applies after a refresh', async () => {
       const account = await helpers.createAccount({ raw: true });
       const [transaction] = await helpers.createTransaction({
