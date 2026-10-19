@@ -351,7 +351,10 @@ export const buildCardPaymentShortcut = (): Dict => {
     add({
       identifier: SHORTCUT_ACTIONS.formatDate,
       name,
-      parameters: { ...parameters, [SHORTCUT_PARAMS.date]: tokenAttachment({ reference: from({ output: now }) }) },
+      parameters: {
+        ...parameters, // Typed-into field: Shortcuts serializes it as a text token, not a bare variable slot.
+        [SHORTCUT_PARAMS.date]: tokenString({ parts: [from({ output: now })] }),
+      },
     });
   // The input carries no date, so the run time stands in for the payment time.
   const isoTime = formatDate({
