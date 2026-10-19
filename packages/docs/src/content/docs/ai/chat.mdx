@@ -1,14 +1,14 @@
 ---
 title: Chat with your finances
-description: Ask MoneyMatter's built-in AI chat about your money, attach receipts and statements, and approve every change it proposes. Covers the Chat page and side panel, cards, Approve all safe, attachments, charts, history and retention, privacy, models and limits.
+description: Ask MoneyMatter's built-in AI chat about your money, attach receipts and statements, and approve every change it proposes. Covers the AI chat page and side panel, cards, Approve all safe, attachments, charts, history and retention, privacy, models and limits.
 sidebar:
   order: 3
-  label: Chat
+  label: AI chat
 ---
 
 import { Aside, Steps } from '@astrojs/starlight/components';
 
-Chat is an AI assistant inside MoneyMatter. You type, attach files and give instructions. It looks at your accounts and transactions, then answers in one of two ways:
+AI chat is an assistant inside MoneyMatter. You type, attach files and give instructions. It looks at your accounts and transactions, then answers in one of two ways:
 
 - **Asking.** "Where did my money go in September?" You get text, plus charts, tables and number tiles when they help.
 - **Acting.** "Log these receipts", "Move all Bolt rides to Transport", "Delete the duplicates from March." You get no prose, only **cards**: one card per change. Nothing changes until you approve a card.
@@ -27,7 +27,7 @@ Chat uses the same tools as the [MoneyMatter MCP server](/ai/connect-claude-chat
 1. Click the gear button (**Settings**) at the top right of the app.
 2. Under **Workspace**, choose **AI**.
 3. On the **AI models** tab, add a model if you don't have one yet.
-4. Open **Chat**. Under the message box, choose the model for the conversation.
+4. Open **AI chat** in the sidebar. Under the message box, choose the model for the conversation.
 
 </Steps>
 
@@ -35,7 +35,7 @@ Each conversation has its own model, so you switch it in the chat and not in Set
 
 If you delete the model a conversation uses, the next message runs on the model of your latest conversation, or on your default model when that one is gone too, and the conversation keeps that choice.
 
-Until you have a model, the Chat page says "Connect a model to start" and links to the AI settings.
+Until you have a model, the AI chat page says "Connect a model to start" and links to the AI settings.
 
 **Pick a strong model.** Chat looks up your data with tools over many steps, reads attached files and writes long answers. A weak model skips tools or gets numbers wrong. Claude Sonnet, Claude Opus and GPT Terra are good choices.
 
@@ -57,14 +57,14 @@ See [Use your Claude or ChatGPT subscription for AI](/ai/use-your-ai-subscriptio
   Chat needs many model steps for one question, and it sends the model a long list of tools each time, so it uses more tokens than the other AI features. Each conversation shows a token count in its header, with a breakdown of input, output and cached tokens when you hover it. We haven't measured typical use per step yet, so watch the first few conversations on a paid API key.
 </Aside>
 
-## The Chat page and the side panel
+## The AI chat page and the side panel
 
 There are two ways in, and both show the same conversations.
 
-- **The Chat page.** Click **Chat** in the sidebar. A list of your conversations is on the left, with search, pinned conversations and a **New chat** button, and the conversation is on the right. On a narrow screen the list moves below the conversation.
-- **The side panel.** On a wide screen, click the chat button in the header on any page. The panel docks on the right, and you can drag its edge to resize it. The page stays visible and usable next to it, so you can see what you're talking about. **Open in the Chat page** moves the conversation to the full page.
+- **The AI chat page.** Click **AI chat** in the sidebar. A list of your conversations is on the left, with search, pinned conversations and a **New chat** button, and the conversation is on the right. On a narrow screen the list moves below the conversation.
+- **The side panel.** On a wide screen, click the sparkles button (**Open AI chat**) in the header on any page. The panel docks on the right, and you can drag its edge to resize it. The page stays visible and usable next to it, so you can see what you're talking about. **Open in the AI chat page** moves the conversation to the full page.
 
-On a phone or another narrow screen, the header button opens the Chat page instead of a panel.
+On a phone or another narrow screen, the header button opens the AI chat page instead of a panel.
 
 ### Page context
 
@@ -181,7 +181,7 @@ Every conversation is saved. In the list:
 - the menu on a conversation lets you **Rename**, **Pin** or **Delete** it;
 - a pinned conversation moves to the top and is never deleted automatically.
 
-Conversations are deleted automatically a set time after their **last message**. The default is **30 days**. Change it in **Settings**, **AI**, in the **Chat** block under the features: **Keep conversations for** 7 days, 30 days, 90 days, 1 year or **Never delete automatically**. Each conversation shows the date it will be deleted.
+Conversations are deleted automatically a set time after their **last message**. The default is **30 days**. Change it in **Settings**, **AI**, in the **AI chat** block under the features: **Keep conversations for** 7 days, 30 days, 90 days, 1 year or **Never delete automatically**. Each conversation shows the date it will be deleted.
 
 Deleting a conversation deletes its messages, cards and the record of changes applied from it. The changes already made to your data stay.
 
