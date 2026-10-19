@@ -34,7 +34,7 @@ export async function validateCurrency({
     currencyColumnIndex = headers.indexOf(currencyOption.columnName);
     if (currencyColumnIndex === -1) {
       throw new ValidationError({
-        message: `Currency column "${currencyOption.columnName}" not found in CSV`,
+        message: t({ key: 'csvImport.currencyColumnNotFound', variables: { columnName: currencyOption.columnName } }),
       });
     }
 
@@ -46,7 +46,7 @@ export async function validateCurrency({
       const currency = row[currencyColumnIndex]?.trim().toUpperCase();
       if (currency) {
         if (!isCurrencyCodeFormat(currency)) {
-          invalidCurrencies.push(`Row ${index + 2}: invalid currency "${currency}"`);
+          invalidCurrencies.push(t({ key: 'csvImport.invalidCurrencyRow', variables: { row: index + 2, currency } }));
         } else {
           uniqueCurrencies.add(currency);
         }
@@ -54,8 +54,12 @@ export async function validateCurrency({
     });
 
     if (invalidCurrencies.length > 0) {
+      const rows = invalidCurrencies.slice(0, 5);
+      if (invalidCurrencies.length > 5) {
+        rows.push(t({ key: 'csvImport.andMoreRows', variables: { count: invalidCurrencies.length - 5 } }));
+      }
       throw new ValidationError({
-        message: `Invalid currency codes found:\n${invalidCurrencies.slice(0, 5).join('\n')}${invalidCurrencies.length > 5 ? `\n...and ${invalidCurrencies.length - 5} more` : ''}`,
+        message: t({ key: 'csvImport.invalidCurrencyCodes', variables: { rows: rows.join('\n') } }),
       });
     }
 
@@ -67,7 +71,7 @@ export async function validateCurrency({
 
       if (rejected.length > 0) {
         throw new ValidationError({
-          message: `Unknown currency codes in CSV: ${rejected.join(', ')}. These currencies are not supported by the system.`,
+          message: t({ key: 'csvImport.unknownCurrencyCodes', variables: { codes: rejected.join(', ') } }),
         });
       }
     }
@@ -84,7 +88,10 @@ export async function validateCurrency({
         const mismatchedCurrencies = csvCurrencies.filter((c) => c !== account.currencyCode);
 
         if (mismatchedCurrencies.length > 0) {
-          currencyMismatchWarning = `Warning: Your CSV contains transactions in ${mismatchedCurrencies.join(', ')} but the selected account uses ${account.currencyCode}. All transactions will be imported using ${account.currencyCode}.`;
+          currencyMismatchWarning = t({
+            key: 'csvImport.currencyMismatchWarning',
+            variables: { currencies: mismatchedCurrencies.join(', '), accountCurrency: account.currencyCode },
+          });
         }
       }
     }
@@ -101,7 +108,7 @@ export async function validateCurrency({
     const { rejected } = await resolveVisibleCurrencies({ userId, codes: [defaultCurrency] });
     if (rejected.length > 0) {
       throw new ValidationError({
-        message: `Currency "${defaultCurrency}" is not supported by the system.`,
+        message: t({ key: 'csvImport.currencyNotSupported', variables: { currency: defaultCurrency } }),
       });
     }
   }

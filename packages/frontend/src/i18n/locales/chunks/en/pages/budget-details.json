@@ -7,13 +7,13 @@
         "selected": "{count} selected",
         "unlink": "Unlink",
         "cancel": "Cancel",
-        "unlinkSelected": "Unlink Selected",
+        "unlinkSelected": "Unlink selected",
         "noMatchingTransactions": "No matching transactions",
         "noTransactionsLinked": "No transactions linked",
         "filterAdjustmentHint": "Try adjusting your filters to see more transactions.",
         "addTransactionsHint": "Add transactions to this tracker to start tracking your spending.",
-        "resetFilters": "Reset Filters",
-        "addTransactions": "Add Transactions",
+        "resetFilters": "Reset filters",
+        "addTransactions": "Add transactions",
         "add": "Add",
         "loadingMore": "Loading more..."
       }
@@ -21,16 +21,16 @@
     "budgetDetails": {
       "notSet": "Not set",
       "saving": "Saving...",
-      "saveChanges": "Save Changes",
+      "saveChanges": "Save changes",
       "loading": "Loading...",
       "uncategorized": "Uncategorized",
       "stats": {
         "income": "Income",
         "expenses": "Expenses",
-        "netBalance": "Net Balance"
+        "netBalance": "Net balance"
       },
       "utilization": {
-        "title": "Tracker Utilization",
+        "title": "Tracker utilization",
         "summary": "{spent} of {limit} limit",
         "na": "N/A"
       },

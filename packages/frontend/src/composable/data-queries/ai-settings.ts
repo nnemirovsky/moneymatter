@@ -1,5 +1,4 @@
 import {
-  type AiFeaturesStatusResponse,
   type CustomInstructionsResponse,
   getAiFeaturesStatus,
   getCustomInstructions,
@@ -9,7 +8,7 @@ import {
 } from '@/api/ai-settings';
 import { pickConfigurableFeatureStatuses } from '@/common/const/ai-features';
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const/vue-query';
-import { AI_FEATURE } from '@bt/shared/types';
+import { AI_FEATURE, type AIFeaturesStatusResponse } from '@bt/shared/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed } from 'vue';
 
@@ -18,7 +17,7 @@ export const useAiSettings = () => {
 
   // ===== Queries =====
 
-  const featuresStatusQuery = useQuery<AiFeaturesStatusResponse, Error>({
+  const featuresStatusQuery = useQuery<AIFeaturesStatusResponse, Error>({
     queryKey: [...VUE_QUERY_CACHE_KEYS.aiFeaturesStatus],
     queryFn: getAiFeaturesStatus,
     staleTime: 30000, // 30 seconds
@@ -60,6 +59,7 @@ export const useAiSettings = () => {
   const customInstructions = computed(() => customInstructionsQuery.data.value?.instructions ?? null);
 
   const featuresStatus = computed(() => featuresStatusQuery.data.value?.features ?? []);
+  const aiAllowance = computed(() => featuresStatusQuery.data.value?.aiAllowance ?? null);
 
   /** The features whose model Settings picks; chat takes its model per conversation. */
   const configurableFeaturesStatus = computed(() =>
@@ -87,6 +87,7 @@ export const useAiSettings = () => {
     // Data
     customInstructions,
     featuresStatus,
+    aiAllowance,
     configurableFeaturesStatus,
     featuresUnknown,
     isRefetchingFeatures: featuresStatusQuery.isFetching,

@@ -5,7 +5,7 @@
     "notFound": "Tracker not found",
     "notFoundDescription": "We couldn't find this tracker. It may have been deleted or you might not have access to it.",
     "backToList": "Back to trackers",
-    "newBudget": "New Tracker",
+    "newBudget": "New tracker",
     "createBudget": "Create tracker",
     "creation": {
       "success": "Tracker created",
@@ -27,8 +27,8 @@
       "submitButton": "Add tracker"
     },
     "list": {
-      "tabCategory": "Category Trackers",
-      "tabManual": "Manual Trackers",
+      "tabCategory": "Category trackers",
+      "tabManual": "Manual trackers",
       "edit": "Edit",
       "delete": "Delete",
       "deleteSuccess": "Tracker deleted successfully!",
@@ -80,12 +80,12 @@
       "notSet": "Not set"
     },
     "addTransactionsDialog": {
-      "title": "Add Transactions to Tracker",
-      "addSelected": "Add Selected",
+      "title": "Add transactions to tracker",
+      "addSelected": "Add selected",
       "clearSelection": "Clear selection"
     },
     "categoryBudget": {
-      "trackedCategories": "Tracked Categories",
+      "trackedCategories": "Tracked categories",
       "categoriesCount": "{count} categories tracked",
       "autoTrackedInfo": "Transactions are automatically tracked based on categories",
       "transactionsTitle": "Transactions",
@@ -93,18 +93,18 @@
       "noTransactions": "No transactions yet",
       "noTransactionsDescription": "Transactions matching your tracked categories will appear here automatically.",
       "transactionsLoadError": "Failed to load transactions",
-      "categoryBreakdown": "Category Breakdown",
+      "categoryBreakdown": "Category breakdown",
       "edit": "Edit",
-      "editTitle": "Edit Tracker",
+      "editTitle": "Edit tracker",
       "showMore": "Show more",
       "showLess": "Show less",
       "settings": {
-        "categoriesLabel": "Tracked Categories"
+        "categoriesLabel": "Tracked categories"
       }
     },
     "manualBudget": {
       "edit": "Edit",
-      "editTitle": "Edit Tracker"
+      "editTitle": "Edit tracker"
     },
     "share": {
       "sharedByBadge": "Shared by {handle}"

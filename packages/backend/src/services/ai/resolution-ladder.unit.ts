@@ -2,21 +2,21 @@ import { AIFeatureConfig, AI_FEATURE, AI_PROVIDER } from '@bt/shared/types';
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import {
-  PLUS_SERVER_MODELS,
-  SERVER_MODELS,
+  FALLBACK_SERVER_MODELS,
+  PRIMARY_SERVER_MODEL,
   getServerModel,
   pickResolutionStep,
-  suspendAnthropicServerKey,
+  suspendPrimaryServerKey,
   type LadderConnection,
 } from './resolution-ladder';
 
 jest.mock('@js/utils/logger', () => ({ logger: { error: jest.fn() } }));
 
-const SERVER_KEY_ENV_VARS = ['GEMINI_API_KEY', 'ANTHROPIC_PLUS_API_KEY'] as const;
+const SERVER_KEY_ENV_VARS = ['GEMINI_API_KEY', 'ANTHROPIC_API_KEY'] as const;
 
 // Its default model is a Google one, so GEMINI_API_KEY is what backs the server arm here.
 const FEATURE = AI_FEATURE.categorization;
-const SERVER_MODEL = SERVER_MODELS[FEATURE]!;
+const SERVER_MODEL = FALLBACK_SERVER_MODELS[FEATURE]!;
 
 const FIRST: LadderConnection = { id: 'conn-1', status: 'valid' };
 const SECOND: LadderConnection = { id: 'conn-2', status: 'valid' };
@@ -29,13 +29,11 @@ function pick({
   config = null,
   connections = [],
   serverKeysAllowed = true,
-  paidPlus = false,
   excludedConnectionIds,
 }: {
   config?: AIFeatureConfig | null;
   connections?: LadderConnection[];
   serverKeysAllowed?: boolean;
-  paidPlus?: boolean;
   excludedConnectionIds?: ReadonlySet<string>;
 } = {}) {
   return pickResolutionStep({
@@ -43,7 +41,6 @@ function pick({
     config,
     connections,
     serverKeysAllowed,
-    paidPlus,
     excludedConnectionIds,
   });
 }
@@ -174,38 +171,34 @@ describe('pickResolutionStep', () => {
     });
   });
 
-  describe('Plus server model', () => {
-    const plusModel = PLUS_SERVER_MODELS[FEATURE];
-
+  describe('primary server model', () => {
     beforeEach(() => {
       process.env.GEMINI_API_KEY = 'server-key';
-      process.env.ANTHROPIC_PLUS_API_KEY = 'anthropic-plus-key';
+      process.env.ANTHROPIC_API_KEY = 'anthropic-key';
     });
 
-    it('serves paying Plus users only', () => {
-      expect(pick({ paidPlus: true })).toEqual({ kind: 'server-default', model: plusModel });
-      expect(pick({ config: PICK_SERVER, paidPlus: true })).toEqual({ kind: 'configured-server', model: plusModel });
-      expect(pick()).toEqual({ kind: 'server-default', model: SERVER_MODEL });
-      expect(pick({ paidPlus: true, serverKeysAllowed: false })).toEqual({ kind: 'unserved' });
+    it('takes precedence over the Gemini model while its key is set', () => {
+      expect(pick()).toEqual({ kind: 'server-default', model: PRIMARY_SERVER_MODEL });
+      expect(pick({ config: PICK_SERVER })).toEqual({ kind: 'configured-server', model: PRIMARY_SERVER_MODEL });
+      expect(pick({ serverKeysAllowed: false })).toEqual({ kind: 'unserved' });
     });
 
-    it('needs no shared key', () => {
+    it('needs no Gemini key', () => {
       delete process.env.GEMINI_API_KEY;
 
-      expect(pick({ paidPlus: true })).toEqual({ kind: 'server-default', model: plusModel });
-      expect(pick()).toEqual({ kind: 'unserved' });
+      expect(pick()).toEqual({ kind: 'server-default', model: PRIMARY_SERVER_MODEL });
     });
 
-    it('falls back to the shared model for an hour after a suspension', () => {
+    it('falls back to the Gemini model for an hour after a suspension', () => {
       // The clock runs two hours behind, so the suspension is over once it is restored.
       const suspendedAt = Date.now() - 2 * 60 * 60 * 1000;
       const now = jest.spyOn(Date, 'now').mockReturnValue(suspendedAt);
-      suspendAnthropicServerKey({ reason: 'test' });
+      suspendPrimaryServerKey({ reason: 'test' });
 
-      expect(pick({ paidPlus: true })).toEqual({ kind: 'server-default', model: SERVER_MODEL });
+      expect(pick()).toEqual({ kind: 'server-default', model: SERVER_MODEL });
 
       now.mockReturnValue(suspendedAt + 61 * 60 * 1000);
-      expect(pick({ paidPlus: true })).toEqual({ kind: 'server-default', model: plusModel });
+      expect(pick()).toEqual({ kind: 'server-default', model: PRIMARY_SERVER_MODEL });
     });
   });
 });
@@ -213,12 +206,10 @@ describe('pickResolutionStep', () => {
 const pickChat = ({
   config = null,
   connections = [],
-  paidPlus = false,
 }: {
   config?: AIFeatureConfig | null;
   connections?: LadderConnection[];
-  paidPlus?: boolean;
-} = {}) => pickResolutionStep({ feature: AI_FEATURE.chat, config, connections, serverKeysAllowed: true, paidPlus });
+} = {}) => pickResolutionStep({ feature: AI_FEATURE.chat, config, connections, serverKeysAllowed: true });
 
 describe('chat feature', () => {
   const envBeforeTest = new Map<string, string | undefined>();
@@ -236,14 +227,13 @@ describe('chat feature', () => {
       if (value === undefined) delete process.env[envVar];
       else process.env[envVar] = value;
     }
-    delete SERVER_MODELS[AI_FEATURE.chat];
-    delete PLUS_SERVER_MODELS[AI_FEATURE.chat];
+    delete FALLBACK_SERVER_MODELS[AI_FEATURE.chat];
   });
 
-  it.each([false, true])('has no included server model whatever the plan (paid Plus: %s)', (paidPlus) => {
-    expect(getServerModel({ feature: AI_FEATURE.chat, serverKeysAllowed: true, paidPlus })).toBeNull();
-    expect(pickChat({ paidPlus })).toEqual({ kind: 'unserved' });
-    expect(pickChat({ config: { feature: AI_FEATURE.chat, connectionId: null }, paidPlus })).toEqual({
+  it('has no included server model', () => {
+    expect(getServerModel({ feature: AI_FEATURE.chat, serverKeysAllowed: true })).toBeNull();
+    expect(pickChat()).toEqual({ kind: 'unserved' });
+    expect(pickChat({ config: { feature: AI_FEATURE.chat, connectionId: null } })).toEqual({
       kind: 'unserved',
     });
   });
@@ -262,18 +252,15 @@ describe('chat feature', () => {
     });
   });
 
-  it('offers an operator model to a user the plan includes it for, once one entry exists', () => {
-    const operatorModel = { provider: AI_PROVIDER.google, model: 'gemini-operator-chat' } as const;
-    SERVER_MODELS[AI_FEATURE.chat] = operatorModel;
+  it('offers the included model to a user the plan includes it for, once an entry exists', () => {
+    FALLBACK_SERVER_MODELS[AI_FEATURE.chat] = { provider: AI_PROVIDER.google, model: 'gemini-operator-chat' };
 
-    expect(getServerModel({ feature: AI_FEATURE.chat, serverKeysAllowed: true, paidPlus: false })).toEqual(
-      operatorModel,
-    );
-    expect(pickChat()).toEqual({ kind: 'server-default', model: operatorModel });
+    expect(getServerModel({ feature: AI_FEATURE.chat, serverKeysAllowed: true })).toEqual(PRIMARY_SERVER_MODEL);
+    expect(pickChat()).toEqual({ kind: 'server-default', model: PRIMARY_SERVER_MODEL });
     expect(pickChat({ config: { feature: AI_FEATURE.chat, connectionId: null } })).toEqual({
       kind: 'configured-server',
-      model: operatorModel,
+      model: PRIMARY_SERVER_MODEL,
     });
-    expect(getServerModel({ feature: AI_FEATURE.chat, serverKeysAllowed: false, paidPlus: false })).toBeNull();
+    expect(getServerModel({ feature: AI_FEATURE.chat, serverKeysAllowed: false })).toBeNull();
   });
 });

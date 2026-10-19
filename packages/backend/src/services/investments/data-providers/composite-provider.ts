@@ -4,6 +4,7 @@ import { ServiceUnavailableError } from '@js/errors';
 import { logger } from '@js/utils';
 import { isAxiosError } from 'axios';
 
+import { rememberSearchResults } from '../securities/verified-search-cache';
 import { AlphaVantageDataProvider } from './alphavantage-provider';
 import {
   BaseSecurityDataProvider,
@@ -137,7 +138,9 @@ export class CompositeDataProvider extends BaseSecurityDataProvider {
     // and CoinGecko's "BTC".
     const stockResults = rawStockResults.filter((r) => r.assetClass !== ASSET_CLASS.crypto);
 
-    return [...stockResults, ...cryptoResults];
+    const results = [...stockResults, ...cryptoResults];
+    await rememberSearchResults({ results });
+    return results;
   }
 
   /**

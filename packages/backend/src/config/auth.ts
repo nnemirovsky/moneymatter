@@ -6,6 +6,7 @@ import { EnvVar, isEnvConfigured } from '@common/utils/env';
 import { createSessionHooks } from '@config/auth-hooks/session-hooks';
 import { shouldUseSecureCookies } from '@config/should-use-secure-cookies';
 import { isAuthApiError } from '@controllers/helpers/error-handler';
+import { t } from '@i18n/index';
 import { logger } from '@js/utils/logger';
 import { identifyUser, trackSignup } from '@js/utils/posthog';
 import { captureException } from '@js/utils/sentry';
@@ -359,7 +360,7 @@ export const auth = betterAuth({
         before: async (user) => {
           if (!(await areSignupsOpen())) {
             throw new APIError('FORBIDDEN', {
-              message: 'Signups are disabled by the administrator',
+              message: t({ key: 'auth.errors.signupsDisabled' }),
               code: 'SIGNUPS_DISABLED',
             });
           }

@@ -81,7 +81,6 @@ export const restoreCustomCurrencies = async ({
     warnings.push({
       code: 'invalid_row_dropped',
       table: 'custom-currencies',
-      message: `Dropped ${invalidCount} custom currency definition(s) that failed validation.`,
       count: invalidCount,
     });
   }

@@ -89,12 +89,14 @@
 </template>
 
 <script setup lang="ts">
+import { getAuthSessions } from '@/api/user';
 import { Button } from '@/components/lib/ui/button';
 import { useNotificationCenter } from '@/components/notification-center';
-import { getAuthSessions } from '@/api/user';
+import { UnexpectedError, getAuthErrorMessage } from '@/js/errors';
 import { authClient, getSession } from '@/lib/auth-client';
 import type { AuthSessionInfo } from '@bt/shared/types';
 import { Loader2Icon, LogOutIcon, MonitorIcon, SmartphoneIcon, TabletIcon } from '@lucide/vue';
+import { format } from 'date-fns';
 import { type Component, computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -124,7 +126,7 @@ const formatDate = (dateStr: string | Date) => {
   if (diffHours < 24) return t('settings.security.activeSessions.timeAgo.hoursAgo', { count: diffHours });
   if (diffDays < 7) return t('settings.security.activeSessions.timeAgo.daysAgo', { count: diffDays });
 
-  return date.toLocaleDateString();
+  return format(date, 'P');
 };
 
 const parseUserAgent = (userAgent: string | null | undefined): string => {
@@ -193,11 +195,14 @@ const retryLoad = async () => {
 const handleRevokeSession = async (token: string) => {
   try {
     isRevokingSession.value = token;
-    await authClient.revokeSession({ token: token });
+    const { error } = await authClient.revokeSession({ token });
+    if (error) throw new UnexpectedError(error.message, error);
     addSuccessNotification(t('settings.security.activeSessions.notifications.revokeSuccess'));
     await loadSessions();
-  } catch {
-    addErrorNotification(t('settings.security.activeSessions.notifications.revokeFailed'));
+  } catch (error) {
+    addErrorNotification(
+      await getAuthErrorMessage({ error, fallbackKey: 'settings.security.activeSessions.notifications.revokeFailed' }),
+    );
   } finally {
     isRevokingSession.value = null;
   }
@@ -205,11 +210,17 @@ const handleRevokeSession = async (token: string) => {
 
 const handleRevokeAll = async () => {
   try {
-    await authClient.revokeOtherSessions();
+    const { error } = await authClient.revokeOtherSessions();
+    if (error) throw new UnexpectedError(error.message, error);
     addSuccessNotification(t('settings.security.activeSessions.notifications.revokeAllSuccess'));
     await loadSessions();
-  } catch {
-    addErrorNotification(t('settings.security.activeSessions.notifications.revokeAllFailed'));
+  } catch (error) {
+    addErrorNotification(
+      await getAuthErrorMessage({
+        error,
+        fallbackKey: 'settings.security.activeSessions.notifications.revokeAllFailed',
+      }),
+    );
   }
 };
 

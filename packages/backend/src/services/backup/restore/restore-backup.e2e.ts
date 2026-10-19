@@ -19,6 +19,7 @@ import type { BudgetPlanPeriodView } from '@bt/shared/types';
 import { INVESTMENT_TRANSACTION_CATEGORY } from '@bt/shared/types/investments';
 import { VENTURE_CASH_FLOW_MODE, VENTURE_EVENT_TYPE } from '@bt/shared/types/venture';
 import { generateRandomRecordId } from '@common/lib/record-id-helpers';
+import { t } from '@i18n/index';
 import { beforeEach, describe, expect, it } from '@jest/globals';
 import { RateLimitService } from '@services/common/rate-limit.service';
 import * as helpers from '@tests/helpers';
@@ -1160,6 +1161,13 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
       );
       expect(hasWarning({ status: statusRow, code: 'foreign_reference_nulled', table: 'categories' })).toBe(true);
       expect(hasWarning({ status: statusRow, code: 'foreign_reference_nulled', table: 'user' })).toBe(true);
+      expect(status.summary?.warnings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: 'foreign_reference_dropped', table: 'balances', column: 'accountId' }),
+          expect.objectContaining({ code: 'foreign_reference_nulled', table: 'categories', column: 'parentId' }),
+          expect.objectContaining({ code: 'foreign_reference_nulled', table: 'user', column: 'defaultCategoryId' }),
+        ]),
+      );
 
       // The restore still succeeded and re-owned the restorer's own accounts.
       expect((await helpers.getAccounts()).some((a) => a.id === accountA.id)).toBe(true);
@@ -1542,7 +1550,30 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
 
       const restore = await helpers.restoreBackup({ fileContent: base64 });
       expect(restore.statusCode).toBe(422);
-      expect(restore.message).toMatch(/version/i);
+      expect(restore.message).toBe(
+        t({ key: 'backup.restore.errors.formatVersionTooNew', variables: { version: 2, max: BACKUP_FORMAT_VERSION } }),
+      );
+    });
+
+    it('translates a rejection into the locale the request asked for', async () => {
+      await seedBasicData();
+      const { buffer } = await exportArchive();
+      const { files, manifest } = helpers.parseBackupArchive({ buffer });
+
+      manifest.formatVersion = 2;
+      writeArchiveJson({ files, path: 'manifest.json', value: manifest });
+      const base64 = await helpers.repackBackup({ files });
+
+      const restore = await helpers.restoreBackup({
+        fileContent: base64,
+        headers: { 'Accept-Language': 'uk' },
+      });
+      const variables = { version: 2, max: BACKUP_FORMAT_VERSION };
+      expect(restore.statusCode).toBe(422);
+      expect(restore.message).toBe(t({ key: 'backup.restore.errors.formatVersionTooNew', variables, locale: 'uk' }));
+      expect(restore.message).not.toBe(
+        t({ key: 'backup.restore.errors.formatVersionTooNew', variables, locale: 'en' }),
+      );
     });
 
     it('rejects a backup whose file checksum no longer matches the manifest (422)', async () => {
@@ -1558,7 +1589,9 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
 
       const restore = await helpers.restoreBackup({ fileContent: base64 });
       expect(restore.statusCode).toBe(422);
-      expect(restore.message).toMatch(/checksum|integrity/i);
+      expect(restore.message).toBe(
+        t({ key: 'backup.restore.errors.checksumMismatch', variables: { path: 'data/categories.json' } }),
+      );
     });
 
     it('rejects a backup missing a required column and names the column (422)', async () => {
@@ -1595,7 +1628,8 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
 
       const restore = await helpers.restoreBackup({ fileContent: base64 });
       expect(restore.statusCode).toBe(422);
-      expect(restore.message).toMatch(/no user record|no files|refusing to wipe/i);
+      expect(restore.message).toContain(t({ key: 'backup.restore.errors.noUserRecord' }));
+      expect(restore.message).toContain(t({ key: 'backup.restore.errors.emptyManifest' }));
 
       // The wipe never ran: the pre-restore account and transaction are still there.
       const accountsAfter = await helpers.getAccounts();
@@ -1616,7 +1650,7 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
 
       const restore = await helpers.restoreBackup({ fileContent: base64 });
       expect(restore.statusCode).toBe(422);
-      expect(restore.message).toMatch(/malformed manifest/i);
+      expect(restore.message).toBe(t({ key: 'backup.restore.errors.malformedManifest' }));
     });
 
     it('requires a sharing acknowledgement when the user owns shared resources (409)', async () => {
@@ -1671,7 +1705,7 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
 
       const restore = await helpers.restoreBackup({ fileContent: base64 });
       expect(restore.statusCode).toBe(422);
-      expect(restore.message).toMatch(/different account/i);
+      expect(restore.message).toBe(t({ key: 'backup.restore.errors.differentAccount' }));
     });
 
     it('accepts the same archive on a self-hosted instance', async () => {

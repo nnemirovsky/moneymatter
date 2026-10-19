@@ -121,6 +121,20 @@ Available sizes: `default`, `sm`, `lg`, `icon`, `icon-sm`
 <Button><PlusIcon class="size-4" /> Add item</Button>
 ```
 
+**Action icons go before the label**, never after it. This applies to buttons, link-buttons, and dropdown/combobox "add" rows alike. Never put a literal `+` (or any icon glyph) in the translation string — render the lucide icon in the template.
+
+```vue
+<!-- WRONG — trailing icon / glyph baked into the copy -->
+<Button>{{ $t('createGroup') }} <PlusIcon class="size-4" /></Button>
+<Button variant="link">{{ $t('addCurrency') }}</Button>
+<!-- "Add new currency +" -->
+
+<!-- CORRECT -->
+<Button><PlusIcon class="size-4" /> {{ $t('createGroup') }}</Button>
+```
+
+Exception: directional icons that indicate where the action leads (`ChevronRightIcon`, `ArrowRightIcon`, `ExternalLinkIcon`, dropdown `ChevronDownIcon`) stay trailing.
+
 ### Form fields
 
 Always use the project's field components from `@/components/fields/`. Never use raw `<input>`, `<select>`, or `<textarea>` elements.
@@ -228,6 +242,21 @@ Not needed for plain `Button @click` with `v-model:open` — only slot-triggered
 
 When a page or section has no data, display an empty state with the following layout: **icon + title + description + action** (if applicable). Look at existing empty states in the codebase for reference before creating new ones.
 
+- **Icon is greyscale**: `bg-muted` circle with a `text-muted-foreground` icon. Don't tint it with the brand color (`bg-primary/10` + `text-primary-text`) — that's reserved for success/confirmation screens (auth, invitations), not "nothing here yet".
+- **No extra surface**: render the empty state directly on the parent card/page. Don't wrap it in its own `bg-card` / bordered box when it already sits inside a card — nested surfaces look like a different design.
+- Title and button copy follow sentence case (see **Copy & casing**).
+
+```vue
+<div class="flex flex-col items-center py-12 text-center">
+  <div class="bg-muted mb-4 flex size-12 items-center justify-center rounded-full">
+    <BriefcaseIcon class="text-muted-foreground size-6" />
+  </div>
+  <h3 class="mb-2 text-lg font-semibold">{{ $t('...title') }}</h3>       <!-- "No portfolios yet" -->
+  <p class="text-muted-foreground mb-4 max-w-md text-sm">{{ $t('...description') }}</p>
+  <Button><PlusIcon class="size-4" /> {{ $t('...action') }}</Button>    <!-- "Add a portfolio" -->
+</div>
+```
+
 ### Loading states
 
 Use **skeleton placeholders** to represent loading content. Skeletons should approximate the shape/layout of the real content to prevent layout shift.
@@ -305,6 +334,15 @@ Disable submit buttons and show loading indicators while mutations are in progre
 ---
 
 ## i18n
+
+### Copy & casing
+
+All UI copy uses **sentence case**: capitalize only the first word and proper nouns (MoneyMatter, FIRE, AI, CSV, bank/provider names). Applies to page and dialog titles, headings, buttons, tabs, menu items, labels, and empty states.
+
+- WRONG: `"No Portfolios Yet"`, `"Create Your First Portfolio"`, `"Add New Account"`
+- CORRECT: `"No portfolios yet"`, `"Create your first portfolio"`, `"Add new account"`
+
+When reviewing a diff that adds or changes `en` strings, flag any Title Case value.
 
 ### `$t` vs `t`
 

@@ -1,7 +1,7 @@
 import { AI_FEATURE, PLANS } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
-import { SERVER_MODELS } from '@services/ai/resolution-ladder';
+import { FALLBACK_SERVER_MODELS } from '@services/ai/resolution-ladder';
 import * as helpers from '@tests/helpers';
 import { enableServerModel, runAsCloud, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
 import {
@@ -164,7 +164,7 @@ describe('AI feature settings', () => {
 
       expect(status).toMatchObject({
         servedBy: 'server',
-        modelName: SERVER_MODELS[AI_FEATURE.statementParsing]!.model,
+        modelName: FALLBACK_SERVER_MODELS[AI_FEATURE.statementParsing]!.model,
         pricing: null,
         capabilities: null,
       });

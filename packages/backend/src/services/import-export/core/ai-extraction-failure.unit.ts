@@ -1,5 +1,6 @@
 import { AI_PROVIDER } from '@bt/shared/types';
-import { describe, expect, it, jest } from '@jest/globals';
+import { i18nextReady } from '@i18n/index';
+import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { mapCliFailure } from '@services/ai/cli/cli-errors';
 
 jest.mock('@js/utils/logger', () => ({ logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() } }));
@@ -15,6 +16,10 @@ import { resolveAiExtractionFailure } from './ai-extraction-failure';
 const aiClient = { provider: AI_PROVIDER.codex, modelId: 'codex/gpt-6-astra', usingUserKey: true } as never;
 
 describe('resolveAiExtractionFailure', () => {
+  beforeAll(async () => {
+    await i18nextReady;
+  });
+
   it('tells the user the subscription is out of credits, and leaves the connection alone', async () => {
     const error = mapCliFailure({
       provider: AI_PROVIDER.codex,

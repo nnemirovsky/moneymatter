@@ -54,8 +54,6 @@
           "subscription": "Підписка",
           "subscriptionTooltip": "Працює на вашій власній підписці Claude або ChatGPT. Плати за токени немає, діють ліміти вашого плану."
         },
-        "sharedPoolNote": "На вашому поточному плані модель MoneyMatter AI працює у спільному пулі, тому за високого загального навантаження можуть діяти обмеження. {link}, щоб їх уникнути.",
-        "sharedPoolNoteLink": "Перейдіть на Plus",
         "modelLabel": "Модель",
         "modelInfo": {
           "estimatedCost": "Орієнт. вартість:",

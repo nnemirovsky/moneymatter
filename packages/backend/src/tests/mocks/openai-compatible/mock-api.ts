@@ -178,12 +178,12 @@ export const getCustomEndpointVllmMock = ({
   baseUrl = CUSTOM_ENDPOINT_BASE_URL,
 }: {
   content: string;
-  onBody?: (body: string) => void;
+  onBody?: (body: string) => unknown;
   baseUrl?: string;
 }) =>
   http.post(chatCompletionsUrl({ baseUrl }), async ({ request }) => {
     const body = await request.text();
-    onBody?.(body);
+    await onBody?.(body);
     if (body.includes('"type":"file"')) {
       return HttpResponse.json(
         {

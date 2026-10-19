@@ -3,6 +3,7 @@ import {
   AICliProvider,
   AIConnectionInfo,
   AIFeatureStatus,
+  type AIFeaturesStatusResponse,
   AI_FEATURE,
   CliAiAvailability,
   CliAuthSessionInfo,
@@ -17,11 +18,7 @@ import {
 
 // ===== Feature Configuration =====
 
-export interface AiFeaturesStatusResponse {
-  features: AIFeatureStatus[];
-}
-
-export const getAiFeaturesStatus = async (): Promise<AiFeaturesStatusResponse> => {
+export const getAiFeaturesStatus = async (): Promise<AIFeaturesStatusResponse> => {
   return api.get('/user/settings/ai/features');
 };
 
