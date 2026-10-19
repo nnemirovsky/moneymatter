@@ -181,7 +181,7 @@ describe('resolveAIConfiguration', () => {
         buildConnectionModelId(PLUS_SERVER_MODELS[FEATURE]!),
         'anthropic-plus-key',
       ],
-      ['a trial user', { trialEndsAt: IN_A_MONTH }, buildConnectionModelId(SERVER_MODELS[FEATURE]), 'server-key'],
+      ['a trial user', { trialEndsAt: IN_A_MONTH }, buildConnectionModelId(SERVER_MODELS[FEATURE]!), 'server-key'],
     ])('picks the model for %s once the Anthropic Plus key is set', async (_label, overrides, modelId, apiKey) => {
       process.env.ANTHROPIC_PLUS_API_KEY = 'anthropic-plus-key';
       grantEntitlements({ features: [FEATURES.operator_ai], ...overrides });
@@ -199,7 +199,7 @@ describe('resolveAIConfiguration', () => {
 
     expect(await resolveAIConfiguration({ userId: USER_ID, feature: FEATURE })).toMatchObject({
       kind: 'server',
-      modelId: buildConnectionModelId(SERVER_MODELS[FEATURE]),
+      modelId: buildConnectionModelId(SERVER_MODELS[FEATURE]!),
       apiKey: 'server-key',
       usingUserKey: false,
     });

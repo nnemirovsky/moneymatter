@@ -23,6 +23,7 @@ export enum AI_FEATURE {
   statementParsing = 'statement_parsing',
   investmentTransactionsParsing = 'investment_transactions_parsing',
   receiptParsing = 'receipt_parsing',
+  chat = 'chat',
   // Future features:
   // insights = 'insights',
 }
@@ -40,6 +41,8 @@ export interface AIModelCapabilities {
   inputs: string[];
   maxOutputTokens: number | null;
   structuredOutput: boolean | null;
+  /** Whether the model can call tools, which the chat needs to look up the user's data */
+  toolCalling: boolean | null;
 }
 
 /** Providers that run a vendor CLI signed in with a subscription; no API key, no base URL. */

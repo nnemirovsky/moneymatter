@@ -10,7 +10,12 @@ const mockSonnetProfile: ModelProfile = {
   name: 'Claude Sonnet 5',
   contextWindow: 1_000_000,
   pricing: { inputPerMillion: 2, outputPerMillion: 10 },
-  capabilities: { inputs: ['text', 'image', 'pdf'], maxOutputTokens: 64_000, structuredOutput: true },
+  capabilities: {
+    inputs: ['text', 'image', 'pdf'],
+    maxOutputTokens: 64_000,
+    structuredOutput: true,
+    toolCalling: true,
+  },
 };
 
 jest.mock('../ai/model-catalog', () => ({
@@ -24,7 +29,7 @@ jest.mock('../ai/model-catalog', () => ({
 const SERVER_KEY_ENV_VARS = ['GEMINI_API_KEY', 'ANTHROPIC_PLUS_API_KEY'] as const;
 
 const FEATURE = AI_FEATURE.categorization;
-const SERVER_MODEL = SERVER_MODELS[FEATURE];
+const SERVER_MODEL = SERVER_MODELS[FEATURE]!;
 const NOW = new Date().toISOString();
 
 const OLLAMA: StoredConnection = {

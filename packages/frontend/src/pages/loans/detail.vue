@@ -108,6 +108,7 @@ import PageWrapper from '@/components/common/page-wrapper.vue';
 import UiButton from '@/components/lib/ui/button/Button.vue';
 import { Card, CardContent, CardHeader } from '@/components/lib/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/lib/ui/collapsible';
+import { provideChatPageContext } from '@/composable/chat/use-chat-page-context';
 import { useLoanById } from '@/composable/data-queries/loans';
 import { ROUTES_NAMES } from '@/routes';
 import { ACCOUNT_STATUSES } from '@bt/shared/types';
@@ -133,6 +134,7 @@ const route = useRoute();
 const router = useRouter();
 
 const loanId = computed(() => route.params.id as string);
+provideChatPageContext(() => ({ entity: { kind: 'loan', id: loanId.value } }));
 const loanQuery = useLoanById({ id: loanId });
 
 const loan = computed(() => loanQuery.data.value ?? null);

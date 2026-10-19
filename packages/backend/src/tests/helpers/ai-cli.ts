@@ -16,7 +16,43 @@ const MANAGED_ENV_VARS = [
   'MM_FAKE_CLI_RESPONSE_FILE',
 ] as const;
 
-export type FakeCliResponse = { text: string } | { structuredOutput: unknown } | { scenario: string };
+/**
+ * One step of a `chat-mcp` script, played by the fake CLI against the chat bridge (see `fake-cli-common.mjs`).
+ * An argument that is the string `"@ref:<n>"` becomes the `ref` of the n-th earlier call's answer, and
+ * `"@ref:<n>.<field>"` that field of it.
+ */
+export type FakeChatStep =
+  | { text: string }
+  | { call: string; args?: unknown }
+  | { parallel: Array<{ call: string; args?: unknown }>; staggerMs?: number }
+  | { forbid: string }
+  | { rendezvous: number }
+  | { sleep: number }
+  | { hang: true };
+
+export type FakeCliResponse =
+  | { text: string }
+  | { structuredOutput: unknown }
+  | { scenario: string }
+  | { scenario: 'chat-mcp'; script: FakeChatStep[] };
+
+/** The bridge address and token a chat-mode fake run was given. The token is a throwaway test value. */
+export interface FakeBridgeTarget {
+  pid: number;
+  url: string;
+  token: string;
+  [extra: string]: unknown;
+}
+
+/** One tool call a chat-mode fake run made through the bridge, with the answer it got. */
+export interface FakeBridgeCall {
+  pid: number;
+  step: 'initialize' | 'call';
+  status: number;
+  tool?: string;
+  isError?: boolean;
+  text?: string;
+}
 
 export interface FakeCliRun {
   bin: 'claude' | 'codex';
@@ -27,6 +63,14 @@ export interface FakeCliRun {
   pid: number;
   [extra: string]: unknown;
 }
+
+const readJsonLines = <T>({ file }: { file: string }): T[] =>
+  existsSync(file)
+    ? readFileSync(file, 'utf8')
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as T)
+    : [];
 
 /**
  * Points both CLI paths at the fake binaries for every test in the file, with a fresh
@@ -96,6 +140,12 @@ export function useFakeAiClis() {
         await new Promise((resolve) => setTimeout(resolve, 10));
       }
     },
+    /** The bridge address and token of every chat-mode fake run of the current test, in order. */
+    readBridges: (): FakeBridgeTarget[] =>
+      readJsonLines<FakeBridgeTarget>({ file: path.join(stateDir, 'bridges.jsonl') }),
+    /** Every call the chat-mode fakes made through the bridge, in order. */
+    readBridgeCalls: (): FakeBridgeCall[] =>
+      readJsonLines<FakeBridgeCall>({ file: path.join(stateDir, 'calls.jsonl') }),
     /** True when a fake got past the point where the adapter should have killed it. */
     didRunComplete: () => existsSync(path.join(stateDir, 'run-completed')),
     setScenario: ({ scenario }: { scenario: string }) => {

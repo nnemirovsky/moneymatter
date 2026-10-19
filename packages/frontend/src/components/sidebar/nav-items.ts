@@ -5,6 +5,7 @@ import {
   CreditCardIcon,
   GroupIcon,
   HandCoinsIcon,
+  MessageSquareIcon,
   RepeatIcon,
   RocketIcon,
   TrendingUpIcon,
@@ -29,6 +30,13 @@ export const SIDEBAR_BUDGET_NAV_ITEM: SidebarNavChild = {
   routeName: ROUTES_NAMES.budget,
   labelKey: 'navigation.budget',
   icon: WalletIcon,
+};
+
+/** Top-level, ungrouped nav entry for the Chat page. */
+export const SIDEBAR_CHAT_NAV_ITEM: SidebarNavChild = {
+  routeName: ROUTES_NAMES.chat,
+  labelKey: 'navigation.chat',
+  icon: MessageSquareIcon,
 };
 
 /** Sub-links of the collapsible nav groups, rendered by both the full nav and the rail flyouts. */

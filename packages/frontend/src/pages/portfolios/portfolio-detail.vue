@@ -90,6 +90,7 @@ import ResourceNotFound from '@/components/common/resource-not-found.vue';
 import DeletePortfolioDialog from '@/components/dialogs/delete-portfolio-dialog.vue';
 import EditPortfolioDialog from '@/components/dialogs/edit-portfolio-dialog.vue';
 import UiButton from '@/components/lib/ui/button/Button.vue';
+import { provideChatPageContext } from '@/composable/chat/use-chat-page-context';
 import { usePortfolio } from '@/composable/data-queries/portfolios';
 import { isResourceMissingError } from '@/js/errors';
 import { ROUTES_NAMES } from '@/routes/constants';
@@ -104,6 +105,7 @@ import PortfolioCashBalances from './components/portfolio-cash-balances.vue';
 const route = useRoute();
 const router = useRouter();
 const portfolioId = computed(() => String(route.params.portfolioId));
+provideChatPageContext(() => ({ entity: { kind: 'portfolio', id: portfolioId.value } }));
 
 const { data: portfolio, isLoading, isError, error, refetch } = usePortfolio(portfolioId, { retry: false });
 

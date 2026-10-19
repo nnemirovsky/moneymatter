@@ -1,10 +1,10 @@
 import { AI_FEATURE } from '@bt/shared/types';
-import { FileTextIcon, LineChartIcon, ReceiptIcon, TagIcon } from '@lucide/vue';
+import { FileTextIcon, LineChartIcon, MessageSquareIcon, ReceiptIcon, TagIcon } from '@lucide/vue';
 import type { Component } from 'vue';
 
 export type AIModelTier = 'light' | 'balanced' | 'smart';
 
-export type AIModelNeed = 'textOnly' | 'runsOften' | 'longAnswers' | 'readsFiles' | 'structuredAnswers';
+export type AIModelNeed = 'textOnly' | 'runsOften' | 'longAnswers' | 'readsFiles' | 'structuredAnswers' | 'toolCalling';
 
 interface AIFeatureDisplayInfo {
   nameKey: string;
@@ -84,6 +84,19 @@ const AI_FEATURE_DISPLAY_INFO: Record<AI_FEATURE, AIFeatureDisplayInfo> = {
       needs: ['readsFiles', 'structuredAnswers'],
       whyKey: 'settings.ai.modelGuide.why.receiptParsing',
       picksKey: 'settings.ai.modelGuide.picks.receiptParsing',
+    },
+    howItWorksKeys: [],
+  },
+  [AI_FEATURE.chat]: {
+    nameKey: 'common.aiFeatures.chat.name',
+    descriptionKey: 'common.aiFeatures.chat.description',
+    icon: MessageSquareIcon,
+    // A conversation calls tools repeatedly, reads attached files and writes long answers
+    modelGuide: {
+      tier: 'smart',
+      needs: ['toolCalling', 'readsFiles', 'longAnswers'],
+      whyKey: 'settings.ai.modelGuide.why.chat',
+      picksKey: 'settings.ai.modelGuide.picks.chat',
     },
     howItWorksKeys: [],
   },

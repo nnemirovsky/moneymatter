@@ -3,6 +3,8 @@
 // response channel (`MM_FAKE_CLI_RESPONSE_FILE`) and fails per scenario. Mirrors the real stream: with
 // `--json-schema` it emits a `StructuredOutput` tool_use before the `result` event that carries `structured_output`.
 
+import fs from 'node:fs';
+
 import {
   awaitPeers,
   emit,
@@ -10,7 +12,9 @@ import {
   flagValue,
   markRunCompleted,
   nextResponse,
+  playChatScript,
   readStdin,
+  recordBridge,
   recordRun,
   sleep,
 } from './fake-cli-common.mjs';
@@ -157,6 +161,126 @@ const errorResult = ({ text, status }) =>
 
 emit({ type: 'system', subtype: 'init', model, tools: [] });
 
+const stream = (event) => emit({ type: 'stream_event', event });
+const toolName = (name) => `mcp__moneymatter__${name}`;
+
+// Chat mode (`--mcp-config`): dials the bridge the config names, with the token the header expands from the
+// environment, and plays the entry's script. Prints the stream events the real CLI prints for it.
+async function runChatMcp() {
+  const configPath = flagValue({ argv, name: '--mcp-config' });
+  const configText = fs.readFileSync(configPath, 'utf8');
+  const server = JSON.parse(configText).mcpServers?.moneymatter;
+
+  if (!server) fail({ code: 2, message: 'fake-claude: the MCP config has no moneymatter server' });
+  if (!argv.includes('--include-partial-messages'))
+    fail({ code: 2, message: 'missing chat flag --include-partial-messages' });
+  if (flagValue({ argv, name: '--allowedTools' }) !== 'mcp__moneymatter')
+    fail({ code: 2, message: 'missing chat flag --allowedTools' });
+  if (argv.includes('--json-schema')) fail({ code: 2, message: 'chat mode must not pass --json-schema' });
+
+  const authorization = String(server.headers?.Authorization ?? '').replace(
+    /\$\{(\w+)\}/g,
+    (_, name) => process.env[name] ?? '',
+  );
+  const token = authorization.replace(/^Bearer /, '');
+
+  if (!process.env.MM_CHAT_TOKEN || token !== process.env.MM_CHAT_TOKEN) {
+    fail({ code: 2, message: 'fake-claude: the Authorization header did not expand to MM_CHAT_TOKEN' });
+  }
+  if (argv.some((arg) => arg.includes(token)) || configText.includes(token)) {
+    fail({ code: 2, message: 'fake-claude: the bridge token leaked into argv or the MCP config' });
+  }
+
+  recordBridge({
+    url: server.url,
+    token,
+    extra: {
+      configMode: (fs.statSync(configPath).mode & 0o777).toString(8),
+      toolSearch: process.env.ENABLE_TOOL_SEARCH,
+    },
+  });
+
+  let messageCount = 0;
+  let lastText = '';
+
+  const toolBlocks = (calls) =>
+    calls.map((call, index) => ({
+      type: 'tool_use',
+      id: `toolu_${messageCount}_${index}`,
+      name: toolName(call.name),
+      input: call.args,
+    }));
+
+  const ui = {
+    text: async ({ text }) => {
+      const id = `msg_${++messageCount}`;
+      const middle = Math.ceil(text.length / 2);
+
+      lastText = text;
+      stream({ type: 'message_start', message: { id } });
+      stream({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } });
+      for (const piece of [text.slice(0, middle), text.slice(middle)].filter(Boolean)) {
+        stream({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: piece } });
+        await sleep(20);
+      }
+      stream({ type: 'content_block_stop', index: 0 });
+      stream({ type: 'message_stop' });
+      emit({ type: 'assistant', message: { id, role: 'assistant', content: [{ type: 'text', text }] } });
+      // Gives the runner time to take the text before the next step, as a real model's pauses do.
+      await sleep(150);
+    },
+    toolsStarted: async ({ calls }) => {
+      const id = `msg_${++messageCount}`;
+      const blocks = toolBlocks(calls);
+
+      stream({ type: 'message_start', message: { id } });
+      blocks.forEach((block, index) =>
+        stream({ type: 'content_block_start', index, content_block: { ...block, input: {} } }),
+      );
+      stream({ type: 'message_stop' });
+      emit({ type: 'assistant', message: { id, role: 'assistant', content: blocks } });
+    },
+    toolsFinished: async ({ answers }) => {
+      emit({
+        type: 'user',
+        message: {
+          role: 'user',
+          content: answers.map((answer, index) => ({
+            type: 'tool_result',
+            tool_use_id: `toolu_${messageCount}_${index}`,
+            content: answer.text,
+            is_error: answer.isError,
+          })),
+        },
+      });
+    },
+    forbid: async ({ name }) => {
+      const id = `msg_${++messageCount}`;
+      const block = {
+        type: 'tool_use',
+        id: `toolu_${messageCount}_0`,
+        name,
+        input: { command: 'cat /proc/1/environ' },
+      };
+
+      stream({ type: 'message_start', message: { id } });
+      stream({ type: 'content_block_start', index: 0, content_block: { ...block, input: {} } });
+      emit({ type: 'assistant', message: { id, role: 'assistant', content: [block] } });
+      await sleep(500);
+    },
+  };
+
+  const { refused } = await playChatScript({ url: server.url, token, script: entry?.script ?? [], ui });
+
+  if (refused) {
+    errorResult({ text: 'the chat bridge refused the token', status: 401 });
+    process.exit(1);
+  }
+
+  markRunCompleted();
+  emit({ type: 'result', subtype: 'success', is_error: false, result: lastText, usage });
+}
+
 if (!process.env.CLAUDE_CODE_OAUTH_TOKEN || scenario === 'auth') {
   errorResult({ text: 'Invalid API key · Please run /login', status: 401 });
   process.exit(1);
@@ -181,6 +305,10 @@ switch (scenario) {
   case 'hang':
     setInterval(() => {}, 1000);
     await new Promise(() => {});
+    break;
+  case 'chat-mcp':
+    await runChatMcp();
+    process.exit(0);
     break;
   // Answers only once a second run is alive too, so a gate that serializes runs fails them.
   case 'parallel':

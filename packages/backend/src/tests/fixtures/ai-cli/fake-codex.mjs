@@ -16,7 +16,9 @@ import {
   flagValues,
   markRunCompleted,
   nextResponse,
+  playChatScript,
   readStdin,
+  recordBridge,
   recordRun,
   sleep,
   waitForMarker,
@@ -278,7 +280,97 @@ if (scenario === 'refresh' || scenario === 'refresh-then-limit') {
 emit({ type: 'thread.started', thread_id: 'fake-thread' });
 emit({ type: 'turn.started' });
 
+// Chat mode (`-c mcp_servers.moneymatter.*`): dials the bridge the overrides name, with the token read from the
+// variable `bearer_token_env_var` names, and plays the entry's script as `mcp_tool_call` items.
+async function runChatMcp() {
+  const tomlString = ({ key }) => {
+    const override = configOverrides.find((candidate) => candidate.startsWith(`mcp_servers.moneymatter.${key}=`));
+
+    return override ? JSON.parse(override.slice(override.indexOf('=') + 1)) : undefined;
+  };
+  const url = tomlString({ key: 'url' });
+  const tokenEnvVar = tomlString({ key: 'bearer_token_env_var' });
+  const toolTimeout = configOverrides.find((override) =>
+    override.startsWith('mcp_servers.moneymatter.tool_timeout_sec='),
+  );
+
+  if (!url || !tokenEnvVar || !toolTimeout)
+    fail({ code: 2, message: 'fake-codex: the moneymatter MCP overrides are incomplete' });
+
+  const token = process.env[tokenEnvVar];
+
+  if (!token) fail({ code: 2, message: `fake-codex: ${tokenEnvVar} is not set` });
+  if (argv.some((arg) => arg.includes(token)))
+    fail({ code: 2, message: 'fake-codex: the bridge token leaked into argv' });
+
+  recordBridge({ url, token, extra: { tokenEnvVar } });
+
+  let itemCount = 0;
+  const itemIds = [];
+
+  const ui = {
+    text: async ({ text }) => {
+      emit({ type: 'item.completed', item: { id: `item_${++itemCount}`, type: 'agent_message', text } });
+      // Gives the runner time to take the text before the next step, as a real model's pauses do.
+      await sleep(150);
+    },
+    toolsStarted: async ({ calls }) => {
+      itemIds.length = 0;
+      for (const call of calls) {
+        const id = `item_${++itemCount}`;
+
+        itemIds.push(id);
+        emit({
+          type: 'item.started',
+          item: {
+            id,
+            type: 'mcp_tool_call',
+            server: 'moneymatter',
+            tool: call.name,
+            arguments: call.args,
+            status: 'in_progress',
+          },
+        });
+      }
+    },
+    toolsFinished: async ({ calls, answers }) => {
+      calls.forEach((call, index) => {
+        emit({
+          type: 'item.completed',
+          item: {
+            id: itemIds[index],
+            type: 'mcp_tool_call',
+            server: 'moneymatter',
+            tool: call.name,
+            arguments: call.args,
+            result: { content: [{ type: 'text', text: answers[index].text }] },
+            status: answers[index].isError ? 'failed' : 'completed',
+          },
+        });
+      });
+    },
+    forbid: async ({ name }) => {
+      emit({
+        type: 'item.started',
+        item: { id: `item_${++itemCount}`, type: name, command: 'cat /proc/1/environ', status: 'in_progress' },
+      });
+      await sleep(500);
+    },
+  };
+
+  const { refused } = await playChatScript({ url, token, script: entry?.script ?? [], ui });
+
+  if (refused) failTurn({ message: 'unexpected status 401 Unauthorized: the chat bridge refused the token' });
+
+  markRunCompleted();
+  emit({ type: 'turn.completed', usage });
+}
+
 switch (scenario) {
+  case 'chat-mcp':
+    await runChatMcp();
+    process.exit(0);
+    break;
   case 'auth':
     failTurn({ message: 'unexpected status 401 Unauthorized: invalid_grant' });
     break;

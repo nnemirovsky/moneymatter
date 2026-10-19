@@ -4,6 +4,8 @@ import {
   abortAllCliRuns,
   abortCliRunsForConnection,
   CliSlotBusyError,
+  getChatRunTimeoutMs,
+  getChatSlotWaitMs,
   getFeatureRunTimeoutMs,
   runWithCliSlot,
 } from './cli-run-limiter';
@@ -495,6 +497,31 @@ describe('runWithCliSlot', () => {
       process.env.NODE_ENV = 'production';
       try {
         expect(getFeatureRunTimeoutMs()).toBe(5 * 60 * 1000);
+      } finally {
+        process.env.NODE_ENV = 'test';
+      }
+    });
+  });
+
+  describe('chat run limits', () => {
+    afterEach(() => {
+      delete process.env.AI_CLI_CHAT_RUN_TIMEOUT_MS;
+      delete process.env.AI_CLI_CHAT_SLOT_WAIT_MS;
+    });
+
+    it('default to ten minutes of run time and two minutes of waiting for a slot', () => {
+      expect(getChatRunTimeoutMs()).toBe(10 * 60 * 1000);
+      expect(getChatSlotWaitMs()).toBe(2 * 60 * 1000);
+    });
+
+    it('can be shortened under NODE_ENV=test only', () => {
+      process.env.AI_CLI_CHAT_RUN_TIMEOUT_MS = '300';
+      process.env.AI_CLI_CHAT_SLOT_WAIT_MS = '150';
+      expect([getChatRunTimeoutMs(), getChatSlotWaitMs()]).toEqual([300, 150]);
+
+      process.env.NODE_ENV = 'production';
+      try {
+        expect([getChatRunTimeoutMs(), getChatSlotWaitMs()]).toEqual([10 * 60 * 1000, 2 * 60 * 1000]);
       } finally {
         process.env.NODE_ENV = 'test';
       }

@@ -65,12 +65,44 @@ describe('AI feature settings', () => {
       }
     });
 
+    it('lists the chat feature, unserved while the user has no connection', async () => {
+      const { features } = await helpers.getAiFeaturesStatus({ raw: true });
+
+      expect(features.find(({ feature }) => feature === AI_FEATURE.chat)).toMatchObject({
+        feature: AI_FEATURE.chat,
+        isConfigured: false,
+        servedBy: null,
+        modelId: '',
+        serverModelName: null,
+      });
+    });
+
+    it('gives chat no included server model even when one serves the other features', async () => {
+      enableServerModel();
+
+      const { features } = await helpers.getAiFeaturesStatus({ raw: true });
+      const chat = features.find(({ feature }) => feature === AI_FEATURE.chat);
+
+      expect(chat).toMatchObject({ servedBy: null, modelId: '', serverModelName: null });
+      expect(
+        features.filter(({ feature }) => feature !== AI_FEATURE.chat).every(({ servedBy }) => servedBy === 'server'),
+      ).toBe(true);
+    });
+
+    it('serves chat from the first connection like the other features', async () => {
+      const first = await createFirstConnection();
+
+      const status = await helpers.getAiFeatureConfig({ feature: AI_FEATURE.chat, raw: true });
+
+      expect(status).toMatchObject({ servedBy: 'connection', connectionId: first.id, modelId: FIRST_MODEL_ID });
+    });
+
     it('falls back to the included server model when the user has no connections', async () => {
       enableServerModel();
 
       const { features } = await helpers.getAiFeaturesStatus({ raw: true });
 
-      for (const status of features) {
+      for (const status of features.filter(({ feature }) => feature !== AI_FEATURE.chat)) {
         expect(status).toMatchObject({ isConfigured: false, servedBy: 'server', usingUserKey: false });
         expect(status.serverModelName).toEqual(expect.any(String));
         expect(status.modelName).toBe(status.serverModelName);
@@ -83,14 +115,19 @@ describe('AI feature settings', () => {
 
       await helpers.getAiFeatureConfig({ feature: AI_FEATURE.statementParsing, raw: true });
       const status = await helpers.getAiFeatureConfig({ feature: AI_FEATURE.statementParsing, raw: true });
-      const { name, cost, limit, modalities } = MODELS_DEV_CATALOG.google.models['gemini-3.8-flash'];
+      const { name, cost, limit, modalities, tool_call } = MODELS_DEV_CATALOG.google.models['gemini-3.8-flash'];
 
       expect(status).toMatchObject({
         servedBy: 'server',
         modelName: name,
         serverModelName: name,
         pricing: { inputPerMillion: cost.input, outputPerMillion: cost.output },
-        capabilities: { inputs: modalities.input, maxOutputTokens: limit.output, structuredOutput: true },
+        capabilities: {
+          inputs: modalities.input,
+          maxOutputTokens: limit.output,
+          structuredOutput: true,
+          toolCalling: tool_call,
+        },
       });
       expect(catalogCalls.count).toBe(1);
     });
@@ -105,7 +142,7 @@ describe('AI feature settings', () => {
 
       expect(status).toMatchObject({
         servedBy: 'server',
-        modelName: SERVER_MODELS[AI_FEATURE.statementParsing].model,
+        modelName: SERVER_MODELS[AI_FEATURE.statementParsing]!.model,
         pricing: null,
         capabilities: null,
       });

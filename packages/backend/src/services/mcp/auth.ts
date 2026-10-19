@@ -1,12 +1,13 @@
 import { Feature, UserRole } from '@bt/shared/types';
+import { hashToken } from '@common/lib/hash-token';
 import { authPool } from '@config/auth';
 import { Unauthorized } from '@js/errors';
 import { CacheClient } from '@js/utils/cache';
 import { logger } from '@js/utils/logger';
 import Users from '@models/users.model';
+import { CHAT_BRIDGE_TOKEN_PREFIX } from '@services/chat/bridge/bridge-token-prefix';
 import { getEntitlementsByUserId } from '@services/entitlements/resolve-entitlements.service';
 import { parseScopes } from '@services/mcp/tools/helpers';
-import { createHash } from 'node:crypto';
 
 type AppUser = Pick<Users, 'username' | 'id' | 'authUserId' | 'role'>;
 
@@ -37,15 +38,48 @@ export interface McpAuthInfo {
     readOnly: boolean;
     /** Plan features, active feature trials included; what `requireFeatureAccess` checks. */
     features: readonly Feature[];
+    /** Set on a chat bridge token only: the thread and the run it belongs to. */
+    chat?: { threadId: string; runId: string };
   };
 }
 
 /**
- * Hash a token the same way better-auth stores it: SHA-256, base64url, no padding.
+ * Builds the auth info every tool handler reads from `extra.authInfo`. The plan entitlements
+ * (`readOnly`, `features`) are resolved here, on every call, so a lapsed plan takes effect
+ * without waiting for a token to expire. `expiresAt` is in epoch seconds, as the MCP SDK expects.
  */
-function hashToken({ token }: { token: string }): string {
-  const hash = createHash('sha256').update(token).digest();
-  return hash.toString('base64url');
+export async function buildMcpAuthInfo({
+  user,
+  clientId,
+  scopes,
+  expiresAt,
+  token,
+  chat,
+}: {
+  user: AppUser;
+  clientId: string;
+  scopes: string[];
+  expiresAt?: number;
+  token: string;
+  chat?: { threadId: string; runId: string };
+}): Promise<McpAuthInfo> {
+  const { readOnly, features } = await getEntitlementsByUserId({ userId: user.id });
+
+  return {
+    token,
+    clientId,
+    scopes,
+    expiresAt,
+    extra: {
+      userId: user.id,
+      authUserId: user.authUserId,
+      username: user.username,
+      role: user.role,
+      readOnly,
+      features,
+      ...(chat ? { chat } : {}),
+    },
+  };
 }
 
 /**
@@ -100,23 +134,13 @@ async function verifyAccessToken({ token }: { token: string }): Promise<McpAuthI
     throw new Unauthorized({ message: 'App user not found for auth user' });
   }
 
-  const scopes = parseScopes({ scopes: tokenRecord.scopes });
-  const { readOnly, features } = await getEntitlementsByUserId({ userId: user.id });
-
-  return {
-    token,
+  return buildMcpAuthInfo({
+    user,
     clientId: tokenRecord.clientId || 'unknown',
-    scopes,
+    scopes: parseScopes({ scopes: tokenRecord.scopes }),
     expiresAt: tokenRecord.expiresAt ? new Date(tokenRecord.expiresAt).getTime() / 1000 : undefined,
-    extra: {
-      userId: user.id,
-      authUserId: user.authUserId,
-      username: user.username,
-      role: user.role,
-      readOnly,
-      features,
-    },
-  };
+    token,
+  });
 }
 
 /**
@@ -128,6 +152,12 @@ export async function verifyMcpToken({ authorizationHeader }: { authorizationHea
   }
 
   const token = authorizationHeader.slice(7);
+
+  // A chat bridge token is minted for one run and honoured on the loopback listener only. Refusing
+  // it here, before any query, keeps the two token families apart even if a value ever collided.
+  if (token.startsWith(CHAT_BRIDGE_TOKEN_PREFIX)) {
+    throw new Unauthorized({ message: 'Chat bridge tokens are not accepted here' });
+  }
 
   try {
     return await verifyAccessToken({ token });

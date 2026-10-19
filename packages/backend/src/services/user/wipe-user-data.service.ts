@@ -1,10 +1,14 @@
 import { HouseholdSharePermission, RecordId, RESOURCE_TYPES } from '@bt/shared/types';
 import * as Accounts from '@models/accounts.model';
 import BudgetPlans from '@models/budget-plans.model';
+import ChatAttachments from '@models/chat-attachments.model';
+import ChatMessages from '@models/chat-messages.model';
+import ChatThreads from '@models/chat-threads.model';
 import ResourceShares from '@models/resource-shares.model';
 import ShareInvitations from '@models/share-invitations.model';
 import * as Users from '@models/users.model';
 import { BACKUP_TABLES, type BackupFileName } from '@services/backup/registry';
+import { revokeChatBridgeTokenOfRun } from '@services/chat/bridge/bridge-token';
 import { Op } from 'sequelize';
 
 import { seedUserDefaults } from './create-user-with-defaults.service';
@@ -80,8 +84,9 @@ const WIPE_ORDER = BACKUP_TABLES.toReversed();
  * invoke it from `runUserDestroyLifecycle`'s `destroyInTx` hook so the
  * surrounding spine handles share-target snapshots and notification fan-out.
  *
- * Walks the backup registry's `userColumn` tables; `viaParent` children go
- * with their parents via FK cascade. Leaves the Users + `ba_user` rows intact
+ * Deletes the user's chat history (excluded from backups, so the registry never reaches it) and
+ * walks the backup registry's `userColumn` tables; `viaParent` children go with their parents via
+ * FK cascade. Leaves the Users + `ba_user` rows intact
  * (identity is preserved); only the domain data + per-user settings go.
  */
 export const destroyUserOwnedData = async ({ user }: { user: Users.default }) => {
@@ -98,6 +103,20 @@ export const destroyUserOwnedData = async ({ user }: { user: Users.default }) =>
   await ShareInvitations.destroy({
     where: { [Op.or]: [{ ownerUserId: user.id }, { inviteeUserId: user.id }] },
   });
+
+  // A CLI run that is still going has a bridge token; revoking it now stops it before the cascade
+  // removes the run's message, not only when the next request finds no run.
+  const streaming = await ChatMessages.findAll({
+    where: { userId: user.id, role: 'assistant', status: 'streaming' },
+    attributes: ['runId'],
+  });
+  await Promise.all(streaming.flatMap(({ runId }) => (runId ? [revokeChatBridgeTokenOfRun({ runId })] : [])));
+
+  // Chat history is not backup-registered, so the registry walk below never reaches it. A thread
+  // takes its messages, cards and attachments with it through FK cascade; the second delete covers
+  // an attachment row that outlived its thread's message.
+  await ChatThreads.destroy({ where: { userId: user.id } });
+  await ChatAttachments.destroy({ where: { userId: user.id } });
 
   await BudgetPlans.destroy({ where: { userId: user.id }, force: true });
   for (const def of WIPE_ORDER) {

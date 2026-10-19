@@ -44,11 +44,13 @@ import { AI_FEATURE } from '@bt/shared/types';
 import { RotateCwIcon, TriangleAlertIcon } from '@lucide/vue';
 import type { Component } from 'vue';
 
+import ChatSettings from './features/chat-settings.vue';
 import CustomInstructions from './features/custom-instructions.vue';
 import ModelSelectorCard from './shared/model-selector-card.vue';
 
 const FEATURE_EXTRAS: Partial<Record<AI_FEATURE, Component>> = {
   [AI_FEATURE.categorization]: CustomInstructions,
+  [AI_FEATURE.chat]: ChatSettings,
 };
 
 const { featuresStatus, isLoadingFeatures, featuresUnknown, isRefetchingFeatures, refetchFeatures } = useAiSettings();

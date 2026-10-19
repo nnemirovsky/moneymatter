@@ -35,15 +35,23 @@ interface ServerModel {
   model: string;
 }
 
-/** The included model per feature, served with the operator's key. */
-export const SERVER_MODELS: Record<AI_FEATURE, ServerModel & { provider: AI_PROVIDER.google }> = {
+/**
+ * The included model per feature, served with the operator's key. A feature without an entry has
+ * no included model and needs one of the user's own connections (chat is one). An operator model
+ * for a feature is one entry here: the ladder then offers it to users the plan includes it for,
+ * exactly as for the other features.
+ */
+export const SERVER_MODELS: Partial<Record<AI_FEATURE, ServerModel & { provider: AI_PROVIDER.google }>> = {
   [AI_FEATURE.categorization]: { provider: AI_PROVIDER.google, model: 'gemma-4-31b-it' },
   [AI_FEATURE.statementParsing]: { provider: AI_PROVIDER.google, model: 'gemini-3.8-flash' },
   [AI_FEATURE.investmentTransactionsParsing]: { provider: AI_PROVIDER.google, model: 'gemini-3.8-flash' },
   [AI_FEATURE.receiptParsing]: { provider: AI_PROVIDER.google, model: 'gemini-3.5-flash-lite' },
 };
 
-/** Replaces the included model for paying Plus users while a key for its provider is usable. */
+/**
+ * Replaces the included model for paying Plus users while a key for its provider is usable.
+ * Like `SERVER_MODELS`, a feature without an entry has none.
+ */
 export const PLUS_SERVER_MODELS: Partial<Record<AI_FEATURE, ServerModel>> = {
   [AI_FEATURE.categorization]: { provider: AI_PROVIDER.anthropic, model: 'claude-haiku-5-5' },
   [AI_FEATURE.statementParsing]: { provider: AI_PROVIDER.anthropic, model: 'claude-haiku-5-5' },
@@ -66,7 +74,7 @@ export function getServerModel({
   const plusModel = PLUS_SERVER_MODELS[feature];
   if (plusModel && getServerApiKey({ provider: plusModel.provider, paidPlus })) return plusModel;
 
-  return getServerApiKey() ? SERVER_MODELS[feature] : null;
+  return getServerApiKey() ? (SERVER_MODELS[feature] ?? null) : null;
 }
 
 /** `provider/model`, e.g. `anthropic/claude-sonnet-5` or `custom/llama3.2`. */

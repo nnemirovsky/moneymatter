@@ -198,6 +198,7 @@ const FIT_WARNING_KEYS: Record<ModelFitWarning, string> = {
   readsPdfs: 'settings.ai.modelGuide.warning.readsPdfs',
   longAnswers: 'settings.ai.modelGuide.warning.longAnswers',
   structuredAnswers: 'settings.ai.modelGuide.warning.structuredAnswers',
+  toolCalling: 'settings.ai.modelGuide.warning.toolCalling',
 };
 
 const FIT_WARNING_BADGE_CLASS =

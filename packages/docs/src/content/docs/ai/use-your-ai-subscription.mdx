@@ -15,7 +15,7 @@ Two connection types do this:
 - **Claude Code (subscription)** uses your Claude plan.
 - **Codex (ChatGPT subscription)** uses your ChatGPT plan.
 
-They work for every AI feature that runs on your own AI model: automatic categorization, reading bank statements (including images and PDFs), importing investment transactions, and matching invoices to transactions. See [Other import sources](/import/other-import-sources/#import-from-any-text-source) for the statement import.
+They work for every AI feature that runs on your own AI model: automatic categorization, reading bank statements (including images and PDFs), importing investment transactions, matching invoices to transactions, and [Chat](/ai/chat/). See [Other import sources](/import/other-import-sources/#import-from-any-text-source) for the statement import.
 
 <Aside type="caution" title="For your own use only">
   Anthropic's and OpenAI's terms allow a subscription for your own personal use. Don't share the sign-in with other people or run other people's data through your plan. MoneyMatter shows this reminder next to the sign-in.
@@ -117,6 +117,27 @@ A subscription has its own usage limits, set by Claude or ChatGPT and shared wit
 When your plan's limit is reached, the feature tells you the subscription limit is used up and, when the provider says so, when it resets. Try again after the reset, or pick another model for that feature.
 
 MoneyMatter's usage shows up on your plan's usage page at Claude or ChatGPT, like any other use of the account.
+
+## Chat on a subscription
+
+[Chat](/ai/chat/) works on a subscription connection too. Choose the connection for **Chat** on the **AI Features** tab, like for any other feature. Only an admin of the server can pick one. Everyone else on the instance uses their own API key connections.
+
+What's different from an API key:
+
+- **Chat shares the same slots as the other AI runs.** Across the server, no more than four runs go at the same time (`AI_CLI_MAX_CONCURRENT_RUNS`). If all slots are busy, Chat shows "Waiting for a free Claude Code or Codex slot on this server" and starts when one frees up. After two minutes of waiting it stops with "All CLI slots on this instance are busy; try again in a minute."
+- **A Chat answer can take up to ten minutes**, not five. It uses a lot of steps, and you can press **Stop** at any time.
+- **Cards work the same.** Nothing is changed until you approve a card in the app.
+
+### How the program is kept to MoneyMatter's tools
+
+Claude Code and Codex are general-purpose programs that can run commands and edit files. For Chat, MoneyMatter locks them down so the only thing they can do is use MoneyMatter's own tools:
+
+- **A private connection on the server itself.** The server runs one small listener, shared by all answers, that can only be reached from the server itself (`127.0.0.1`, a random port, no network access from outside). It starts the first time Chat needs it and exists only on a self-hosted server. It is not behind your proxy or Cloudflare Access, and it is separate from the public MCP address.
+- **A short-lived key for one answer.** The program is given a key that works for one conversation and one answer, and for the length of that answer. It can read your data and propose changes, and it can't make a change itself. The key is revoked when the answer ends, is passed through the program's environment only, and is never written to a log or a prompt. The public MCP address doesn't accept it, and this listener doesn't accept the keys of connected apps.
+- **No built-in tools.** Claude Code runs without its file, shell and web tools, and with only MoneyMatter's tools allowed. Codex runs read-only with its web search, shell and other features switched off, and its own settings, rules and approvals ignored. If either program tries anything else, the run is stopped.
+- **Write tools only propose.** When the program asks to change something, MoneyMatter turns the call into a card. Applying it takes your approval in the app, and then MoneyMatter runs the change as you.
+
+The same limits as for an API key apply: 60 tool calls and 100 cards per message.
 
 ## Sign in again
 

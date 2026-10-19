@@ -3,6 +3,12 @@ const DEFAULT_MAX_CONCURRENT_RUNS = 4;
 /** Run timeout for a feature call (categorization batch, statement parse, invoice extraction). */
 const FEATURE_RUN_TIMEOUT_MS = 5 * 60 * 1000;
 
+/** Run timeout for a chat turn, counted from the moment its slot is held. */
+const CHAT_RUN_TIMEOUT_MS = 10 * 60 * 1000;
+
+/** How long a chat turn waits for a global slot before the run fails as busy. */
+const CHAT_SLOT_WAIT_MS = 2 * 60 * 1000;
+
 /** Run timeout for the validation probe on create/update/test. */
 export const CLI_PROBE_RUN_TIMEOUT_MS = 90 * 1000;
 
@@ -19,15 +25,30 @@ export class CliSlotBusyError extends Error {
   }
 }
 
-/** `AI_CLI_RUN_TIMEOUT_MS` shortens the feature-run timeout under `NODE_ENV=test` so e2e can exercise it. */
-export function getFeatureRunTimeoutMs(): number {
+/** The positive number in the env var `name`, under `NODE_ENV=test` only: lets e2e shorten a timeout it exercises. */
+function readTestOverrideMs({ name, fallback }: { name: string; fallback: number }): number {
   if (process.env.NODE_ENV === 'test') {
-    const override = Number(process.env.AI_CLI_RUN_TIMEOUT_MS);
+    const override = Number(process.env[name]);
 
     if (Number.isFinite(override) && override > 0) return override;
   }
 
-  return FEATURE_RUN_TIMEOUT_MS;
+  return fallback;
+}
+
+/** `AI_CLI_RUN_TIMEOUT_MS` shortens the feature-run timeout under `NODE_ENV=test` so e2e can exercise it. */
+export function getFeatureRunTimeoutMs(): number {
+  return readTestOverrideMs({ name: 'AI_CLI_RUN_TIMEOUT_MS', fallback: FEATURE_RUN_TIMEOUT_MS });
+}
+
+/** `AI_CLI_CHAT_RUN_TIMEOUT_MS` shortens it under `NODE_ENV=test`. */
+export function getChatRunTimeoutMs(): number {
+  return readTestOverrideMs({ name: 'AI_CLI_CHAT_RUN_TIMEOUT_MS', fallback: CHAT_RUN_TIMEOUT_MS });
+}
+
+/** `AI_CLI_CHAT_SLOT_WAIT_MS` shortens it under `NODE_ENV=test`. */
+export function getChatSlotWaitMs(): number {
+  return readTestOverrideMs({ name: 'AI_CLI_CHAT_SLOT_WAIT_MS', fallback: CHAT_SLOT_WAIT_MS });
 }
 
 function getMaxConcurrentRuns(): number {

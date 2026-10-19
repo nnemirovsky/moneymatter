@@ -23,8 +23,12 @@ Service (@services/...)
   ↓ called by
 MCP tool file (packages/backend/src/services/mcp/tools/<name>.ts)
   ↓ registered in
-createMcpServer() (packages/backend/src/services/mcp/server.ts)
+registerAllTools() (packages/backend/src/services/mcp/server.ts)
+  ↓ called by
+createMcpServer() and the chat's tool catalog (services/mcp/tool-catalog.ts)
 ```
+
+The classification lists (`DESTRUCTIVE_TOOLS`, `CONDITIONAL_DELETE_TOOLS`, `LOCK_EXEMPT_TOOLS`, `LOCK_GUARDED_READ_TOOLS`, `READ_ONLY_ROUTE_TOOLS`) live in `services/mcp/tool-classification.ts`; `tool-scopes-drift.unit.ts` checks every tool against them.
 
 Three metafiles stay in sync via drift tests (a fourth drift test checks that every tool file is registered in `server.ts`):
 
@@ -103,8 +107,8 @@ Rules:
 ### Naming, scopes and guards
 
 - **Names:** read tools start with `get_`, `list_`, `search_` or `preview_`, and nothing else does. Read tools call no scope helper (the `/mcp` route already requires `finance:read`).
-- **Scopes:** every other tool calls `requireScope`. `finance:write` is the default. `delete_*` tools, and tools that permanently remove data without `delete_` in the name (`merge_payees`, `bulk_delete_*`), use `finance:delete` and are listed in `DESTRUCTIVE_TOOLS` in `tool-scopes-drift.unit.ts` when the name lacks the prefix. A soft delete that a restore tool undoes is a `finance:write` tool. A tool whose delete path is optional (for example `ignore_payee_name` with `force`) uses `finance:write` normally and `finance:delete` on the delete path; list it in `CONDITIONAL_DELETE_TOOLS` in `tool-scopes-drift.unit.ts` (beside `DESTRUCTIVE_TOOLS`) instead.
-- **Read-only and demo users:** `requireScope` rejects both. The only exception is a tool on a route in `READ_ONLY_ROUTES` (`middlewares/entitlements.ts`), which REST lets a read-only user call: it passes `allowReadOnly: true`, and is listed in `READ_ONLY_ROUTE_TOOLS` (with the route in a comment) in `tool-scopes-drift.unit.ts`, so the exemption cannot spread.
+- **Scopes:** every other tool calls `requireScope`. `finance:write` is the default. `delete_*` tools, and tools that permanently remove data without `delete_` in the name (`merge_payees`, `bulk_delete_*`), use `finance:delete` and are listed in `DESTRUCTIVE_TOOLS` in `services/mcp/tool-classification.ts` when the name lacks the prefix. A soft delete that a restore tool undoes is a `finance:write` tool. A tool whose delete path is optional (for example `ignore_payee_name` with `force`) uses `finance:write` normally and `finance:delete` on the delete path; list it in `CONDITIONAL_DELETE_TOOLS` in `tool-classification.ts` (beside `DESTRUCTIVE_TOOLS`) instead.
+- **Read-only and demo users:** `requireScope` rejects both. The only exception is a tool on a route in `READ_ONLY_ROUTES` (`middlewares/entitlements.ts`), which REST lets a read-only user call: it passes `allowReadOnly: true`, and is listed in `READ_ONLY_ROUTE_TOOLS` (with the route in a comment) in `tool-classification.ts`, so the exemption cannot spread.
 - **Base-currency lock:** `assertBaseCurrencyUnlocked({ userId })` after `requireScope` and, when the tool is gated, after `requireFeatureAccess` mirrors `checkBaseCurrencyLock`. The lock follows the REST route, not the tool's name or scope:
   - a write tool whose route has no lock goes into `LOCK_EXEMPT_TOOLS` (with the route in a comment);
   - a read-named tool whose route carries the lock (`preview_transaction_automation`) calls `getUserId` → `assertBaseCurrencyUnlocked` → `trackMcpToolUsed`, and goes into `LOCK_GUARDED_READ_TOOLS`.
@@ -115,11 +119,11 @@ Rules:
 
 Every tool is a thin wrapper over the service its REST route uses. Parity with REST is the rule: the same service, validation, lock, feature gate, rate limit and read-only handling, and the same serializer (slimmed for MCP in `serializers.ts` where the output is large). When a controller holds logic a tool needs (validation, orchestration), move it into a service or a shared schema that both the controller and the tool call. Never copy it into the tool.
 
-**Refined inputs:** the SDK's `inputSchema` is a plain shape of Zod fields, so a rule that spans fields (an either-or, a mutually exclusive pair, a `superRefine`) cannot sit in it. Expose the shared schema's `.shape` as `inputSchema` and run the full shared schema (or an `assert…Args` helper like `assertOriginalCurrencyArgs`) in the handler, on the schema's own fields only: when the tool adds ids beside a strict body schema, destructure them off first (`const { planId, ...body } = args; schema.parse(body)`), or the strict parse rejects the ids. The unit test asserts that the **tool** rejects, not the shape.
+**Refined inputs:** the SDK's `inputSchema` is a plain shape of Zod fields, so a rule that spans fields (an either-or, a mutually exclusive pair, a `superRefine`) cannot sit in it. Expose the shared schema's `.shape` as `inputSchema` and put every check the handler runs on its args (the full shared schema, an `assert…Args` helper like `assertOriginalCurrencyArgs`, a refusal helper like `parseBulkTarget`) in an exported `validate<Pascal>Args({ args })` in the tool file, typed `args: ToolArgs<typeof inputSchema>` (from `./helpers`). It is pure: no guards (scope, feature, lock, rate limit), no I/O, and it returns what it parsed so the handler uses the result. The handler calls it at the point the inline check stood, so the handler body holds no `.parse(`, `.safeParse(`, `assert…Args(` or refusal-helper call of its own. When the tool adds ids beside a strict body schema, the validator destructures them off first (`const { planId, ...body } = args; return { planId, ...schema.parse(body) }`), or the strict parse rejects the ids. Register the validator in `services/mcp/tool-arg-validators.ts` under the tool's name (the chat runs it through the catalog's `validateArgs`); `tool-arg-validators-drift.unit.ts` fails a write tool that checks its args inline without an entry, an entry whose handler does not call the function, and a validator not named `validate<Pascal>Args`. A new refusal helper goes into `ARG_CHECK_HELPERS` in that suite. The unit test asserts that the **tool** rejects, not the shape.
 
 ### 2. Register the tool in `server.ts`
 
-Add the import (alphabetical) and call it inside `createMcpServer()`:
+Add the import (alphabetical) and call it inside `registerAllTools()`:
 
 ```typescript
 import { registerMyNewTool } from './tools/my-new-tool';
@@ -199,12 +203,13 @@ cd packages/backend
 npm run test:unit -- --testPathPattern='services/mcp/'
 ```
 
-It covers four drift suites and every tool unit test:
+It covers five drift suites and every tool unit test:
 
 - `server-card-drift` — tool names in the files equal `server-card.json`;
 - `agent-skills-drift` — the SKILL.md sha256;
-- `tool-scopes-drift` — scopes, `DESTRUCTIVE_TOOLS`, the lock lists and `READ_ONLY_ROUTE_TOOLS`;
-- `server-registration-drift` — every `registerX` is imported and called exactly once in `server.ts`.
+- `tool-scopes-drift` — checks scopes and the lock rules against the lists in `tool-classification.ts` (`DESTRUCTIVE_TOOLS`, the lock lists, `READ_ONLY_ROUTE_TOOLS`);
+- `server-registration-drift` — every `registerX` is imported and called exactly once in `registerAllTools` in `server.ts`;
+- `tool-arg-validators-drift` — every write tool that checks its args inline has a validator registered in `tool-arg-validators.ts`, and its handler calls it.
 
 If any fail:
 
@@ -212,14 +217,35 @@ If any fail:
 - **`every tool has a non-empty description`** → description missing in `server-card.json`.
 - **`sha256 matches`** → re-run `shasum -a 256` and paste again.
 - **`every skill URL resolves`** → `SKILL.md` file path is wrong.
-- **lock or scope case** → the tool lacks `assertBaseCurrencyUnlocked` or `requireScope`; or it belongs in `LOCK_EXEMPT_TOOLS`, `LOCK_GUARDED_READ_TOOLS`, `DESTRUCTIVE_TOOLS` or `READ_ONLY_ROUTE_TOOLS` after you checked its route.
+- **lock or scope case** → the tool lacks `assertBaseCurrencyUnlocked` or `requireScope`; or it belongs in `LOCK_EXEMPT_TOOLS`, `LOCK_GUARDED_READ_TOOLS`, `DESTRUCTIVE_TOOLS` or `READ_ONLY_ROUTE_TOOLS` in `tool-classification.ts` after you checked its route.
 - **registration case** → `server.ts` lacks the import or the `registerX(server)` call.
+- **`tool-arg-validators-drift` case** → move the inline check into an exported `validate<Pascal>Args` and register it in `tool-arg-validators.ts`; the handler calls it and holds no check of its own.
 
 Delegate to the `test-runner` subagent (per CLAUDE.md rules).
 
 **e2e:** the gate also runs the MCP e2e suites (`services/mcp/(connected-apps|mcp-scope-gate)`) plus the REST suites of the routes the tool wraps, in one batched run: `lockf -t 7200 /tmp/mm-e2e.lock npm run test:e2e -- --testPathPattern='...'`. Tools themselves cannot be called end to end, so a check that moves out of a controller into a service gets an e2e case first, run green against the unmoved code, and stays green after the move.
 
-### 7. Lint check (optional but cheap)
+### 7. Chat capability
+
+The in-app AI chat builds its tools from the same catalog, so a new tool reaches it with no registration. A read tool is offered as is. A write tool becomes a card the user approves, and `services/chat/policies/chat-capabilities-drift.unit.ts` (it runs in the unit suite) fails until the tool is classified. Check, in `services/chat/policies/`:
+
+- **Policy.** The tool's name decides its card (`create_*`, `update_*`, `delete_*`, `bulk_*`, `merge_*`); `deriveFromName` in `rules.ts` gives the kind, the entity and the danger. Add an entry to `EXPLICIT_POLICIES` in `explicit.ts` only where the name rule gets it wrong: another entity, a target argument other than `<entity>Id` (`targetFields`), a `previewResolver`, a `kind`, a danger level. Every id-like argument needs an entity in the tool's `entityFields`, or an acknowledgement in the drift suite.
+- **Preview resolver.** A destructive or bulk tool (every `delete_*`, `bulk_*`, `merge_*`, a name in `DESTRUCTIVE_TOOLS`, `CONDITIONAL_DELETE_TOOLS` or `HIGH_IMPACT_TOOLS`) is a red card and needs a real resolver from `services/chat/proposals/previews/` (count, sample rows, frozen target set) that is registered under a name in `PREVIEW_RESOLVER_NAMES`. A red tool is never in `CHAT_ARGS_ONLY_TOOLS`. Any other write tool either gets a resolver or goes into `CHAT_ARGS_ONLY_TOOLS` in `excluded.ts`, and the suite requires that list to equal the tools without a resolver.
+- **Credential-returning tool.** A tool that returns a token, an upload URL or any other secret goes into `CHAT_EXCLUDED_TOOLS` in `excluded.ts` with a reason, so the secret never sits in chat history or the model's context. The same goes for a probe whose only effect is an outbound request.
+- **Cross-field rules.** A tool whose handler checks rules across fields registers its validator in `services/mcp/tool-arg-validators.ts` (step 1). The chat runs it on proposal, on every edit and at approval, so the card is refused the way the MCP tool refuses it.
+- **Egress.** A tool that makes the server call a host named by its arguments goes into `EGRESS_TOOLS` in `explicit.ts`, as a function of the arguments that returns the host and URL (or `null` when the arguments name no host). Its card is amber, shows the host, needs a confirmation that repeats it, and is never applied by "Approve all safe".
+- **Standalone.** A tool that queues work or commits on its own (outside the database transaction) goes into `STANDALONE_TOOLS`. It cannot be part of a card chain, and its card is red.
+- **Card text.** Add `chat.fields.<argument>` labels and, for a new entity, `chat.entities.<entity>` to `pages/chat.json` in `en` and `uk` (the i18n-editor does this). The drift suite fails on a missing label.
+- **Gate pattern.** If the new tool introduces a gate pattern the chat has to respect (a new kind of guard beyond scope, feature, lock and rate limit), add its rule under `services/chat/policies/` so the card is refused or confirmed the same way, with a unit case in `rules.unit.ts`.
+
+Run the suite with the rest of the gate:
+
+```bash
+cd packages/backend
+npm run test:unit -- --testPathPattern='services/(mcp|chat/policies)/'
+```
+
+### 8. Lint check (optional but cheap)
 
 Delegate to the `linter` subagent. Existing MCP tool files may show 4 `TS1005`-style errors from an `ioredis` env issue — that's pre-existing noise and not caused by new tools. Real errors look different (unused imports, mistyped service args, wrong Zod shape).
 

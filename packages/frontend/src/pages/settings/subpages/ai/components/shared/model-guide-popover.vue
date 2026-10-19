@@ -113,6 +113,7 @@ import {
   CircleHelpIcon,
   ImageIcon,
   LightbulbIcon,
+  WrenchIcon,
   TypeIcon,
   XIcon,
   ZapIcon,
@@ -159,6 +160,7 @@ const NEEDS: Record<AIModelNeed, { icon: Component; labelKey: string; required?:
   longAnswers: { icon: AlignLeftIcon, labelKey: 'settings.ai.modelGuide.needs.longAnswers' },
   readsFiles: { icon: ImageIcon, labelKey: 'settings.ai.modelGuide.needs.readsFiles', required: true },
   structuredAnswers: { icon: BracesIcon, labelKey: 'settings.ai.modelGuide.needs.structuredAnswers' },
+  toolCalling: { icon: WrenchIcon, labelKey: 'settings.ai.modelGuide.needs.toolCalling', required: true },
 };
 
 /** An `okKey` detail is shown when the check passes too; every detail may read `{tokens}`. */
@@ -183,6 +185,10 @@ const CHECKS: Record<ModelFitCheckKind, { labelKey: string; failKey: string; okK
   structuredAnswers: {
     labelKey: 'settings.ai.modelGuide.checks.structuredAnswers.label',
     failKey: 'settings.ai.modelGuide.checks.structuredAnswers.fail',
+  },
+  toolCalling: {
+    labelKey: 'settings.ai.modelGuide.checks.toolCalling.label',
+    failKey: 'settings.ai.modelGuide.checks.toolCalling.fail',
   },
 };
 
