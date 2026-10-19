@@ -42,6 +42,7 @@ import { PreviewError } from './preview-helpers';
 import { resolveMergeDuplicateTransactions, resolveRemoveDuplicateTransactions } from './reconciliation';
 import { resolveRevertSubscriptionPeriod } from './revert-subscription-period';
 import type { PreviewResolver } from './types';
+import { resolveUpdateSubscriptionPeriod } from './update-subscription-period';
 
 const USER = 7;
 const ACCOUNT = '3f1b9c2e-8d4a-4b6e-9c1d-2a7e5f0b8c11';
@@ -523,6 +524,42 @@ describe('transaction and settings previews', () => {
 
       jest.spyOn(SubscriptionPeriods, 'findOne').mockResolvedValue(null);
       await expect(revert()).rejects.toMatchObject({ messageKey: 'chat.cards.targetNotFound' });
+    });
+  });
+
+  describe('update_subscription_period', () => {
+    const args = { subscriptionId: uuid(60), periodId: uuid(61), notes: 'New note' };
+    const update = () =>
+      run({ resolver: resolveUpdateSubscriptionPeriod, toolName: 'update_subscription_period', args });
+
+    beforeEach(() => {
+      jest.spyOn(Subscriptions, 'findOne').mockResolvedValue({ id: uuid(60) } as never);
+    });
+
+    it('shows the period with the note it has now, in any status', async () => {
+      jest.spyOn(SubscriptionPeriods, 'findOne').mockResolvedValue({
+        id: uuid(61),
+        updatedAt: new Date('2026-10-05T00:00:00Z'),
+        toJSON: () => ({ id: uuid(61), status: 'paid', notes: 'Old note' }),
+      } as never);
+
+      const { preview, snapshot, affectedCount } = await update();
+
+      expect(preview.before).toEqual({ id: uuid(61), status: 'paid', notes: 'Old note' });
+      expect(snapshot).toEqual({
+        updatedAt: '2026-10-05T00:00:00.000Z',
+        targetHash: hashTargetIds({ ids: [uuid(61)] }),
+        targetCount: 1,
+      });
+      expect(affectedCount).toBeUndefined();
+    });
+
+    it('refuses a period that is not there, and one of a subscription the user does not own', async () => {
+      jest.spyOn(SubscriptionPeriods, 'findOne').mockResolvedValue(null);
+      await expect(update()).rejects.toMatchObject({ messageKey: 'chat.cards.targetNotFound' });
+
+      jest.spyOn(Subscriptions, 'findOne').mockResolvedValue(null);
+      await expect(update()).rejects.toMatchObject({ messageKey: 'chat.cards.targetNotFound' });
     });
   });
 

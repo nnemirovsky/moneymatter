@@ -13,6 +13,7 @@ import { resolveApplyPayeeTags } from './payee-tags';
 import { resolveMergeDuplicateTransactions, resolveRemoveDuplicateTransactions } from './reconciliation';
 import { resolveRevertSubscriptionPeriod } from './revert-subscription-period';
 import type { PreviewResolver } from './types';
+import { resolveUpdateSubscriptionPeriod } from './update-subscription-period';
 
 /**
  * The resolver registry, a record over the names the policies declare: a name added to
@@ -34,5 +35,6 @@ export const PREVIEW_RESOLVERS: Record<PreviewResolverName, PreviewResolver> = {
   applyPayeeTags: resolveApplyPayeeTags,
   ignorePayeeName: resolveIgnorePayeeName,
   revertSubscriptionPeriod: resolveRevertSubscriptionPeriod,
+  updateSubscriptionPeriod: resolveUpdateSubscriptionPeriod,
   budgetPlanAssignment: resolveBudgetPlanAssignment,
 };

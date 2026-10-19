@@ -27,6 +27,7 @@ export const PREVIEW_RESOLVER_NAMES = [
   'applyPayeeTags',
   'ignorePayeeName',
   'revertSubscriptionPeriod',
+  'updateSubscriptionPeriod',
   'budgetPlanAssignment',
 ] as const;
 

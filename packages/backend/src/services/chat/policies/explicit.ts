@@ -171,6 +171,7 @@ export const EXPLICIT_POLICIES: Readonly<Record<string, ExplicitPolicy>> = {
     danger: 'destructive',
     previewResolver: 'revertSubscriptionPeriod',
   },
+  update_subscription_period: { kind: 'update', entity: 'subscription', previewResolver: 'updateSubscriptionPeriod' },
 
   // Automations and templates
   update_transaction_automation: { targetFields: ['id'] },
