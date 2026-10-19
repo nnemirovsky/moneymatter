@@ -496,8 +496,8 @@
       "settingsFailed": "Could not save the chat settings. Try again.",
       "blockedAddress": "The address of the model endpoint is not allowed. Check the connection in Settings → AI.",
       "endpointDown": "The model endpoint did not answer. Check that it is running, then try again.",
-      "unsupportedRequest": "This model could not handle the request. Pick another model for Chat in Settings → AI.",
-      "modelNotFound": "The model is not available on this connection. Pick another model for Chat in Settings → AI.",
+      "unsupportedRequest": "This model could not handle the request. Pick another model below the message box.",
+      "modelNotFound": "The model is not available on this connection. Pick another model below the message box.",
       "auth": "The provider rejected your credentials. Update the connection in Settings → AI.",
       "rateLimited": "The provider is limiting requests. Wait a minute and try again.",
       "quotaExhausted": "The subscription behind this model is out of credits. Pick another model below the message box, or top up the subscription.",
@@ -674,7 +674,7 @@
       },
       "notConfigured": {
         "title": "Connect a model to start",
-        "description": "Chat runs on your own AI connection. Choose one for Chat in Settings → AI.",
+        "description": "Chat runs on your own AI connection. Add one in Settings → AI, then pick it below the message box.",
         "cta": "Open AI settings"
       }
     },
