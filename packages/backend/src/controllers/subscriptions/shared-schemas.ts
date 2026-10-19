@@ -37,6 +37,12 @@ export const getPeriodsQuerySchema = z.object({
   offset: z.coerce.number().int().nonnegative().optional(),
 });
 
+/** Body of editing a period's note: the REST controller and the MCP tool share it. */
+export const updatePeriodNotesBodySchema = z.object({
+  // Same cap as the pay endpoint's notes. `null` or a blank string clears the note.
+  notes: z.string().max(5000).nullable(),
+});
+
 /** Body of paying a period: the REST controller and the MCP tool share it. */
 export const markPeriodPaidBodySchema = z
   .object({

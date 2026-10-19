@@ -652,3 +652,117 @@ describe('Subscription period request validation', () => {
     expect(maxRes.statusCode).toBe(200);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Update period notes
+// ---------------------------------------------------------------------------
+
+describe('PATCH /subscriptions/:id/periods/:periodId', () => {
+  it('sets, replaces and clears the note of a period in any status', async () => {
+    const { sub, period } = await createSubWithPeriod({ dueDate: futureDate({ monthsAhead: 1, day: 15 }) });
+
+    const set = await helpers.updateSubscriptionPeriodNotes({
+      id: sub.id,
+      periodId: period.id,
+      payload: { notes: '  Prepaid for the year  ' },
+      raw: true,
+    });
+    expect(set.id).toBe(period.id);
+    expect(set.notes).toBe('Prepaid for the year');
+    expect(set.status).toBe(SUBSCRIPTION_PERIOD_STATUSES.upcoming);
+
+    // A paid period keeps its status, link and paidAt: only the note changes.
+    const paid = await helpers.markSubscriptionPeriodPaid({
+      id: sub.id,
+      periodId: period.id,
+      createTransaction: true,
+      raw: true,
+    });
+    const edited = await helpers.updateSubscriptionPeriodNotes({
+      id: sub.id,
+      periodId: period.id,
+      payload: { notes: 'Paid by card' },
+      raw: true,
+    });
+    expect(edited.notes).toBe('Paid by card');
+    expect(edited.status).toBe(SUBSCRIPTION_PERIOD_STATUSES.paid);
+    expect(edited.transactionId).toBe(paid.transactionId);
+
+    const detail = await helpers.getSubscriptionById({ id: sub.id, raw: true });
+    expect(detail.periods.find((p) => p.id === period.id)!.notes).toBe('Paid by card');
+  });
+
+  it('clears the note with null or a blank string', async () => {
+    const { sub, period } = await createSubWithPeriod({ dueDate: futureDate({ monthsAhead: 1, day: 15 }) });
+
+    for (const cleared of [null, '', '   ']) {
+      await helpers.updateSubscriptionPeriodNotes({
+        id: sub.id,
+        periodId: period.id,
+        payload: { notes: 'something' },
+        raw: true,
+      });
+      const res = await helpers.updateSubscriptionPeriodNotes({
+        id: sub.id,
+        periodId: period.id,
+        payload: { notes: cleared },
+        raw: true,
+      });
+      expect(res.notes).toBeNull();
+    }
+  });
+
+  it('returns 404 for an unknown subscription, an unknown period and a period of another subscription', async () => {
+    const { sub: s1 } = await createSubWithPeriod({ dueDate: futureDate({ monthsAhead: 1, day: 15 }) });
+    const { sub: s2, period: periodS2 } = await createSubWithPeriod({
+      dueDate: futureDate({ monthsAhead: 2, day: 20 }),
+    });
+    const unknownId = '99999999-9999-4999-8999-999999999999';
+    const payload = { notes: 'x' };
+
+    const foreign = await helpers.updateSubscriptionPeriodNotes({
+      id: s1.id,
+      periodId: periodS2.id,
+      payload,
+      raw: false,
+    });
+    expect(foreign.statusCode).toBe(404);
+
+    const unknownPeriod = await helpers.updateSubscriptionPeriodNotes({
+      id: s1.id,
+      periodId: unknownId,
+      payload,
+      raw: false,
+    });
+    expect(unknownPeriod.statusCode).toBe(404);
+
+    const unknownSub = await helpers.updateSubscriptionPeriodNotes({
+      id: unknownId,
+      periodId: periodS2.id,
+      payload,
+      raw: false,
+    });
+    expect(unknownSub.statusCode).toBe(404);
+
+    // The period of S2 was not touched.
+    const s2Periods = await helpers.getSubscriptionPeriods({ id: s2.id, raw: true });
+    expect(s2Periods.periods.find((p) => p.id === periodS2.id)!.notes).toBeNull();
+  });
+
+  it('rejects a missing notes field, a non-string note and a note past 5000 characters', async () => {
+    const { sub, period } = await createSubWithPeriod({ dueDate: futureDate({ monthsAhead: 1, day: 15 }) });
+
+    for (const payload of [{}, { notes: 5 }, { notes: 'x'.repeat(5001) }]) {
+      const res = await helpers.updateSubscriptionPeriodNotes({ id: sub.id, periodId: period.id, payload, raw: false });
+      expect(res.statusCode).toBe(ERROR_CODES.ValidationError);
+    }
+
+    const maxRes = await helpers.updateSubscriptionPeriodNotes({
+      id: sub.id,
+      periodId: period.id,
+      payload: { notes: 'x'.repeat(5000) },
+      raw: false,
+    });
+    expect(maxRes.statusCode).toBe(200);
+  });
+});
