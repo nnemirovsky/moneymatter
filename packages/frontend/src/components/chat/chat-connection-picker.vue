@@ -54,13 +54,13 @@ const onSelect = (option: ChatConnectionOption | null) => {
 <template>
   <div
     v-if="options.length > 0"
-    class="min-w-0"
+    class="min-w-0 shrink-0 border-b px-3 py-2"
     role="group"
     :aria-label="$t('chat.connection.label')"
     data-testid="chat-connection-picker"
   >
     <SelectField
-      class="w-full max-w-72"
+      class="w-full @md/chat-conversation:max-w-80"
       :model-value="selected"
       :values="options"
       :label-key="formatOption"
@@ -68,6 +68,10 @@ const onSelect = (option: ChatConnectionOption | null) => {
       :placeholder="$t('chat.connection.placeholder')"
       :disabled="disabled"
       @update:model-value="onSelect"
-    />
+    >
+      <template #trigger="{ label }">
+        <span class="block truncate" :title="label">{{ label }}</span>
+      </template>
+    </SelectField>
   </div>
 </template>

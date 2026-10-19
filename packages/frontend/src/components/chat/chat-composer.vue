@@ -221,11 +221,6 @@ defineExpose({
       {{ $t('chat.composer.dropToAttach') }}
     </div>
 
-    <!-- First, so the model is chosen before the message is written; the picker shrinks to the width of a narrow panel. -->
-    <div v-if="$slots.connection" class="flex min-w-0">
-      <slot name="connection" />
-    </div>
-
     <div v-if="activeContextLabel" class="flex" data-testid="context-chip">
       <span
         class="bg-muted text-foreground inline-flex max-w-full items-center gap-1 rounded-full py-0.5 pr-1 pl-2.5 text-xs"
