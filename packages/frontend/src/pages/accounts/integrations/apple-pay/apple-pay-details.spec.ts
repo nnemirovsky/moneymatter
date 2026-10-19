@@ -253,6 +253,14 @@ describe('Apple Pay page', () => {
     expect(link.text()).toContain('manual setup guide');
   });
 
+  it('says that only taps in a shop start the shortcut', () => {
+    const { wrapper } = mountPage();
+
+    const note = wrapper.get('[data-testid="apple-pay-limitation"]').text();
+    expect(note).toContain('contactless taps in a shop');
+    expect(note).toContain('bank');
+  });
+
   it('lists the devices below the payments and goes back to the accounts', async () => {
     const { wrapper } = mountPage();
 
