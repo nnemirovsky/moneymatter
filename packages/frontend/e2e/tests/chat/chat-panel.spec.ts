@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { completeOnboarding, createAccount, extractId, signInViaApi } from '../../helpers/api-client';
 import { loginViaUI } from '../../helpers/auth';
-import { stubChatApi } from '../../helpers/chat-stubs';
+import { type ChatStub, stubChatApi } from '../../helpers/chat-stubs';
 import { buildTestCredentials, signUpAndVerify } from '../../helpers/test-setup';
 
 const CURRENCY = 'USD';
@@ -22,8 +22,10 @@ test.describe('Chat panel', () => {
     );
   });
 
+  let stub: ChatStub;
+
   test.beforeEach(async ({ page }) => {
-    await stubChatApi({ page });
+    stub = await stubChatApi({ page });
     await loginViaUI({ page, email: creds.email, password: creds.password });
   });
 
@@ -68,6 +70,50 @@ test.describe('Chat panel', () => {
     await page.getByTestId('chat-panel').getByTestId('context-remove').click();
 
     await expect(page.getByTestId('context-chip')).toHaveCount(0);
+  });
+
+  test('fits the connection and model selects in a panel at its minimum width', async ({ page }) => {
+    stub.connections = [
+      {
+        id: 'conn-1',
+        provider: 'anthropic',
+        name: 'My Claude Account',
+        model: 'claude-haiku-5-5',
+        status: 'valid',
+        hasApiKey: true,
+        createdAt: '2026-03-05T10:00:00.000Z',
+        lastValidatedAt: '2026-03-05T10:00:00.000Z',
+      },
+    ];
+    stub.connectionModels = ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5'];
+    stub.defaultConnectionId = 'conn-1';
+    await page.addInitScript(() => {
+      localStorage.setItem('chat-panel', JSON.stringify({ isOpen: false, width: 360 }));
+    });
+    await page.goto(`/account/${accountId}`);
+    await page.getByTestId('chat-header-button').click();
+
+    const panel = page.getByTestId('chat-panel');
+    await expect(page.getByTestId('panel-resize')).toHaveAttribute('aria-valuenow', '360');
+    const selects = panel.getByTestId('chat-connection-picker').getByRole('combobox');
+    await expect(selects).toHaveCount(2);
+
+    const panelBox = (await panel.boundingBox())!;
+    expect(panelBox.width).toBeLessThanOrEqual(360);
+    const boxes = await Promise.all([selects.nth(0).boundingBox(), selects.nth(1).boundingBox()]);
+    for (const box of boxes) {
+      expect(box!.width).toBeGreaterThan(90);
+      expect(box!.x).toBeGreaterThanOrEqual(panelBox.x);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(panelBox.x + panelBox.width);
+    }
+    // Side by side on one row, without overlapping.
+    expect(Math.abs(boxes[0]!.y - boxes[1]!.y)).toBeLessThan(4);
+    expect(boxes[0]!.x + boxes[0]!.width).toBeLessThanOrEqual(boxes[1]!.x);
+    expect(await panel.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await expect(selects.nth(0)).toContainText('My Claude Account');
+    await expect(selects.nth(1)).toContainText('Default');
+
+    await panel.screenshot({ path: test.info().outputPath('panel-360.png') });
   });
 
   test('is not offered on the Chat page itself', async ({ page }) => {
