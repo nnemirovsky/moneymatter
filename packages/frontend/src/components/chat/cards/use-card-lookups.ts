@@ -37,9 +37,10 @@ export const useCardLookups = ({ card }: { card: MaybeRefOrGetter<ChatProposalCa
   const { tagsMap } = storeToRefs(useTagsStore());
   const { baseCurrency, currencies } = storeToRefs(useCurrenciesStore());
 
+  // The target record of a delete or update card is named too: its payee is not one of the card's arguments.
   const payeeIds = computed(() => [
     ...new Set(
-      toValue(card).fields.flatMap((field) =>
+      [...toValue(card).fields, ...(toValue(card).target ?? [])].flatMap((field) =>
         fieldEntityKind({ field }) === 'payee' ? idsOf({ value: field.value }) : [],
       ),
     ),
