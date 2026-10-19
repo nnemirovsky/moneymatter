@@ -336,6 +336,36 @@
         "more": "і ще {count}",
         "willBeChanged": "Ці записи буде змінено."
       },
+      "counts": {
+        "title": "Пов’язані записи: {items}",
+        "items": {
+          "transactionCount": "{count} транзакція | {count} транзакції | {count} транзакцій",
+          "accountCount": "{count} рахунок | {count} рахунки | {count} рахунків",
+          "transferTwinCount": "{count} нога переказу | {count} ноги переказу | {count} ніг переказу",
+          "matchedCount": "{count} підходяща транзакція | {count} підходящі транзакції | {count} підходящих транзакцій",
+          "skippedCount": "{count} пропущена транзакція | {count} пропущені транзакції | {count} пропущених транзакцій",
+          "aliasCount": "{count} псевдонім | {count} псевдоніми | {count} псевдонімів",
+          "tagCount": "{count} тег | {count} теги | {count} тегів",
+          "createdAccountCount": "{count} рахунок, створений імпортом | {count} рахунки, створені імпортом | {count} рахунків, створених імпортом",
+          "balanceReversalCount": "{count} скасування балансу | {count} скасування балансу | {count} скасувань балансу",
+          "subgroupCount": "{count} підгрупа | {count} підгрупи | {count} підгруп",
+          "subcategoryCount": "{count} підкатегорія | {count} підкатегорії | {count} підкатегорій",
+          "splitCount": "{count} розділ | {count} розділи | {count} розділів",
+          "refundLinkCount": "{count} зв’язок із поверненням | {count} зв’язки з поверненнями | {count} зв’язків із поверненнями",
+          "subscriptionLinkCount": "{count} зв’язок із підпискою | {count} зв’язки з підписками | {count} зв’язків із підписками",
+          "portfolioTransferCount": "{count} переказ портфеля | {count} перекази портфеля | {count} переказів портфеля",
+          "lineCount": "{count} рядок бюджету | {count} рядки бюджету | {count} рядків бюджету",
+          "assignmentCount": "{count} призначення | {count} призначення | {count} призначень",
+          "categoryCount": "{count} прив’язана категорія | {count} прив’язані категорії | {count} прив’язаних категорій",
+          "linkedTransactionCount": "{count} пов’язана транзакція | {count} пов’язані транзакції | {count} пов’язаних транзакцій",
+          "periodCount": "{count} період | {count} періоди | {count} періодів",
+          "holdingCount": "{count} позиція | {count} позиції | {count} позицій",
+          "investmentTransactionCount": "{count} інвестиційна транзакція | {count} інвестиційні транзакції | {count} інвестиційних транзакцій",
+          "dealCount": "{count} угода | {count} угоди | {count} угод",
+          "eventCount": "{count} подія | {count} події | {count} подій",
+          "linkCount": "{count} посилання | {count} посилання | {count} посилань"
+        }
+      },
       "danger": {
         "destructive": "Це видаляє дані, і скасувати це не можна.",
         "highImpact": "Це широка зміна, і скасувати її не можна."
@@ -494,6 +524,7 @@
       "egress": "Після підтвердження сервер надсилатиме запити до {host}.",
       "targetsMissing": "{count} вибрану транзакцію не знайдено, її пропущено. | {count} вибрані транзакції не знайдено, їх пропущено. | {count} вибраних транзакцій не знайдено, їх пропущено.",
       "transferTwins": "Разом з ними піде {count} пов’язана транзакція переказу. | Разом з ними підуть {count} пов’язані транзакції переказу. | Разом з ними піде {count} пов’язаних транзакцій переказу.",
+      "transferTwinsOfRow": "Разом з нею буде видалено {count} пов’язану транзакцію переказу. | Разом з нею буде видалено {count} пов’язані транзакції переказу. | Разом з нею буде видалено {count} пов’язаних транзакцій переказу.",
       "payeesIgnored": "Їхні назви ігноруватимуться в майбутніх імпортах.",
       "alreadyIgnored": "Цю назву вже ігноровано.",
       "noDefaultTags": "У цього отримувача немає тегів за замовчуванням, тож нічого не буде застосовано.",

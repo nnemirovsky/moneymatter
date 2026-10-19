@@ -39,6 +39,43 @@ describe('ProposalCardDanger', () => {
     expect(mountDanger({ card: buildCard() }).text()).toBe('');
   });
 
+  describe('related counts', () => {
+    it('lists what goes with the target, one count per kind', () => {
+      const wrapper = mountDanger({
+        card: buildCard({
+          kind: 'delete',
+          danger: 'destructive',
+          confirmation: { mode: 'confirm' },
+          counts: { transferTwinCount: 1, splitCount: 2, periodCount: 6 },
+        }),
+        requirement: { mode: 'confirm' },
+      });
+
+      const counts = wrapper.get('[data-testid="card-counts"]').text();
+      expect(counts).toContain('Related records');
+      expect(counts).toContain('1 transfer leg');
+      expect(counts).toContain('2 splits');
+      expect(counts).toContain('6 periods');
+    });
+
+    it('shows the counts on a card that is not red, and skips a count it has no label for', () => {
+      const wrapper = mountDanger({
+        card: buildCard({ kind: 'update', counts: { transactionCount: 12, somethingNew: 3 } }),
+      });
+
+      expect(wrapper.get('[data-testid="card-counts"]').text()).toContain('12 transactions');
+      expect(wrapper.text()).not.toContain('somethingNew');
+    });
+
+    it('shows nothing when the card has no counts', () => {
+      expect(
+        mountDanger({ card: buildCard({ kind: 'update' }) })
+          .find('[data-testid="card-counts"]')
+          .exists(),
+      ).toBe(false);
+    });
+  });
+
   describe('a red bulk card', () => {
     const card = buildCard({
       kind: 'bulk',

@@ -40,6 +40,21 @@ const readEmittedKeys = (): Map<string, string> => {
   return found;
 };
 
+/** The previews that fill `counts`; each count is a `<name>Count` key the card labels as `chat.cards.counts.items.<name>Count`. */
+const PREVIEWS_DIR = `${BACKEND_CHAT_DIR}proposals/previews/`;
+
+/** `*Count` names in the previews that are not related counts. */
+const NOT_RELATED_COUNTS = new Set(['affectedCount', 'targetCount']);
+
+const readCountKeys = (): string[] =>
+  [
+    ...new Set(
+      sourceFiles({ dir: PREVIEWS_DIR }).flatMap((path) =>
+        [...readFileSync(path, 'utf8').matchAll(/\b([a-z][A-Za-z]*Count)\b/g)].map((match) => match[1]!),
+      ),
+    ),
+  ].filter((name) => !NOT_RELATED_COUNTS.has(name));
+
 /**
  * `approve-all.ts` builds `chat.cards.${details.reason}` from the conflict reason of a 409. The record
  * is typed against the shared union, so a new reason fails the build until it is listed here.
@@ -87,6 +102,17 @@ describe('keys the backend emits for cards', () => {
         'chat.notices.waitingForCli',
       ]),
     );
+  });
+
+  it('finds the related counts the previews fill', () => {
+    expect(readCountKeys()).toEqual(expect.arrayContaining(['transactionCount', 'splitCount', 'transferTwinCount']));
+  });
+
+  it('has a label in both locales for every related count a preview fills', () => {
+    const labelKeys = readCountKeys().map((name) => `chat.cards.counts.items.${name}`);
+
+    expect(missingFrom({ messages: enChat, keys: labelKeys })).toEqual([]);
+    expect(missingFrom({ messages: ukChat, keys: labelKeys })).toEqual([]);
   });
 
   it('has every key in the en locale', () => {

@@ -158,6 +158,8 @@ export interface ChatProposalCard {
   title: ChatCardTitle;
   fields: ChatCardField[];
   affected?: ChatCardAffected;
+  /** Related records that are not zero, by count name (`splitCount`, `transferTwinCount`, ...); the card lists them. */
+  counts?: Record<string, number>;
   dependsOn: ChatCardDependency[];
   /** Amber card: the full URL and host the server will contact; the confirm repeats the host. */
   egress?: { url: string; host: string };

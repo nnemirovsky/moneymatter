@@ -193,7 +193,7 @@ describe('entity preview resolver', () => {
       expect(preview.affected!.rows).toHaveLength(1);
       expect(preview.affected!.rows[0]).toMatchObject({ account: { id: SEEN_ACCOUNT } });
       expect(preview.counts).toEqual({ transferTwinCount: 1 });
-      expect(warnings).toEqual([{ key: 'chat.warnings.transferTwins', params: { count: 1 } }]);
+      expect(warnings).toEqual([{ key: 'chat.warnings.transferTwinsOfRow', params: { count: 1 } }]);
     });
 
     it('snapshots every leg: the newest update, both ids and the count', async () => {

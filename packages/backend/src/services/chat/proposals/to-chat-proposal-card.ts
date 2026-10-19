@@ -44,6 +44,12 @@ type ChatProposalRow = Pick<
 /** Arguments and stored rows are JSON, so equal values serialize alike. */
 const isSameValue = ({ a, b }: { a: unknown; b: unknown }) => JSON.stringify(a) === JSON.stringify(b);
 
+/** The related counts that are not zero, or `undefined` when none is: a card lists what is there, not what is not. */
+const nonZeroCountsOf = ({ counts }: { counts: Record<string, number> | undefined }) => {
+  const entries = Object.entries(counts ?? {}).filter(([, count]) => count > 0);
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+};
+
 const titleOf = ({ row }: { row: Pick<ChatProposalRow, 'cardKind' | 'entity'> }): ChatCardTitle => ({
   key: chatCardTitleKey({ kind: row.cardKind }),
   params: { entity: row.entity },
@@ -106,6 +112,8 @@ export function toChatProposalCard({
     ...(row.preview?.warnings ?? []),
   ];
 
+  const nonZeroCounts = nonZeroCountsOf({ counts: row.preview?.counts });
+
   const card: ChatProposalCard = {
     id: row.id,
     status: row.status,
@@ -121,6 +129,7 @@ export function toChatProposalCard({
     title: titleOf({ row }),
     fields,
     ...(row.preview?.affected ? { affected: row.preview.affected } : {}),
+    ...(nonZeroCounts ? { counts: nonZeroCounts } : {}),
     dependsOn: row.dependsOn.flatMap((id) => {
       const parent = parents.find((candidate) => candidate.id === id);
       return parent ? [{ id, title: titleOf({ row: parent }), status: parent.status, revision: parent.revision }] : [];

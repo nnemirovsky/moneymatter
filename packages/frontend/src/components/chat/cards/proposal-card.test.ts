@@ -433,6 +433,16 @@ describe('ProposalCard', () => {
 
       expect(wrapper.text()).toContain('2 linked transfer transactions will go with them.');
     });
+
+    it('words the transfer twin warning of a single row for one twin and for several', () => {
+      const textOf = (count: number) =>
+        mountCard({
+          card: createCard({ warnings: [{ key: 'chat.warnings.transferTwinsOfRow', params: { count } }] }),
+        }).text();
+
+      expect(textOf(1)).toContain('1 linked transfer transaction will be deleted with it.');
+      expect(textOf(2)).toContain('2 linked transfer transactions will be deleted with it.');
+    });
   });
 
   describe('a stale card', () => {

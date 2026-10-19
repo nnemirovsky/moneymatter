@@ -336,6 +336,36 @@
         "more": "and {count} more",
         "willBeChanged": "These records will be changed."
       },
+      "counts": {
+        "title": "Related records: {items}",
+        "items": {
+          "transactionCount": "{count} transaction | {count} transactions",
+          "accountCount": "{count} account | {count} accounts",
+          "transferTwinCount": "{count} transfer leg | {count} transfer legs",
+          "matchedCount": "{count} matching transaction | {count} matching transactions",
+          "skippedCount": "{count} skipped transaction | {count} skipped transactions",
+          "aliasCount": "{count} alias | {count} aliases",
+          "tagCount": "{count} tag | {count} tags",
+          "createdAccountCount": "{count} account created by the import | {count} accounts created by the import",
+          "balanceReversalCount": "{count} balance reversal | {count} balance reversals",
+          "subgroupCount": "{count} subgroup | {count} subgroups",
+          "subcategoryCount": "{count} subcategory | {count} subcategories",
+          "splitCount": "{count} split | {count} splits",
+          "refundLinkCount": "{count} refund link | {count} refund links",
+          "subscriptionLinkCount": "{count} subscription link | {count} subscription links",
+          "portfolioTransferCount": "{count} portfolio transfer | {count} portfolio transfers",
+          "lineCount": "{count} budget line | {count} budget lines",
+          "assignmentCount": "{count} assignment | {count} assignments",
+          "categoryCount": "{count} linked category | {count} linked categories",
+          "linkedTransactionCount": "{count} linked transaction | {count} linked transactions",
+          "periodCount": "{count} period | {count} periods",
+          "holdingCount": "{count} holding | {count} holdings",
+          "investmentTransactionCount": "{count} investment transaction | {count} investment transactions",
+          "dealCount": "{count} deal | {count} deals",
+          "eventCount": "{count} event | {count} events",
+          "linkCount": "{count} link | {count} links"
+        }
+      },
       "danger": {
         "destructive": "This deletes data and cannot be undone.",
         "highImpact": "This has a wide effect and cannot be undone."
@@ -494,6 +524,7 @@
       "egress": "After you approve it, the server will send requests to {host}.",
       "targetsMissing": "{count} of the selected transactions were not found and are skipped. | {count} of the selected transactions were not found and are skipped.",
       "transferTwins": "{count} linked transfer transaction will go with them. | {count} linked transfer transactions will go with them.",
+      "transferTwinsOfRow": "{count} linked transfer transaction will be deleted with it. | {count} linked transfer transactions will be deleted with it.",
       "payeesIgnored": "Their names will be ignored in future imports.",
       "alreadyIgnored": "This name is already ignored.",
       "noDefaultTags": "This payee has no default tags, so nothing will be applied.",

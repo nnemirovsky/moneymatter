@@ -42,6 +42,22 @@ describe('toChatProposalCard', () => {
     expect(card.fields.find((field) => field.path === 'name')).toMatchObject({ value: 'Wallet', before: 'Cash' });
   });
 
+  it('sends the related counts that are not zero', () => {
+    const card = toChatProposalCard({
+      row: row({ preview: { before: null, counts: { splitCount: 2, transferTwinCount: 1, refundLinkCount: 0 } } }),
+      parents: [],
+    });
+
+    expect(card.counts).toEqual({ splitCount: 2, transferTwinCount: 1 });
+  });
+
+  it('sends no counts when the preview holds none, or only zeros', () => {
+    expect(toChatProposalCard({ row: row(), parents: [] })).not.toHaveProperty('counts');
+    expect(
+      toChatProposalCard({ row: row({ preview: { before: null, counts: { splitCount: 0 } } }), parents: [] }),
+    ).not.toHaveProperty('counts');
+  });
+
   it('leaves out the value before on a field the call leaves as it is, and on one the row does not hold', () => {
     const card = toChatProposalCard({ row: row(), parents: [] });
 

@@ -20,7 +20,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ 'update:typed': [value: string] }>();
 
-const { t } = useI18n();
+const { t, te } = useI18n();
 const { keyText } = useChatText();
 
 const isEntityCell = (cell: ChatTableCell | undefined): cell is ChatEntityCell =>
@@ -52,14 +52,26 @@ const hiddenCount = computed(() => {
   return affected ? Math.max(0, affected.count - affected.rows.length) : 0;
 });
 
+/** What goes with the target or is touched by the call, as `1 transfer leg, 2 splits`; a count the app has no label for is left out. */
+const countsText = computed(() => {
+  const labels = Object.entries(props.card.counts ?? {}).flatMap(([key, count]) => {
+    const labelKey = `chat.cards.counts.items.${key}`;
+    return count > 0 && te(labelKey) ? [t(labelKey, { count })] : [];
+  });
+
+  return labels.length > 0 ? t('chat.cards.counts.title', { items: labels.join(', ') }) : null;
+});
+
 const isDangerous = computed(() => props.card.danger !== 'none');
 </script>
 
 <template>
-  <div v-if="isDangerous || card.egress || card.affected" class="flex flex-col gap-3">
+  <div v-if="isDangerous || card.egress || card.affected || countsText" class="flex flex-col gap-3">
     <Callout v-if="isDangerous" variant="destructive">
       {{ $t(card.danger === 'highImpact' ? 'chat.cards.danger.highImpact' : 'chat.cards.danger.destructive') }}
     </Callout>
+
+    <p v-if="countsText" class="text-muted-foreground text-sm" data-testid="card-counts">{{ countsText }}</p>
 
     <div v-if="sample" class="flex flex-col gap-1">
       <ChatTable :spec="sample" />

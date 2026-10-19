@@ -353,7 +353,7 @@ describe('POST /chat/proposals/:id/approve', () => {
       expect(card.confirmation).toEqual({ mode: 'typed', phrase: '2' });
       expect(card.affected).toMatchObject({ count: 2 });
       expect(card.affected!.rows).toHaveLength(2);
-      expect(card.warnings).toEqual([{ key: 'chat.warnings.transferTwins', params: { count: 1 } }]);
+      expect(card.warnings).toEqual([{ key: 'chat.warnings.transferTwinsOfRow', params: { count: 1 } }]);
 
       const wrong = await helpers.approveChatProposal({
         proposalId: card.id,
