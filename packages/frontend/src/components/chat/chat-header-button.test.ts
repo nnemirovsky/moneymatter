@@ -88,9 +88,9 @@ describe('ChatHeaderButton', () => {
     expect(mountButton().find('button').attributes('aria-label')).toBe('Open AI chat');
   });
 
-  it('shows the sparkles icon of the AI settings, not a speech bubble', () => {
+  it('shows the shared AI chat icon', () => {
     const icon = mountButton().find('button svg');
 
-    expect(icon.classes()).toContain('lucide-sparkles');
+    expect(icon.classes()).toContain('lucide-bot-message-square');
   });
 });
