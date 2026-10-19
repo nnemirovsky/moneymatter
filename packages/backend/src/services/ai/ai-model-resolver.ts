@@ -51,7 +51,7 @@ function toProviderModelSpec({
   userId,
 }: {
   connection: StoredConnection;
-  /** The model to dial; the connection's own when omitted. */
+  /** The model to dial: the connection's own, or the override picked for the feature or thread. */
   model: string;
   apiKey: string | null;
   userId: number;
