@@ -6,7 +6,10 @@ import { createAIClient } from '@services/ai';
 import type { AIClientResult } from '@services/ai/ai-client-factory';
 import { resolveAIConfiguration } from '@services/ai/ai-model-resolver';
 import { assertCliAiAllowed, getCliAiAccess } from '@services/ai/cli/cli-access';
+import { withTransaction } from '@services/common/with-transaction';
 import { getStoredAiSettings } from '@services/user-settings/ai-connections';
+
+import { findThreadOrThrow } from './find-thread';
 
 const getConnections = async ({ userId }: { userId: number }) =>
   (await getStoredAiSettings({ userId }))?.connections ?? [];
@@ -69,6 +72,12 @@ export async function pickDefaultConnectionId({ userId }: { userId: number }): P
   return resolution?.kind === 'connection' ? resolution.connectionId : null;
 }
 
+/** The thread's connection id, read under the row lock so a switch that is still being written is waited for. */
+const readThreadConnectionId = withTransaction(
+  async ({ userId, threadId }: { userId: number; threadId: string }): Promise<string | null> =>
+    (await findThreadOrThrow({ userId, threadId, lock: true })).connectionId,
+);
+
 /**
  * The AI client for a thread's next run, built on the thread's connection. A connection deleted since the
  * thread picked it falls back as for a new thread. When the client that answers is not the one the thread
@@ -77,12 +86,11 @@ export async function pickDefaultConnectionId({ userId }: { userId: number }): P
 export async function createThreadAiClient({
   userId,
   threadId,
-  connectionId,
 }: {
   userId: number;
   threadId: string;
-  connectionId: string | null;
 }): Promise<AIClientResult | null> {
+  const connectionId = await readThreadConnectionId({ userId, threadId });
   const deleted =
     connectionId !== null && !(await getConnections({ userId })).some((candidate) => candidate.id === connectionId);
   const pinnedConnectionId = deleted ? await pickDefaultConnectionId({ userId }) : connectionId;

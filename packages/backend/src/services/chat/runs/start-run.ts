@@ -245,20 +245,8 @@ export async function startChatRun({
   /** Set when the message is a comment on a card: the card it is about. */
   cardComment?: { proposalId: string };
 }): Promise<ChatSendMessageResponse> {
-  const thread = await findThreadOrThrow({ userId: user.id, threadId });
+  await findThreadOrThrow({ userId: user.id, threadId });
   const attachments = await loadSendableAttachments({ userId: user.id, threadId, attachmentIds });
-
-  const aiClient = await createThreadAiClient({
-    userId: user.id,
-    threadId,
-    connectionId: thread.connectionId,
-  });
-  if (!aiClient) throw new ValidationError({ message: await describeMissingAiConfiguration({ userId: user.id }) });
-  // A CLI connection runs vendor binaries under the server's uid: admins of a self-hosted instance only.
-  // Runs on one CLI connection are parallel, so there is no per-connection claim; the global CLI slots
-  // are taken when the run starts.
-  if (isAiCliProvider({ provider: aiClient.provider })) await assertCliAiAllowed({ userId: user.id });
-  const runner = selectChatRunner({ provider: aiClient.provider });
 
   const runId = randomUUID();
   const slots = await acquireRunSlots({ userId: user.id, threadId, runId });
@@ -272,6 +260,16 @@ export async function startChatRun({
   });
 
   try {
+    // Resolved once the run holds its slot: a switch of the thread's connection is refused while the slot
+    // is taken, and the read waits for one that is still being written, so the run starts on what the thread shows.
+    const aiClient = await createThreadAiClient({ userId: user.id, threadId });
+    if (!aiClient) throw new ValidationError({ message: await describeMissingAiConfiguration({ userId: user.id }) });
+    // A CLI connection runs vendor binaries under the server's uid: admins of a self-hosted instance only.
+    // Runs on one CLI connection are parallel, so there is no per-connection claim; the global CLI slots
+    // are taken when the run starts.
+    if (isAiCliProvider({ provider: aiClient.provider })) await assertCliAiAllowed({ userId: user.id });
+    const runner = selectChatRunner({ provider: aiClient.provider });
+
     const { userMessageId, assistantMessageId } = await createRunMessages({
       userId: user.id,
       threadId,

@@ -1,11 +1,14 @@
-import { AI_FEATURE } from '@bt/shared/types';
+import { AI_FEATURE, AI_PROVIDER } from '@bt/shared/types';
 import { t } from '@i18n/index';
-import { afterEach, describe, expect, it } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
 import ChatThreads from '@models/chat-threads.model';
+import { resetCliAuthSessions } from '@services/ai/cli/login/cli-auth-sessions';
+import { RateLimitService } from '@services/common/rate-limit.service';
 import * as helpers from '@tests/helpers';
+import { useFakeAiClis } from '@tests/helpers/ai-cli';
 import { useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
-import { errorMessage } from '@tests/helpers/user-settings';
+import { errorMessage, getTestUserId } from '@tests/helpers/user-settings';
 import {
   type ChatScriptTurn,
   createChatScript,
@@ -40,9 +43,65 @@ async function sendAndFinish({ threadId }: { threadId: string }) {
   return sent;
 }
 
+async function createCodexConnection() {
+  const { id } = await helpers.startCliAuthSession({ provider: AI_PROVIDER.codex, raw: true });
+  await helpers.waitForCliAuthSession({ id, status: 'succeeded' });
+
+  return helpers.createAiConnection({
+    provider: AI_PROVIDER.codex,
+    name: 'ChatGPT subscription',
+    model: 'gpt-6-astra',
+    cliAuthSessionId: id,
+    raw: true,
+  });
+}
+
 describe('Chat thread connection', () => {
+  const adminUsersBeforeSuite = process.env.ADMIN_USERS;
+
   afterEach(() => {
-    delete process.env.ADMIN_USERS;
+    resetCliAuthSessions();
+    if (adminUsersBeforeSuite === undefined) delete process.env.ADMIN_USERS;
+    else process.env.ADMIN_USERS = adminUsersBeforeSuite;
+  });
+
+  describe('CLI connections', () => {
+    useFakeAiClis();
+
+    beforeEach(async () => {
+      await RateLimitService.resetRateLimit(`ai-connection-probe:user:${await getTestUserId()}`);
+    });
+
+    it('lets an admin start a thread on a subscription connection and switch to it', async () => {
+      const first = await helpers.createFirstConnection();
+      const cli = await createCodexConnection();
+
+      const created = await helpers.createChatThread({ connectionId: cli.id });
+      expect(created.statusCode).toBe(201);
+
+      const other = await helpers.createChatThread({ connectionId: first.id, raw: true });
+      const switched = await helpers.updateChatThread({ threadId: other.id, payload: { connectionId: cli.id } });
+      expect(switched.statusCode).toBe(200);
+    });
+
+    it.each([
+      ['a user who is not an admin', () => (process.env.ADMIN_USERS = 'somebody-else')],
+      ['a hosted instance', () => delete process.env.IS_SELF_HOST],
+    ])('refuses a subscription connection to %s, on create and on switch', async (_label, revoke) => {
+      const first = await helpers.createFirstConnection();
+      const cli = await createCodexConnection();
+      const thread = await helpers.createChatThread({ connectionId: first.id, raw: true });
+
+      revoke();
+      const created = await helpers.createChatThread({ connectionId: cli.id });
+      const switched = await helpers.updateChatThread({ threadId: thread.id, payload: { connectionId: cli.id } });
+
+      for (const response of [created, switched]) {
+        expect(response.statusCode).toBe(ERROR_CODES.NotAllowed);
+        expect(errorMessage({ response })).toBe(t({ key: 'ai.cliProvidersNotAllowed' }));
+      }
+      expect((await helpers.getChatThread({ threadId: thread.id, raw: true })).thread.connectionId).toBe(first.id);
+    });
   });
 
   describe('POST /chat/threads', () => {
@@ -250,6 +309,24 @@ describe('Chat thread connection', () => {
         modelId: 'custom/llama3.2',
       });
       expect(loaded.thread.connectionId).toBe(first.id);
+    });
+
+    it('keeps the thread connection when a message is refused because a run is active', async () => {
+      const { second } = await arrangeConnections();
+      const hold = createChatScript({ turns: [HOLD], baseUrl: CUSTOM_ENDPOINT_LOOPBACK_BASE_URL });
+      global.mswMockServer.use(hold.handler);
+      const thread = await helpers.createChatThread({ connectionId: second.id, raw: true });
+      const running = await helpers.sendChatMessage({ threadId: thread.id, payload: { text: 'First' }, raw: true });
+      await settle();
+      await helpers.deleteAiConnection({ id: second.id });
+
+      const refused = await helpers.sendChatMessage({ threadId: thread.id, payload: { text: 'Second' } });
+
+      expect(refused.statusCode).toBe(ERROR_CODES.ConflictError);
+      expect((await helpers.getChatThread({ threadId: thread.id, raw: true })).thread.connectionId).toBe(second.id);
+
+      await helpers.cancelChatRun({ runId: running.runId });
+      await helpers.getChatRunEvents({ runId: running.runId });
     });
 
     it('settles a thread that started with no connection on the one that answers', async () => {
