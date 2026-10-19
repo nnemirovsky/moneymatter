@@ -124,8 +124,7 @@ single path to the shortcut with its own machine credential:
   policy on that path), or a header your gateway checks. Never use a bypass rule.
 - The app still requires its own ingest token on that path, so the gateway
   exception doesn't open the app.
-- Enter the service token's id and secret under Settings → Integrations → Apple
-  Pay so the setup code carries them.
+- Enter the service token's id and secret on the Apple Pay page (Accounts → Apple Pay) so the setup code carries them.
 
 ## Nginx Proxy Manager
 

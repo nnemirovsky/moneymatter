@@ -27,13 +27,13 @@ After a Wallet payment, iOS gives the shortcut only the **Amount**, the **Mercha
 
 ## How setup works
 
-1. **Link each card** to a MoneyMatter account (Settings → Integrations → Apple Pay).
+1. **Link each card** to a MoneyMatter account (Accounts → Apple Pay).
 2. **Add the shortcut** to your iPhone: one tap with **Add Shortcut**, or build it by hand with the [manual guide](#build-the-shortcut-by-hand) below.
 3. **Create the automation** that starts the shortcut after each payment.
 4. **Send a test request** to check the connection.
 
 <Aside type="tip" title="One-tap setup">
-Settings → Integrations → Apple Pay generates a **setup code** (the address of your instance and a new token in one string). The ready-made shortcut "MoneyMatter: log card payment" asks for that code once, when you import it, and needs nothing else. The **Add Shortcut** button appears once your instance has the shortcut file or an iCloud link for it; if you don't see it, ask whoever runs the instance, or build the shortcut by hand with the [manual guide](#build-the-shortcut-by-hand). It takes about ten actions, and you only do it once.
+The Apple Pay page generates a **setup code** (the address of your instance and a new token in one string). The ready-made shortcut "MoneyMatter: log card payment" asks for that code once, when you import it, and needs nothing else. The **Add Shortcut** button appears once your instance has the shortcut file or an iCloud link for it; if you don't see it, ask whoever runs the instance, or build the shortcut by hand with the [manual guide](#build-the-shortcut-by-hand). It takes about ten actions, and you only do it once.
 </Aside>
 
 ## Step 1: Link your cards
@@ -42,18 +42,17 @@ Apple Wallet gives each card a name, such as `TBC Visa`. MoneyMatter needs to kn
 
 <Steps>
 
-1. Click the gear button (**Settings**) at the top right of the app.
-2. Under **Workspace**, choose **Integrations**, then open the **Apple Pay** tab.
-3. In **Card links**, click **Link a card**.
-4. Enter the **Card name** exactly as Apple Wallet shows it. Capitals and a trailing number such as `•••• 1234` don't matter.
-5. Choose the **Account** and click **Save**.
+1. Open **Accounts**. In **Bank connections**, click **Connect** and choose **Apple Pay**. Once Apple Pay is set up, open its row in the same list instead.
+2. In **Card links**, click **Link a card**.
+3. Enter the **Card name** exactly as Apple Wallet shows it. Capitals and a trailing number such as `•••• 1234` don't matter.
+4. Choose the **Account** and click **Save**.
 
 </Steps>
 
 <Screenshot
   src="/screenshots/integrations/apple-pay-card-links.png"
-  alt="The Apple Pay tab with the Card links section listing one linked card and its account, and the Link a card button above it."
-  hint="Open /settings/integrations, tab Apple Pay, as the docs test user with the card TBC Visa linked to Everyday Checking. Crop to the Card links section."
+  alt="The Apple Pay page with the Card links section listing one linked card and its account, and the Link a card button above it."
+  hint="Open /accounts/integrations/apple-pay as the docs test user with the card TBC Visa linked to Everyday Checking. Crop to the Card links section."
 />
 
 You can link several cards to the same account, and every card you pay with needs its own link. A payment from a card without a link isn't lost: see [Payments that wait](#payments-that-wait).
@@ -62,7 +61,7 @@ You can link several cards to the same account, and every card you pay with need
 
 <Steps>
 
-1. In **Settings**, **Integrations**, open the **Ingest tokens** tab.
+1. Open the Apple Pay page (**Accounts**, then the **Apple Pay** row) and scroll to **Devices**.
 2. Click **Create token**, name it `iPhone shortcut` and choose when it expires.
 3. Copy the token. MoneyMatter shows it only once.
 
@@ -262,8 +261,8 @@ On the **Apple Pay** tab, **Cards without a link** shows each card that has paym
 
 <Screenshot
   src="/screenshots/integrations/apple-pay-waiting.png"
-  alt="The Apple Pay tab with a Cards without a link section showing TBC Visa with two payments waiting and a Link button, and a Waiting payments section with one payment, its reason, and Retry and Dismiss buttons."
-  hint="Open /settings/integrations, tab Apple Pay, as the docs test user after sending two ingest requests for an unlinked card and one with a missing rate. Crop to the two sections."
+  alt="The Apple Pay page with a Cards without a link section showing TBC Visa with two payments waiting and a Link button, and a Waiting payments section with one payment, its reason, and Retry and Dismiss buttons."
+  hint="Open /accounts/integrations/apple-pay as the docs test user after sending two ingest requests for an unlinked card and one with a missing rate. Crop to the two sections."
 />
 
 Payments are kept in the list for 90 days after they are logged, refused or dismissed.
@@ -272,7 +271,7 @@ Payments are kept in the list for 90 days after they are logged, refused or dism
 
 ### The shortcut says "unauthorized" or nothing happens (401)
 
-The token is missing, mistyped, revoked or expired. Check that the header reads `Bearer`, a space, and then the whole token. Open **Ingest tokens** and look at **Last used**: if it is old, the requests aren't getting through. A password reset revokes all tokens, so create a new one. After 20 wrong tokens in 15 minutes from one address, even a correct token is refused for a while.
+The token is missing, mistyped, revoked or expired. Check that the header reads `Bearer`, a space, and then the whole token. Open **Devices** on the Apple Pay page and look at **Last used**: if it is old, the requests aren't getting through. A password reset revokes all tokens, so create a new one. After 20 wrong tokens in 15 minutes from one address, even a correct token is refused for a while.
 
 ### A 403 page from Cloudflare
 

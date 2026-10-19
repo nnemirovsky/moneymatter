@@ -263,10 +263,10 @@ export const VUE_QUERY_CACHE_KEYS = Object.freeze({
   // MCP connected apps
   mcpConnectedApps: ['mcp-connected-apps'] as const,
 
-  // Ingest tokens (Settings → Integrations)
+  // Ingest tokens (Accounts → Apple Pay → Devices)
   ingestTokens: ['ingest-tokens'] as const,
 
-  // Apple Pay / card-payment ingest (Settings → Integrations)
+  // Apple Pay / card-payment ingest (Accounts → Apple Pay)
   cardMappings: ['card-payment', 'card-mappings'] as const,
   unlinkedCards: ['card-payment', 'unlinked-cards'] as const,
   cardPaymentRequests: ['card-payment', 'requests'] as const,

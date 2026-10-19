@@ -169,7 +169,7 @@ same value as `BETTER_AUTH_URL`: the OAuth issuer is built from
 `MCP_BASE_URL`, so the two must agree. Leave it unset if you do not use MCP.
 
 `CARD_PAYMENT_SHORTCUT_ICLOUD_URL` is the iCloud share link of the "MoneyMatter:
-log card payment" shortcut. When set, Settings → Integrations → Apple Pay offers
+log card payment" shortcut. When set, the Apple Pay page (Accounts → Apple Pay) offers
 it as **Add Shortcut** on an iPhone. It is a runtime variable of the frontend
 container, written to the page's config when the container starts: change it and
 `up -d`, no rebuild. Leave it empty and the page points to the manual guide

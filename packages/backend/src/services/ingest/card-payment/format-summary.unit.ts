@@ -91,7 +91,7 @@ describe('formatSummary', () => {
     it('names the card to link', () => {
       expect(
         formatSummary({ summary: { type: 'parked', reason: 'unknownCard', card: 'TBC Visa' }, locale: 'en' }),
-      ).toBe('Not logged yet: link the card "TBC Visa" in MoneyMatter → Settings → Integrations → Apple Pay');
+      ).toBe('Not logged yet: link the card "TBC Visa" in MoneyMatter → Accounts → Apple Pay');
     });
 
     it('names the missing rate', () => {
@@ -108,7 +108,7 @@ describe('formatSummary', () => {
 
     it('tells the user to retry a failed payment', () => {
       expect(formatSummary({ summary: { type: 'parked', reason: 'processingFailed' }, locale: 'en' })).toBe(
-        'Not logged yet: MoneyMatter could not process it; retry it in Settings → Integrations → Apple Pay',
+        'Not logged yet: MoneyMatter could not process it; retry it in Accounts → Apple Pay',
       );
     });
   });

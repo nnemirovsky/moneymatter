@@ -12,7 +12,7 @@ Send a personal ingest token as a Bearer token:
 Authorization: Bearer mm_ingest_…
 ```
 
-Create a token in the app under Settings → Integrations → Ingest tokens. The secret is shown once. A token carries the scope `ingest:transactions` and nothing else: it cannot read data, and it cannot call any other route. Tokens are stored hashed, can expire, and are revoked by a password reset.
+Create a token in the app under Accounts → Apple Pay → Devices. The secret is shown once. A token carries the scope `ingest:transactions` and nothing else: it cannot read data, and it cannot call any other route. Tokens are stored hashed, can expire, and are revoked by a password reset.
 
 If the instance sits behind a gateway that asks for its own credentials (Cloudflare Access, for example), the client sends those headers on the same request (`CF-Access-Client-Id` and `CF-Access-Client-Secret`). They are not MoneyMatter's concern and are not read by it.
 
@@ -82,7 +82,7 @@ Every response uses the API envelope. Success: `{ "status": "success", "response
   "response": {
     "outcome": "parked",
     "reason": "unknownCard",
-    "summary": "Not logged yet: link the card \"TBC Visa\" in MoneyMatter → Settings → Integrations → Apple Pay",
+    "summary": "Not logged yet: link the card \"TBC Visa\" in MoneyMatter → Accounts → Apple Pay",
     "requestId": "7b3e2a94-1c6d-4f08-8e35-a2d94c51b6f3"
   }
 }
@@ -106,7 +106,7 @@ The payload is unusable. The request is recorded as `rejected` so the owner can 
 
 A body that is not a JSON object, or has no usable `idempotencyKey`, has nothing to key a record on and is refused without one.
 
-Only expenses are logged: a zero or negative amount is refused, and so is a blank merchant. iOS sometimes runs the automation with an empty amount and merchant; the request is stored as refused and appears under **Show recent payments** in Settings → Integrations → Apple Pay, so the user can enter the payment by hand.
+Only expenses are logged: a zero or negative amount is refused, and so is a blank merchant. iOS sometimes runs the automation with an empty amount and merchant; the request is stored as refused and appears under **Show recent payments** in Accounts → Apple Pay, so the user can enter the payment by hand.
 
 ### Conflict (409)
 
@@ -133,7 +133,7 @@ A stored key is kept as `externalReference` on the transaction, as `<source>:<id
 
 ### Account
 
-The `card` name is looked up among the user's card links (Settings → Integrations → Apple Pay → Card links). Matching ignores case, extra spaces and a trailing masked number. Links point at accounts the user owns. No link means [parked](#parked-202).
+The `card` name is looked up among the user's card links (Accounts → Apple Pay → Card links). Matching ignores case, extra spaces and a trailing masked number. Links point at accounts the user owns. No link means [parked](#parked-202).
 
 ### Currency
 
