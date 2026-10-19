@@ -24,6 +24,10 @@ function simplify({ node }: { node: unknown }): JsonSchema {
   return node as JsonSchema;
 }
 
+/** A date or a UTC date and time written as ISO text, in an argument whose schema says only "string". */
+const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 const isIdLike = ({ node }: { node: JsonSchema }) =>
   node.type === 'string' || (node.type === 'array' && simplify({ node: node.items }).type === 'string');
 
@@ -55,6 +59,10 @@ export function describeField({
     case 'string':
       if (schema.format === 'date-time') return { display: { kind: 'datetime' }, editable: { type: 'datetime' } };
       if (schema.format === 'date') return { display: { kind: 'date' }, editable: { type: 'date' } };
+      if (typeof value === 'string' && ISO_DATE_TIME.test(value))
+        return { display: { kind: 'datetime' }, editable: { type: 'text' } };
+      if (typeof value === 'string' && ISO_DATE.test(value))
+        return { display: { kind: 'date' }, editable: { type: 'text' } };
       return { display: { kind: 'text' }, editable: schema.format === 'uuid' ? null : { type: 'text' } };
     case 'number':
     case 'integer':

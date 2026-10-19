@@ -12,6 +12,7 @@ import { resolveToolPolicy } from '../policies';
 import { isSafeForApproveAll } from '../policies/safe-cards';
 import { getModelSchema } from '../toolkit/model-schema';
 import { describeField } from './card-fields';
+import { buildCardTarget } from './card-target';
 
 /** The columns a card is built from; a Sequelize row and a plain object both fit. */
 type ChatProposalRow = Pick<
@@ -107,6 +108,8 @@ export function toChatProposalCard({
     };
   });
 
+  const target = row.cardKind === 'update' || row.cardKind === 'delete' ? buildCardTarget({ before: rowBefore }) : [];
+
   const warnings: ChatCardWarning[] = [
     ...(policy?.egress ? [{ key: 'chat.warnings.egress', params: { host: policy.egress.host } }] : []),
     ...(row.preview?.warnings ?? []),
@@ -128,6 +131,7 @@ export function toChatProposalCard({
     },
     title: titleOf({ row }),
     fields,
+    ...(target.length > 0 ? { target } : {}),
     ...(row.preview?.affected ? { affected: row.preview.affected } : {}),
     ...(nonZeroCounts ? { counts: nonZeroCounts } : {}),
     dependsOn: row.dependsOn.flatMap((id) => {

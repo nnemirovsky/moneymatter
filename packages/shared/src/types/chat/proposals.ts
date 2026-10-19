@@ -36,7 +36,15 @@ export const CHAT_UNCERTAINTY_REASONS = [
   'other',
 ] as const;
 
-export type ChatUncertaintyReason = (typeof CHAT_UNCERTAINTY_REASONS)[number];
+/**
+ * Reasons only the server sets, from a check against the user's own data. The model cannot name one, so
+ * a card never claims a check that did not happen.
+ */
+const CHAT_SERVER_UNCERTAINTY_REASONS = ['accountHistoryMismatch'] as const;
+
+export type ChatUncertaintyReason =
+  | (typeof CHAT_UNCERTAINTY_REASONS)[number]
+  | (typeof CHAT_SERVER_UNCERTAINTY_REASONS)[number];
 
 /** The model's `_chat.uncertain` entry, stored on the proposal and shown as a highlighted field. */
 export interface ChatUncertainField {
@@ -157,6 +165,11 @@ export interface ChatProposalCard {
   confirmation: { mode: ChatConfirmationMode; phrase?: string };
   title: ChatCardTitle;
   fields: ChatCardField[];
+  /**
+   * Update and delete cards: the record the call targets as it is now, by its identifying fields (amount,
+   * date, payee, note, account, name), so the user sees which record changes and not only its kind.
+   */
+  target?: ChatCardField[];
   affected?: ChatCardAffected;
   /** Related records that are not zero, by count name (`splitCount`, `transferTwinCount`, ...); the card lists them. */
   counts?: Record<string, number>;

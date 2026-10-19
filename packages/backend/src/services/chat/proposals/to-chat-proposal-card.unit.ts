@@ -35,7 +35,52 @@ const row = (overrides: Record<string, unknown> = {}) =>
     ...overrides,
   }) as never;
 
+const createTransactionRow = (overrides: Record<string, unknown> = {}) =>
+  row({
+    toolName: 'create_transaction',
+    cardKind: 'create',
+    entity: 'transaction',
+    args: {
+      accountId: ID,
+      payeeId: ID,
+      categoryId: ID,
+      amount: 12,
+      time: '2026-10-19T07:26:00Z',
+      transactionType: 'expense',
+      transferNature: 'not_transfer',
+      paymentType: 'cash',
+      note: 'Nord Coffee',
+    },
+    preview: null,
+    ...overrides,
+  });
+
 describe('toChatProposalCard', () => {
+  it('names the record a delete or update card targets from its preview, and no record for a create card', () => {
+    const before = { id: ID, amount: 28.1, currencyCode: 'GEL', note: 'Nord Coffee', time: '2026-10-19T07:26:00.000Z' };
+    const base = { toolName: 'delete_transaction', cardKind: 'delete', entity: 'transaction', args: { id: ID } };
+
+    const del = toChatProposalCard({ row: row({ ...base, preview: { before } }), parents: [] });
+    const update = toChatProposalCard({ row: row({ ...base, cardKind: 'update', preview: { before } }), parents: [] });
+    const create = toChatProposalCard({ row: createTransactionRow({ preview: { before } }), parents: [] });
+    const unresolved = toChatProposalCard({ row: row({ ...base, preview: null }), parents: [] });
+
+    expect(del.target?.map((field) => field.path)).toEqual(['amount', 'time', 'note']);
+    expect(update.target?.map((field) => field.path)).toEqual(['amount', 'time', 'note']);
+    expect(create).not.toHaveProperty('target');
+    expect(unresolved).not.toHaveProperty('target');
+  });
+
+  it('shows the ids of a transaction as records, its time as a date and time and its enums as choices', () => {
+    const card = toChatProposalCard({ row: createTransactionRow(), parents: [] });
+    const display = (path: string) => card.fields.find((field) => field.path === path)?.display?.kind;
+
+    expect(['accountId', 'payeeId', 'categoryId'].map(display)).toEqual(['entity', 'entity', 'entity']);
+    expect(display('time')).toBe('datetime');
+    expect(['transactionType', 'transferNature', 'paymentType'].map(display)).toEqual(['enum', 'enum', 'enum']);
+    expect(display('amount')).toBe('money');
+  });
+
   it('shows the value before on each field the call changes', () => {
     const card = toChatProposalCard({ row: row(), parents: [] });
 
