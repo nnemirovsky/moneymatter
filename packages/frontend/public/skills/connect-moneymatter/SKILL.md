@@ -470,8 +470,9 @@ multi-currency data.
   `pay_subscription_period` either links an existing transaction or books a new one.
   `revert_subscription_period` undoes a payment and also deletes a transaction the app
   booked for it, so it needs `finance:delete` in that case; a transaction you linked
-  yourself is kept. A revert keeps the period's note, so
-  clear a stale one with `update_subscription_period` (`notes: null`).
+  yourself is kept. A revert keeps the period's note and
+  adds the note of the open period it removes after it; edit or clear it with
+  `update_subscription_period` (`notes: null`).
 - File bytes never travel through MCP tool arguments. To attach a receipt, call
   `create_attachment_upload_url`, then POST each file as the raw request body to
   the returned `url` with the returned headers plus the file's URI-encoded name in

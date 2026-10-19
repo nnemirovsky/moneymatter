@@ -19,7 +19,7 @@ export function registerUpdateSubscriptionPeriod(server: McpServer) {
     'update_subscription_period',
     {
       description:
-        'Edit the note of a subscription period, in any status; notes is required and null clears the note. Nothing else about the period changes: use pay_subscription_period, skip_subscription_period or revert_subscription_period for that (a revert keeps the note, so clear a stale one with this tool). Returns the period. Requires finance:write scope.',
+        'Edit the note of a subscription period, in any status; notes is required and null clears the note. Nothing else about the period changes: use pay_subscription_period, skip_subscription_period or revert_subscription_period for that (a revert keeps the note and can add the note of the open period it removes, so edit or clear a stale one with this tool). Returns the period. Requires finance:write scope.',
       inputSchema,
     },
     async (args, extra) => {
