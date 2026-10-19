@@ -82,6 +82,10 @@ export const releaseRunSlots = async ({
   await redisClient.multi().zrem(threadRunsKey({ threadId }), runId).zrem(userRunsKey({ userId }), runId).exec();
 };
 
+/** Whether the thread has a run that has not ended; an entry nothing refreshes counts until it ages out. */
+export const hasActiveRun = async ({ threadId }: { threadId: string }): Promise<boolean> =>
+  (await redisClient.zcount(threadRunsKey({ threadId }), Date.now(), '+inf')) > 0;
+
 export const hasRunLease = async ({ runId }: { runId: string }): Promise<boolean> =>
   (await redisClient.exists(runLeaseKey({ runId }))) === 1;
 

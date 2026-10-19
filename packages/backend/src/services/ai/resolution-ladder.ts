@@ -1,5 +1,6 @@
 import { AIConnectionStatus, AIFeatureConfig, AI_FEATURE, AI_PROVIDER } from '@bt/shared/types';
 import { logger } from '@js/utils/logger';
+import type { StoredAiSettings } from '@models/user-settings.model';
 
 // The one place that decides which model answers an AI feature. The runtime resolver and
 // the settings screens both walk this ladder, so what runs and what the UI names cannot
@@ -80,6 +81,22 @@ export function getServerModel({
 /** `provider/model`, e.g. `anthropic/claude-sonnet-5` or `custom/llama3.2`. */
 export function buildConnectionModelId({ provider, model }: { provider: AI_PROVIDER; model: string }): string {
   return `${provider}/${model}`;
+}
+
+/**
+ * The user's stored pick for a feature. Chat has none: each chat thread carries its own connection, so a
+ * chat config left in the settings by an earlier version is never read.
+ */
+export function findStoredFeatureConfig({
+  aiSettings,
+  feature,
+}: {
+  aiSettings: StoredAiSettings | null;
+  feature: AI_FEATURE;
+}): AIFeatureConfig | null {
+  if (feature === AI_FEATURE.chat) return null;
+
+  return aiSettings?.featureConfigs?.find((candidate) => candidate.feature === feature) ?? null;
 }
 
 export interface LadderConnection {

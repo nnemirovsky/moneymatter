@@ -9,7 +9,8 @@ import { resolvePaidPlus, resolveServerKeysAllowed } from './build-feature-statu
 
 const schema = z.object({
   params: z.object({
-    feature: z.nativeEnum(AI_FEATURE),
+    // Chat has no feature config: each thread carries its own connection.
+    feature: z.enum(AI_FEATURE).exclude([AI_FEATURE.chat]),
   }),
   body: z.object({
     // null pins the included server model

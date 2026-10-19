@@ -15,6 +15,7 @@ import streamRunEvents from '@controllers/chat/runs/stream-run-events.controller
 import { updateChatSettings } from '@controllers/chat/settings.controller';
 import createThread from '@controllers/chat/threads/create-thread.controller';
 import deleteThread from '@controllers/chat/threads/delete-thread.controller';
+import getDefaultConnection from '@controllers/chat/threads/get-default-connection.controller';
 import getThread from '@controllers/chat/threads/get-thread.controller';
 import listThreads from '@controllers/chat/threads/list-threads.controller';
 import updateThread from '@controllers/chat/threads/update-thread.controller';
@@ -35,6 +36,7 @@ router.use(authenticateSession);
 // A read-only (lapsed plan) user may use these writes too; the allowed set lives in
 // `READ_ONLY_ROUTE_PATTERNS` (`middlewares/entitlements.ts`).
 
+router.get('/default-connection', getDefaultConnection);
 router.get('/threads', listThreads);
 router.post('/threads', blockDemoUsers, createThread);
 router.get('/threads/:id', getThread);

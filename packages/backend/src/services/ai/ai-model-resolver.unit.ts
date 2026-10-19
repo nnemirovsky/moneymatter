@@ -324,4 +324,68 @@ describe('resolveAIConfiguration', () => {
 
     expect(await resolveAIConfiguration({ userId: USER_ID, feature: FEATURE })).toBeNull();
   });
+  describe('pinned connection', () => {
+    beforeEach(() => {
+      decryptConnectionKeyMock.mockReturnValue('decrypted-key');
+    });
+
+    it('dials the pinned connection instead of the default one', async () => {
+      storeSettings({ connections: [CLAUDE, OLLAMA] });
+
+      const resolution = await resolveAIConfiguration({
+        userId: USER_ID,
+        feature: AI_FEATURE.chat,
+        pinnedConnectionId: OLLAMA.id,
+      });
+
+      expect(resolution).toMatchObject({ kind: 'connection', connectionId: OLLAMA.id });
+    });
+
+    it('overrides a stored config of the feature', async () => {
+      storeSettings({
+        connections: [CLAUDE, OLLAMA],
+        featureConfigs: [{ feature: FEATURE, connectionId: CLAUDE.id }],
+      });
+
+      const resolution = await resolveAIConfiguration({
+        userId: USER_ID,
+        feature: FEATURE,
+        pinnedConnectionId: OLLAMA.id,
+      });
+
+      expect(resolution).toMatchObject({ kind: 'connection', connectionId: OLLAMA.id });
+    });
+
+    it('falls to the default connection when the pinned one no longer exists', async () => {
+      storeSettings({ connections: [CLAUDE] });
+
+      const resolution = await resolveAIConfiguration({
+        userId: USER_ID,
+        feature: AI_FEATURE.chat,
+        pinnedConnectionId: OLLAMA.id,
+      });
+
+      expect(resolution).toMatchObject({ kind: 'connection', connectionId: CLAUDE.id });
+    });
+
+    it('never reads a stored chat config', async () => {
+      storeSettings({
+        connections: [CLAUDE, OLLAMA],
+        featureConfigs: [{ feature: AI_FEATURE.chat, connectionId: OLLAMA.id }],
+      });
+
+      const resolution = await resolveAIConfiguration({ userId: USER_ID, feature: AI_FEATURE.chat });
+
+      expect(resolution).toMatchObject({ kind: 'connection', connectionId: CLAUDE.id });
+    });
+
+    it('answers null for the included model when no server model serves chat', async () => {
+      grantEntitlements({ features: [FEATURES.operator_ai] });
+      storeSettings({ connections: [] });
+
+      expect(
+        await resolveAIConfiguration({ userId: USER_ID, feature: AI_FEATURE.chat, pinnedConnectionId: null }),
+      ).toBeNull();
+    });
+  });
 });

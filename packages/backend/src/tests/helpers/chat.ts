@@ -7,6 +7,7 @@ import {
   type ChatApproveRequest,
   type ChatAttachment,
   type ChatCancelRunResponse,
+  type ChatDefaultConnection,
   type ChatCardActionResponse,
   type ChatEditProposalRequest,
   type ChatProposalCard,
@@ -18,6 +19,7 @@ import {
   type ChatThread,
   type ChatThreadListPage,
   type ChatThreadWithMessages,
+  type ChatUpdateThreadRequest,
 } from '@bt/shared/types';
 import { app } from '@root/app';
 import { API_PREFIX } from '@root/config';
@@ -36,14 +38,22 @@ const buildQuery = ({ params }: { params: Record<string, string | number | undef
 
 export async function createChatThread<R extends boolean | undefined = undefined>({
   title,
+  connectionId,
   raw,
-}: { title?: string; raw?: R } = {}) {
+}: { title?: string; connectionId?: string | null; raw?: R } = {}) {
   return makeRequest<ChatThread, R>({
     method: 'post',
     url: '/chat/threads',
-    payload: title === undefined ? {} : { title },
+    payload: {
+      ...(title === undefined ? {} : { title }),
+      ...(connectionId === undefined ? {} : { connectionId }),
+    },
     raw,
   });
+}
+
+export async function getChatDefaultConnection<R extends boolean | undefined = undefined>({ raw }: { raw?: R } = {}) {
+  return makeRequest<ChatDefaultConnection, R>({ method: 'get', url: '/chat/default-connection', raw });
 }
 
 export async function listChatThreads<R extends boolean | undefined = undefined>({
@@ -83,7 +93,8 @@ export async function updateChatThread<R extends boolean | undefined = undefined
   raw,
 }: {
   threadId: string;
-  payload: { title?: string; pinned?: boolean };
+  /** Typed wide so a test can send a value the API must refuse. */
+  payload: Partial<ChatUpdateThreadRequest> & Record<string, unknown>;
   raw?: R;
 }) {
   return makeRequest<ChatThread, R>({ method: 'patch', url: `/chat/threads/${threadId}`, payload, raw });

@@ -5,10 +5,10 @@ import { z } from 'zod';
 import { threadTitleSchema } from './shared-schemas';
 
 const schema = z.object({
-  body: z.object({ title: threadTitleSchema.optional() }),
+  body: z.object({ title: threadTitleSchema.optional(), connectionId: z.uuid().nullable().optional() }),
 });
 
 export default createController(schema, async ({ user, body }) => ({
-  data: await createThread({ userId: user.id, title: body.title }),
+  data: await createThread({ userId: user.id, title: body.title, connectionId: body.connectionId }),
   statusCode: 201,
 }));

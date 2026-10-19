@@ -1,5 +1,4 @@
 import {
-  AI_FEATURE,
   CHAT_ATTACHMENT_TEXT_MAX_CHARS_PER_MESSAGE,
   CHAT_ATTACHMENTS_MAX_BYTES_PER_MESSAGE,
   type ChatClarificationAnswerInput,
@@ -14,7 +13,6 @@ import { ConflictError, NotFoundError, TooManyRequests, ValidationError } from '
 import ChatAttachments from '@models/chat-attachments.model';
 import ChatMessages from '@models/chat-messages.model';
 import { connection } from '@models/index';
-import { createAIClient } from '@services/ai';
 import { assertCliAiAllowed } from '@services/ai/cli/cli-access';
 import { describeMissingAiConfiguration } from '@services/ai/connection-failure';
 import { withTransaction } from '@services/common/with-transaction';
@@ -24,6 +22,7 @@ import { QueryTypes, col, fn } from 'sequelize';
 import { CHAT_PROMPT_VERSION } from '../prompt/system-prompt';
 import { selectChatRunner } from '../runners/select-runner';
 import { findThreadOrThrow } from '../threads/find-thread';
+import { createThreadAiClient } from '../threads/thread-connection';
 import { notifyThreadUpdated } from '../threads/thread-events';
 import { deriveThreadTitle } from '../threads/thread-title';
 import { touchThread } from '../threads/touch-thread';
@@ -246,10 +245,14 @@ export async function startChatRun({
   /** Set when the message is a comment on a card: the card it is about. */
   cardComment?: { proposalId: string };
 }): Promise<ChatSendMessageResponse> {
-  await findThreadOrThrow({ userId: user.id, threadId });
+  const thread = await findThreadOrThrow({ userId: user.id, threadId });
   const attachments = await loadSendableAttachments({ userId: user.id, threadId, attachmentIds });
 
-  const aiClient = await createAIClient({ userId: user.id, feature: AI_FEATURE.chat });
+  const aiClient = await createThreadAiClient({
+    userId: user.id,
+    threadId,
+    connectionId: thread.connectionId,
+  });
   if (!aiClient) throw new ValidationError({ message: await describeMissingAiConfiguration({ userId: user.id }) });
   // A CLI connection runs vendor binaries under the server's uid: admins of a self-hosted instance only.
   // Runs on one CLI connection are parallel, so there is no per-connection claim; the global CLI slots
