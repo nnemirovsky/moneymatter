@@ -32,6 +32,6 @@ describe('ChatEmptyState', () => {
 
     expect(wrapper.text()).toContain('Connect a model to start');
     expect(wrapper.findAll('[data-testid="example-prompt"]')).toHaveLength(0);
-    expect(wrapper.findComponent(RouterLinkStub).props('to')).toEqual({ name: ROUTES_NAMES.settingsAiFeatures });
+    expect(wrapper.findComponent(RouterLinkStub).props('to')).toEqual({ name: ROUTES_NAMES.settingsAiModels });
   });
 });

@@ -100,11 +100,16 @@
 </template>
 
 <script setup lang="ts">
-import { type AIModelNeed, type AIModelTier, getAIFeatureDisplayInfo } from '@/common/const';
+import {
+  type AIModelNeed,
+  type AIModelTier,
+  type ConfigurableAIFeatureStatus,
+  getAIFeatureDisplayInfo,
+} from '@/common/const';
 import ResponsivePopover from '@/components/common/responsive-popover.vue';
 import { Button } from '@/components/lib/ui/button';
 import { cn } from '@/lib/utils';
-import { AIFeatureStatus, getModelNameFromModelId } from '@bt/shared/types';
+import { getModelNameFromModelId } from '@bt/shared/types';
 import {
   AlignLeftIcon,
   BracesIcon,
@@ -124,7 +129,7 @@ import { useI18n } from 'vue-i18n';
 import type { ModelFit, ModelFitCheckKind } from './model-fit';
 
 const props = defineProps<{
-  featureStatus: AIFeatureStatus;
+  featureStatus: ConfigurableAIFeatureStatus;
   /** Null hides the model check, for anything but the user's own connection */
   fit: ModelFit | null;
 }>();

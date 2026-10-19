@@ -47,7 +47,7 @@ const PROMPT_KEYS = ['spending', 'biggest', 'subscriptions', 'duplicates'] as co
       </div>
       <h2 class="font-medium">{{ $t('chat.empty.notConfigured.title') }}</h2>
       <p class="text-muted-foreground max-w-md text-sm">{{ $t('chat.empty.notConfigured.description') }}</p>
-      <RouterLink :to="{ name: ROUTES_NAMES.settingsAiFeatures }" class="mt-1">
+      <RouterLink :to="{ name: ROUTES_NAMES.settingsAiModels }" class="mt-1">
         <Button as="span">{{ $t('chat.empty.notConfigured.cta') }}</Button>
       </RouterLink>
     </template>

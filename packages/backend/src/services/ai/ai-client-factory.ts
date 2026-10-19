@@ -94,13 +94,16 @@ export async function createAIClient({
   userId,
   feature,
   allowOperatorKey,
+  pinnedConnectionId,
 }: {
   userId: number;
   feature: AI_FEATURE;
   /** Grants the server key for this one call, for a feature the caller gates itself. */
   allowOperatorKey?: boolean;
+  /** Runs on this connection (null: the included server model) instead of the feature's stored config. */
+  pinnedConnectionId?: string | null;
 }): Promise<AIClientResult | null> {
-  const resolution = await resolveAIConfiguration({ userId, feature, allowOperatorKey });
+  const resolution = await resolveAIConfiguration({ userId, feature, allowOperatorKey, pinnedConnectionId });
 
   if (!resolution) {
     return null;

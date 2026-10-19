@@ -291,6 +291,10 @@ switch (scenario) {
     errorResult({ text: 'Claude AI usage limit reached|1893456000' });
     process.exit(1);
     break;
+  case 'out-of-credits':
+    errorResult({ text: 'Credit balance is too low · Add funds: https://console.anthropic.com/settings/billing' });
+    process.exit(1);
+    break;
   case 'overloaded':
     errorResult({ text: 'API Error: 529 Overloaded', status: 529 });
     process.exit(1);

@@ -99,15 +99,13 @@
           "categorization": "A short, repetitive job. A small model handles it well and keeps the cost down.",
           "statementParsing": "Reads the whole statement and writes back every row, so it needs a model that stays accurate over long text.",
           "investmentTransactionsParsing": "Turns broker exports into buy and sell rows. Long exports need a model that can write long answers.",
-          "receiptParsing": "The model looks at the invoice file itself, so it has to read images and PDFs.",
-          "chat": "Looks up your data with tools over many steps, reads attached files and writes long answers. A weak model skips tools or gets numbers wrong, so pick a strong one."
+          "receiptParsing": "The model looks at the invoice file itself, so it has to read images and PDFs."
         },
         "picks": {
           "categorization": "Gemini Flash Lite · Claude Haiku",
           "statementParsing": "Gemini Flash · Claude Sonnet · GPT Terra",
           "investmentTransactionsParsing": "Gemini Flash · Claude Sonnet",
-          "receiptParsing": "Gemini Flash · Claude Sonnet",
-          "chat": "Claude Sonnet · Claude Opus · GPT Terra"
+          "receiptParsing": "Gemini Flash · Claude Sonnet"
         },
         "verdict": {
           "fit": "Good fit",
@@ -335,6 +333,8 @@
         "saveFailed": "Failed to save custom instructions. Please try again."
       },
       "chat": {
+        "title": "Chat",
+        "description": "Your conversations with the assistant. Each conversation picks its own model in the chat.",
         "retention": {
           "title": "Conversation history",
           "description": "Conversations are deleted automatically this long after their last message.",

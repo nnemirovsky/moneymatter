@@ -19,6 +19,7 @@ import {
   classifyAiCallFailure,
   createAIClient,
   describeMissingAiConfiguration,
+  describeQuotaExhausted,
   describeRateLimited,
   hitOutputCeiling,
   isUserFixableEndpointDown,
@@ -94,6 +95,8 @@ async function resolveStopReason({
       return markEndpointUnreachable({ userId, aiClient });
     case 'blocked-address':
       return CUSTOM_ENDPOINT_ADDRESS_BLOCKED_ERROR_MESSAGE;
+    case 'quota-exhausted':
+      return describeQuotaExhausted({ aiClient });
     case 'rate-limited':
       return describeRateLimited({ aiClient, cause });
     case 'temporary':

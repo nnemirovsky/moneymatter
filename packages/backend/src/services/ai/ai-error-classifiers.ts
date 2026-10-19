@@ -153,6 +153,21 @@ export function isTemporaryError({ error }: { error: unknown }): boolean {
   return false;
 }
 
+/**
+ * True for a CLI run that failed because the subscription or workspace is out of credits. The marker is
+ * the synthetic body's `error.type`, so a plain API 402 stays a rejected key (`isAuthError`).
+ */
+function isQuotaExhaustedError({ error }: { error: unknown }): boolean {
+  const cause = unwrapRetryError({ error });
+  if (!(cause instanceof APICallError) || !cause.responseBody) return false;
+
+  try {
+    return (JSON.parse(cause.responseBody) as { error?: { type?: unknown } }).error?.type === 'quota_exhausted';
+  } catch {
+    return false;
+  }
+}
+
 export function isAuthError({ error }: { error: unknown }): boolean {
   if (error instanceof APICallError) {
     const status = error.statusCode;
@@ -189,6 +204,7 @@ export type AiCallFailureKind =
   | 'endpoint-down'
   | 'unsupported-request'
   | 'model-not-found'
+  | 'quota-exhausted'
   | 'auth'
   | 'rate-limited'
   | 'temporary'
@@ -204,7 +220,7 @@ interface AiCallFailure {
 
 /**
  * One verdict for a failed AI call. The precedence is load-bearing: blocked-address >
- * endpoint-down > unsupported-request > model-not-found > auth > rate-limited > temporary >
+ * endpoint-down > unsupported-request > model-not-found > quota-exhausted > auth > rate-limited > temporary >
  * unknown, because the broad predicates swallow the specific ones. `isTemporaryError`
  * accepts anything the SDK flagged retryable and `isAuthError` matches substrings in the message.
  */
@@ -226,6 +242,10 @@ export function classifyAiCallFailure({ error }: { error: unknown }): AiCallFail
   }
   if (isModelNotFoundError({ error: unwrapped })) {
     return { kind: 'model-not-found', cause, httpStatus };
+  }
+  // Before auth: the synthetic 402 would otherwise read as a rejected sign-in.
+  if (isQuotaExhaustedError({ error: unwrapped })) {
+    return { kind: 'quota-exhausted', cause, httpStatus };
   }
   if (isAuthError({ error: unwrapped })) {
     return { kind: 'auth', cause, httpStatus };

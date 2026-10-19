@@ -43,6 +43,10 @@ export default class ChatThreads extends Model {
   @Column({ type: DataType.DATE, allowNull: true })
   expiresAt!: Date | null;
 
+  /** An id in the owner's settings (`ai.connections`); null is the included server model or no choice yet. */
+  @Column({ type: DataType.UUID, allowNull: true })
+  connectionId!: string | null;
+
   @Column({ type: DataType.BIGINT, allowNull: false, defaultValue: 0 })
   inputTokens!: string | number;
 

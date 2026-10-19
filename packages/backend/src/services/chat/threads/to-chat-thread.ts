@@ -9,6 +9,7 @@ export interface ChatThreadRow {
   pinned: boolean;
   lastMessageAt: Date | string;
   expiresAt: Date | string | null;
+  connectionId: string | null;
   inputTokens: string | number;
   outputTokens: string | number;
   cachedInputTokens: string | number;
@@ -30,6 +31,7 @@ export const toChatThread = ({ row }: { row: ChatThreadRow }): ChatThread => ({
     outputTokens: Number(row.outputTokens),
     cachedInputTokens: Number(row.cachedInputTokens),
   },
+  connectionId: row.connectionId,
   createdAt: toIso({ value: row.createdAt }),
 });
 

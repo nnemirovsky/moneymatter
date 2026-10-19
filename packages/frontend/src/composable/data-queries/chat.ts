@@ -5,6 +5,7 @@ import {
   createChatThread,
   deleteChatThread,
   editChatProposal,
+  getChatDefaultConnection,
   getChatThread,
   listChatAppliedCards,
   listChatThreads,
@@ -130,17 +131,33 @@ export const useChatThread = ({ threadId }: { threadId: MaybeRefOrGetter<string 
   };
 };
 
+/**
+ * The connection a new conversation would start on, for the picker of a conversation that has no thread
+ * yet. It is read fresh each time such a conversation opens: the answer follows the latest thread.
+ */
+export const useChatDefaultConnection = ({ enabled }: { enabled: MaybeRefOrGetter<boolean> }) =>
+  useQuery({
+    queryKey: [...VUE_QUERY_CACHE_KEYS.chatDefaultConnection],
+    queryFn: getChatDefaultConnection,
+    enabled: computed(() => toValue(enabled)),
+    staleTime: 0,
+  });
+
 export const useCreateChatThread = () =>
   useInvalidatingMutation({
     mutationFn: createChatThread,
-    invalidateKeys: [[...VUE_QUERY_CACHE_KEYS.chatThreads]],
+    invalidateKeys: [[...VUE_QUERY_CACHE_KEYS.chatThreads], [...VUE_QUERY_CACHE_KEYS.chatDefaultConnection]],
     errorKey: 'chat.errors.threadAction',
   });
 
 export const useUpdateChatThread = () =>
   useInvalidatingMutation({
     mutationFn: updateChatThread,
-    invalidateKeys: [[...VUE_QUERY_CACHE_KEYS.chatThreads], [...VUE_QUERY_CACHE_KEYS.chatThread]],
+    invalidateKeys: [
+      [...VUE_QUERY_CACHE_KEYS.chatThreads],
+      [...VUE_QUERY_CACHE_KEYS.chatThread],
+      [...VUE_QUERY_CACHE_KEYS.chatDefaultConnection],
+    ],
     errorKey: 'chat.errors.threadAction',
   });
 

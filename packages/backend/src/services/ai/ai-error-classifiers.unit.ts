@@ -1,3 +1,4 @@
+import { AI_PROVIDER } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
 import { ValidationError } from '@js/errors';
 import { APICallError, RetryError } from 'ai';
@@ -13,6 +14,7 @@ import {
   isTemporaryError,
   unwrapRetryError,
 } from './ai-error-classifiers';
+import { mapCliFailure } from './cli/cli-errors';
 
 /** What a tunnel with nothing behind it, or a plain web server, answers with. */
 const HTML_ERROR_PAGE = '<html><body>The endpoint is offline (ERR_NGROK_3200)</body></html>';
@@ -278,6 +280,21 @@ describe('isAuthError', () => {
 // A reshuffle of this precedence silently changes which endpoints get flagged dead and
 // which keys get blamed.
 describe('classifyAiCallFailure', () => {
+  it('names an exhausted subscription from either CLI, and does not read it as a rejected sign-in', () => {
+    for (const provider of [AI_PROVIDER.codex, AI_PROVIDER.claudeCode] as const) {
+      const error = mapCliFailure({
+        provider,
+        text: 'Your workspace is out of credits. Ask your workspace owner to refill in order to continue.',
+      });
+
+      expect(classifyAiCallFailure({ error })).toMatchObject({ kind: 'quota-exhausted', httpStatus: 402 });
+    }
+  });
+
+  it('keeps a plain 402 from an API as a rejected key', () => {
+    expect(classifyAiCallFailure({ error: buildApiCallError({ statusCode: 402 }) }).kind).toBe('auth');
+  });
+
   it('reports a blocked address first, even when the SDK retried over it', () => {
     const blocked = new ValidationError({ message: 'blocked' });
     const error = buildRetryError({ errors: [new TypeError('fetch failed'), blocked] });

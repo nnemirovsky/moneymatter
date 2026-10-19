@@ -1,7 +1,12 @@
 import { createRunState } from '@/composable/chat/apply-run-event';
 import { useChatRun } from '@/composable/chat/use-chat-run';
 import { useAiSettings } from '@/composable/data-queries/ai-settings';
-import { useChatThread, useCreateChatThread } from '@/composable/data-queries/chat';
+import {
+  useChatDefaultConnection,
+  useChatThread,
+  useCreateChatThread,
+  useUpdateChatThread,
+} from '@/composable/data-queries/chat';
 import { notifyMutationError } from '@/composable/data-queries/use-invalidating-mutation';
 import type { ChatMessage, ChatProposalCard, ChatThread } from '@bt/shared/types';
 import { flushPromises, mount } from '@vue/test-utils';
@@ -11,7 +16,12 @@ import { computed, defineComponent, h, ref, shallowRef } from 'vue';
 import { createChatI18n } from './cards/card-test-fixtures';
 import ChatConversation from './chat-conversation.vue';
 
-vi.mock('@/composable/data-queries/chat', () => ({ useChatThread: vi.fn(), useCreateChatThread: vi.fn() }));
+vi.mock('@/composable/data-queries/chat', () => ({
+  useChatDefaultConnection: vi.fn(),
+  useChatThread: vi.fn(),
+  useCreateChatThread: vi.fn(),
+  useUpdateChatThread: vi.fn(),
+}));
 vi.mock('@/composable/chat/use-chat-run', () => ({ useChatRun: vi.fn() }));
 vi.mock('@/composable/data-queries/ai-settings', () => ({ useAiSettings: vi.fn() }));
 vi.mock('@/composable/data-queries/use-invalidating-mutation', () => ({ notifyMutationError: vi.fn() }));
@@ -63,17 +73,35 @@ const fill = vi.fn();
 const ComposerStub = defineComponent({
   props: ['isStreaming', 'disabled', 'context', 'ensureThread'],
   emits: ['send', 'cancel'],
-  setup: (props, { emit, expose }) => {
+  setup: (props, { emit, expose, slots }) => {
     expose({ fill });
     return () =>
-      h('div', {
-        'data-testid': 'composer',
-        'data-streaming': String(props.isStreaming),
-        'data-disabled': String(props.disabled),
-        onClick: () => emit('send', { text: 'Ask', attachmentIds: ['att-1'], pageContext: { route: 'x' } }),
-        onDblclick: () => emit('cancel'),
-      });
+      h(
+        'div',
+        {
+          'data-testid': 'composer',
+          'data-streaming': String(props.isStreaming),
+          'data-disabled': String(props.disabled),
+          onClick: () => emit('send', { text: 'Ask', attachmentIds: ['att-1'], pageContext: { route: 'x' } }),
+          onDblclick: () => emit('cancel'),
+        },
+        slots.connection?.(),
+      );
   },
+});
+
+const PickerStub = defineComponent({
+  props: ['connectionId', 'disabled'],
+  emits: ['select'],
+  setup:
+    (props, { emit }) =>
+    () =>
+      h('button', {
+        'data-testid': 'picker',
+        'data-connection': String(props.connectionId),
+        'data-disabled': String(props.disabled),
+        onClick: () => emit('select', 'c-picked'),
+      }),
 });
 
 const EmptyStub = defineComponent({
@@ -95,6 +123,7 @@ const cancel = vi.fn();
 const loadOlder = vi.fn();
 const refetch = vi.fn();
 const mutateAsync = vi.fn();
+const updateMutateAsync = vi.fn();
 
 const state = {
   messages: ref<ChatMessage[]>([]),
@@ -105,6 +134,9 @@ const state = {
   run: shallowRef<ReturnType<typeof createRunState> | null>(null),
   featureServedBy: ref<'connection' | 'server' | null>('connection'),
   featureKnown: ref(true),
+  thread: ref<ChatThread | null>(null),
+  defaultConnectionId: ref<string | null>('c-default'),
+  isUpdating: ref(false),
 };
 
 // The mocked state is shared, so a conversation left mounted would keep reacting to the next test's changes.
@@ -118,6 +150,7 @@ const mountConversation = ({ threadId = 'thread-1' }: { threadId?: string | null
       stubs: {
         ChatMessage: MessageStub,
         ChatComposer: ComposerStub,
+        ChatConnectionPicker: PickerStub,
         ChatEmptyState: EmptyStub,
         ScrollArea: { template: '<div><slot /></div>' },
       },
@@ -133,7 +166,17 @@ describe('ChatConversation', () => {
   });
 
   beforeEach(() => {
-    for (const mock of [send, attach, cancel, loadOlder, refetch, mutateAsync, fill, vi.mocked(notifyMutationError)]) {
+    for (const mock of [
+      send,
+      attach,
+      cancel,
+      loadOlder,
+      refetch,
+      mutateAsync,
+      updateMutateAsync,
+      fill,
+      vi.mocked(notifyMutationError),
+    ]) {
       mock.mockReset();
     }
     send.mockResolvedValue({ runId: 'run-1', messageId: 'm-1', userMessageId: 'u-1' });
@@ -146,11 +189,15 @@ describe('ChatConversation', () => {
     state.run.value = null;
     state.featureServedBy.value = 'connection';
     state.featureKnown.value = true;
+    state.thread.value = { id: 'thread-1', connectionId: 'c-thread' } as ChatThread;
+    state.defaultConnectionId.value = 'c-default';
+    state.isUpdating.value = false;
+    updateMutateAsync.mockResolvedValue({});
 
     vi.mocked(useChatThread).mockImplementation(
       () =>
         ({
-          thread: computed(() => null),
+          thread: computed(() => state.thread.value),
           messages: computed(() => state.messages.value),
           cards: computed(() => state.cards.value),
           hasMore: computed(() => state.hasMore.value),
@@ -165,6 +212,13 @@ describe('ChatConversation', () => {
     vi.mocked(useCreateChatThread).mockReturnValue({ mutateAsync } as unknown as ReturnType<
       typeof useCreateChatThread
     >);
+    vi.mocked(useUpdateChatThread).mockReturnValue({
+      mutateAsync: updateMutateAsync,
+      isPending: state.isUpdating,
+    } as unknown as ReturnType<typeof useUpdateChatThread>);
+    vi.mocked(useChatDefaultConnection).mockReturnValue({
+      data: computed(() => ({ connectionId: state.defaultConnectionId.value })),
+    } as unknown as ReturnType<typeof useChatDefaultConnection>);
     vi.mocked(useChatRun).mockReturnValue({
       run: state.run,
       isStreaming: computed(() => state.run.value?.status === 'streaming'),
@@ -394,5 +448,69 @@ describe('ChatConversation', () => {
     state.isLoading.value = true;
 
     expect(mountConversation().find('[data-testid="conversation-skeleton"]').exists()).toBe(true);
+  });
+  describe('connection picker', () => {
+    const picker = (wrapper: ReturnType<typeof mountConversation>) => wrapper.find('[data-testid="picker"]');
+
+    it('shows the connection of the thread', () => {
+      expect(picker(mountConversation()).attributes('data-connection')).toBe('c-thread');
+    });
+
+    it('shows the default the server would choose for a conversation that has not started', () => {
+      state.thread.value = null;
+
+      expect(picker(mountConversation({ threadId: null })).attributes('data-connection')).toBe('c-default');
+    });
+
+    it('switches the connection of the thread', async () => {
+      const wrapper = mountConversation();
+
+      await picker(wrapper).trigger('click');
+      await flushPromises();
+
+      expect(updateMutateAsync).toHaveBeenCalledWith({ threadId: 'thread-1', payload: { connectionId: 'c-picked' } });
+    });
+
+    it('creates the thread on the connection picked before the first message', async () => {
+      state.thread.value = null;
+      mutateAsync.mockResolvedValue({ id: 'new-thread', connectionId: 'c-picked' } as ChatThread);
+      const wrapper = mountConversation({ threadId: null });
+
+      await picker(wrapper).trigger('click');
+      expect(picker(wrapper).attributes('data-connection')).toBe('c-picked');
+      expect(updateMutateAsync).not.toHaveBeenCalled();
+
+      await wrapper.find('[data-testid="composer"]').trigger('click');
+      await flushPromises();
+
+      expect(mutateAsync).toHaveBeenCalledWith({ connectionId: 'c-picked' });
+    });
+
+    it('creates the thread without a connection when the user picked none', async () => {
+      state.thread.value = null;
+      const wrapper = mountConversation({ threadId: null });
+
+      await wrapper.find('[data-testid="composer"]').trigger('click');
+      await flushPromises();
+
+      expect(mutateAsync).toHaveBeenCalledWith({});
+    });
+
+    it('is disabled while an answer streams', () => {
+      state.messages.value = [assistant({ id: 'm-live', status: 'streaming', parts: [] })];
+      state.run.value = createRunState({ runId: 'run-1', messageId: 'm-live' });
+
+      expect(picker(mountConversation()).attributes('data-disabled')).toBe('true');
+    });
+
+    it('goes back to the stored connection when the switch is refused', async () => {
+      updateMutateAsync.mockRejectedValue(new Error('conflict'));
+      const wrapper = mountConversation();
+
+      await picker(wrapper).trigger('click');
+      await flushPromises();
+
+      expect(picker(wrapper).attributes('data-connection')).toBe('c-thread');
+    });
   });
 });

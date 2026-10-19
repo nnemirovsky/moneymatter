@@ -51,6 +51,7 @@
     "fileTooLarge": "This file is larger than {{maxMegabytes}} MB. Upload a smaller one.",
     "runNotFound": "Chat run not found",
     "runInProgress": "The assistant is still answering in this conversation. Wait for it to finish or stop it first.",
+    "includedModelUnavailable": "The included model is not available for chat. Pick one of your own connections.",
     "tooManyRuns": "Too many answers are in progress at once. Wait for one to finish and try again.",
     "attachmentsTooLarge": "The attachments of one message can be up to 25 MB in total. Send fewer or smaller files.",
     "attachmentsTextTooLong": "The attachments of one message can hold up to 300,000 characters of text in total. Send fewer or shorter files.",

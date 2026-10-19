@@ -1,5 +1,6 @@
 import { AI_PROVIDER } from '@bt/shared/types';
 import { describe, expect, it, jest } from '@jest/globals';
+import { mapCliFailure } from '@services/ai/cli/cli-errors';
 
 jest.mock('@services/ai/connection-failure', () => ({
   isUserFixableEndpointDown: jest.fn(),
@@ -23,6 +24,19 @@ describe('describeRunFailure', () => {
     });
 
     expect(failure).toEqual({ code: 'cliBusy', messageKey: 'chat.cliBusy' });
+    expect(markConnectionRejected).not.toHaveBeenCalled();
+  });
+
+  it('names an exhausted subscription and leaves the connection alone', async () => {
+    const error = mapCliFailure({
+      provider: AI_PROVIDER.codex,
+      text: 'Your workspace is out of credits. Ask your workspace owner to refill in order to continue.',
+      exitCode: 1,
+    });
+
+    const failure = await describeRunFailure({ error, userId: 1, aiClient });
+
+    expect(failure).toEqual({ code: 'quotaExhausted', messageKey: 'chat.errors.quotaExhausted' });
     expect(markConnectionRejected).not.toHaveBeenCalled();
   });
 

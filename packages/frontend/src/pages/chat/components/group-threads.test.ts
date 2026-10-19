@@ -11,6 +11,7 @@ const thread = ({ id, pinned = false }: { id: string; pinned?: boolean }): ChatT
   lastMessageAt: '2026-03-05T10:00:00.000Z',
   expiresAt: null,
   usage: { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 },
+  connectionId: null,
   createdAt: '2026-03-05T10:00:00.000Z',
 });
 

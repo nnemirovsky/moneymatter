@@ -338,6 +338,26 @@ export async function readStoredFeatureConfigs({ userId }: { userId: number }) {
   return settings?.settings?.ai?.featureConfigs ?? [];
 }
 
+/** Arranges a feature config the way `PUT /user/settings/ai/features/:feature` once left it. The settings row has to exist already. */
+export async function seedStoredFeatureConfig({
+  feature,
+  connectionId,
+}: {
+  feature: AI_FEATURE;
+  connectionId: string | null;
+}): Promise<void> {
+  const userId = await getTestUserId();
+  const settings = await UserSettings.findOne({ where: { userId } });
+  if (!settings) throw new Error('Expected the test user to have a settings row by now');
+
+  const ai = settings.settings.ai ?? {};
+  settings.settings = {
+    ...settings.settings,
+    ai: { ...ai, featureConfigs: [...(ai.featureConfigs ?? []), { feature, connectionId }] },
+  };
+  await settings.save();
+}
+
 /** Arranges a stored retention the way `PUT /chat/settings` leaves it. The settings row has to exist already. */
 export async function seedStoredChatRetention({
   retentionDays,

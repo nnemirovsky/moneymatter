@@ -2,7 +2,12 @@ import { AIFeatureStatus, AI_FEATURE, AI_PROVIDER, isAiCliProvider } from '@bt/s
 import type { StoredAiSettings } from '@models/user-settings.model';
 
 import { getModelProfile } from '../ai/model-catalog';
-import { buildConnectionModelId, getServerModel, pickResolutionStep } from '../ai/resolution-ladder';
+import {
+  buildConnectionModelId,
+  findStoredFeatureConfig,
+  getServerModel,
+  pickResolutionStep,
+} from '../ai/resolution-ladder';
 
 async function describeModel(spec: {
   provider: AI_PROVIDER;
@@ -30,7 +35,7 @@ export async function resolveFeatureStatus({
   serverKeysAllowed: boolean;
   paidPlus: boolean;
 }): Promise<AIFeatureStatus> {
-  const config = aiSettings?.featureConfigs?.find((candidate) => candidate.feature === feature) ?? null;
+  const config = findStoredFeatureConfig({ aiSettings, feature });
   const connections = aiSettings?.connections ?? [];
   const serverModel = getServerModel({ feature, serverKeysAllowed, paidPlus });
   const serverModelName = serverModel ? (await describeModel(serverModel)).modelName : null;

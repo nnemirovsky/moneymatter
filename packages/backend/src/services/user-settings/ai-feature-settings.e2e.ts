@@ -1,5 +1,6 @@
 import { AI_FEATURE, PLANS } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
+import { ERROR_CODES } from '@js/errors';
 import { SERVER_MODELS } from '@services/ai/resolution-ladder';
 import * as helpers from '@tests/helpers';
 import { enableServerModel, runAsCloud, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
@@ -95,6 +96,27 @@ describe('AI feature settings', () => {
       const status = await helpers.getAiFeatureConfig({ feature: AI_FEATURE.chat, raw: true });
 
       expect(status).toMatchObject({ servedBy: 'connection', connectionId: first.id, modelId: FIRST_MODEL_ID });
+    });
+
+    it('refuses to pin or reset the chat feature: every chat thread carries its own connection', async () => {
+      const first = await createFirstConnection();
+
+      const pinned = await helpers.setAiFeatureConfig({ feature: AI_FEATURE.chat, connectionId: first.id });
+      const reset = await helpers.resetAiFeatureConfig({ feature: AI_FEATURE.chat });
+
+      expect(pinned.statusCode).toBe(ERROR_CODES.ValidationError);
+      expect(reset.statusCode).toBe(ERROR_CODES.ValidationError);
+      expect(await readStoredFeatureConfigs({ userId: await getTestUserId() })).toEqual([]);
+    });
+
+    it('reports chat from the default walk even when a chat config was stored earlier', async () => {
+      const first = await createFirstConnection();
+      const second = await createSecondConnection();
+      await helpers.seedStoredFeatureConfig({ feature: AI_FEATURE.chat, connectionId: second.id });
+
+      const status = await helpers.getAiFeatureConfig({ feature: AI_FEATURE.chat, raw: true });
+
+      expect(status).toMatchObject({ isConfigured: false, servedBy: 'connection', connectionId: first.id });
     });
 
     it('falls back to the included server model when the user has no connections', async () => {

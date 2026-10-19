@@ -14,6 +14,8 @@ export interface StubThread {
   title: string;
   pinned: boolean;
   lastMessageAt: string;
+  /** The connection the thread runs on; null is the included model. */
+  connectionId: string | null;
   messages: Json[];
 }
 
@@ -28,6 +30,10 @@ export interface ChatStub {
   cards: Map<string, Json>;
   appliedChanges: Json[];
   retentionDays: number | null;
+  /** The user's AI connections, as the settings API lists them; null leaves the real list in place. */
+  connections: Json[] | null;
+  /** What a new conversation starts on. */
+  defaultConnectionId: string | null;
   /** The script the next message (or comment) starts. */
   nextRun: RunScript;
   /** Every request the page made to the chat API, in order. */
@@ -102,6 +108,7 @@ const asListItem = ({ thread, query }: { thread: StubThread; query: string }) =>
   lastMessageAt: thread.lastMessageAt,
   expiresAt: null,
   usage: ZERO_USAGE,
+  connectionId: thread.connectionId,
   createdAt: NOW,
   ...(query ? { snippet: `…${thread.title}…` } : {}),
 });
@@ -119,6 +126,8 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
     cards: new Map(),
     appliedChanges: [],
     retentionDays: 30,
+    connections: null,
+    defaultConnectionId: null,
     nextRun: { events: [{ type: 'run.finished', status: 'complete' }], finalParts: [] },
     calls: [],
     addThread: (thread) => {
@@ -126,6 +135,7 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
         title: DEFAULT_TITLE,
         pinned: false,
         lastMessageAt: NOW,
+        connectionId: null,
         messages: [],
         ...thread,
       };
@@ -185,7 +195,7 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
       rewrite(body);
       await route.fulfill({ response, json: body });
     } catch (error) {
-      if (page.isClosed() || /closed/i.test(String(error))) return;
+      if (page.isClosed() || /closed|disposed/i.test(String(error))) return;
       throw error;
     }
   };
@@ -200,6 +210,11 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
       },
     }),
   );
+
+  await page.route('**/api/v1/user/settings/ai/connections', (route) => {
+    if (route.request().method() !== 'GET' || stub.connections === null) return route.fallback();
+    return ok({ route, response: stub.connections });
+  });
 
   await page.route('**/api/v1/user/settings', async (route) => {
     if (route.request().method() !== 'GET') return route.fallback();
@@ -230,8 +245,15 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
       });
     }
 
+    if (method === 'GET' && path === '/default-connection') {
+      return ok({ route, response: { connectionId: stub.defaultConnectionId } });
+    }
+
     if (method === 'POST' && path === '/threads') {
-      const thread = stub.addThread({ id: `thread-${stub.threads.length + 1}` });
+      const thread = stub.addThread({
+        id: `thread-${stub.threads.length + 1}`,
+        connectionId: 'connectionId' in (body ?? {}) ? (body!.connectionId as string | null) : stub.defaultConnectionId,
+      });
       return ok({ route, response: asListItem({ thread, query: '' }), status: 201 });
     }
 
@@ -254,6 +276,7 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
       if (method === 'PATCH') {
         if (typeof body?.title === 'string') thread.title = body.title;
         if (typeof body?.pinned === 'boolean') thread.pinned = body.pinned;
+        if (body && 'connectionId' in body) thread.connectionId = body.connectionId as string | null;
         return ok({ route, response: asListItem({ thread, query: '' }) });
       }
       if (method === 'DELETE') {

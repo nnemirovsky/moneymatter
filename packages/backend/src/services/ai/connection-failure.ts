@@ -136,6 +136,17 @@ export async function markConnectionRejected({
   return suspendDeadServerKey({ aiClient, message });
 }
 
+/**
+ * A subscription or workspace with no credits left. The connection itself is fine (the sign-in and the model
+ * worked), so nothing is flagged: the fix is to top up the subscription or use another connection.
+ */
+export function describeQuotaExhausted({ aiClient }: { aiClient: AIClientResult }): string {
+  const cliProvider = asAiCliProvider({ provider: aiClient.provider });
+  const subject = cliProvider ? `Your ${CLI_PROVIDER_LABEL[cliProvider]} subscription` : 'Your AI account';
+
+  return `${subject} is out of credits. Top up the subscription or pick another model in AI settings.`;
+}
+
 const RATE_LIMITED_ERROR_MESSAGE = 'AI provider rate limit reached. Please try again in a few minutes.';
 
 /** `YYYY-MM-DD HH:mm UTC`: the message has no request locale or timezone to format against. */

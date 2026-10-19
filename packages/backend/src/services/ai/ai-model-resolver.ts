@@ -1,4 +1,12 @@
-import { AINativeProvider, AI_FEATURE, AI_PROVIDER, FEATURES, asAiCliProvider, hasPaidPlus } from '@bt/shared/types';
+import {
+  AIFeatureConfig,
+  AINativeProvider,
+  AI_FEATURE,
+  AI_PROVIDER,
+  FEATURES,
+  asAiCliProvider,
+  hasPaidPlus,
+} from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { logger } from '@js/utils/logger';
 import type { StoredConnection } from '@models/user-settings.model';
@@ -13,7 +21,12 @@ import {
 import type { ProviderModelSpec } from './ai-client-factory';
 import { getCliAiAccess } from './cli/cli-access';
 import { CONNECTION_KEY_UNREADABLE_ERROR_MESSAGE } from './connection-failure';
-import { buildConnectionModelId, getServerApiKey, pickResolutionStep } from './resolution-ladder';
+import {
+  buildConnectionModelId,
+  findStoredFeatureConfig,
+  getServerApiKey,
+  pickResolutionStep,
+} from './resolution-ladder';
 
 type AIConfigResolution =
   | (ProviderModelSpec & { kind: 'connection'; modelId: string; connectionId: string; usingUserKey: true })
@@ -66,15 +79,24 @@ export async function resolveAIConfiguration({
   userId,
   feature,
   allowOperatorKey = false,
+  pinnedConnectionId,
 }: {
   userId: number;
   feature: AI_FEATURE;
   /** Grants the server key for this one call, for a feature the caller gates itself. */
   allowOperatorKey?: boolean;
+  /**
+   * Stands in for the stored feature config: a connection id, or null for the included server model.
+   * Omitted, the stored config applies (chat has none: its threads carry the pick).
+   */
+  pinnedConnectionId?: string | null;
 }): Promise<AIConfigResolution | null> {
   const aiSettings = await getStoredAiSettings({ userId });
   const connections = aiSettings?.connections ?? [];
-  const config = aiSettings?.featureConfigs?.find((candidate) => candidate.feature === feature) ?? null;
+  const config: AIFeatureConfig | null =
+    pinnedConnectionId === undefined
+      ? findStoredFeatureConfig({ aiSettings, feature })
+      : { feature, connectionId: pinnedConnectionId };
   const entitlements = await getEntitlementsByUserId({ userId });
   const serverKeysAllowed = allowOperatorKey || entitlements.features.includes(FEATURES.operator_ai);
   const paidPlus = hasPaidPlus({ entitlements });

@@ -103,7 +103,7 @@ The **Model** field lists the models the program accepts. Each connection has a 
 
 Not every model is available on every plan. If your plan doesn't include the one you picked, **Test connection** says that the provider doesn't offer that model on your subscription. Pick another one.
 
-Larger models answer better but use up your plan's limits faster. Since you can add the same connection more than once, a common setup is a fast model for categorization and a stronger one for reading statements. Then choose the model for each feature on the **AI Features** tab.
+Larger models answer better but use up your plan's limits faster. Since you can add the same connection more than once, a common setup is a fast model for categorization and a stronger one for reading statements. Then choose the model for each feature on the **AI Features** tab. Chat is the exception: you pick its model in each conversation.
 
 Connections on a subscription are marked **Subscription**. They don't show a cost estimate. Where a price would normally appear, you'll see "Included in your subscription".
 
@@ -114,13 +114,13 @@ A subscription has its own usage limits, set by Claude or ChatGPT and shared wit
 - **Runs can overlap.** Several runs of one connection can go at the same time, which draws on your plan faster. Across the server, no more than four runs go at the same time unless the server's owner changes `AI_CLI_MAX_CONCURRENT_RUNS`. Larger imports and categorization can take a little longer than with an API key.
 - **A single run can take up to five minutes** before it's cancelled.
 
-When your plan's limit is reached, the feature tells you the subscription limit is used up and, when the provider says so, when it resets. Try again after the reset, or pick another model for that feature.
+When your plan's limit is reached, the feature tells you the subscription limit is used up and, when the provider says so, when it resets. Try again after the reset, or pick another model for that feature (for Chat, under the message box).
 
 MoneyMatter's usage shows up on your plan's usage page at Claude or ChatGPT, like any other use of the account.
 
 ## Chat on a subscription
 
-[Chat](/ai/chat/) works on a subscription connection too. Choose the connection for **Chat** on the **AI Features** tab, like for any other feature. Only an admin of the server can pick one. Everyone else on the instance uses their own API key connections.
+[Chat](/ai/chat/) works on a subscription connection too. Pick the connection under the message box in Chat, one per conversation. Only an admin of the server can pick one. Everyone else on the instance uses their own API key connections.
 
 What's different from an API key:
 

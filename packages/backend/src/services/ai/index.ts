@@ -4,6 +4,7 @@ export { AI_MAX_OUTPUT_TOKENS, AI_OUTPUT_TRUNCATED_MESSAGE, hitOutputCeiling } f
 export { buildUnsupportedRequestMessage, classifyAiCallFailure, type AiCallFailureKind } from './ai-error-classifiers';
 export {
   describeMissingAiConfiguration,
+  describeQuotaExhausted,
   describeRateLimited,
   isUserFixableEndpointDown,
   markConnectionRejected,

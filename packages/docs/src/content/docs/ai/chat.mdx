@@ -27,13 +27,17 @@ Chat uses the same tools as the [MoneyMatter MCP server](/ai/connect-claude-chat
 1. Click the gear button (**Settings**) at the top right of the app.
 2. Under **Workspace**, choose **AI**.
 3. On the **AI models** tab, add a model if you don't have one yet.
-4. On the **AI Features** tab, choose the model for **Chat**.
+4. Open **Chat**. Under the message box, choose the model for the conversation.
 
 </Steps>
 
-Until you do, the Chat page says "Connect a model to start" and links to the AI settings.
+Each conversation has its own model, so you switch it in the chat and not in Settings. The list shows all your models, plus **Included model** where your instance offers one. A new conversation starts on the model of your latest one, or on your default model if you have none yet. Change the model at any time: it applies from the next message, and the earlier messages stay as they are. You can't switch while an answer is being written.
 
-**Pick a strong model.** Chat looks up your data with tools over many steps, reads attached files and writes long answers. A weak model skips tools or gets numbers wrong. The model guide next to the picker suggests Claude Sonnet, Claude Opus or GPT Terra.
+If you delete the model a conversation uses, the next message runs on the model of your latest conversation, or on your default model when that one is gone too, and the conversation keeps that choice.
+
+Until you have a model, the Chat page says "Connect a model to start" and links to the AI settings.
+
+**Pick a strong model.** Chat looks up your data with tools over many steps, reads attached files and writes long answers. A weak model skips tools or gets numbers wrong. Claude Sonnet, Claude Opus and GPT Terra are good choices.
 
 **The model must support tool calling.** **Test connection** checks it, and shows "It can't look up your data, so the chat can't answer or propose changes" when the model can't. Reading images and PDFs matters too if you attach them. Local models vary a lot here, so test before you rely on one.
 
@@ -177,7 +181,7 @@ Every conversation is saved. In the list:
 - the menu on a conversation lets you **Rename**, **Pin** or **Delete** it;
 - a pinned conversation moves to the top and is never deleted automatically.
 
-Conversations are deleted automatically a set time after their **last message**. The default is **30 days**. Change it in **Settings**, **AI**, on the Chat feature: **Keep conversations for** 7 days, 30 days, 90 days, 1 year or **Never delete automatically**. Each conversation shows the date it will be deleted.
+Conversations are deleted automatically a set time after their **last message**. The default is **30 days**. Change it in **Settings**, **AI**, in the **Chat** block under the features: **Keep conversations for** 7 days, 30 days, 90 days, 1 year or **Never delete automatically**. Each conversation shows the date it will be deleted.
 
 Deleting a conversation deletes its messages, cards and the record of changes applied from it. The changes already made to your data stay.
 
@@ -243,16 +247,17 @@ The sandbox limits what the AI's code can do. It doesn't remove the need to chec
 
 ### For operators of a shared instance
 
-Chat uses each person's own connection. No server model is included, so the hosted plans don't offer one either. To offer a model that the operator pays for, add one entry for the Chat feature to `SERVER_MODELS` (and `PLUS_SERVER_MODELS` for Plus) in `services/ai/resolution-ladder.ts` of the backend. Users with the operator AI feature then get it with no other change.
+Chat uses the connection each person picks in the conversation. No server model is included, so the hosted plans don't offer one either. To offer a model that the operator pays for, add one entry for the Chat feature to `SERVER_MODELS` (and `PLUS_SERVER_MODELS` for Plus) in `services/ai/resolution-ladder.ts` of the backend. Users with the operator AI feature then get it with no other change.
 
 ## If something goes wrong
 
 | What you see | What to do |
 | --- | --- |
-| "Connect a model to start" | Choose a model for Chat in **Settings**, **AI**. |
-| "This model could not handle the request" | The model doesn't support tool calling or the file you attached. Pick another model for Chat. |
+| "Connect a model to start" | Add a model in **Settings**, **AI**, then pick it under the message box in Chat. |
+| "This model could not handle the request" | The model doesn't support tool calling or the file you attached. Pick another model under the message box. |
 | "The provider rejected your credentials" | Update the connection in **Settings**, **AI**. |
 | "The provider is limiting requests" | Wait a minute and try again. |
+| "The subscription behind this model is out of credits" | The Claude or ChatGPT subscription has no credits left (for a ChatGPT workspace, its owner refills them). Pick another model under the message box, or top up the subscription. |
 | "The server restarted, so this answer was cut short" | Send the message again. Cards created before the restart are still there. |
 | "Waiting for a free Claude Code or Codex slot on this server" | Other AI runs are using all the slots. Your message starts when one is free. |
 | A card says "Out of date" | Click **Refresh**, review it and approve it again. |

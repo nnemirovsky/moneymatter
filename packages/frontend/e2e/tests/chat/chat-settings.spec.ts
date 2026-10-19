@@ -7,7 +7,6 @@ import { buildTestCredentials, signUpAndVerify } from '../../helpers/test-setup'
 
 const creds = buildTestCredentials({ prefix: 'chat-settings' });
 
-/** The chat settings live inside the Chat card of the AI features list, which starts collapsed. */
 /** Picks an option by typing its label: the list opens below the fold of a short window, out of a pointer's reach. */
 const pickOption = async ({ page, label }: { page: Page; label: string }) => {
   await expect(page.getByRole('option', { name: label })).toBeAttached();
@@ -15,10 +14,14 @@ const pickOption = async ({ page, label }: { page: Page; label: string }) => {
   await page.keyboard.press('Enter');
 };
 
+/** The chat settings are their own block under the AI features: the chat takes its model per conversation. */
 const openChatFeature = async ({ page }: { page: Page }) => {
   await page.goto('/settings/ai/features');
-  await page.getByRole('heading', { name: 'Chat', exact: true, level: 4 }).click();
+  await expect(page.getByRole('heading', { name: 'Conversation history' })).toBeVisible();
 };
+
+const retentionSection = ({ page }: { page: Page }) =>
+  page.getByRole('heading', { name: 'Conversation history' }).locator('xpath=ancestor::section[1]');
 
 test.describe('Settings → AI → Chat', () => {
   test.beforeAll(async ({ playwright }) => {
@@ -34,12 +37,19 @@ test.describe('Settings → AI → Chat', () => {
     await loginViaUI({ page, email: creds.email, password: creds.password });
   });
 
+  test('does not offer a model for chat among the features', async ({ page }) => {
+    await openChatFeature({ page });
+
+    const chatBlock = retentionSection({ page });
+    await expect(chatBlock.getByRole('heading', { name: 'Chat', level: 4 })).toBeVisible();
+    await expect(chatBlock.getByText('Model', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Chat', exact: true, level: 4 })).toHaveCount(1);
+  });
+
   test('changes how long conversations are kept', async ({ page }) => {
     await openChatFeature({ page });
 
-    const section = page
-      .getByRole('heading', { name: 'Conversation history' })
-      .locator('xpath=ancestor::div[contains(@class, "border-t")][1]');
+    const section = retentionSection({ page });
     await expect(section).toContainText('Pinned conversations are never deleted automatically.');
 
     // 30 days is what someone who never chose gets.
@@ -57,9 +67,7 @@ test.describe('Settings → AI → Chat', () => {
   test('can keep conversations until they are deleted', async ({ page }) => {
     await openChatFeature({ page });
 
-    const section = page
-      .getByRole('heading', { name: 'Conversation history' })
-      .locator('xpath=ancestor::div[contains(@class, "border-t")][1]');
+    const section = retentionSection({ page });
     await section.getByRole('combobox').click();
     await pickOption({ page, label: 'Never delete automatically' });
 

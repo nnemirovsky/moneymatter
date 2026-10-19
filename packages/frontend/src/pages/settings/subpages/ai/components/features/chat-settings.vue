@@ -5,7 +5,7 @@ import { useUpdateChatSettings } from '@/composable/data-queries/chat';
 import { useUserSettings } from '@/composable/data-queries/user-settings';
 import { ROUTES_NAMES } from '@/routes/constants';
 import { CHAT_DEFAULT_RETENTION_DAYS, CHAT_RETENTION_OPTIONS, type ChatRetentionDays } from '@bt/shared/types';
-import { ChevronRightIcon, HistoryIcon } from '@lucide/vue';
+import { ChevronRightIcon, HistoryIcon, MessageSquareIcon } from '@lucide/vue';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -52,7 +52,15 @@ const onChange = async (option: RetentionOption | null) => {
 </script>
 
 <template>
-  <div class="mt-4 border-t pt-4">
+  <section class="rounded-lg border p-4">
+    <div class="mb-4 flex items-center gap-2">
+      <MessageSquareIcon class="text-muted-foreground size-4" aria-hidden="true" />
+      <div>
+        <h4 class="font-medium">{{ $t('settings.ai.chat.title') }}</h4>
+        <p class="text-muted-foreground text-sm">{{ $t('settings.ai.chat.description') }}</p>
+      </div>
+    </div>
+
     <div class="mb-2 flex items-center gap-2">
       <HistoryIcon class="text-muted-foreground size-4" aria-hidden="true" />
       <h5 class="text-sm font-medium">{{ $t('settings.ai.chat.retention.title') }}</h5>
@@ -84,5 +92,5 @@ const onChange = async (option: RetentionOption | null) => {
       </span>
       <ChevronRightIcon class="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
     </RouterLink>
-  </div>
+  </section>
 </template>

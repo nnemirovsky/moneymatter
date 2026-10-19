@@ -157,4 +157,51 @@ test.describe('Chat page', () => {
       });
     });
   });
+  test.describe('model picker', () => {
+    const CONNECTIONS = [
+      { id: 'conn-1', provider: 'custom', name: 'Home Ollama', model: 'llama3.2', status: 'valid', hasApiKey: false },
+      { id: 'conn-2', provider: 'custom', name: 'Studio vLLM', model: 'qwen2.5', status: 'valid', hasApiKey: false },
+    ];
+
+    test.beforeEach(() => {
+      stub.connections = CONNECTIONS.map((connection) => ({
+        ...connection,
+        createdAt: '2026-03-05T10:00:00.000Z',
+        lastValidatedAt: '2026-03-05T10:00:00.000Z',
+      }));
+      stub.defaultConnectionId = 'conn-1';
+    });
+
+    test('switches the connection of a conversation', async ({ page }) => {
+      stub.addThread({ id: 'thread-1', title: 'Budget talk', connectionId: 'conn-1' });
+      await page.goto('/chat/thread-1');
+
+      const picker = page.getByTestId('chat-connection-picker').getByRole('combobox');
+      await expect(picker).toContainText('Home Ollama (llama3.2)');
+
+      await picker.click();
+      await page.getByRole('option', { name: 'Studio vLLM (qwen2.5)' }).click();
+
+      await expect(picker).toContainText('Studio vLLM (qwen2.5)');
+      const patch = stub.calls.find((call) => call.method === 'PATCH' && call.path === '/threads/thread-1');
+      expect(patch?.body).toEqual({ connectionId: 'conn-2' });
+    });
+
+    test('starts a new conversation on the connection picked before the first message', async ({ page }) => {
+      stub.nextRun = textRun({ text: 'Hello there.' });
+      await page.goto('/chat');
+
+      const picker = page.getByTestId('chat-connection-picker').getByRole('combobox');
+      await expect(picker).toContainText('Home Ollama (llama3.2)');
+      await picker.click();
+      await page.getByRole('option', { name: 'Studio vLLM (qwen2.5)' }).click();
+
+      await page.getByPlaceholder(COMPOSER_PLACEHOLDER).fill('Hi');
+      await page.getByTestId('send').click();
+
+      await expect(page.getByText('Hello there.')).toBeVisible();
+      const created = stub.calls.find((call) => call.method === 'POST' && call.path === '/threads');
+      expect(created?.body).toEqual({ connectionId: 'conn-2' });
+    });
+  });
 });

@@ -3,7 +3,12 @@ import { Button } from '@/components/lib/ui/button';
 import { ScrollArea } from '@/components/lib/ui/scroll-area';
 import { useChatRun } from '@/composable/chat/use-chat-run';
 import { useAiSettings } from '@/composable/data-queries/ai-settings';
-import { useChatThread, useCreateChatThread } from '@/composable/data-queries/chat';
+import {
+  useChatDefaultConnection,
+  useChatThread,
+  useCreateChatThread,
+  useUpdateChatThread,
+} from '@/composable/data-queries/chat';
 import { notifyMutationError } from '@/composable/data-queries/use-invalidating-mutation';
 import {
   AI_FEATURE,
@@ -17,6 +22,7 @@ import { Loader2Icon, RotateCwIcon } from '@lucide/vue';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
 import ChatComposer from './chat-composer.vue';
+import ChatConnectionPicker from './chat-connection-picker.vue';
 import ChatEmptyState from './chat-empty-state.vue';
 import ChatMessage from './chat-message.vue';
 
@@ -36,18 +42,22 @@ const SKELETON_COUNT = 3;
 // The thread is created on the first message (or the first attachment), so the conversation can hold an
 // id the page has not heard of yet; the page catches up through `thread-created`.
 const activeThreadId = ref(props.threadId);
+// A pick belongs to the thread it was made for, so another thread starts without one.
+const pickedConnectionId = ref<string | null | undefined>(undefined);
 watch(
   () => props.threadId,
   (id) => {
+    if (id !== activeThreadId.value) pickedConnectionId.value = undefined;
     activeThreadId.value = id;
   },
 );
 
-const { messages, cards, hasMore, isLoading, isError, isLoadingOlder, loadOlder, refetch } = useChatThread({
+const { thread, messages, cards, hasMore, isLoading, isError, isLoadingOlder, loadOlder, refetch } = useChatThread({
   threadId: activeThreadId,
 });
 const chatRun = useChatRun({ threadId: activeThreadId });
 const createThread = useCreateChatThread();
+const updateThread = useUpdateChatThread();
 const { getFeatureStatus } = useAiSettings();
 
 const composerRef = ref<InstanceType<typeof ChatComposer> | null>(null);
@@ -106,6 +116,37 @@ const isBusy = computed(
     messages.value.some((message) => message.role === 'assistant' && message.status === 'streaming'),
 );
 
+// The connection the next message runs on. Before the thread exists the user's pick (or, without one,
+// the default the server would choose) is shown and sent with the create call; the picked value stays
+// until the stored thread has loaded. A pick on an existing thread is shown until the server confirms it.
+const { data: defaultConnection } = useChatDefaultConnection({
+  enabled: computed(() => activeThreadId.value === null),
+});
+const shownConnectionId = computed<string | null>(() => {
+  if (pickedConnectionId.value !== undefined) return pickedConnectionId.value;
+  if (thread.value) return thread.value.connectionId;
+  return activeThreadId.value === null ? (defaultConnection.value?.connectionId ?? null) : null;
+});
+// The stored thread is the source of truth once it has loaded.
+watch(thread, (loaded) => {
+  if (loaded && !updateThread.isPending.value) pickedConnectionId.value = undefined;
+});
+
+const onPickConnection = async ({ connectionId }: { connectionId: string | null }) => {
+  const previous = pickedConnectionId.value;
+  pickedConnectionId.value = connectionId;
+  if (!activeThreadId.value) return;
+
+  try {
+    await updateThread.mutateAsync({ threadId: activeThreadId.value, payload: { connectionId } });
+  } catch {
+    // The mutation reports the failure; the picker goes back to the stored connection.
+    pickedConnectionId.value = previous;
+    return;
+  }
+  pickedConnectionId.value = undefined;
+};
+
 const isLive = ({ message }: { message: ChatMessageModel }) =>
   run.value?.status === 'streaming' && run.value.messageId === message.id;
 
@@ -135,9 +176,11 @@ const ensureThread = (): Promise<string> => {
 
   // Two attachments dropped together must not create two threads.
   creatingThread ??= createThread
-    .mutateAsync({})
+    .mutateAsync(pickedConnectionId.value === undefined ? {} : { connectionId: pickedConnectionId.value })
     .then((created) => {
       activeThreadId.value = created.id;
+      // The stored thread is still loading; until it has, the picker names the connection it was created on.
+      pickedConnectionId.value = created.connectionId;
       emit('thread-created', created.id);
       return created.id;
     })
@@ -288,7 +331,15 @@ onMounted(scrollToBottom);
         :ensure-thread="ensureThread"
         @send="onSend"
         @cancel="chatRun.cancel()"
-      />
+      >
+        <template #connection>
+          <ChatConnectionPicker
+            :connection-id="shownConnectionId"
+            :disabled="isBusy || updateThread.isPending.value"
+            @select="(connectionId) => onPickConnection({ connectionId })"
+          />
+        </template>
+      </ChatComposer>
     </div>
   </div>
 </template>
