@@ -5,6 +5,7 @@ import Accounts from '@models/accounts.model';
 import BudgetAssignments from '@models/budget-assignments.model';
 import BudgetLines from '@models/budget-lines.model';
 import BudgetPlans from '@models/budget-plans.model';
+import { namespace } from '@models/connection';
 import ImportBatchAccountEffects from '@models/import-batch-account-effects.model';
 import ImportBatches from '@models/import-batches.model';
 import SubscriptionPeriods from '@models/subscription-periods.model';
@@ -71,11 +72,13 @@ const run = ({
   resolver,
   toolName,
   args,
+  lock,
 }: {
   resolver: PreviewResolver;
   toolName: string;
   args: Record<string, unknown>;
-}) => resolver({ userId: USER, toolName, args, policy: resolveToolPolicy({ name: toolName, args })! });
+  lock?: boolean;
+}) => resolver({ userId: USER, toolName, args, policy: resolveToolPolicy({ name: toolName, args })!, lock });
 
 describe('transaction and settings previews', () => {
   beforeEach(() => {
@@ -569,6 +572,39 @@ describe('transaction and settings previews', () => {
       const { preview, snapshot } = await assign();
       expect(preview.before).toMatchObject({ amount: null, carryPolicy: null });
       expect(snapshot.updatedAt).toBeNull();
+    });
+
+    it('takes the plan lock before the line and assignment locks, in the order the budget services lock', async () => {
+      const plan = jest.spyOn(BudgetPlans, 'findOne').mockResolvedValue({ id: uuid(70), currencyCode: 'USD' } as never);
+      const line = jest.spyOn(BudgetLines, 'findOne').mockResolvedValue({ id: uuid(72), name: 'Food' } as never);
+      const assignment = jest.spyOn(BudgetAssignments, 'findOne').mockResolvedValue(null);
+
+      await namespace.runAndReturn(async () => {
+        namespace.set('transaction', { LOCK: { NO_KEY_UPDATE: 'NO KEY UPDATE' } });
+        await run({
+          resolver: resolveBudgetPlanAssignment,
+          toolName: 'set_budget_plan_assignment',
+          args,
+          lock: true,
+        });
+      });
+
+      expect(plan.mock.calls[0]![0]).toMatchObject({ lock: 'NO KEY UPDATE' } as never);
+      expect(line.mock.calls[0]![0]).toMatchObject({ lock: true });
+      expect(assignment.mock.calls[0]![0]).toMatchObject({ lock: true });
+      expect(plan.mock.invocationCallOrder[0]).toBeLessThan(line.mock.invocationCallOrder[0]!);
+      expect(line.mock.invocationCallOrder[0]).toBeLessThan(assignment.mock.invocationCallOrder[0]!);
+    });
+
+    it('holds no row when not asked to lock', async () => {
+      const plan = jest.spyOn(BudgetPlans, 'findOne').mockResolvedValue({ id: uuid(70), currencyCode: 'USD' } as never);
+      const line = jest.spyOn(BudgetLines, 'findOne').mockResolvedValue({ id: uuid(72), name: 'Food' } as never);
+      jest.spyOn(BudgetAssignments, 'findOne').mockResolvedValue(null);
+
+      await assign();
+
+      expect((plan.mock.calls[0]![0] as any).lock).toBeUndefined();
+      expect(line.mock.calls[0]![0]).not.toHaveProperty('lock');
     });
 
     it('refuses a plan or line that is not the user', async () => {

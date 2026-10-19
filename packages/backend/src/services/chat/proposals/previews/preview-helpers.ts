@@ -1,6 +1,9 @@
-import type { ChatCardAffected, ChatTableColumn, ChatTableRow } from '@bt/shared/types';
+import type { ChatCardAffected, ChatTableColumn, ChatTableRow, RecordId } from '@bt/shared/types';
+import { NotFoundError } from '@js/errors';
+import type BudgetPlans from '@models/budget-plans.model';
 import { countTransactions, findTransactions } from '@models/transactions-query';
 import type Transactions from '@models/transactions.model';
+import { findPlan } from '@services/budget-plans/find-plan';
 import { getAccessibleAccountIdsForUser } from '@services/sharing/auth/get-accessible-account-ids.service';
 import { Op } from 'sequelize';
 
@@ -41,6 +44,28 @@ export function assertConcreteTargets({ value, what }: { value: unknown; what: s
 
 /** The find option that holds the rows read `FOR UPDATE` when `lock` is set; nothing otherwise. */
 export const forUpdate = ({ lock }: { lock?: boolean }): { lock?: true } => (lock ? { lock: true } : {});
+
+/**
+ * The user's budget plan, or `null` when there is none. Under `lock` it takes the lock the budget
+ * services take on the plan (`findPlan`), and it has to be the first row a preview holds: every
+ * plan write locks the plan before the line, group or assignment it touches.
+ */
+export async function findPlanOrNull({
+  planId,
+  userId,
+  lock,
+}: {
+  planId: string;
+  userId: number;
+  lock?: boolean;
+}): Promise<BudgetPlans | null> {
+  try {
+    return await findPlan({ planId: planId as RecordId, userId, lock });
+  } catch (error) {
+    if (error instanceof NotFoundError) return null;
+    throw error;
+  }
+}
 
 /**
  * Transactions the user wrote on a payee, plans and balance adjustments included: the rows a merge

@@ -1,9 +1,8 @@
 import BudgetAssignments from '@models/budget-assignments.model';
 import BudgetLines from '@models/budget-lines.model';
-import BudgetPlans from '@models/budget-plans.model';
 
 import { hashTargetIds, latestUpdatedAt } from '../snapshot';
-import { assertConcreteTargets, forUpdate, targetNotFound } from './preview-helpers';
+import { assertConcreteTargets, findPlanOrNull, forUpdate, targetNotFound } from './preview-helpers';
 import type { PreviewResolver } from './types';
 
 /**
@@ -17,7 +16,8 @@ export const resolveBudgetPlanAssignment: PreviewResolver = async ({ userId, arg
   const lineId = args.lineId as string;
   assertConcreteTargets({ value: [planId, periodId, lineId], what: 'budget plan line' });
 
-  const plan = await BudgetPlans.findOne({ where: { id: planId, userId } });
+  // The plan first, as `setAssignment` locks it: the line and assignment rows follow.
+  const plan = await findPlanOrNull({ planId, userId, lock });
   const line = plan ? await BudgetLines.findOne({ where: { id: lineId, planId }, ...forUpdate({ lock }) }) : null;
   if (!plan || !line) throw targetNotFound({ what: 'budget plan line' });
 
