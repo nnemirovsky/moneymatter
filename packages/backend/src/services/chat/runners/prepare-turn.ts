@@ -1,6 +1,7 @@
 import { getModelNameFromModelId } from '@bt/shared/types';
 import ChatAttachments from '@models/chat-attachments.model';
 import ChatMessages from '@models/chat-messages.model';
+import ChatThreads from '@models/chat-threads.model';
 import Users from '@models/users.model';
 import { getModelProfile } from '@services/ai/model-catalog';
 import { getUserSettings } from '@services/user-settings/get-user-settings';
@@ -31,7 +32,7 @@ export async function prepareChatTurn({
 }): Promise<{ toolkit: ChatToolkit; system: string; messages: ModelMessage[] }> {
   const { runId, userId, threadId, messageId, userMessageId, aiClient, emit, textPolicy } = input;
 
-  const [user, userMessage, attachments, settings, baseCurrency, profile] = await Promise.all([
+  const [user, userMessage, attachments, settings, baseCurrency, profile, thread] = await Promise.all([
     Users.findByPk(userId, { attributes: ['id', 'username', 'authUserId', 'role'], rejectOnEmpty: true }),
     ChatMessages.findByPk(userMessageId, { attributes: ['pageContext'], rejectOnEmpty: true }),
     ChatAttachments.findAll({ where: { messageId: userMessageId, userId }, attributes: ['id', 'fileName'] }),
@@ -41,6 +42,7 @@ export async function prepareChatTurn({
       provider: aiClient.provider,
       model: getModelNameFromModelId({ modelId: aiClient.modelId }),
     }),
+    ChatThreads.findOne({ where: { id: threadId, userId }, attributes: ['titleSource'] }),
   ]);
 
   const untrusted = createUntrustedWrapper();
@@ -66,6 +68,7 @@ export async function prepareChatTurn({
     locale: settings.locale,
     baseCurrency: baseCurrency?.currencyCode ?? null,
     pageContext: pageContext ? renderPageContext({ context: pageContext, wrap: untrusted.wrap }) : null,
+    nameThread: thread?.titleSource === 'auto',
   });
   const messages = await loadHistoryMessages({
     threadId,

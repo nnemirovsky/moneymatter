@@ -200,10 +200,11 @@ describe('buildChatToolkit', () => {
         'render_kpis',
         'read_attachment',
         'run_analysis',
+        'set_thread_title',
       ]) {
         expect([native, names.has(native)]).toEqual([native, true]);
       }
-      expect(toolkit.tools.length).toBe(catalog.length - 2 + 7);
+      expect(toolkit.tools.length).toBe(catalog.length - 2 + 8);
     });
 
     it('classifies a tool as a read, a write or a chat-native tool, with the model schema of the catalog', () => {

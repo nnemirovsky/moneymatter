@@ -363,7 +363,7 @@ describe('Chat runs', () => {
   describe('Attachments on a message', () => {
     const csv = (name: string) => Buffer.from(`date,description,amount\n2026-10-01,${name},-3.50\n`);
 
-    it('titles a thread whose only message is a generic image by "Image" and the date', async () => {
+    it('leaves a thread whose only message is a generic image untitled', async () => {
       const { threadId } = await arrange({ turns: [{ text: 'A receipt.' }] });
       const upload = await helpers.uploadChatAttachment({
         threadId,
@@ -378,7 +378,7 @@ describe('Chat runs', () => {
       await helpers.getChatRunEvents({ runId: sent.body.response.runId });
 
       const loaded = await helpers.getChatThread({ threadId, raw: true });
-      expect(loaded.thread.title).toBe(`Image, ${new Date().toISOString().slice(0, 10)}`);
+      expect(loaded.thread.title).toBe('');
       expect(loaded.messages[0]!.parts).toContainEqual(
         expect.objectContaining({ type: 'attachment', fileName: 'image.png', kind: 'image' }),
       );

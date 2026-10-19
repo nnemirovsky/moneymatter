@@ -1,7 +1,7 @@
 import { CHAT_THREAD_TITLE_MAX_CHARS } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
 
-import { deriveThreadTitle } from './thread-title';
+import { deriveThreadTitle, sanitizeModelThreadTitle } from './thread-title';
 
 describe('deriveThreadTitle', () => {
   it('uses the message text with its whitespace collapsed', () => {
@@ -37,22 +37,47 @@ describe('deriveThreadTitle', () => {
     'photo.jpeg',
     'Pasted image.png',
     '1729339200.png',
-  ])('names a thread whose only content is the generic file %s by the given fallback', (fileName) => {
-    expect(deriveThreadTitle({ text: '', attachmentNames: [fileName], fallbackTitle: 'Image, 2026-10-19' })).toBe(
-      'Image, 2026-10-19',
-    );
+  ])('leaves a thread whose only content is the generic image %s untitled, for the model to name', (fileName) => {
+    expect(deriveThreadTitle({ text: '', attachmentNames: [fileName] })).toBe('');
   });
 
-  it('keeps a file name that says something, and the text of a message, over the fallback', () => {
-    expect(
-      deriveThreadTitle({ text: '', attachmentNames: ['october-statement.pdf'], fallbackTitle: 'Image, 2026-10-19' }),
-    ).toBe('october-statement');
-    expect(
-      deriveThreadTitle({ text: 'What is this?', attachmentNames: ['image.png'], fallbackTitle: 'Image, 2026-10-19' }),
-    ).toBe('What is this?');
+  it('keeps a file name that says something, and the text of a message, over an empty title', () => {
+    expect(deriveThreadTitle({ text: '', attachmentNames: ['october-statement.pdf'] })).toBe('october-statement');
+    expect(deriveThreadTitle({ text: 'What is this?', attachmentNames: ['image.png'] })).toBe('What is this?');
   });
 
   it('leaves the title empty when there is nothing to name it from', () => {
     expect(deriveThreadTitle({ text: '', attachmentNames: [] })).toBe('');
+  });
+});
+
+describe('sanitizeModelThreadTitle', () => {
+  it('trims, collapses whitespace and strips quotes around the title', () => {
+    expect(sanitizeModelThreadTitle({ title: '  "Coffee   spending\n in September"  ' })).toBe(
+      'Coffee spending in September',
+    );
+  });
+
+  it('strips control characters, markdown and angle brackets', () => {
+    const title = sanitizeModelThreadTitle({ title: '# **Budget** `check` <b>now</b>\u0000\u0007' })!;
+
+    expect(title).toBe('Budget check bnow/b');
+    expect(title).not.toMatch(/[*#`<>]/);
+    expect([...title].some((character) => character.charCodeAt(0) < 32)).toBe(false);
+  });
+
+  it('cuts a long title at the title limit with an ellipsis', () => {
+    const title = sanitizeModelThreadTitle({ title: 'word '.repeat(100) })!;
+
+    expect([...title]).toHaveLength(CHAT_THREAD_TITLE_MAX_CHARS);
+    expect(title.endsWith('…')).toBe(true);
+  });
+
+  it('keeps letters of any script and emoji', () => {
+    expect(sanitizeModelThreadTitle({ title: 'Витрати на каву ☕' })).toBe('Витрати на каву ☕');
+  });
+
+  it.each(['', '   ', '"" ', '***', '\u0000'])('refuses %j, which names nothing', (title) => {
+    expect(sanitizeModelThreadTitle({ title })).toBeNull();
   });
 });

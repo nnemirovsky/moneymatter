@@ -46,7 +46,7 @@ const EN_CHAT_PATH = path.resolve(__dirname, '../../../../../frontend/src/i18n/l
 /** The schema budget for the core catalog tools every chat step sends; the rest is found through `find_capabilities`. */
 const CORE_SCHEMA_BUDGET_BYTES = 44 * 1024;
 
-/** The chat-native tools (find_capabilities, ask_clarification, render_*, read_attachment, run_analysis) have a budget of their own. */
+/** The chat-native tools (find_capabilities, ask_clarification, render_*, read_attachment, run_analysis, set_thread_title) have a budget of their own. */
 const NATIVE_SCHEMA_BUDGET_BYTES = 12 * 1024;
 
 const schemaBytes = ({ tools }: { tools: ReadonlyArray<{ name: string; description: string; modelSchema: object }> }) =>
@@ -305,6 +305,7 @@ describe('chat capability drift', () => {
       'render_kpis',
       'render_table',
       'run_analysis',
+      'set_thread_title',
     ]);
     expect(schemaBytes({ tools: core })).toBeGreaterThan(5_000);
     expect(schemaBytes({ tools: core })).toBeLessThanOrEqual(CORE_SCHEMA_BUDGET_BYTES);

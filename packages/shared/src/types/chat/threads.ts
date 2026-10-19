@@ -1,4 +1,5 @@
-export type ChatThreadTitleSource = 'auto' | 'user';
+/** `auto` is the user's first words, `model` the name the assistant gave, `user` a rename that nothing replaces. */
+export type ChatThreadTitleSource = 'auto' | 'model' | 'user';
 
 /** Tokens summed over the runs of a thread or the steps of a message. */
 export interface ChatUsage {

@@ -230,7 +230,6 @@ const createRunMessages = withTransaction(
       title: deriveThreadTitle({
         text: text || answerText,
         attachmentNames: attachments.map(({ fileName }) => fileName),
-        fallbackTitle: t({ key: 'chat.imageThreadTitle', variables: { date: new Date().toISOString().slice(0, 10) } }),
       }),
     });
 

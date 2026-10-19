@@ -15,6 +15,7 @@ import { createReadAttachmentTool } from './read-attachment';
 import { createRenderTools } from './render-visual';
 import { compactArgs, errorMessage, toolFailure } from './result-text';
 import { createRunAnalysisTool } from './run-analysis';
+import { createSetThreadTitleTool } from './set-thread-title';
 import type { ChatToolContext, ChatToolDefinition, ChatToolkit, ChatToolkitRun, ChatToolkitState } from './types';
 
 const RESULT_SUMMARY_CHARS = 200;
@@ -78,6 +79,7 @@ export function buildChatToolkit({
     createAskClarificationTool({ ctx }),
     ...createRenderTools({ ctx }),
     createReadAttachmentTool({ ctx }),
+    createSetThreadTitleTool({ ctx }),
     createRunAnalysisTool({ ctx }),
   ];
 

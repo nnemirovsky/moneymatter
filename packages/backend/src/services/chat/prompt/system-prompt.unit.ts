@@ -58,6 +58,16 @@ describe('buildSystemPrompt', () => {
     expect(buildSystemPrompt(params)).toMatch(/never[^.]*cash/i);
   });
 
+  it('asks the model to name the conversation once, only while it has no name of its own', () => {
+    const named = buildSystemPrompt({ ...params, nameThread: true });
+
+    expect(named).toContain('set_thread_title');
+    expect(named).toMatch(/3 to 6 words/);
+    expect(named).toMatch(/language of the user/i);
+    expect(buildSystemPrompt({ ...params, nameThread: false })).not.toContain('set_thread_title');
+    expect(buildSystemPrompt(params)).not.toContain('set_thread_title');
+  });
+
   it('has the card rules: one call per change, refs, uncertain fields, clarification', () => {
     const prompt = buildSystemPrompt(params);
 
