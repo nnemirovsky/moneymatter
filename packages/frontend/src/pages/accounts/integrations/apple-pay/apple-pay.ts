@@ -8,6 +8,8 @@ import {
 
 const LABEL_ROOT = 'settings.integrations.applePay';
 
+/** The name iOS gives the imported shortcut; it matches the nginx `Content-Disposition` of the file. */
+export const CARD_PAYMENT_SHORTCUT_DOWNLOAD_NAME = 'MoneyMatter - Log card payment.shortcut';
 export const CARD_PAYMENT_SHORTCUT_FILE_PATH = '/shortcuts/log-card-payment.shortcut';
 
 /**
