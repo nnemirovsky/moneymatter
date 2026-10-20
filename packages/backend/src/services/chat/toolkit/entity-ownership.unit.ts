@@ -1,10 +1,14 @@
 import type { ChatEntityRef } from '@bt/shared/types';
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import Accounts from '@models/accounts.model';
+import BudgetPlans from '@models/budget-plans.model';
 import Categories from '@models/categories.model';
+import ImportBatches from '@models/import-batches.model';
+import TransactionAutomations from '@models/transaction-automations.model';
 import Transactions from '@models/transactions.model';
+import VentureDeals from '@models/venture/venture-deals.model';
 
-import { findForeignEntities } from './entity-ownership';
+import { findForeignEntities, lookupEntities } from './entity-ownership';
 
 const A1 = '3f1b9c2e-8d4a-4b6e-9c1d-2a7e5f0b8c11';
 const A2 = '9a7c5e31-2b84-4d0f-8e66-1c3a5b7d9f20';
@@ -42,9 +46,46 @@ describe('findForeignEntities', () => {
   it('refuses a kind it cannot check, instead of linking it unchecked', async () => {
     const transactions = jest.spyOn(Transactions, 'findAll').mockResolvedValue([]);
 
+    const foreign = await findForeignEntities({ userId: 7, refs: [{ kind: 'split', id: A1 }] });
+
+    expect(foreign).toEqual([{ kind: 'split', id: A1 }]);
+    expect(transactions).not.toHaveBeenCalled();
+  });
+
+  it('checks the kinds a page can be about against the user rows, and names them', async () => {
+    const loans = jest.spyOn(Accounts, 'findAll').mockResolvedValue([{ id: A1, name: 'Car loan' }] as never);
+    const plans = jest.spyOn(BudgetPlans, 'findAll').mockResolvedValue([{ id: A2, name: 'Home' }] as never);
+    const automations = jest.spyOn(TransactionAutomations, 'findAll').mockResolvedValue([]);
+    const deals = jest.spyOn(VentureDeals, 'findAll').mockResolvedValue([{ id: C1, name: 'Seed round' }] as never);
+
+    const { foreign, labels } = await lookupEntities({
+      userId: 7,
+      refs: [
+        { kind: 'loan', id: A1 },
+        { kind: 'budgetPlan', id: A2 },
+        { kind: 'transactionAutomation', id: C1 },
+        { kind: 'ventureDeal', id: C1 },
+      ],
+    });
+
+    expect(foreign).toEqual([{ kind: 'transactionAutomation', id: C1 }]);
+    expect(labels.get(`loan:${A1}`)).toBe('Car loan');
+    expect(labels.get(`budgetPlan:${A2}`)).toBe('Home');
+    expect(labels.get(`ventureDeal:${C1}`)).toBe('Seed round');
+    expect((loans.mock.calls[0]![0] as any).where).toMatchObject({ userId: 7, id: [A1] });
+    expect(plans).toHaveBeenCalledTimes(1);
+    expect(automations).toHaveBeenCalledTimes(1);
+    expect(deals).toHaveBeenCalledTimes(1);
+  });
+
+  it('looks an import batch up by its batch id', async () => {
+    const batches = jest.spyOn(ImportBatches, 'findAll').mockResolvedValue([{ id: A1 }] as never);
+
     const foreign = await findForeignEntities({ userId: 7, refs: [{ kind: 'importBatch', id: A1 }] });
 
-    expect(foreign).toEqual([{ kind: 'importBatch', id: A1 }]);
-    expect(transactions).not.toHaveBeenCalled();
+    expect(foreign).toEqual([]);
+    const query = batches.mock.calls[0]![0] as any;
+    expect(query.where).toEqual({ userId: 7, batchId: [A1] });
+    expect(query.attributes[0]).toEqual(['batchId', 'id']);
   });
 });
