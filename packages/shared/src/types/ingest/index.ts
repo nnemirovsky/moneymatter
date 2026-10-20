@@ -248,6 +248,8 @@ export type IngestRequestReason =
 /** One request a client sent to the card-payment endpoint, as Settings lists it. */
 export interface CardPaymentRequestDto {
   id: RecordId;
+  /** Which pipeline took the request: a Wallet tap (`cardPayment`) or a notification. */
+  pipeline: IngestPipeline;
   status: IngestRequestStatus;
   reason: IngestRequestReason | null;
   /** The line the shortcut showed (or would have shown) for this request. */

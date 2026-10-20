@@ -56,6 +56,7 @@ const toRequestDto = ({ row, now }: { row: IngestRequests; now: Date }): CardPay
 
   return {
     id: row.id,
+    pipeline: row.pipeline,
     status: row.status,
     reason: interrupted ? 'interrupted' : ((row.reason as IngestRequestReason | null) ?? null),
     summary: row.summary,

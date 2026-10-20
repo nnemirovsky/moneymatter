@@ -125,6 +125,7 @@ describe('waiting card payments', () => {
       expect(parked).toHaveLength(1);
       expect(parked[0]).toMatchObject({
         id: requestId,
+        pipeline: 'cardPayment',
         status: 'parked',
         reason: 'unknownCard',
         cardLabel: OTHER_CARD,
