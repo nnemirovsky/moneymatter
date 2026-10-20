@@ -20,12 +20,13 @@ import {
   type ChatSendMessageRequest,
   type ChatSendMessageResponse,
 } from '@bt/shared/types';
-import { Loader2Icon, RotateCwIcon } from '@lucide/vue';
+import { InboxIcon, Loader2Icon, RotateCwIcon } from '@lucide/vue';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
 import ChatComposer from './chat-composer.vue';
 import ChatConnectionPicker from './chat-connection-picker.vue';
 import ChatEmptyState from './chat-empty-state.vue';
+import { isInboxThread } from './chat-inbox';
 import ChatMessage from './chat-message.vue';
 
 const props = defineProps<{
@@ -68,6 +69,10 @@ useChatPresence({ threadId: activeThreadId });
 const createThread = useCreateChatThread();
 const updateThread = useUpdateChatThread();
 const { getFeatureStatus } = useAiSettings();
+
+// The automation inbox is MoneyMatter's own thread: the assistant never runs in it, so it has no
+// composer and no model to pick. The presence heartbeat above still covers it.
+const isInbox = computed(() => isInboxThread({ thread: thread.value }));
 
 const composerRef = ref<InstanceType<typeof ChatComposer> | null>(null);
 const scrollAreaRef = ref<InstanceType<typeof ScrollArea> | null>(null);
@@ -328,6 +333,7 @@ onMounted(scrollToBottom);
 <template>
   <div class="@container/chat-conversation flex h-full min-h-0 flex-col">
     <ChatConnectionPicker
+      v-if="!isInbox"
       :connection-id="shownConnectionId"
       :model-id="shownModelId"
       :disabled="isBusy || updateThread.isPending.value"
@@ -350,6 +356,16 @@ onMounted(scrollToBottom);
             <RotateCwIcon class="size-4" aria-hidden="true" />
             {{ $t('common.actions.retry') }}
           </Button>
+        </div>
+
+        <div
+          v-else-if="showEmpty && isInbox"
+          class="flex flex-col items-center gap-2 py-10 text-center"
+          data-testid="inbox-empty"
+        >
+          <InboxIcon class="text-muted-foreground size-8" aria-hidden="true" />
+          <p class="font-medium">{{ $t('chat.inbox.emptyTitle') }}</p>
+          <p class="text-muted-foreground max-w-sm text-sm">{{ $t('chat.inbox.emptyDescription') }}</p>
         </div>
 
         <ChatEmptyState
@@ -379,6 +395,7 @@ onMounted(scrollToBottom);
             :cards="displayCards"
             :is-live="isLive({ message })"
             :can-answer="!isBusy"
+            :inbox="isInbox"
             @answer="(answer) => onAnswer({ answer })"
             @commented="(response) => onCommented({ response })"
           />
@@ -386,7 +403,7 @@ onMounted(scrollToBottom);
       </div>
     </ScrollArea>
 
-    <div class="mx-auto w-full max-w-3xl shrink-0">
+    <div v-if="!isInbox" class="mx-auto w-full max-w-3xl shrink-0">
       <ChatComposer
         ref="composerRef"
         :is-streaming="chatRun.isStreaming.value"

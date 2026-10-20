@@ -17,9 +17,15 @@ const replace = vi.fn();
 vi.mock('vue-router', () => ({ useRoute: () => route, useRouter: () => ({ push, replace }) }));
 vi.mock('@/composable/data-queries/chat', () => ({ useChatThread: vi.fn() }));
 
-const thread = ref<{ id: string; title: string; usage: object; expiresAt: string | null; pinned: boolean } | null>(
-  null,
-);
+const thread = ref<{
+  id: string;
+  title: string;
+  usage: object;
+  expiresAt: string | null;
+  pinned: boolean;
+  kind?: string;
+  inboxState?: string | null;
+} | null>(null);
 
 // Both reach into the API layer; their own suites cover them.
 vi.mock('@/components/chat/chat-conversation.vue', async () => {
@@ -64,6 +70,7 @@ const mountPage = () =>
       plugins: [createChatI18n()],
       stubs: {
         ChatUsageChip: { template: '<span data-testid="usage" />' },
+        ChatInboxActions: { template: '<div data-testid="inbox-actions" />' },
         DesktopOnlyTooltip: { template: '<div><slot /></div>' },
       },
     },
@@ -77,9 +84,10 @@ describe('Chat page', () => {
     route.params = {};
     route.query = {};
     thread.value = null;
-    vi.mocked(useChatThread).mockReturnValue({ thread: computed(() => thread.value) } as unknown as ReturnType<
-      typeof useChatThread
-    >);
+    vi.mocked(useChatThread).mockReturnValue({
+      thread: computed(() => thread.value),
+      cards: computed(() => ({})),
+    } as unknown as ReturnType<typeof useChatThread>);
   });
 
   it('shows the thread of the route in the conversation and the list', () => {
@@ -180,6 +188,61 @@ describe('Chat page', () => {
     };
 
     expect(mountPage().find('[data-testid="chat-expiry"]').text()).toBe('Kept until you delete it');
+  });
+
+  describe('automation inbox thread', () => {
+    const openInbox = ({ pinned = true }: { pinned?: boolean } = {}) => {
+      route.name = ROUTES_NAMES.chatThread;
+      route.params = { threadId: 'inbox-1' };
+      thread.value = {
+        id: 'inbox-1',
+        title: 'Automation inbox',
+        usage: { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 },
+        expiresAt: null,
+        pinned,
+        kind: 'automationInbox',
+        inboxState: pinned ? 'live' : 'closed',
+      };
+    };
+
+    it('shows the inbox controls and no usage chip', () => {
+      openInbox();
+
+      const wrapper = mountPage();
+
+      expect(wrapper.find('[data-testid="inbox-actions"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="usage"]').exists()).toBe(false);
+    });
+
+    it('says MoneyMatter keeps a live inbox pinned instead of promising a deletion date', () => {
+      openInbox();
+
+      expect(mountPage().find('[data-testid="chat-expiry"]').text()).toBe(
+        'MoneyMatter keeps this pinned while it has items',
+      );
+    });
+
+    it('shows the inbox controls on a closed inbox too, where archiving is already done', () => {
+      openInbox({ pinned: false });
+
+      expect(mountPage().find('[data-testid="inbox-actions"]').exists()).toBe(true);
+    });
+
+    it('shows no inbox controls on a chat thread', () => {
+      route.name = ROUTES_NAMES.chatThread;
+      route.params = { threadId: 'thread-1' };
+      thread.value = {
+        id: 'thread-1',
+        title: 'Chat',
+        usage: { inputTokens: 1, outputTokens: 1, cachedInputTokens: 0 },
+        expiresAt: null,
+        pinned: false,
+        kind: 'chat',
+        inboxState: null,
+      };
+
+      expect(mountPage().find('[data-testid="inbox-actions"]').exists()).toBe(false);
+    });
   });
 
   it('toggles the history list in the narrow layout', async () => {

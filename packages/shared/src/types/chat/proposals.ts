@@ -185,6 +185,11 @@ export interface ChatProposalCard {
   sources: ChatSource[];
   canApply: { ok: true } | { ok: false; reasonKey: string };
   stale?: { reasonKey: string; before?: unknown; after?: unknown };
+  /**
+   * Why a closed card ended, when the reason changes what the card says: `resolvedElsewhere` is an
+   * inbox card whose record was settled outside the card. Not set on a stale card (`stale` has its own).
+   */
+  statusReason?: string;
   result?: { refs: ChatEntityRef[]; executedArgs: unknown; appliedAt: string; alsoApplied?: string[] };
   error?: ChatCardError;
   editedByUser: boolean;

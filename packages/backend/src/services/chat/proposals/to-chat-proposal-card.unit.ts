@@ -129,4 +129,29 @@ describe('toChatProposalCard', () => {
 
     expect(card.fields.find((field) => field.path === 'conditions')).not.toHaveProperty('before');
   });
+
+  describe('statusReason', () => {
+    it('sends the reason a closed card ended with, so the card can say it was settled elsewhere', () => {
+      const card = toChatProposalCard({
+        row: row({ status: 'rejected', statusReason: 'resolvedElsewhere' }),
+        parents: [],
+      });
+
+      expect(card.statusReason).toBe('resolvedElsewhere');
+    });
+
+    it('sends none for a card without a reason', () => {
+      expect(toChatProposalCard({ row: row(), parents: [] })).not.toHaveProperty('statusReason');
+    });
+
+    it('leaves the reason of a stale card to its stale block', () => {
+      const card = toChatProposalCard({
+        row: row({ status: 'stale', statusReason: 'chat.cards.stale.targetChanged' }),
+        parents: [],
+      });
+
+      expect(card).not.toHaveProperty('statusReason');
+      expect(card.stale?.reasonKey).toBe('chat.cards.stale.targetChanged');
+    });
+  });
 });

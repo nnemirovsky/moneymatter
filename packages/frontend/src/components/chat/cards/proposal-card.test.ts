@@ -89,14 +89,16 @@ const newClient = () => new QueryClient({ defaultOptions: { queries: { retry: fa
 const mountCard = ({
   card,
   cards = {},
+  inbox = false,
   queryClient = newClient(),
 }: {
   card: ChatProposalCard;
   cards?: Record<string, ChatProposalCard>;
+  inbox?: boolean;
   queryClient?: QueryClient;
 }) =>
   mount(ProposalCard, {
-    props: { card, cards },
+    props: { card, cards, inbox },
     global: { plugins: [[VueQueryPlugin, { queryClient }], createChatI18n()], stubs: HEAVY_STUBS },
   });
 
@@ -606,6 +608,32 @@ describe('ProposalCard', () => {
       await wrapper.find('[data-testid="comment-toggle"]').trigger('click');
 
       expect(wrapper.find('[data-testid="comment-send"]').attributes('disabled')).toBeDefined();
+    });
+  });
+
+  describe('in the automation inbox', () => {
+    it('offers no comment control, since nobody answers one there', () => {
+      const wrapper = mountCard({ card: createCard(), inbox: true });
+
+      expect(wrapper.find('[data-testid="approve"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="reject"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="comment-toggle"]').exists()).toBe(false);
+    });
+
+    it('says a card settled somewhere else is closed, not rejected by the owner', () => {
+      const wrapper = mountCard({
+        card: createCard({ status: 'rejected', statusReason: 'resolvedElsewhere' }),
+        inbox: true,
+      });
+
+      expect(wrapper.text()).toContain('Settled somewhere else, so this item is closed.');
+      expect(wrapper.text()).not.toContain('You rejected this change.');
+    });
+
+    it('keeps the rejected line for a card the owner rejected', () => {
+      const wrapper = mountCard({ card: createCard({ status: 'rejected', statusReason: 'rejectedByUser' }) });
+
+      expect(wrapper.text()).toContain('You rejected this change.');
     });
   });
 

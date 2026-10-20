@@ -118,4 +118,48 @@ describe('ThreadListItem', () => {
       expect(wrapper.emitted('rename')).toBeUndefined();
     });
   });
+
+  describe('automation inbox', () => {
+    const inbox = (inboxState: 'live' | 'open' | 'closed') =>
+      hit({ kind: 'automationInbox', inboxState, title: 'Automation inbox', pinned: inboxState !== 'closed' });
+
+    it('carries an inbox badge with its state', () => {
+      expect(
+        mountItem({ thread: inbox('live') })
+          .find('[data-testid="inbox-badge"]')
+          .text(),
+      ).toBe('Collecting');
+      expect(
+        mountItem({ thread: inbox('open') })
+          .find('[data-testid="inbox-badge"]')
+          .text(),
+      ).toBe('Full');
+      expect(
+        mountItem({ thread: inbox('closed') })
+          .find('[data-testid="inbox-badge"]')
+          .text(),
+      ).toBe('Closed');
+    });
+
+    it.each(['live', 'open'] as const)('locks the pin and the delete while the inbox is %s', (state) => {
+      const wrapper = mountItem({ thread: inbox(state) });
+
+      expect(wrapper.find('[data-testid="thread-pin"]').attributes('disabled')).toBeDefined();
+      expect(wrapper.find('[data-testid="thread-delete"]').attributes('disabled')).toBeDefined();
+    });
+
+    it('lets a closed inbox be unpinned and deleted like a chat', () => {
+      const wrapper = mountItem({ thread: inbox('closed') });
+
+      expect(wrapper.find('[data-testid="thread-pin"]').attributes('disabled')).toBeUndefined();
+      expect(wrapper.find('[data-testid="thread-delete"]').attributes('disabled')).toBeUndefined();
+    });
+
+    it('shows no badge on a chat thread and leaves its pin free', () => {
+      const wrapper = mountItem({ thread: hit({ pinned: true }) });
+
+      expect(wrapper.find('[data-testid="inbox-badge"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="thread-pin"]').attributes('disabled')).toBeUndefined();
+    });
+  });
 });

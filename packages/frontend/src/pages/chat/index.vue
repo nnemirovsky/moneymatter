@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import ChatConversation from '@/components/chat/chat-conversation.vue';
+import ChatInboxActions from '@/components/chat/chat-inbox-actions.vue';
+import { isInboxThread } from '@/components/chat/chat-inbox';
 import ChatUsageChip from '@/components/chat/chat-usage-chip.vue';
 import { Button } from '@/components/lib/ui/button';
 import { DesktopOnlyTooltip } from '@/components/lib/ui/tooltip';
@@ -26,7 +28,8 @@ const threadId = computed(() => {
   return value || null;
 });
 
-const { thread } = useChatThread({ threadId });
+const { thread, cards } = useChatThread({ threadId });
+const isInbox = computed(() => isInboxThread({ thread: thread.value }));
 
 // The mobile header button opens this page with the page it was pressed on in the route.
 const context = computed(() => chatPageContextFromQuery({ query: route.query }));
@@ -36,6 +39,8 @@ const isHistoryOpen = ref(false);
 
 const expiryText = computed(() => {
   if (!thread.value) return null;
+  // MoneyMatter keeps a live inbox pinned, so there is no date to show.
+  if (isInbox.value && thread.value.pinned) return { key: 'chat.inbox.pinnedNote' };
   const { expiresAt } = thread.value;
   return expiresAt
     ? { key: 'chat.threads.expiresOn', date: format(new Date(expiresAt), 'PP') }
@@ -108,7 +113,7 @@ const onThreadDeleted = ({ id }: { id: string }) => {
           </p>
         </div>
 
-        <ChatUsageChip v-if="thread" :usage="thread.usage" />
+        <ChatUsageChip v-if="thread && !isInbox" :usage="thread.usage" />
 
         <DesktopOnlyTooltip :content="$t('chat.page.newChat')">
           <Button
@@ -123,6 +128,8 @@ const onThreadDeleted = ({ id }: { id: string }) => {
           </Button>
         </DesktopOnlyTooltip>
       </header>
+
+      <ChatInboxActions v-if="thread && isInbox" :thread="thread" :cards="cards" />
 
       <div class="min-h-0 flex-1">
         <ChatConversation :thread-id="threadId" :context="context" @thread-created="(id) => onThreadCreated({ id })" />

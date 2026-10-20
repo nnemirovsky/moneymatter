@@ -141,7 +141,8 @@
       "tabs": {
         "transactions": "Transactions",
         "stuckPending": "Stuck pending",
-        "history": "History"
+        "history": "History",
+        "suggestions": "Suggestions"
       },
       "table": {
         "hint": "Select transactions to merge duplicates or remove extras"
@@ -250,6 +251,28 @@
         "restore": "Restore",
         "kept": "Kept",
         "removedRows": "{count} removed transaction | {count} removed transactions"
+      },
+      "suggestions": {
+        "intro": "MoneyMatter thinks these pairs may record the same payment. Nothing is merged until you choose.",
+        "confidence": "{percent}% match",
+        "dismiss": "Not duplicates",
+        "loadError": "Couldn't load the suggestions.",
+        "emptyTitle": "No suggestions right now",
+        "emptyDescription": "When a new payment looks like one you already have, the pair shows up here for you to merge or dismiss.",
+        "sources": {
+          "tap": "Apple Pay tap",
+          "walletNotification": "Wallet notification",
+          "bank": "Bank notification",
+          "other": "Automation",
+          "stages": {
+            "authorization": "authorization",
+            "settlement": "settlement",
+            "payment": "payment"
+          }
+        },
+        "notifications": {
+          "dismissed": "Marked as not duplicates"
+        }
       }
     }
   }

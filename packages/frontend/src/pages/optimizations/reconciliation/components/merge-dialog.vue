@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import ResponsiveDialog from '@/components/common/responsive-dialog.vue';
 import { Button } from '@/components/lib/ui/button';
+import { Callout } from '@/components/lib/ui/callout';
 import { Label } from '@/components/lib/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/lib/ui/radio-group';
 import TransactionRecord from '@/components/transactions-list/transaction-record.vue';
 import { usePayeeLookup } from '@/composable/data-queries/payees';
 import { useDateLocale } from '@/composable/use-date-locale';
+import { extractApiErrorMessage } from '@/js/errors';
 import { cn } from '@/lib/utils';
 import type { RecordId, TransactionModel } from '@bt/shared/types';
 import { Loader2Icon } from '@lucide/vue';
@@ -27,8 +29,12 @@ const { byId: payeeById } = usePayeeLookup();
 const { merge } = useReconciliationActions();
 
 const survivorId = ref<RecordId | null>(null);
+// Why the server refused the merge (an edit both rows carry), shown next to the choice it blocks.
+const mergeError = ref<string | null>(null);
 watch(open, (value) => {
-  if (value) survivorId.value = props.defaultSurvivorId ?? null;
+  if (!value) return;
+  survivorId.value = props.defaultSurvivorId ?? null;
+  mergeError.value = null;
 });
 
 // Fields TransactionRecord doesn't render: shown once when shared by all, otherwise under each row.
@@ -73,6 +79,7 @@ const removeCount = computed(() => props.transactions.length - 1);
 
 const confirm = () => {
   if (!survivorId.value) return;
+  mergeError.value = null;
   merge.mutate(
     {
       transactionIds: props.transactions.map((tx) => tx.id),
@@ -82,6 +89,9 @@ const confirm = () => {
       onSuccess: () => {
         open.value = false;
         emit('merged');
+      },
+      onError: (error) => {
+        mergeError.value = extractApiErrorMessage(error) ?? null;
       },
     },
   );
@@ -94,6 +104,8 @@ const confirm = () => {
     <template #description>{{ $t('optimizations.reconciliation.merge.description') }}</template>
 
     <div class="grid gap-3">
+      <Callout v-if="mergeError" variant="warning" data-testid="merge-error">{{ mergeError }}</Callout>
+
       <div
         v-if="sharedFields.length"
         class="bg-muted text-muted-foreground flex flex-wrap gap-x-3.5 gap-y-1 rounded-md px-3 py-2 text-xs"

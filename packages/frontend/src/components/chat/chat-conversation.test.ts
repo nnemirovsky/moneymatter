@@ -51,7 +51,7 @@ const user = (overrides: Partial<ChatMessage> = {}): ChatMessage =>
   assistant({ id: 'm-u', role: 'user', parts: [{ type: 'text', id: 'u1', text: 'Hi' }], ...overrides });
 
 const MessageStub = defineComponent({
-  props: ['message', 'cards', 'isLive', 'canAnswer'],
+  props: ['message', 'cards', 'isLive', 'canAnswer', 'inbox'],
   emits: ['answer', 'commented'],
   setup:
     (props, { emit }) =>
@@ -62,6 +62,7 @@ const MessageStub = defineComponent({
         'data-live': String(props.isLive),
         'data-status': props.message.status,
         'data-can-answer': String(props.canAnswer),
+        'data-inbox': String(props.inbox),
         'data-parts': props.message.parts.length,
         'data-card-ids': Object.keys(props.cards).join(','),
         onClick: () => {
@@ -245,6 +246,56 @@ describe('ChatConversation', () => {
       'm-a',
     ]);
     expect(wrapper.find('[data-testid="empty"]').exists()).toBe(false);
+  });
+
+  describe('automation inbox thread', () => {
+    beforeEach(() => {
+      state.thread.value = {
+        id: 'thread-1',
+        connectionId: null,
+        modelId: null,
+        kind: 'automationInbox',
+        inboxState: 'live',
+      } as ChatThread;
+    });
+
+    it('has no composer and no model picker, since the assistant never runs there', () => {
+      state.messages.value = [assistant()];
+
+      const wrapper = mountConversation();
+
+      expect(wrapper.find('[data-testid="composer"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="picker"]').exists()).toBe(false);
+    });
+
+    it('tells the messages they sit in the inbox', () => {
+      state.messages.value = [assistant()];
+
+      expect(mountConversation().find('[data-testid="message"]').attributes('data-inbox')).toBe('true');
+    });
+
+    it('says nothing is waiting instead of offering the assistant prompts', () => {
+      const wrapper = mountConversation();
+
+      expect(wrapper.find('[data-testid="inbox-empty"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="empty"]').exists()).toBe(false);
+    });
+
+    it('still sends the presence heartbeat for the thread', () => {
+      mountConversation();
+
+      expect(useChatPresence).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the composer on a chat thread', () => {
+      state.thread.value = { id: 'thread-1', connectionId: null, modelId: null, kind: 'chat' } as ChatThread;
+      state.messages.value = [assistant()];
+
+      const wrapper = mountConversation();
+
+      expect(wrapper.find('[data-testid="composer"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="message"]').attributes('data-inbox')).toBe('false');
+    });
   });
 
   it('gives every message the cards of the thread', () => {

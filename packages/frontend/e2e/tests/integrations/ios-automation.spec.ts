@@ -138,7 +138,8 @@ test.describe('iOS Automation', () => {
     await page.getByTestId('unlinked-card-link').click();
     const dialog = page.getByRole('dialog');
     await expect(dialog.locator('input').first()).toHaveValue(CARD_LABEL);
-    await pickDialogSelect({ page, nth: 0, optionName: new RegExp(ACCOUNT_NAME) });
+    // The first select is the currency (Default), the second the account.
+    await pickDialogSelect({ page, nth: 1, optionName: new RegExp(ACCOUNT_NAME) });
     await page.getByTestId('card-link-submit').click();
     await waitForSuccessToast({ page });
 

@@ -1,6 +1,8 @@
 import {
   checkStuckPending,
+  dismissDuplicateSuggestion,
   keepAsBooked,
+  loadDuplicateSuggestions,
   loadReconciliationHistory,
   loadStuckPending,
   reconciliationMerge,
@@ -11,7 +13,7 @@ import { VUE_QUERY_CACHE_KEYS, VUE_QUERY_GLOBAL_PREFIXES } from '@/common/const/
 import { NotificationType, useNotificationCenter } from '@/components/notification-center';
 import { useInvalidatingMutation } from '@/composable/data-queries/use-invalidating-mutation';
 import { extractApiErrorMessage } from '@/js/errors';
-import type { RecordId, CheckStuckPendingResponse } from '@bt/shared/types';
+import { API_ERROR_CODES, type RecordId, type CheckStuckPendingResponse } from '@bt/shared/types';
 import { useQuery } from '@tanstack/vue-query';
 import { type ComposerTranslation, useI18n } from 'vue-i18n';
 
@@ -21,13 +23,24 @@ export const useStuckPending = () =>
     queryFn: loadStuckPending,
   });
 
+export const useDuplicateSuggestions = () =>
+  useQuery({
+    queryKey: VUE_QUERY_CACHE_KEYS.reconciliationSuggestions,
+    queryFn: loadDuplicateSuggestions,
+  });
+
 export const useReconciliationHistory = () =>
   useQuery({
     queryKey: VUE_QUERY_CACHE_KEYS.reconciliationHistory,
     queryFn: loadReconciliationHistory,
   });
 
-const INVALIDATE_KEYS = [[VUE_QUERY_GLOBAL_PREFIXES.transactionChange]];
+// A merge, a removal or a dismissal settles the suggestion's card in the automation inbox too.
+const INVALIDATE_KEYS = [
+  [VUE_QUERY_GLOBAL_PREFIXES.transactionChange],
+  [...VUE_QUERY_CACHE_KEYS.chatThreads],
+  [...VUE_QUERY_CACHE_KEYS.chatThread],
+];
 const ERROR_KEY = 'optimizations.reconciliation.notifications.unexpectedError';
 const BANK_CHECK_KEY = 'optimizations.reconciliation.notifications.bankCheck';
 
@@ -96,6 +109,8 @@ export const useReconciliationActions = () => {
     invalidateKeys: INVALIDATE_KEYS,
     errorKey: ERROR_KEY,
     mutationFn: reconciliationMerge,
+    // The merge dialog shows the reason (an edit both rows carry) next to the choice it blocks.
+    silentErrorCodes: [API_ERROR_CODES.validationError],
     successMessage: ({ removedIds }) =>
       t('optimizations.reconciliation.notifications.merged', { count: removedIds.length }, removedIds.length),
   });
@@ -106,6 +121,19 @@ export const useReconciliationActions = () => {
     mutationFn: reconciliationRestore,
     successMessage: ({ restoredIds }) =>
       t('optimizations.reconciliation.notifications.restored', { count: restoredIds.length }, restoredIds.length),
+  });
+
+  // A suggestion another path merged or removed answers 409; the list refreshes either way.
+  const dismissSuggestion = useInvalidatingMutation({
+    invalidateKeys: [
+      [...VUE_QUERY_CACHE_KEYS.reconciliationSuggestions],
+      [...VUE_QUERY_CACHE_KEYS.chatThreads],
+      [...VUE_QUERY_CACHE_KEYS.chatThread],
+    ],
+    invalidateOnSettleKeys: [[...VUE_QUERY_CACHE_KEYS.reconciliationSuggestions]],
+    errorKey: ERROR_KEY,
+    mutationFn: dismissDuplicateSuggestion,
+    successKey: 'optimizations.reconciliation.suggestions.notifications.dismissed',
   });
 
   const keepBooked = useInvalidatingMutation({
@@ -129,5 +157,5 @@ export const useReconciliationActions = () => {
       }),
   });
 
-  return { remove, merge, restore, keepBooked, checkWithBank };
+  return { remove, merge, restore, dismissSuggestion, keepBooked, checkWithBank };
 };

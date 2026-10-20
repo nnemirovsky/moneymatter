@@ -1,5 +1,7 @@
 import {
   approveAllChatMessage,
+  archiveChatThread,
+  clearResolvedChatThread,
   approveChatProposal,
   commentOnChatProposal,
   createChatThread,
@@ -172,6 +174,24 @@ export const useDeleteChatThread = () => {
     onSuccess: () => queryClient.removeQueries({ queryKey: VUE_QUERY_CACHE_KEYS.chatThread, type: 'inactive' }),
   });
 };
+
+const INBOX_ACTION_INVALIDATE_KEYS = [[...VUE_QUERY_CACHE_KEYS.chatThreads], [...VUE_QUERY_CACHE_KEYS.chatThread]];
+
+/** Clears the resolved items of the automation inbox; the cards still waiting stay. */
+export const useClearResolvedChatThread = () =>
+  useInvalidatingMutation({
+    mutationFn: clearResolvedChatThread,
+    invalidateKeys: INBOX_ACTION_INVALIDATE_KEYS,
+    errorKey: 'chat.errors.threadAction',
+  });
+
+/** Closes the automation inbox early so the next item starts a fresh one. */
+export const useArchiveChatThread = () =>
+  useInvalidatingMutation({
+    mutationFn: archiveChatThread,
+    invalidateKeys: INBOX_ACTION_INVALIDATE_KEYS,
+    errorKey: 'chat.errors.threadAction',
+  });
 
 /** The retention days, and every thread's expiry they set. */
 export const useUpdateChatSettings = () =>

@@ -800,7 +800,7 @@ Gate results (Task 12): frontend `settings/subpages/notifications`, `use-chat-pr
   - gate strictness with its warning and the new-setup-code hint;
   - sources and pending sources (approve, mute); the last-digits field;
   - the waiting and recent lists show notification kinds and reasons, with a link to the inbox card
-- [x] Playwright: the old URL redirects; an unknown-account notification is resolved from the waiting list (skipped - not automatable here: written in `e2e/tests/integrations/ios-automation.spec.ts` and typechecked, but the dev stack is not up, so it has not run)
+- [x] Playwright: the old URL redirects; an unknown-account notification is resolved from the waiting list (`e2e/tests/integrations/ios-automation.spec.ts`; first run in Task 14 against the dev stack, 11 passed after the card-link step picked the account in the dialog's second select)
 - [x] gate: `npm run test:unit -- --run src/pages/accounts src/routes src/common/config`; typecheck, lint
 
 Gate results (Task 13): frontend `src/pages/accounts`, `src/routes`, `src/common`, `src/components/sync-status-tooltip.spec.ts`, `src/components/notifications-popover` 701 passed; full frontend vitest 5634 passed (33 skipped); root typecheck (backend + frontend) and e2e tsconfig clean; frontend lint clean (3 old `no-underscore-dangle` warnings); oxfmt clean on the changed files. The one backend assertion (`pipeline` on the requests list) was typechecked but its e2e did not run (no Docker stack).
@@ -813,10 +813,12 @@ Gate results (Task 13): frontend `src/pages/accounts`, `src/routes`, `src/common
 - Modify: `reconciliation/{index.vue,use-reconciliation.ts}`, `components/{merge-dialog,history-tab}.vue`, `packages/frontend/src/api/transactions.ts`, `packages/frontend/src/common/const/vue-query.ts`
 - Modify: the chat thread page, the thread list and the proposal card (inbox badge, no composer, no comment control on inbox cards, a locked pin while `live`/`open`, **Clear resolved**, **Archive** with its disabled reason)
 
-- [ ] failing vitest: the Suggestions tab (badge; pairs with sources, confidence and reason; Merge opens the existing dialog with the suggested survivor; Not duplicates; empty state); the inbox view controls as listed
-- [ ] i18n `optimizations.reconciliation.suggestions.*`, `chat.inbox.*` (`en` + `uk`)
-- [ ] Playwright: merge a suggestion and see its inbox card resolved
-- [ ] gate: `npm run test:unit -- --run src/pages/optimizations/reconciliation src/pages/chat`; typecheck, lint
+- [x] failing vitest: the Suggestions tab (badge; pairs with sources, confidence and reason; Merge opens the existing dialog with the suggested survivor; Not duplicates; empty state); the inbox view controls as listed
+- [x] i18n `optimizations.reconciliation.suggestions.*`, `chat.inbox.*` (`en` + `uk`)
+- [x] Playwright: merge a suggestion and see its inbox card resolved (`e2e/tests/reconciliation/suggestions.spec.ts`, 4 passed on the dev stack; the suggestions list is stubbed in the browser because the AI judge cannot run there, while the merge and the inbox card closing are real)
+- [x] gate: `npm run test:unit -- --run src/pages/optimizations/reconciliation src/pages/chat`; typecheck, lint
+
+Gate results (Task 14): frontend full vitest 5692 passed (33 skipped); root typecheck, e2e tsconfig, lint (i18n keys OK), oxfmt clean; backend unit `chat/(proposals|toolkit|policies)|mcp` 67 suites 1715 passed; backend e2e `ingest/card-payment/requests` 23 passed (the `pipeline` assertion), `chat/proposals/(approve|card-actions)`, `chat/inbox/inbox`, `chat/threads/threads`, `chat/runs/run-stream` 5 suites 154 passed; Playwright `reconciliation/` and `integrations/` 19 passed on a local dev stack.
 
 ### Task 15: iOS 27 shortcut with built-in triggers
 

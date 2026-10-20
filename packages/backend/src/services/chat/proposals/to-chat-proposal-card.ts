@@ -151,6 +151,7 @@ export function toChatProposalCard({
           },
         }
       : {}),
+    ...(row.status !== 'stale' && row.statusReason ? { statusReason: row.statusReason } : {}),
     ...(row.result && row.appliedAt
       ? {
           result: {

@@ -24,6 +24,8 @@ import {
   type ReconciliationRestoreBody,
   type ReconciliationRestoreResponse,
   type ReconciliationHistoryEvent,
+  type DuplicateSuggestionItem,
+  type DismissDuplicateSuggestionResponse,
   type StuckPendingItem,
   type CheckStuckPendingBody,
   type CheckStuckPendingResponse,
@@ -207,6 +209,18 @@ export const reconciliationRestore = async (
 
 export const loadReconciliationHistory = async (): Promise<ReconciliationHistoryEvent[]> => {
   return api.get('/transactions/reconciliation/history');
+};
+
+export const loadDuplicateSuggestions = async (): Promise<DuplicateSuggestionItem[]> => {
+  return api.get('/transactions/reconciliation/suggestions');
+};
+
+export const dismissDuplicateSuggestion = async ({
+  suggestionId,
+}: {
+  suggestionId: string;
+}): Promise<DismissDuplicateSuggestionResponse> => {
+  return api.post(`/transactions/reconciliation/suggestions/${suggestionId}/dismiss`);
 };
 
 export const loadStuckPending = async (): Promise<StuckPendingItem[]> => {

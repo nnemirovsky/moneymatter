@@ -294,6 +294,7 @@ export const VUE_QUERY_CACHE_KEYS = Object.freeze({
 
   reconciliationStuckPending: [transactionChange, 'reconciliation-stuck-pending'] as const,
   reconciliationHistory: [transactionChange, 'reconciliation-history'] as const,
+  reconciliationSuggestions: [transactionChange, 'reconciliation-suggestions'] as const,
 
   // A completed import creates transactions, so the transactionChange invalidation
   // refreshes the batch list alongside everything else it creates/moves.

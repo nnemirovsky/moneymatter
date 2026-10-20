@@ -53,8 +53,10 @@ const props = withDefaults(
     card: ChatProposalCard;
     /** Every card of the thread page, to find the parents of this one (and theirs). */
     cards?: Record<string, ChatProposalCard>;
+    /** The card sits in the automation inbox: nobody answers a comment there, so the control is left out. */
+    inbox?: boolean;
   }>(),
-  { cards: () => ({}) },
+  { cards: () => ({}), inbox: false },
 );
 
 const emit = defineEmits<{
@@ -94,6 +96,7 @@ const STATUS_BADGE: Record<ChatProposalStatus, 'success' | 'destructive' | 'warn
 
 /** The statuses in which the user can still do something with the card. */
 const OPEN_STATUSES: readonly ChatProposalStatus[] = ['pending', 'stale', 'failed'];
+const RESOLVED_ELSEWHERE = 'resolvedElsewhere';
 const CONFLICT_REASONS = ['revision', 'notPending', 'blocked', 'expired', 'stale', 'unavailable'] as const;
 type ConflictReason = (typeof CONFLICT_REASONS)[number];
 
@@ -131,7 +134,15 @@ const cannotApplyText = computed(() =>
 
 const title = computed(() => titleText({ title: props.card.title }));
 const statusText = computed(() => keyText({ key: `chat.cards.status.${props.card.status}` }) ?? props.card.status);
-const statusDetail = computed(() => keyText({ key: `chat.cards.statusDetail.${props.card.status}` }));
+// A card whose record was settled outside it says so, instead of claiming the owner rejected it.
+const statusDetail = computed(() =>
+  keyText({
+    key:
+      props.card.statusReason === RESOLVED_ELSEWHERE
+        ? 'chat.cards.statusDetail.resolvedElsewhere'
+        : `chat.cards.statusDetail.${props.card.status}`,
+  }),
+);
 
 const statusLabel = ({ value }: { value: unknown }): string => {
   if (value === null || value === undefined) return '—';
@@ -458,12 +469,18 @@ const isDetailsOpen = ref(false);
       >
         {{ $t('chat.cards.actions.reject') }}
       </Button>
-      <Button variant="ghost" size="sm" data-testid="comment-toggle" @click="isCommenting = !isCommenting">
+      <Button
+        v-if="!inbox"
+        variant="ghost"
+        size="sm"
+        data-testid="comment-toggle"
+        @click="isCommenting = !isCommenting"
+      >
         {{ $t('chat.cards.actions.comment') }}
       </Button>
     </div>
 
-    <div v-if="isOpen && isCommenting" class="flex flex-col gap-2">
+    <div v-if="isOpen && isCommenting && !inbox" class="flex flex-col gap-2">
       <div data-testid="comment-input">
         <TextareaField
           v-model="commentText"

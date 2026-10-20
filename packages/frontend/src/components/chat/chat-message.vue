@@ -31,6 +31,8 @@ const props = defineProps<{
   isLive: boolean;
   /** A question in this message can be answered. */
   canAnswer: boolean;
+  /** The message belongs to the automation inbox: its cards take no comments. */
+  inbox?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -128,6 +130,7 @@ const partKey = ({ part }: { part: ChatMessagePart }) => part.id;
           v-if="cards[part.proposalId]"
           :card="cards[part.proposalId]!"
           :cards="cards"
+          :inbox="inbox"
           @commented="(response) => emit('commented', response)"
         />
         <p v-else class="text-muted-foreground text-sm">{{ $t('chat.message.cardUnavailable') }}</p>

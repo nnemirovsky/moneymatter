@@ -11,10 +11,16 @@ import { useRoute, useRouter } from 'vue-router';
 
 import HistoryTab from './components/history-tab.vue';
 import StuckPendingTab from './components/stuck-pending-tab.vue';
+import SuggestionsTab from './components/suggestions-tab.vue';
 import TransactionsTab from './components/transactions-tab.vue';
-import { useStuckPending } from './use-reconciliation';
+import { useDuplicateSuggestions, useStuckPending } from './use-reconciliation';
 
-const TAB = { transactions: 'transactions', stuckPending: 'stuck-pending', history: 'history' } as const;
+const TAB = {
+  transactions: 'transactions',
+  suggestions: 'suggestions',
+  stuckPending: 'stuck-pending',
+  history: 'history',
+} as const;
 type Tab = (typeof TAB)[keyof typeof TAB];
 const TAB_VALUES = Object.values(TAB) as string[];
 
@@ -35,6 +41,9 @@ const tabContentClass = ({ tab }: { tab: Tab }) =>
 
 const { data: stuckPending } = useStuckPending();
 const stuckPendingCount = computed(() => stuckPending.value?.length ?? 0);
+
+const { data: suggestions } = useDuplicateSuggestions();
+const suggestionsCount = computed(() => suggestions.value?.length ?? 0);
 
 const MOBILE_MODE_MAX_WIDTH_PX = 672;
 const pageRef = ref<HTMLElement | null>(null);
@@ -69,6 +78,16 @@ const isMobileMode = computed(() => pageWidth.value > 0 && pageWidth.value < MOB
     >
       <TabsList variant="underline" :class="cn('shrink-0', activeTab !== TAB.transactions && 'max-w-5xl')">
         <TabsTrigger :value="TAB.transactions">{{ $t('optimizations.reconciliation.tabs.transactions') }}</TabsTrigger>
+        <TabsTrigger :value="TAB.suggestions">
+          {{ $t('optimizations.reconciliation.tabs.suggestions') }}
+          <span
+            v-if="suggestionsCount > 0"
+            class="bg-primary-text/15 text-primary-text rounded-full px-1.5 py-0.5 text-xs font-semibold tabular-nums"
+            data-testid="suggestions-badge"
+          >
+            {{ suggestionsCount }}
+          </span>
+        </TabsTrigger>
         <TabsTrigger :value="TAB.stuckPending">
           {{ $t('optimizations.reconciliation.tabs.stuckPending') }}
           <span
@@ -83,6 +102,10 @@ const isMobileMode = computed(() => pageWidth.value > 0 && pageWidth.value < MOB
 
       <TabsContent :value="TAB.transactions" :class="tabContentClass({ tab: TAB.transactions })">
         <TransactionsTab :is-mobile-mode="isMobileMode" />
+      </TabsContent>
+
+      <TabsContent :value="TAB.suggestions" :class="tabContentClass({ tab: TAB.suggestions })">
+        <SuggestionsTab />
       </TabsContent>
 
       <TabsContent :value="TAB.stuckPending" :class="tabContentClass({ tab: TAB.stuckPending })">

@@ -12,6 +12,7 @@ import {
   type ChatAttachment,
   type ChatCancelRunResponse,
   type ChatCardActionResponse,
+  type ChatClearResolvedResponse,
   type ChatCreateThreadRequest,
   type ChatDefaultConnection,
   type ChatEditProposalRequest,
@@ -70,6 +71,14 @@ export const updateChatThread = ({
 export const deleteChatThread = async ({ threadId }: { threadId: string }): Promise<void> => {
   await api.delete(`/chat/threads/${threadId}`);
 };
+
+/** Deletes the messages of an inbox thread whose cards no longer wait; the waiting ones stay. */
+export const clearResolvedChatThread = ({ threadId }: { threadId: string }): Promise<ChatClearResolvedResponse> =>
+  api.post(`/chat/threads/${threadId}/clear-resolved`);
+
+/** Closes an inbox thread early; refused (409) while a card still waits. */
+export const archiveChatThread = ({ threadId }: { threadId: string }): Promise<ChatThread> =>
+  api.post(`/chat/threads/${threadId}/archive`);
 
 export const updateChatSettings = ({
   retentionDays,

@@ -1,12 +1,14 @@
 <script setup lang="ts">
+import { isInboxLocked, isInboxThread } from '@/components/chat/chat-inbox';
 import InputField from '@/components/fields/input-field.vue';
 import { Button } from '@/components/lib/ui/button';
 import { DesktopOnlyTooltip } from '@/components/lib/ui/tooltip';
 import { useDateLocale } from '@/composable/use-date-locale';
 import { cn } from '@/lib/utils';
 import type { ChatThreadSearchHit } from '@bt/shared/types';
-import { PencilIcon, PinIcon, PinOffIcon, Trash2Icon } from '@lucide/vue';
+import { InboxIcon, PencilIcon, PinIcon, PinOffIcon, Trash2Icon } from '@lucide/vue';
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 const props = defineProps<{
   thread: ChatThreadSearchHit;
@@ -21,10 +23,16 @@ const emit = defineEmits<{
   delete: [];
 }>();
 
+const { t } = useI18n();
 const { formatDistanceToNow } = useDateLocale();
 
 const isRenaming = ref(false);
 const draft = ref('');
+
+const isInbox = computed(() => isInboxThread({ thread: props.thread }));
+// MoneyMatter keeps a live inbox pinned until it closes: no unpin, no delete.
+const isLocked = computed(() => isInboxLocked({ thread: props.thread }));
+const lockedHint = computed(() => (isLocked.value ? t('chat.inbox.lockedHint') : null));
 
 const lastActivity = computed(() => formatDistanceToNow(new Date(props.thread.lastMessageAt), { addSuffix: true }));
 
@@ -77,8 +85,16 @@ const finishRename = ({ save }: { save: boolean }) => {
         @click="emit('select')"
       >
         <span class="flex items-center gap-1.5">
-          <PinIcon v-if="thread.pinned" class="text-muted-foreground size-3 shrink-0" aria-hidden="true" />
+          <InboxIcon v-if="isInbox" class="text-primary-text size-3.5 shrink-0" aria-hidden="true" />
+          <PinIcon v-else-if="thread.pinned" class="text-muted-foreground size-3 shrink-0" aria-hidden="true" />
           <span class="truncate text-sm font-medium">{{ thread.title || $t('chat.threads.untitled') }}</span>
+          <span
+            v-if="isInbox && thread.inboxState"
+            class="bg-primary/10 text-primary-text shrink-0 rounded-full px-1.5 py-0.5 text-[11px] leading-none font-semibold"
+            data-testid="inbox-badge"
+          >
+            {{ $t(`chat.inbox.state.${thread.inboxState}`) }}
+          </span>
         </span>
         <span class="text-muted-foreground truncate text-xs">{{ thread.snippet || lastActivity }}</span>
       </button>
@@ -97,30 +113,37 @@ const finishRename = ({ save }: { save: boolean }) => {
             <PencilIcon class="size-3.5" aria-hidden="true" />
           </Button>
         </DesktopOnlyTooltip>
+        <!-- A disabled button swallows hover, so the reason hangs on a wrapper. -->
         <DesktopOnlyTooltip
-          :content="thread.pinned ? $t('chat.threads.actions.unpin') : $t('chat.threads.actions.pin')"
+          :content="lockedHint ?? (thread.pinned ? $t('chat.threads.actions.unpin') : $t('chat.threads.actions.pin'))"
         >
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            data-testid="thread-pin"
-            :aria-label="thread.pinned ? $t('chat.threads.actions.unpin') : $t('chat.threads.actions.pin')"
-            @click="emit('toggle-pin')"
-          >
-            <PinOffIcon v-if="thread.pinned" class="size-3.5" aria-hidden="true" />
-            <PinIcon v-else class="size-3.5" aria-hidden="true" />
-          </Button>
+          <span class="inline-flex">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              data-testid="thread-pin"
+              :disabled="isLocked"
+              :aria-label="thread.pinned ? $t('chat.threads.actions.unpin') : $t('chat.threads.actions.pin')"
+              @click="emit('toggle-pin')"
+            >
+              <PinOffIcon v-if="thread.pinned" class="size-3.5" aria-hidden="true" />
+              <PinIcon v-else class="size-3.5" aria-hidden="true" />
+            </Button>
+          </span>
         </DesktopOnlyTooltip>
-        <DesktopOnlyTooltip :content="$t('chat.threads.actions.delete')">
-          <Button
-            variant="ghost-destructive"
-            size="icon-sm"
-            data-testid="thread-delete"
-            :aria-label="$t('chat.threads.actions.delete')"
-            @click="emit('delete')"
-          >
-            <Trash2Icon class="size-3.5" aria-hidden="true" />
-          </Button>
+        <DesktopOnlyTooltip :content="lockedHint ?? $t('chat.threads.actions.delete')">
+          <span class="inline-flex">
+            <Button
+              variant="ghost-destructive"
+              size="icon-sm"
+              data-testid="thread-delete"
+              :disabled="isLocked"
+              :aria-label="$t('chat.threads.actions.delete')"
+              @click="emit('delete')"
+            >
+              <Trash2Icon class="size-3.5" aria-hidden="true" />
+            </Button>
+          </span>
         </DesktopOnlyTooltip>
       </div>
     </template>
