@@ -112,7 +112,9 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   // Chat threads, retention, attachments and runs: conversation metadata, file context, and the
   // start or stop of a conversation run, no monetary data. Editing, refreshing, rejecting and
   // commenting on a card only change the card or start a run; approving (one or all) is the
-  // guarded route, because that is where the write handlers run.
+  // guarded route, because that is where the write handlers run. Rejecting a confirm card of the
+  // automation inbox deletes the payment, so its reject hook applies the lock and the plan check
+  // itself. Clearing and archiving the inbox thread are chat housekeeping.
   'DELETE /api/v1/chat/threads/:id',
   'PATCH /api/v1/chat/proposals/:id',
   'PATCH /api/v1/chat/threads/:id',
@@ -121,7 +123,9 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   'POST /api/v1/chat/proposals/:id/reject',
   'POST /api/v1/chat/runs/:runId/cancel',
   'POST /api/v1/chat/threads',
+  'POST /api/v1/chat/threads/:id/archive',
   'POST /api/v1/chat/threads/:id/attachments',
+  'POST /api/v1/chat/threads/:id/clear-resolved',
   'POST /api/v1/chat/threads/:id/messages',
   'PUT /api/v1/chat/settings',
 

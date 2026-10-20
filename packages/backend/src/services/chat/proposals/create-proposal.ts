@@ -19,30 +19,46 @@ type NewProposal = Parameters<typeof ChatProposals.create>[0] & { id: string };
  * `FOR UPDATE` and must still be pending under that lock: an approval that began meanwhile holds the
  * row, and once it commits the card is refused here instead of being relabelled `superseded` after
  * its change went through.
+ *
+ * It needs no toolkit run, so the automation inbox stores its cards through it too. `expiresAt` is the
+ * caller's: a chat card lives `CHAT_PROPOSAL_LIFETIME_MS`, an inbox card `inboxConfig.cardTtlDays`.
  */
-const storeProposal = withTransaction(
+export const storeProposal = withTransaction(
   async ({
-    run,
-    meta,
+    userId,
+    threadId,
+    messageId,
+    replaces,
+    expiresAt,
     values,
   }: {
-    run: ChatToolkitRun;
-    meta: ChatMeta;
+    userId: number;
+    threadId: string;
+    messageId: string;
+    replaces?: string;
+    expiresAt: Date;
     values: NewProposal;
   }): Promise<{ row: ChatProposals; replaced: ChatProposals | null }> => {
-    const replaced = meta.replaces
+    const replaced = replaces
       ? await ChatProposals.findOne({
-          where: { id: meta.replaces, userId: run.user.id, threadId: run.threadId, status: 'pending' },
+          where: { id: replaces, userId, threadId, status: 'pending' },
           lock: true,
         })
       : null;
-    if (meta.replaces && !replaced) {
+    if (replaces && !replaced) {
       throw new ToolInputError(
-        `Proposal ${meta.replaces} is not a pending proposal of this conversation, so it cannot be replaced`,
+        `Proposal ${replaces} is not a pending proposal of this conversation, so it cannot be replaced`,
       );
     }
 
-    const row = await ChatProposals.create({ ...values, supersedesId: replaced ? (replaced.id as string) : null });
+    const row = await ChatProposals.create({
+      ...values,
+      threadId,
+      messageId,
+      userId,
+      expiresAt,
+      supersedesId: replaced ? (replaced.id as string) : null,
+    });
     await replaced?.update({ status: 'superseded', statusReason: 'replaced', decidedAt: new Date() });
 
     return { row, replaced };
@@ -96,13 +112,13 @@ export async function createProposal({
   });
 
   const { row, replaced } = await storeProposal({
-    run,
-    meta,
+    userId: run.user.id,
+    threadId: run.threadId,
+    messageId: run.messageId,
+    replaces: meta.replaces,
+    expiresAt: new Date(Date.now() + CHAT_PROPOSAL_LIFETIME_MS),
     values: {
       id: proposalId,
-      threadId: run.threadId,
-      messageId: run.messageId,
-      userId: run.user.id,
       toolName: policy.name,
       proposedArgs: args,
       args,
@@ -120,7 +136,6 @@ export async function createProposal({
       status: 'pending',
       revision: 1,
       error,
-      expiresAt: new Date(Date.now() + CHAT_PROPOSAL_LIFETIME_MS),
     },
   });
 

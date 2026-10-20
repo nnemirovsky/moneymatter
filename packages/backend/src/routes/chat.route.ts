@@ -13,6 +13,8 @@ import rejectProposal from '@controllers/chat/proposals/reject-proposal.controll
 import cancelRun from '@controllers/chat/runs/cancel-run.controller';
 import streamRunEvents from '@controllers/chat/runs/stream-run-events.controller';
 import { updateChatSettings } from '@controllers/chat/settings.controller';
+import archiveThread from '@controllers/chat/threads/archive-thread.controller';
+import clearResolvedThread from '@controllers/chat/threads/clear-resolved-thread.controller';
 import createThread from '@controllers/chat/threads/create-thread.controller';
 import deleteThread from '@controllers/chat/threads/delete-thread.controller';
 import getDefaultConnection from '@controllers/chat/threads/get-default-connection.controller';
@@ -42,6 +44,9 @@ router.post('/threads', blockDemoUsers, createThread);
 router.get('/threads/:id', getThread);
 router.patch('/threads/:id', updateThread);
 router.delete('/threads/:id', deleteThread);
+// Housekeeping of the automation inbox thread. It writes no financial data, and a read-only user keeps it.
+router.post('/threads/:id/clear-resolved', clearResolvedThread);
+router.post('/threads/:id/archive', archiveThread);
 
 // The body is the file, so the route has its own parser. It sits behind the guards and the rate
 // limit so a refused request is answered before up to 10 MB is buffered.

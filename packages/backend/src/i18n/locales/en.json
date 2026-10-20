@@ -68,7 +68,14 @@
     "cardUnavailable": "This card cannot be applied: its preview is missing or the change is not available in chat.",
     "cardNotChangeable": "This card can no longer be changed.",
     "confirmationRequired": "Confirm this change the way the card asks.",
-    "cardApplyFailed": "The change could not be applied."
+    "cardApplyFailed": "The change could not be applied.",
+    "inbox": {
+      "title": "Automation inbox",
+      "threadProtected": "The automation inbox is kept pinned while it holds open items. Resolve them, or archive it once nothing is waiting.",
+      "notInboxThread": "This is not the automation inbox.",
+      "cardsPending": "Some items in the automation inbox are still waiting for you, so it cannot be archived yet.",
+      "noAssistant": "The assistant does not answer in the automation inbox. Open a regular conversation to ask it something."
+    }
   },
   "transactions": {
     "notFound": "Transaction not found",
@@ -754,7 +761,11 @@
     "correctionNotOpen": "This payment has no open account suggestion.",
     "correctionAccountNotOffered": "That account is not one the suggestion offers.",
     "setupCodeUnusable": "The setup code cannot be built from these values. Shorten the ingest URL or the Cloudflare Access values.",
-    "rateLimited": "Too many notifications. Try again later."
+    "rateLimited": "Too many notifications. Try again later.",
+    "alreadyConfirmed": "This payment is already confirmed.",
+    "confirmAmountNeeded": "The new account is in another currency. Enter the amount in that currency to move the payment.",
+    "accountRequired": "Choose the account to log this payment on.",
+    "rejectNeedsPlan": "Your plan does not allow deleting payments. Subscribe again to keep editing your data."
   },
   "defaultCategories": {
     "main": {

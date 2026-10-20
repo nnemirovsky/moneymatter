@@ -11,6 +11,8 @@ export interface ChatThreadRow {
   expiresAt: Date | string | null;
   connectionId: string | null;
   modelId: string | null;
+  kind: ChatThread['kind'];
+  inboxState: ChatThread['inboxState'];
   inputTokens: string | number;
   outputTokens: string | number;
   cachedInputTokens: string | number;
@@ -34,6 +36,8 @@ export const toChatThread = ({ row }: { row: ChatThreadRow }): ChatThread => ({
   },
   connectionId: row.connectionId,
   modelId: row.modelId,
+  kind: row.kind,
+  inboxState: row.inboxState,
   createdAt: toIso({ value: row.createdAt }),
 });
 

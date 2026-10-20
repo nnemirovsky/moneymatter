@@ -1,6 +1,7 @@
 import { withTransaction } from '@services/common/with-transaction';
 
 import { revokeChatBridgeTokenOfRun } from '../bridge/bridge-token';
+import { assertInboxThreadDetachable } from '../inbox/inbox-thread';
 import { cancelRunsOfThread, findStreamingRunIds } from '../runs/cancel';
 import { findThreadOrThrow } from './find-thread';
 import { notifyThreadUpdated } from './thread-events';
@@ -9,6 +10,8 @@ import { notifyThreadUpdated } from './thread-events';
 const deleteThreadTransactional = withTransaction(
   async ({ userId, threadId }: { userId: number; threadId: string }) => {
     const thread = await findThreadOrThrow({ userId, threadId });
+    // The automation inbox owns its live and open threads; only a closed one is an ordinary thread.
+    assertInboxThreadDetachable({ thread });
     const runIds = await findStreamingRunIds({ threadId });
     await thread.destroy();
 

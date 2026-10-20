@@ -260,7 +260,11 @@ export async function startChatRun({
   /** Set when the message is a comment on a card: the card it is about. */
   cardComment?: { proposalId: string };
 }): Promise<ChatSendMessageResponse> {
-  await findThreadOrThrow({ userId: user.id, threadId });
+  const thread = await findThreadOrThrow({ userId: user.id, threadId });
+  // The automation inbox is MoneyMatter's own thread: no message, comment or answer ever starts a run in it.
+  if (thread.kind === 'automationInbox') {
+    throw new ConflictError({ message: t({ key: 'chat.inbox.noAssistant' }) });
+  }
   const attachments = await loadSendableAttachments({ userId: user.id, threadId, attachmentIds });
 
   const runId = randomUUID();

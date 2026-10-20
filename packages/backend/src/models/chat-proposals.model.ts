@@ -122,7 +122,7 @@ export default class ChatProposals extends Model {
   @Column({ type: DataType.JSONB, allowNull: true })
   error!: ChatCardError | null;
 
-  // An unapproved card expires 24 hours after it was proposed, pinned thread or not.
+  // An unapproved assistant card expires 24 hours after it was proposed, pinned thread or not; an inbox card lives 30 days.
   @Column({ type: DataType.DATE, allowNull: false })
   expiresAt!: Date;
 

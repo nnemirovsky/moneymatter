@@ -192,5 +192,9 @@ export interface ChatProposalCard {
   expiresAt: string;
 }
 
-/** An unapproved card expires this long after it was proposed, pinned threads included. */
+/**
+ * An unapproved assistant card expires this long after it was proposed, pinned threads included. The
+ * cards MoneyMatter itself posts in the automation inbox are the exception: they live 30 days
+ * (`inboxConfig.cardTtlDays`), because they wait for the owner, not for a chat reply.
+ */
 export const CHAT_PROPOSAL_LIFETIME_MS = 24 * 60 * 60 * 1000;

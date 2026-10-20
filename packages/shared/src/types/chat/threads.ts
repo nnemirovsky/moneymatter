@@ -29,6 +29,10 @@ export interface ChatThread {
    * Null: the connection's own model.
    */
   modelId: string | null;
+  /** `automationInbox` is the thread MoneyMatter fills with cards; the assistant never runs in it. */
+  kind: ChatThreadKind;
+  /** Where an inbox thread is in its life; null on a chat thread. A `live` or `open` thread is pinned and protected. */
+  inboxState: ChatInboxState | null;
   createdAt: string;
 }
 
@@ -83,3 +87,8 @@ export type ChatThreadKind = (typeof CHAT_THREAD_KINDS)[number];
 export const CHAT_INBOX_STATES = ['live', 'open', 'closed'] as const;
 
 export type ChatInboxState = (typeof CHAT_INBOX_STATES)[number];
+
+/** What `POST /chat/threads/:id/clear-resolved` answers: how many messages (and their cards) it deleted. */
+export interface ChatClearResolvedResponse {
+  deletedMessages: number;
+}

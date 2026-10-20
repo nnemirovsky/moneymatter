@@ -3,6 +3,7 @@ import ChatProposals from '@models/chat-proposals.model';
 import ChatThreads from '@models/chat-threads.model';
 import { Op, literal } from 'sequelize';
 
+import { reevaluateAllInboxThreads } from '../inbox/inbox-thread';
 import { expireAllDueCards } from '../proposals/card-expiry';
 
 const DEFAULT_BATCH_SIZE = 200;
@@ -96,7 +97,9 @@ async function deleteExpiredThreads({ batchSize }: { batchSize: number }): Promi
 export async function sweepChatRetention({
   batchSize = DEFAULT_BATCH_SIZE,
 }: { batchSize?: number } = {}): Promise<ChatRetentionResult> {
-  const expiredCards = await expireAllDueCards({ batchSize });
+  const { count: expiredCards } = await expireAllDueCards({ batchSize });
+  // The backstop for an inbox thread whose last waiting card was decided by a path that did not re-evaluate it.
+  await reevaluateAllInboxThreads();
   const unknownCards = await markStuckApplyingUnknown({ batchSize });
   const deletedAttachments = await deleteUnsentAttachments({ batchSize });
   const deletedThreads = await deleteExpiredThreads({ batchSize });

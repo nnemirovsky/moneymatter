@@ -3,6 +3,7 @@ import { t } from '@i18n/index';
 import { ConflictError } from '@js/errors';
 import { withTransaction } from '@services/common/with-transaction';
 
+import { assertInboxThreadDetachable } from '../inbox/inbox-thread';
 import { hasActiveRun } from '../runs/run-lease';
 import { findThreadOrThrow } from './find-thread';
 import { getChatRetentionDays } from './retention.service';
@@ -40,6 +41,9 @@ const updateThreadImpl = async (
   // Settings before thread, the order `setChatRetention` locks in.
   const retentionDays = pinned === undefined ? null : await getChatRetentionDays({ userId, lock: true });
   const thread = await findThreadOrThrow({ userId, threadId, lock: true });
+
+  // The inbox keeps its live and open threads pinned; unpinning one would let them expire.
+  if (pinned === false) assertInboxThreadDetachable({ thread });
 
   if (title !== undefined) {
     thread.title = title;

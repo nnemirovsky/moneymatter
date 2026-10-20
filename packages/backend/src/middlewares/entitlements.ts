@@ -45,6 +45,7 @@ const READ_ONLY_ROUTE_PATTERNS: ReadOnlyRoutePattern[] = [
   { method: 'DELETE', pattern: /^\/chat\/threads\/[^/]+$/ },
   { method: 'POST', pattern: /^\/chat\/threads\/[^/]+\/attachments$/ },
   { method: 'POST', pattern: /^\/chat\/threads\/[^/]+\/messages$/ },
+  { method: 'POST', pattern: /^\/chat\/threads\/[^/]+\/(clear-resolved|archive)$/ },
   { method: 'POST', pattern: /^\/chat\/runs\/[^/]+\/cancel$/ },
   { method: 'POST', pattern: /^\/chat\/proposals\/[^/]+\/(refresh|reject|comment)$/ },
   { method: 'PUT', pattern: /^\/chat\/settings$/ },
