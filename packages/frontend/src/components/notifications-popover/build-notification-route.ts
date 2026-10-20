@@ -1,6 +1,9 @@
 import type { NotificationStruct } from '@/api/notifications';
 import { ROUTES_NAMES } from '@/routes/constants';
 import {
+  type AutomationInboxPayload,
+  type ChatCardsWaitingPayload,
+  type ChatReplyReadyPayload,
   NOTIFICATION_TYPES,
   RESOURCE_TYPES,
   type ShareInvitationNotificationPayload,
@@ -144,6 +147,28 @@ export const buildNotificationRoute = (notification: NotificationStruct): Notifi
       return {
         kind: 'spa',
         to: { name: ROUTES_NAMES.optimizationsReconciliation, query: { tab: 'stuck-pending' } },
+      };
+
+    case NOTIFICATION_TYPES.chatReplyReady:
+    case NOTIFICATION_TYPES.chatCardsWaiting:
+    case NOTIFICATION_TYPES.automationInbox: {
+      // An in-app route, so a tap on the push inside the installed home-screen app moves its router
+      // to the thread and never reloads the page or leaves for the browser.
+      const payload = notification.payload as
+        | Partial<ChatReplyReadyPayload | ChatCardsWaitingPayload | AutomationInboxPayload>
+        | undefined;
+      if (!payload?.threadId) return null;
+      return {
+        kind: 'spa',
+        to: { name: ROUTES_NAMES.chatThread, params: { threadId: payload.threadId } },
+      };
+    }
+
+    case NOTIFICATION_TYPES.ingestAttention:
+      // The setup page is where the payment's limits, sources and failed requests are handled.
+      return {
+        kind: 'spa',
+        to: { name: ROUTES_NAMES.accountApplePay },
       };
 
     default:

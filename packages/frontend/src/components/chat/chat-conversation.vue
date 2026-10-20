@@ -10,6 +10,7 @@ import {
   useUpdateChatThread,
 } from '@/composable/data-queries/chat';
 import { notifyMutationError } from '@/composable/data-queries/use-invalidating-mutation';
+import { useChatPresence } from '@/composable/use-chat-presence';
 import {
   AI_FEATURE,
   type ChatClarificationAnswerInput,
@@ -62,6 +63,8 @@ const { thread, messages, cards, hasMore, isLoading, isError, isLoadingOlder, lo
   threadId: activeThreadId,
 });
 const chatRun = useChatRun({ threadId: activeThreadId });
+// The side panel and the chat page both show this component, so one call covers both.
+useChatPresence({ threadId: activeThreadId });
 const createThread = useCreateChatThread();
 const updateThread = useUpdateChatThread();
 const { getFeatureStatus } = useAiSettings();

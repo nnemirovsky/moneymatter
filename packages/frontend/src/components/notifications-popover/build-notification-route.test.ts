@@ -294,4 +294,35 @@ describe('buildNotificationRoute', () => {
       });
     });
   });
+
+  describe('assistant types', () => {
+    it.each([
+      NOTIFICATION_TYPES.chatReplyReady,
+      NOTIFICATION_TYPES.chatCardsWaiting,
+      NOTIFICATION_TYPES.automationInbox,
+    ])('opens the thread of the payload for type "%s", inside the app', (type) => {
+      const route = buildNotificationRoute(baseNotification({ type, payload: { threadId: 'thread-7' } }));
+
+      expect(route).toEqual({
+        kind: 'spa',
+        to: { name: ROUTES_NAMES.chatThread, params: { threadId: 'thread-7' } },
+      });
+    });
+
+    it.each([
+      NOTIFICATION_TYPES.chatReplyReady,
+      NOTIFICATION_TYPES.chatCardsWaiting,
+      NOTIFICATION_TYPES.automationInbox,
+    ])('has no target for type "%s" without a thread', (type) => {
+      expect(buildNotificationRoute(baseNotification({ type, payload: {} }))).toBeNull();
+    });
+
+    it('opens the iOS setup page for an ingest attention entry', () => {
+      const route = buildNotificationRoute(
+        baseNotification({ type: NOTIFICATION_TYPES.ingestAttention, payload: { reason: 'aiCapReached' } }),
+      );
+
+      expect(route).toEqual({ kind: 'spa', to: { name: ROUTES_NAMES.accountApplePay } });
+    });
+  });
 });

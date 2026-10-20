@@ -53,7 +53,7 @@
           },
           "assistant": {
             "label": "Assistant",
-            "description": "Finished chat replies, cards waiting for your OK, and new items in the Automation inbox."
+            "description": "Finished chat replies, cards waiting for your OK, new items in the Automation inbox, and payments that need attention."
           },
           "releases": {
             "label": "New releases",

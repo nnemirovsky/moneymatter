@@ -104,6 +104,20 @@ export const sendChatMessage = ({
   payload: ChatSendMessageRequest;
 }): Promise<ChatSendMessageResponse> => api.post(`/chat/threads/${threadId}/messages`, { ...payload });
 
+/**
+ * Tells the server this thread is being looked at, so it holds back the push for a finished reply. The mark
+ * lasts `CHAT_PRESENCE_TTL_MS`, which is why it is repeated. Silent: a lost beat or a thread that no longer
+ * exists is not worth a toast.
+ */
+export const sendChatPresence = async ({ threadId }: { threadId: string }): Promise<void> => {
+  await api.put('/chat/presence', { threadId }, { silent: true });
+};
+
+/** The thread is no longer looked at. */
+export const clearChatPresence = async ({ threadId }: { threadId: string }): Promise<void> => {
+  await api.delete('/chat/presence', { query: { threadId } }, { silent: true });
+};
+
 export const cancelChatRun = ({ runId }: { runId: string }): Promise<ChatCancelRunResponse> =>
   api.post(`/chat/runs/${runId}/cancel`);
 

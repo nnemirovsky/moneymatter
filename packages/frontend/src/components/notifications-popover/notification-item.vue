@@ -17,14 +17,17 @@ import {
   AlertTriangleIcon,
   CalendarCheckIcon,
   CalendarClockIcon,
+  ClipboardCheckIcon,
   ClockIcon,
   HandshakeIcon,
   HomeIcon,
   HourglassIcon,
+  InboxIcon,
   InfoIcon,
   LogOutIcon,
   MailIcon,
   MailWarningIcon,
+  MessageSquareIcon,
   ShieldCheckIcon,
   ShieldOffIcon,
   SparklesIcon,
@@ -34,8 +37,10 @@ import {
   WalletIcon,
   XIcon,
 } from '@lucide/vue';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import { buildAssistantNotificationText } from './assistant-notification-text';
 import ChangelogContent from './changelog-content.vue';
 import DefaultContent from './default-content.vue';
 import ShareContent from './share-content.vue';
@@ -70,6 +75,14 @@ const getIcon = (type: NotificationType) => {
       return CalendarCheckIcon;
     case NOTIFICATION_TYPES.stuckPending:
       return HourglassIcon;
+    case NOTIFICATION_TYPES.chatReplyReady:
+      return MessageSquareIcon;
+    case NOTIFICATION_TYPES.chatCardsWaiting:
+      return ClipboardCheckIcon;
+    case NOTIFICATION_TYPES.automationInbox:
+      return InboxIcon;
+    case NOTIFICATION_TYPES.ingestAttention:
+      return AlertTriangleIcon;
     case NOTIFICATION_TYPES.shareInvitationReceived:
     case NOTIFICATION_TYPES.householdInvitationReceived:
       return MailIcon;
@@ -121,6 +134,12 @@ const getIconBg = (type: NotificationType) => {
       return 'bg-teal-500';
     case NOTIFICATION_TYPES.stuckPending:
       return 'bg-yellow-500';
+    case NOTIFICATION_TYPES.chatReplyReady:
+    case NOTIFICATION_TYPES.chatCardsWaiting:
+    case NOTIFICATION_TYPES.automationInbox:
+      return 'bg-primary';
+    case NOTIFICATION_TYPES.ingestAttention:
+      return 'bg-amber-500';
     case NOTIFICATION_TYPES.shareInvitationReceived:
     case NOTIFICATION_TYPES.householdInvitationReceived:
       return 'bg-violet-500';
@@ -152,7 +171,11 @@ const getIconBg = (type: NotificationType) => {
 
 const isShareNotification = (type: NotificationType) => SHARE_NOTIFICATION_TYPES.includes(type);
 
+// Built from the payload so the bell follows the app's language and shows the counts as they are now.
+const assistantText = computed(() => buildAssistantNotificationText({ notification: props.notification, t }));
+
 const getTitle = (notification: NotificationStruct): string => {
+  if (assistantText.value) return assistantText.value.title;
   if (notification.type === NOTIFICATION_TYPES.changelog) {
     const payload = notification.payload as ChangelogNotificationPayload;
     return payload?.version
@@ -247,6 +270,7 @@ const handleDismiss = (event: Event) => {
               | undefined
           "
         />
+        <DefaultContent v-else-if="assistantText" :message="assistantText.message" />
         <DefaultContent v-else :message="notification.message" />
 
         <p class="text-muted-foreground mt-1 text-xs">

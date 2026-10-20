@@ -769,11 +769,13 @@ Gate results (Task 11): unit `(assistant-push|web-push|entitlements)` 249 passed
 - Create: `packages/frontend/src/composable/use-chat-presence.ts` + test; use it on the chat thread page
 - i18n: `settings.notifications.push.groups.assistant.*`, `notifications.types.{chatReplyReady,chatCardsWaiting,automationInbox,ingestAttention}.*` (`en` + `uk`)
 
-- [ ] failing vitest:
+- [x] failing vitest:
   - the heartbeat is sent every 20 s only while the page is visible and focused; it stops on blur, hide and leave, with `DELETE` on leave;
   - deep links: the thread types → `chatThread`; `ingestAttention` → `ROUTES_NAMES.accountApplePay`, the current setup page (Task 13 switches it);
   - the bell shows counts
-- [ ] gate: `npm run test:unit -- --run src/pages/settings/subpages/notifications src/composable/use-chat-presence.test.ts src/components/notifications-popover`; typecheck, lint
+- [x] gate: `npm run test:unit -- --run src/pages/settings/subpages/notifications src/composable/use-chat-presence.test.ts src/components/notifications-popover`; typecheck, lint
+
+Gate results (Task 12): frontend `settings/subpages/notifications`, `use-chat-presence.test.ts`, `notifications-popover`, `api/chat`, `components/chat`, `pages/chat` 1142 passed in 51 files; full frontend vitest 5524 passed; root typecheck and frontend lint clean.
 
 ### Task 13: Frontend: rename to "iOS Automation", two shortcut buttons, PWA-safe links
 

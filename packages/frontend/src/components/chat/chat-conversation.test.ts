@@ -8,6 +8,7 @@ import {
   useUpdateChatThread,
 } from '@/composable/data-queries/chat';
 import { notifyMutationError } from '@/composable/data-queries/use-invalidating-mutation';
+import { useChatPresence } from '@/composable/use-chat-presence';
 import type { ChatMessage, ChatProposalCard, ChatThread } from '@bt/shared/types';
 import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -25,6 +26,7 @@ vi.mock('@/composable/data-queries/chat', () => ({
 vi.mock('@/composable/chat/use-chat-run', () => ({ useChatRun: vi.fn() }));
 vi.mock('@/composable/data-queries/ai-settings', () => ({ useAiSettings: vi.fn() }));
 vi.mock('@/composable/data-queries/use-invalidating-mutation', () => ({ notifyMutationError: vi.fn() }));
+vi.mock('@/composable/use-chat-presence', () => ({ useChatPresence: vi.fn() }));
 
 const assistant = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
   id: 'm-a',
@@ -175,6 +177,7 @@ describe('ChatConversation', () => {
       updateMutateAsync,
       fill,
       vi.mocked(notifyMutationError),
+      vi.mocked(useChatPresence),
     ]) {
       mock.mockReset();
     }
@@ -295,6 +298,22 @@ describe('ChatConversation', () => {
       payload: { text: 'Ask', attachmentIds: ['att-1'], pageContext: { route: 'x' } },
     });
     expect(mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('reports the thread on screen as present, and the new one once the first message has created it', async () => {
+    const wrapper = mountConversation({ threadId: null });
+    const { threadId } = vi.mocked(useChatPresence).mock.calls[0]![0];
+
+    expect(threadId.value).toBeNull();
+
+    await wrapper.find('[data-testid="composer"]').trigger('click');
+    await flushPromises();
+
+    expect(threadId.value).toBe('new-thread');
+
+    await wrapper.setProps({ threadId: 'thread-2' });
+
+    expect(threadId.value).toBe('thread-2');
   });
 
   it('creates the thread on the first message and tells the page about it', async () => {

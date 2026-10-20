@@ -1,7 +1,7 @@
 import type { ChatRunEvent } from '@bt/shared/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { streamChatRunEvents } from './chat';
+import { clearChatPresence, sendChatPresence, streamChatRunEvents } from './chat';
 
 type Handlers = {
   onopen: (response: { ok: boolean; status: number }) => Promise<void>;
@@ -17,7 +17,9 @@ const fetchEventSource = vi.fn();
 vi.mock('@microsoft/fetch-event-source', () => ({
   fetchEventSource: (...args: unknown[]) => fetchEventSource(...args),
 }));
-vi.mock('@/api/_api', () => ({ api: {} }));
+const apiMock = vi.hoisted(() => ({ put: vi.fn(), delete: vi.fn() }));
+
+vi.mock('@/api/_api', () => ({ api: apiMock }));
 vi.mock('@/api/_binary-download', () => ({ fetchBinaryDownload: vi.fn() }));
 vi.mock('@/i18n', () => ({ getCurrentLocale: () => 'en' }));
 
@@ -209,5 +211,24 @@ describe('streamChatRunEvents', () => {
 
     expect(await outcome).toBe('aborted');
     expect(fetchEventSource).not.toHaveBeenCalled();
+  });
+});
+
+describe('chat presence', () => {
+  beforeEach(() => {
+    apiMock.put.mockReset().mockResolvedValue(undefined);
+    apiMock.delete.mockReset().mockResolvedValue(undefined);
+  });
+
+  it('puts the thread id in the body, without an error toast', async () => {
+    await sendChatPresence({ threadId: 't-1' });
+
+    expect(apiMock.put).toHaveBeenCalledWith('/chat/presence', { threadId: 't-1' }, { silent: true });
+  });
+
+  it('passes the thread id of a delete in the query, without an error toast', async () => {
+    await clearChatPresence({ threadId: 't-1' });
+
+    expect(apiMock.delete).toHaveBeenCalledWith('/chat/presence', { query: { threadId: 't-1' } }, { silent: true });
   });
 });
