@@ -716,6 +716,8 @@
         "totalTooLarge": "Вкладення можуть займати до {max} МБ разом.",
         "unsupported": "Файл {name} не підтримується. Прикріпіть зображення, PDF, CSV або текстовий файл.",
         "uploadFailed": "Не вдалося прикріпити {name}.",
+        "uploadRefused": "Не вдалося прикріпити {name}: {reason}",
+        "unreadableImage": "Не вдалося прочитати {name} як зображення. Спробуйте скріншот або фото у форматі JPEG, PNG чи WebP.",
         "uploading": "Завантаження {name}",
         "passwordPlaceholder": "Пароль до PDF",
         "unlock": "Розблокувати"

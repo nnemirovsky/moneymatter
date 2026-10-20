@@ -4,10 +4,12 @@ import { CHAT_ATTACHMENTS_PER_MESSAGE, type ChatAttachment } from '@bt/shared/ty
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { fitImageForUpload } from '@/pages/import-export/statement-parser/utils/fit-image-for-upload';
 import { createChatI18n } from './cards/card-test-fixtures';
 import ChatComposer from './chat-composer.vue';
 
 vi.mock('@/api/chat', () => ({ uploadChatAttachment: vi.fn() }));
+vi.mock('@/pages/import-export/statement-parser/utils/fit-image-for-upload', () => ({ fitImageForUpload: vi.fn() }));
 
 const attachment = ({ id, fileName }: { id: string; fileName: string }): ChatAttachment => ({
   id,
@@ -52,6 +54,7 @@ const pdf = ({ name = 'statement.pdf', size = 1024 } = {}) => {
 describe('ChatComposer', () => {
   beforeEach(() => {
     vi.mocked(uploadChatAttachment).mockReset();
+    vi.mocked(fitImageForUpload).mockReset();
   });
 
   describe('sending', () => {
@@ -216,6 +219,46 @@ describe('ChatComposer', () => {
 
       expect(uploadChatAttachment).not.toHaveBeenCalled();
       expect(wrapper.find('[data-testid="attachment-problem"]').text()).toBe('huge.pdf is larger than 10 MB.');
+    });
+
+    it('uploads the converted JPEG for an iPhone HEIC photo', async () => {
+      const converted = new File(['jpeg'], 'IMG_0001.jpg', { type: 'image/jpeg' });
+      vi.mocked(fitImageForUpload).mockResolvedValue(converted);
+      vi.mocked(uploadChatAttachment).mockResolvedValue(attachment({ id: 'att-1', fileName: 'IMG_0001.jpg' }));
+      const wrapper = mountComposer();
+
+      await pick({ wrapper, files: [new File(['heic'], 'IMG_0001.HEIC', { type: 'image/heic' })] });
+
+      expect(uploadChatAttachment).toHaveBeenCalledWith({ threadId: 'thread-1', file: converted, password: undefined });
+      expect(wrapper.find('[data-testid="attachment-problem"]').exists()).toBe(false);
+    });
+
+    it('says so when the browser cannot decode an image, without uploading it', async () => {
+      vi.mocked(fitImageForUpload).mockRejectedValue(new Error('decode'));
+      const wrapper = mountComposer();
+
+      await pick({ wrapper, files: [new File(['heic'], 'IMG_0002.HEIC', { type: 'image/heic' })] });
+
+      expect(uploadChatAttachment).not.toHaveBeenCalled();
+      expect(wrapper.find('[data-testid="attachment-problem"]').text()).toContain(
+        'IMG_0002.HEIC could not be read as an image',
+      );
+    });
+
+    it('shows the reason the server refused a file', async () => {
+      vi.mocked(uploadChatAttachment).mockRejectedValue(
+        new ApiErrorResponseError('Unsupported file type.', {
+          code: 'ValidationError',
+          message: 'Unsupported file type.',
+        } as never),
+      );
+      const wrapper = mountComposer();
+
+      await pick({ wrapper, files: [pdf()] });
+
+      expect(wrapper.find('[data-testid="attachment-problem"]').text()).toBe(
+        'statement.pdf could not be attached: Unsupported file type.',
+      );
     });
 
     it('says when a file could not be attached', async () => {
