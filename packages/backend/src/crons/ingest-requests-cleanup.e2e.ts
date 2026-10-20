@@ -1,11 +1,15 @@
 import { INGEST_REQUEST_RETENTION_DAYS, type IngestRequestStatus, type RecordId } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
+import ChatMessages from '@models/chat-messages.model';
+import ChatProposals from '@models/chat-proposals.model';
+import ChatThreads from '@models/chat-threads.model';
 import { connection } from '@models/connection';
 import DuplicateSuggestions from '@models/duplicate-suggestions.model';
 import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
 import { ingestRequestsCleanupCron } from '@root/crons/ingest-requests-cleanup';
 import * as helpers from '@tests/helpers';
+import { randomUUID } from 'node:crypto';
 
 /** The cleanup has no HTTP surface, so this e2e invokes it directly. */
 
@@ -15,6 +19,7 @@ const NOTHING_ELSE = {
   pendingSourcesDeleted: 0,
   suggestionsSwept: 0,
   suggestionsDeleted: 0,
+  inboxCardsSwept: 0,
 };
 
 const STATUSES: IngestRequestStatus[] = ['logged', 'rejected', 'dismissed', 'parked', 'received'];
@@ -81,6 +86,45 @@ const seedSuggestion = async ({
   });
 
   return suggestion.id;
+};
+
+/** A waiting card in a live inbox thread, written directly: the sweep reads the cards and the records they name. */
+const seedInboxCard = async ({ toolName, args }: { toolName: string; args: Record<string, unknown> }) => {
+  const user = await helpers.getUserInfo({ raw: true });
+  const thread =
+    (await ChatThreads.findOne({ where: { userId: user.id, kind: 'automationInbox' } })) ??
+    (await ChatThreads.create({
+      userId: user.id,
+      title: 'Automation inbox',
+      titleSource: 'model',
+      pinned: true,
+      kind: 'automationInbox',
+      inboxState: 'live',
+      lastMessageAt: new Date(),
+      expiresAt: null,
+    }));
+  const proposalId = randomUUID();
+  const message = await ChatMessages.create({
+    threadId: thread.id,
+    userId: user.id,
+    role: 'assistant',
+    status: 'complete',
+    parts: [{ type: 'proposal', id: randomUUID(), proposalId }],
+  });
+
+  return ChatProposals.create({
+    id: proposalId,
+    threadId: thread.id,
+    messageId: message.id,
+    userId: user.id,
+    toolName,
+    proposedArgs: args,
+    args,
+    cardKind: 'update',
+    entity: 'notificationSource',
+    status: 'pending',
+    expiresAt: new Date(Date.now() + 86_400_000),
+  });
 };
 
 const seedNotification = async ({
@@ -260,6 +304,65 @@ describe('Ingest requests cleanup cron', () => {
       expect(await DuplicateSuggestions.findByPk(oldStale)).toBeNull();
       expect(await DuplicateSuggestions.findByPk(recentMerged)).not.toBeNull();
       expect(await DuplicateSuggestions.findByPk(oldDismissed)).not.toBeNull();
+    });
+  });
+  describe('inbox cards', () => {
+    it('closes the waiting cards whose record is gone, and keeps the ones whose record still waits', async () => {
+      const user = await helpers.getUserInfo({ raw: true });
+      const waiting = await NotificationSources.create({
+        userId: user.id,
+        sourceKey: 'name:cashly',
+        appName: 'Cashly',
+        mode: 'pending',
+      });
+      const kept = await seedInboxCard({ toolName: 'set_notification_source', args: { sourceId: waiting.id } });
+      const orphanedSource = await seedInboxCard({
+        toolName: 'set_notification_source',
+        args: { sourceId: randomUUID() },
+      });
+      const orphanedPayment = await seedInboxCard({
+        toolName: 'confirm_ingest_payment',
+        args: { transactionId: randomUUID() },
+      });
+      const orphanedRequest = await seedInboxCard({
+        toolName: 'log_ingest_request',
+        args: { requestId: randomUUID() },
+      });
+
+      const result = await ingestRequestsCleanupCron.triggerManualSync();
+
+      expect(result).toMatchObject({ inboxCardsSwept: 3 });
+      expect((await ChatProposals.findByPk(kept.id))!.status).toBe('pending');
+      for (const card of [orphanedSource, orphanedPayment, orphanedRequest]) {
+        expect(await ChatProposals.findByPk(card.id)).toMatchObject({
+          status: 'rejected',
+          statusReason: 'resolvedElsewhere',
+        });
+      }
+    });
+
+    it('closes the card of a pending source that is deleted for staying unapproved', async () => {
+      const user = await helpers.getUserInfo({ raw: true });
+      const stale = await NotificationSources.create({
+        userId: user.id,
+        sourceKey: 'name:cashly',
+        appName: 'Cashly',
+        mode: 'pending',
+      });
+      const card = await seedInboxCard({ toolName: 'set_notification_source', args: { sourceId: stale.id } });
+      await stale.update({ proposalId: card.id });
+      await connection.sequelize.query(
+        `UPDATE "NotificationSources" SET "createdAt" = now() - make_interval(days => 31) WHERE id = :id`,
+        { replacements: { id: stale.id } },
+      );
+
+      const result = await ingestRequestsCleanupCron.triggerManualSync();
+
+      expect(result).toMatchObject({ pendingSourcesDeleted: 1 });
+      expect(await ChatProposals.findByPk(card.id)).toMatchObject({
+        status: 'rejected',
+        statusReason: 'resolvedElsewhere',
+      });
     });
   });
 });

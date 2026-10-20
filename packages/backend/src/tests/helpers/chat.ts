@@ -7,6 +7,7 @@ import {
   type ChatApproveRequest,
   type ChatAttachment,
   type ChatCancelRunResponse,
+  type ChatClearResolvedResponse,
   type ChatDefaultConnection,
   type ChatCardActionResponse,
   type ChatEditProposalRequest,
@@ -110,6 +111,32 @@ export async function deleteChatThread<R extends boolean | undefined = undefined
   raw?: R;
 }) {
   return makeRequest<void, R>({ method: 'delete', url: `/chat/threads/${threadId}`, raw });
+}
+
+/** Deletes the messages of an automation inbox thread whose cards are no longer waiting. */
+export async function clearResolvedChatThread<R extends boolean | undefined = undefined>({
+  threadId,
+  raw,
+}: {
+  threadId: string;
+  raw?: R;
+}) {
+  return makeRequest<ChatClearResolvedResponse, R>({
+    method: 'post',
+    url: `/chat/threads/${threadId}/clear-resolved`,
+    raw,
+  });
+}
+
+/** Closes a live automation inbox thread early. */
+export async function archiveChatThread<R extends boolean | undefined = undefined>({
+  threadId,
+  raw,
+}: {
+  threadId: string;
+  raw?: R;
+}) {
+  return makeRequest<ChatThread, R>({ method: 'post', url: `/chat/threads/${threadId}/archive`, raw });
 }
 
 /** `retentionDays` is typed wide so a test can send a value the API must refuse. */

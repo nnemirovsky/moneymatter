@@ -22,6 +22,11 @@ import { VENTURE_CASH_FLOW_MODE, VENTURE_EVENT_TYPE } from '@bt/shared/types/ven
 import { generateRandomRecordId } from '@common/lib/record-id-helpers';
 import { t } from '@i18n/index';
 import { beforeEach, describe, expect, it } from '@jest/globals';
+import ChatMessages from '@models/chat-messages.model';
+import ChatProposals from '@models/chat-proposals.model';
+import ChatThreads from '@models/chat-threads.model';
+import DuplicateSuggestions from '@models/duplicate-suggestions.model';
+import NotificationSources from '@models/notification-sources.model';
 import { RateLimitService } from '@services/common/rate-limit.service';
 import { PNG_1X1_BYTES, PNG_1X1_DATA_URL } from '@tests/fixtures/logo-images';
 import * as helpers from '@tests/helpers';
@@ -540,6 +545,89 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
       expect((await helpers.listChatThreads({ raw: true })).threads).toEqual([]);
       expect((await helpers.getChatThread({ threadId: thread.id })).statusCode).toBe(404);
       expect((await helpers.getChatThread({ threadId: unpinned.id })).statusCode).toBe(404);
+    }, 60_000);
+
+    it('restores sources and dismissed suggestions that point at an inbox card, with the card link cleared', async () => {
+      const userId = await getCurrentUserId();
+      const { accountA, tx } = await seedBasicData();
+      const [other] = await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({ accountId: accountA.id, amount: 4200 }),
+        raw: true,
+      });
+
+      // The cards live in the automation inbox thread, which a backup never carries.
+      const thread = await ChatThreads.create({
+        userId,
+        title: 'Automation inbox',
+        titleSource: 'model',
+        pinned: true,
+        kind: 'automationInbox',
+        inboxState: 'live',
+        lastMessageAt: new Date(),
+        expiresAt: null,
+      });
+      const cardFor = async (toolName: string) => {
+        const message = await ChatMessages.create({
+          threadId: thread.id,
+          userId,
+          role: 'assistant',
+          status: 'complete',
+          parts: [],
+        });
+
+        return ChatProposals.create({
+          id: randomUUID(),
+          threadId: thread.id,
+          messageId: message.id,
+          userId,
+          toolName,
+          proposedArgs: {},
+          args: {},
+          cardKind: 'update',
+          entity: 'transaction',
+          status: 'rejected',
+          expiresAt: new Date(Date.now() + 86_400_000),
+        });
+      };
+      const sourceCard = await cardFor('set_notification_source');
+      const suggestionCard = await cardFor('merge_duplicate_transactions');
+      const source = await NotificationSources.create({
+        userId,
+        sourceKey: 'name:cashly',
+        appName: 'Cashly',
+        mode: 'muted',
+        proposalId: sourceCard.id,
+      });
+      const [first, second] = [tx.id, other!.id].toSorted();
+      const suggestion = await DuplicateSuggestions.create({
+        userId,
+        accountId: accountA.id,
+        transactionId: first,
+        candidateId: second,
+        confidence: 0.9,
+        reason: 'Same shop',
+        trigger: 'ingest',
+        status: 'dismissed',
+        resolvedAt: new Date(),
+        proposalId: suggestionCard.id,
+      });
+
+      const exported = await exportArchive();
+      const restore = await helpers.restoreBackup({ fileContent: exported.base64 });
+      expect(restore.statusCode).toBe(200);
+      const status = await helpers.waitForRestore({ jobId: restore.jobId! });
+
+      expect(status.status).toBe('completed');
+      expect(await NotificationSources.findOne({ where: { appName: 'Cashly' } })).toMatchObject({
+        mode: 'muted',
+        proposalId: null,
+      });
+      expect(await DuplicateSuggestions.findOne({ where: { status: 'dismissed' } })).toMatchObject({
+        reason: 'Same shop',
+        proposalId: null,
+      });
+      expect(source.id).toBeDefined();
+      expect(suggestion.id).toBeDefined();
     }, 60_000);
   });
 
