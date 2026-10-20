@@ -721,8 +721,8 @@ Gate results (Task 9): e2e `transactions/reconciliation/(duplicate-suggestions|r
 - Modify: `packages/backend/src/services/ingest/event/{process-notification,notification-sources.service}.ts`, `packages/backend/src/services/ingest/card-payment/{retry-request,dismiss-request}.ts`, `packages/backend/src/services/transactions/reconciliation/duplicate-suggestions.ts`
 - Modify: `packages/backend/src/services/backup/restore/restore-backup.e2e.ts`
 
-- [ ] write failing unit tests: state transitions (`live` → `closed` at 7 days or 200 cards with none pending; `live` → `open` at 200 with pending; `open` → `closed` when the last card resolves); pinned iff `live` or `open`
-- [ ] write failing e2e:
+- [x] write failing unit tests: state transitions (`live` → `closed` at 7 days or 200 cards with none pending; `live` → `open` at 200 with pending; `open` → `closed` when the last card resolves); pinned iff `live` or `open`
+- [x] write failing e2e:
   - each item type creates a message plus a card whose `preview.before` shows the request, source or pair;
   - approve, edit and reject run the tool or the reject hook and resolve the record;
   - resolving elsewhere → `resolvedElsewhere`;
@@ -734,7 +734,7 @@ Gate results (Task 9): e2e `transactions/reconciliation/(duplicate-suggestions|r
   - an `open` thread whose last pending card expires (through the existing card-expiry helper) turns `closed`, is unpinned and can be deleted;
   - a read-only user can clear-resolved and archive;
   - restore of a backup taken with sources and dismissed suggestions that carry `proposalId` → succeeds, with `proposalId` null
-- [ ] gate: unit `--testPathPattern='(chat/inbox|chat/policies|entitlements)'`; e2e `--testPathPattern='(chat/inbox/inbox|chat/threads/threads|chat/proposals/(approve|card-actions)|ingest/event/process-notification|transactions/reconciliation/duplicate-suggestions|backup/restore/restore-backup|routes/base-currency-guard-coverage).e2e'`
+- [x] gate: unit `--testPathPattern='(chat/inbox|chat/policies|entitlements)'`; e2e `--testPathPattern='(chat/inbox/inbox|chat/threads/threads|chat/proposals/(approve|card-actions)|ingest/event/process-notification|transactions/reconciliation/duplicate-suggestions|backup/restore/restore-backup|routes/base-currency-guard-coverage).e2e'`
 
 ### Task 11: Assistant push group (backend and the typecheck-bound frontend entries)
 
