@@ -76,14 +76,50 @@
       <template v-else>{{ $t('syncStatusTooltip.neverSynced') }}</template>
     </div>
 
-    <!-- Empty state: no bank accounts -->
+    <!-- Apple Pay: push-based, so it has a last payment time and no "sync now" -->
+    <div
+      v-if="applePay"
+      class="border-border mb-3 flex items-center gap-2 rounded border p-2 text-xs"
+      data-testid="sync-apple-pay"
+    >
+      <WalletIcon class="size-5 shrink-0" />
+      <div class="min-w-0 flex-1">
+        <div class="truncate font-medium">{{ $t('syncStatusTooltip.applePay.title') }}</div>
+        <div class="text-muted-foreground text-[10px]" data-testid="sync-apple-pay-last">
+          {{
+            applePay.lastPaymentAt
+              ? $t('syncStatusTooltip.applePay.lastPayment', {
+                  time: formatLastSyncTime(Date.parse(applePay.lastPaymentAt)),
+                })
+              : $t('syncStatusTooltip.applePay.noPayments')
+          }}
+        </div>
+      </div>
+      <span
+        v-if="applePay.waitingCount > 0"
+        class="bg-warning/20 text-warning-text shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
+        data-testid="sync-apple-pay-waiting"
+      >
+        {{ $t('syncStatusTooltip.applePay.waiting', { count: applePay.waitingCount }) }}
+      </span>
+      <Button as-child size="sm" variant="outline" class="shrink-0">
+        <RouterLink :to="{ name: ROUTES_NAMES.accountApplePay }">{{
+          $t('syncStatusTooltip.applePay.open')
+        }}</RouterLink>
+      </Button>
+    </div>
+
+    <!-- Empty state: no bank accounts. Apple Pay alone counts as a connection, so only the Connect button stays. -->
     <div
       v-if="!isSyncing && accountStatuses.length === 0 && connectionsNeedingReauth.length === 0"
-      class="text-muted-foreground flex flex-col items-center gap-2 py-4 text-center text-sm"
+      class="text-muted-foreground flex flex-col items-center gap-2 text-center text-sm"
+      :class="applePay ? 'py-0' : 'py-4'"
     >
-      <Building2 class="size-10 opacity-50" />
-      <span>{{ $t('syncStatusTooltip.noBankAccounts') }}</span>
-      <Button as-child size="sm" class="mt-4 w-full">
+      <template v-if="!applePay">
+        <Building2 class="size-10 opacity-50" />
+        <span>{{ $t('syncStatusTooltip.noBankAccounts') }}</span>
+      </template>
+      <Button as-child size="sm" class="w-full" :class="applePay ? '' : 'mt-4'">
         <RouterLink :to="{ name: ROUTES_NAMES.accounts, query: { connect: 'bank' } }">{{
           $t('syncStatusTooltip.connectButton')
         }}</RouterLink>
@@ -129,10 +165,14 @@
     </ScrollArea>
 
     <!-- AI categorization section (always rendered, doesn't scroll with the list) -->
-    <div v-if="isCategorizing || categorizationJustCompleted" class="border-border mt-3 space-y-2 border-t pt-3">
-      <div class="flex items-center gap-2">
+    <div
+      v-if="isCategorizing || categorizationJustCompleted || showBadge({ feature: AI_FEATURE.categorization })"
+      class="border-border mt-3 space-y-2 border-t pt-3"
+    >
+      <div class="flex flex-wrap items-center gap-2">
         <SparklesIcon class="text-primary-text size-4" />
         <span class="text-sm font-medium">{{ $t('header.categorization.title') }}</span>
+        <AiUsageBadge :feature="AI_FEATURE.categorization" />
       </div>
 
       <template v-if="categorizationJustCompleted && categorizationStatus?.status === 'completed'">
@@ -200,11 +240,14 @@
 <script setup lang="ts">
 import { type AccountSyncStatus, type ConnectionNeedingReauth, SyncStatus } from '@/api/bank-data-providers';
 import { METAINFO_FROM_TYPE } from '@/common/const/bank-providers';
+import AiUsageBadge from '@/components/common/ai-usage/ai-usage-badge.vue';
 import Button from '@/components/lib/ui/button/Button.vue';
 import { Callout } from '@/components/lib/ui/callout';
+import WalletIcon from '@/components/common/icons/wallet-icon.vue';
 import { ScrollArea } from '@/components/lib/ui/scroll-area';
+import { useAiAllowance } from '@/composable/use-ai-allowance';
 import { ROUTES_NAMES } from '@/routes/constants';
-import type { AiCategorizationProgressPayload } from '@bt/shared/types';
+import { AI_FEATURE, type AiCategorizationProgressPayload } from '@bt/shared/types';
 import {
   AlertTriangleIcon,
   Building2,
@@ -220,6 +263,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
+const { showBadge } = useAiAllowance();
 
 const props = defineProps<{
   accountStatuses: AccountSyncStatus[];
@@ -235,6 +279,8 @@ const props = defineProps<{
   isCategorizing?: boolean;
   categorizationProgress?: number;
   categorizationJustCompleted?: boolean;
+  /** Set once Apple Pay is set up; `null` or absent hides its row. */
+  applePay?: { waitingCount: number; lastPaymentAt: string | null } | null;
 }>();
 
 defineEmits<{

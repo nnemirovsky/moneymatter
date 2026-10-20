@@ -12,7 +12,7 @@
           <ArrowLeftIcon class="size-4" />
         </Button>
 
-        <CreditCardIcon class="text-muted-foreground size-7 shrink-0" aria-hidden="true" />
+        <WalletIcon class="size-7 shrink-0" />
         <h1 class="truncate text-xl font-semibold tracking-tight">{{ $t(`${LABEL_ROOT}.title`) }}</h1>
       </div>
 
@@ -111,7 +111,8 @@ import { Checkbox } from '@/components/lib/ui/checkbox';
 import { useNotificationCenter } from '@/components/notification-center';
 import { normalizeCardLabel, type CardMappingDto } from '@bt/shared/types';
 import { ROUTES_NAMES } from '@/routes';
-import { ArrowLeftIcon, CreditCardIcon, QrCodeIcon } from '@lucide/vue';
+import { ArrowLeftIcon, QrCodeIcon } from '@lucide/vue';
+import WalletIcon from '@/components/common/icons/wallet-icon.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';

@@ -15,7 +15,7 @@ import { setupAutomations } from './seed-automations.service';
 import { setupBudgetPlan } from './seed-budget-plan.service';
 import {
   createAccounts,
-  createBudgets,
+  createTrackers,
   createCategories,
   createTags,
   setupCurrencies,
@@ -32,8 +32,8 @@ import { sumSpendByCategoryKey } from './template/budget-spend';
 import { toBaseCurrencyCents } from './template/fx';
 import type { DemoTemplateTransaction } from './template/types';
 
-/** How far back demo budgets look: a fixed window, always complete unlike a part-elapsed calendar month. */
-const BUDGET_WINDOW_DAYS = 30;
+/** How far back demo trackers look: a fixed window, always complete unlike a part-elapsed calendar month. */
+const TRACKER_WINDOW_DAYS = 30;
 
 interface TransferReconcilableRow {
   transferId: string | null;
@@ -280,15 +280,15 @@ export async function applyDemoTemplate({
   await updateAccountBalances({ userId });
   await rebuildBalancesHistory({ userId });
 
-  await createBudgets({
+  await createTrackers({
     userId,
     categoryMap,
     spendByCategoryKey: sumSpendByCategoryKey({
       template,
-      windowDays: BUDGET_WINDOW_DAYS,
+      windowDays: TRACKER_WINDOW_DAYS,
       currencyByAccountKey: accountKeyToCurrency,
     }),
-    windowStart: subDays(referenceDate, BUDGET_WINDOW_DAYS),
+    windowStart: subDays(referenceDate, TRACKER_WINDOW_DAYS),
     windowEnd: referenceDate,
   });
 

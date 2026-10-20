@@ -185,7 +185,7 @@ describe('withDateOrder', () => {
     }
   });
 
-  // The pattern domain entities (budget, subscription) use: their own asymmetric /
+  // The pattern domain entities (tracker, subscription) use: their own asymmetric /
   // nullable bound optionality via `dateBound`, plus the shared ordering guard.
   describe('nullable / asymmetric domain-entity bounds', () => {
     const schema = withDateOrder(

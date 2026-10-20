@@ -17,8 +17,8 @@ import betterAuthExtensionsRoutes from './routes/better-auth-extensions.route';
 import billingRoutes from './routes/billing.route';
 import brandLogosRoutes from './routes/brand-logos.route';
 import budgetPlansRoutes from './routes/budget-plans.route';
-import budgetsRoutes from './routes/budgets.route';
 import categoriesRoutes from './routes/categories.route';
+import chatRoutes from './routes/chat.route';
 import clientLogsRoutes from './routes/client-logs.route';
 import modelsCurrenciesRoutes from './routes/currencies.route';
 import demoRoutes from './routes/demo.route';
@@ -36,6 +36,7 @@ import ingestRoutes from './routes/ingest.route';
 import investmentsRoutes from './routes/investments.route';
 import landingRoutes from './routes/landing.route';
 import loansRoutes from './routes/loans.route';
+import logoImagesRoutes from './routes/logo-images.route';
 import mcpRoutes from './routes/mcp.route';
 import notificationsRoutes from './routes/notifications.route';
 import { setupOAuthMetadataRoutes } from './routes/oauth-metadata.route';
@@ -48,6 +49,7 @@ import subscriptionsRoutes from './routes/subscriptions.route';
 import tagRemindersRoutes from './routes/tag-reminders.route';
 import tagsRoutes from './routes/tags.route';
 import testsRoutes from './routes/tests.route';
+import trackersRoutes from './routes/trackers.route';
 import transactionAutomationsRoutes from './routes/transaction-automations.route';
 import transactionGroupsRoutes from './routes/transaction-groups.route';
 import transactionTemplatesRoutes from './routes/transaction-templates.route';
@@ -55,6 +57,7 @@ import transactionsRoutes from './routes/transactions.route';
 import userRoutes from './routes/user.route';
 import vehiclesRoutes from './routes/vehicles.route';
 import ventureRoutes from './routes/venture.route';
+import webPushRoutes from './routes/web-push.route';
 import webhooksRoutes from './routes/webhooks.route';
 
 export function setupRoutes(app: Express) {
@@ -118,6 +121,8 @@ export function setupRoutes(app: Express) {
           method: 'POST',
           headers: {
             ...req.headers,
+            // The inner hop arrives from trusted loopback, so a caller-sent X-Forwarded-For would be believed.
+            'x-forwarded-for': req.ip ?? '',
             'content-length': body.length.toString(),
             'x-register-patched': '1',
           },
@@ -181,13 +186,14 @@ export function setupRoutes(app: Express) {
   app.use(`${API_PREFIX}/accounts`, accountsRoutes);
   app.use(`${API_PREFIX}/transactions`, transactionsRoutes);
   app.use(`${API_PREFIX}/attachments`, attachmentsRoutes);
+  app.use(`${API_PREFIX}/logo-images`, logoImagesRoutes);
   app.use(`${API_PREFIX}/categories`, categoriesRoutes);
   app.use(`${API_PREFIX}/models/currencies`, modelsCurrenciesRoutes);
   app.use(`${API_PREFIX}/bank-data-providers`, bankDataProvidersRoutes);
   app.use(`${API_PREFIX}/stats`, statsRoutes);
   app.use(`${API_PREFIX}/account-group`, accountGroupsRoutes);
   app.use(`${API_PREFIX}/currencies/rates`, exchangeRatesRoutes);
-  app.use(`${API_PREFIX}/budgets`, budgetsRoutes);
+  app.use(`${API_PREFIX}/trackers`, trackersRoutes);
   app.use(`${API_PREFIX}/budget-plans`, budgetPlansRoutes);
   app.use(`${API_PREFIX}/subscriptions`, subscriptionsRoutes);
   app.use(`${API_PREFIX}/tags`, tagsRoutes);
@@ -196,6 +202,8 @@ export function setupRoutes(app: Express) {
   app.use(`${API_PREFIX}/automations`, transactionAutomationsRoutes);
   app.use(`${API_PREFIX}/transaction-templates`, transactionTemplatesRoutes);
   app.use(`${API_PREFIX}/notifications`, notificationsRoutes);
+  app.use(`${API_PREFIX}/push`, webPushRoutes);
+  app.use(`${API_PREFIX}/chat`, chatRoutes);
   app.use(`${API_PREFIX}/payees`, payeesRoutes);
   app.use(`${API_PREFIX}/brand-logos`, brandLogosRoutes);
   app.use(`${API_PREFIX}/vehicles`, vehiclesRoutes);

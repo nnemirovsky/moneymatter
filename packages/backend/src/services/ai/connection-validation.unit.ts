@@ -488,6 +488,15 @@ describe('CLI connection verdicts', () => {
       });
     });
 
+    it('accepts an exhausted subscription: the sign-in and the model were recognised', () => {
+      const error = mapCliFailure({
+        provider: AI_PROVIDER.codex,
+        text: 'Your workspace is out of credits. Ask your workspace owner to refill in order to continue.',
+      });
+
+      expect(judge({ error, provider: AI_PROVIDER.codex })).toEqual({ isValid: true });
+    });
+
     it('accepts an overloaded service (503)', () => {
       expect(judge({ error: mapCliFailure({ provider: claude, text: 'Overloaded', apiErrorStatus: 529 }) })).toEqual({
         isValid: true,
@@ -625,20 +634,29 @@ describe('CLI connection verdicts', () => {
       ).rejects.toThrow('session already used');
     });
 
-    it('throws the busy message, without a verdict, when the slot stays taken', async () => {
-      const credentialSource = buildSource();
-      const holder = runWithCliSlot({
-        connectionKey: credentialSource.connectionKey,
-        timeoutMs: 5_000,
-        run: () => new Promise((resolve) => setTimeout(resolve, 600)),
-      });
+    it('throws the busy message, without a verdict, when every instance-wide slot stays taken', async () => {
+      const savedCap = process.env.AI_CLI_MAX_CONCURRENT_RUNS;
 
-      await expect(validateCliConnection({ provider: claude, model: MODEL, credentialSource })).rejects.toThrow(
-        t({ key: 'ai.cliConnectionBusy' }),
-      );
-      expect(fakes.readRuns()).toHaveLength(0);
+      process.env.AI_CLI_MAX_CONCURRENT_RUNS = '1';
 
-      await holder;
+      try {
+        const credentialSource = buildSource();
+        const holder = runWithCliSlot({
+          connectionKey: 'another-connection',
+          timeoutMs: 5_000,
+          run: () => new Promise((resolve) => setTimeout(resolve, 600)),
+        });
+
+        await expect(validateCliConnection({ provider: claude, model: MODEL, credentialSource })).rejects.toThrow(
+          t({ key: 'ai.cliConnectionBusy' }),
+        );
+        expect(fakes.readRuns()).toHaveLength(0);
+
+        await holder;
+      } finally {
+        if (savedCap === undefined) delete process.env.AI_CLI_MAX_CONCURRENT_RUNS;
+        else process.env.AI_CLI_MAX_CONCURRENT_RUNS = savedCap;
+      }
     });
   });
 });

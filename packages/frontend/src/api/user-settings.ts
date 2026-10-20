@@ -9,6 +9,8 @@ import type {
   SavedPivotView,
   SavedTransactionView,
   CurrencyDisplayPreference,
+  PushGroup,
+  ChatRetentionDays,
 } from '@bt/shared/types';
 
 export interface DashboardWidgetConfig {
@@ -131,6 +133,8 @@ export interface UserSettingsSchema {
    * Accounts panel. Defaults to visible/off when unset.
    */
   hideZeroBalances?: boolean;
+  /** Hides the "turn on smart tracking" tip on every tracker. */
+  hideSmartTrackingTip?: boolean;
   accounts?: {
     /** Account preselected in the account pickers. `null` means the user explicitly cleared it. */
     defaultAccountId?: string | null;
@@ -154,6 +158,22 @@ export interface UserSettingsSchema {
   incomeCategoryIds?: string[];
   currencyDisplay?: CurrencyDisplayPreference;
   fire?: FireSettings;
+  /**
+   * Read-only here: the chat's history retention is written by `PUT /chat/settings`, which also
+   * recomputes the thread expiries, and the server drops it from settings writes.
+   */
+  ai?: {
+    chat?: {
+      /** `null` keeps conversations until the user deletes them; unset is the 30-day default. */
+      retentionDays?: ChatRetentionDays | null;
+    };
+  };
+  notifications?: {
+    push?: {
+      /** Web Push groups the user switched. A group that was never set takes `PUSH_GROUP_DEFAULTS`. */
+      groups?: Partial<Record<PushGroup, boolean>>;
+    };
+  };
 }
 
 export const getUserSettings = async (): Promise<UserSettingsSchema> => {

@@ -24,7 +24,7 @@ export const FILTER_ICONS: Record<ExtraFilterKey, FunctionalComponent> = {
   type: ArrowUpDownIcon,
   tags: TagIcon,
   payees: StoreIcon,
-  budgets: PiggyBankIcon,
+  trackers: PiggyBankIcon,
   amount: BanknoteIcon,
   transferKinds: LayersIcon,
   refunds: UndoIcon,

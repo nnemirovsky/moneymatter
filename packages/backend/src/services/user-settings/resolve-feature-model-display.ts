@@ -2,7 +2,12 @@ import { AIFeatureStatus, AI_FEATURE, AI_PROVIDER, isAiCliProvider } from '@bt/s
 import type { StoredAiSettings } from '@models/user-settings.model';
 
 import { getModelProfile } from '../ai/model-catalog';
-import { buildConnectionModelId, getServerModel, pickResolutionStep } from '../ai/resolution-ladder';
+import {
+  buildConnectionModelId,
+  findStoredFeatureConfig,
+  getServerModel,
+  pickResolutionStep,
+} from '../ai/resolution-ladder';
 
 async function describeModel(spec: {
   provider: AI_PROVIDER;
@@ -23,23 +28,20 @@ export async function resolveFeatureStatus({
   feature,
   aiSettings,
   serverKeysAllowed,
-  paidPlus,
 }: {
   feature: AI_FEATURE;
   aiSettings: StoredAiSettings | null;
   serverKeysAllowed: boolean;
-  paidPlus: boolean;
 }): Promise<AIFeatureStatus> {
-  const config = aiSettings?.featureConfigs?.find((candidate) => candidate.feature === feature) ?? null;
+  const config = findStoredFeatureConfig({ aiSettings, feature });
   const connections = aiSettings?.connections ?? [];
-  const serverModel = getServerModel({ feature, serverKeysAllowed, paidPlus });
+  const serverModel = getServerModel({ feature, serverKeysAllowed });
   const serverModelName = serverModel ? (await describeModel(serverModel)).modelName : null;
   const step = pickResolutionStep({
     feature,
     config,
     connections,
     serverKeysAllowed,
-    paidPlus,
     excludedConnectionIds: new Set(
       connections
         .filter((connection) => connection.provider !== AI_PROVIDER.custom && !connection.keyEncrypted)
@@ -54,15 +56,17 @@ export async function resolveFeatureStatus({
     case 'default-connection':
     case 'all-connections-down': {
       const { connection } = step;
-      const modelId = buildConnectionModelId(connection);
+      const configuredModelId = step.kind === 'configured' ? step.modelId : undefined;
+      const answering = { ...connection, model: configuredModelId ?? connection.model };
 
       return {
         feature,
         isConfigured: step.kind === 'configured',
         configuredConnectionId: step.kind === 'configured' ? connection.id : undefined,
+        configuredModelId,
         servedBy: step.kind === 'all-connections-down' ? null : 'connection',
-        modelId,
-        ...(await describeModel(connection)),
+        modelId: buildConnectionModelId(answering),
+        ...(await describeModel(answering)),
         usingUserKey: true,
         billing: isAiCliProvider({ provider: connection.provider }) ? 'subscription' : 'per-token',
         connectionId: connection.id,

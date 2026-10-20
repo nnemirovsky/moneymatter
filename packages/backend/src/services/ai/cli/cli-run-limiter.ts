@@ -1,7 +1,13 @@
-const DEFAULT_MAX_CONCURRENT_RUNS = 2;
+const DEFAULT_MAX_CONCURRENT_RUNS = 4;
 
 /** Run timeout for a feature call (categorization batch, statement parse, invoice extraction). */
 const FEATURE_RUN_TIMEOUT_MS = 5 * 60 * 1000;
+
+/** Run timeout for a chat turn, counted from the moment its slot is held. */
+const CHAT_RUN_TIMEOUT_MS = 10 * 60 * 1000;
+
+/** How long a chat turn waits for a global slot before the run fails as busy. */
+const CHAT_SLOT_WAIT_MS = 2 * 60 * 1000;
 
 /** Run timeout for the validation probe on create/update/test. */
 export const CLI_PROBE_RUN_TIMEOUT_MS = 90 * 1000;
@@ -19,15 +25,30 @@ export class CliSlotBusyError extends Error {
   }
 }
 
-/** `AI_CLI_RUN_TIMEOUT_MS` shortens the feature-run timeout under `NODE_ENV=test` so e2e can exercise it. */
-export function getFeatureRunTimeoutMs(): number {
+/** The positive number in the env var `name`, under `NODE_ENV=test` only: lets e2e shorten a timeout it exercises. */
+function readTestOverrideMs({ name, fallback }: { name: string; fallback: number }): number {
   if (process.env.NODE_ENV === 'test') {
-    const override = Number(process.env.AI_CLI_RUN_TIMEOUT_MS);
+    const override = Number(process.env[name]);
 
     if (Number.isFinite(override) && override > 0) return override;
   }
 
-  return FEATURE_RUN_TIMEOUT_MS;
+  return fallback;
+}
+
+/** `AI_CLI_RUN_TIMEOUT_MS` shortens the feature-run timeout under `NODE_ENV=test` so e2e can exercise it. */
+export function getFeatureRunTimeoutMs(): number {
+  return readTestOverrideMs({ name: 'AI_CLI_RUN_TIMEOUT_MS', fallback: FEATURE_RUN_TIMEOUT_MS });
+}
+
+/** `AI_CLI_CHAT_RUN_TIMEOUT_MS` shortens it under `NODE_ENV=test`. */
+export function getChatRunTimeoutMs(): number {
+  return readTestOverrideMs({ name: 'AI_CLI_CHAT_RUN_TIMEOUT_MS', fallback: CHAT_RUN_TIMEOUT_MS });
+}
+
+/** `AI_CLI_CHAT_SLOT_WAIT_MS` shortens it under `NODE_ENV=test`. */
+export function getChatSlotWaitMs(): number {
+  return readTestOverrideMs({ name: 'AI_CLI_CHAT_SLOT_WAIT_MS', fallback: CHAT_SLOT_WAIT_MS });
 }
 
 function getMaxConcurrentRuns(): number {
@@ -43,7 +64,6 @@ interface Gate {
 
 const createGate = (): Gate => ({ active: 0, waiters: [] });
 
-const keyGates = new Map<string, Gate>();
 const globalGate = createGate();
 
 function releaseGate({ gate, capacity }: { gate: Gate; capacity: () => number }) {
@@ -113,40 +133,18 @@ const anySignal = ({ signals }: { signals: (AbortSignal | undefined)[] }) =>
   AbortSignal.any(signals.filter((signal): signal is AbortSignal => signal !== undefined));
 
 async function acquireSlot({
-  connectionKey,
   abortSignal,
   maxWaitMs,
 }: {
-  connectionKey: string;
   abortSignal: AbortSignal | undefined;
   maxWaitMs: number | undefined;
 }): Promise<() => void> {
   const maxWait = maxWaitMs === undefined ? undefined : createTimeout({ ms: maxWaitMs });
   const waitSignal = anySignal({ signals: [abortSignal, maxWait?.signal] });
-  const keyGate = keyGates.get(connectionKey) ?? createGate();
-
-  keyGates.set(connectionKey, keyGate);
-
-  const releaseKeyGate = () => {
-    releaseGate({ gate: keyGate, capacity: () => 1 });
-    if (keyGate.active === 0 && keyGate.waiters.length === 0) keyGates.delete(connectionKey);
-  };
-
-  let releaseKey: (() => void) | undefined;
 
   try {
-    await acquireGate({ gate: keyGate, capacity: () => 1, signal: waitSignal });
-    releaseKey = releaseKeyGate;
-
-    const releaseGlobal = await acquireGate({ gate: globalGate, capacity: getMaxConcurrentRuns, signal: waitSignal });
-
-    return () => {
-      releaseGlobal();
-      releaseKey!();
-    };
+    return await acquireGate({ gate: globalGate, capacity: getMaxConcurrentRuns, signal: waitSignal });
   } catch (error) {
-    releaseKey?.();
-    if (keyGate.active === 0 && keyGate.waiters.length === 0) keyGates.delete(connectionKey);
     if (maxWait?.signal.aborted && !abortSignal?.aborted) throw new CliSlotBusyError();
     throw error;
   } finally {
@@ -158,6 +156,7 @@ async function acquireSlot({
 const ABORT_ALL_SETTLE_CAP_MS = 3 * 1000;
 
 interface TrackedRun {
+  connectionKey: string;
   controller: AbortController;
   settled: Promise<unknown>;
 }
@@ -166,18 +165,12 @@ interface TrackedRun {
 const trackedRuns = new Set<TrackedRun>();
 
 /**
- * Aborts every queued and running CLI call (their signals reach `runCliProcess`, which kills the
- * child's process group) and waits for them to settle: the Codex home write-back and temp dir removal
- * run on that path. Gives up after 3 s, so a stuck cleanup cannot eat the shutdown budget. All
- * controllers abort synchronously, so a queued waiter leaves before a freed slot could start it.
+ * Aborts the given calls (their signals reach `runCliProcess`, which kills the child's process group)
+ * and waits for them to settle, giving up after 3 s so a stuck cleanup cannot eat the caller's budget.
+ * All controllers abort synchronously, so a queued waiter leaves before a freed slot could start it.
  */
-export async function abortAllCliRuns(): Promise<void> {
-  if (trackedRuns.size === 0) return;
-
-  const runs = [...trackedRuns];
-  const reason = Object.assign(new Error('The CLI run was aborted: the server is shutting down'), {
-    name: 'AbortError',
-  });
+async function abortAndSettle({ runs, reason }: { runs: TrackedRun[]; reason: Error }): Promise<void> {
+  if (runs.length === 0) return;
 
   for (const { controller } of runs) controller.abort(reason);
 
@@ -195,9 +188,37 @@ export async function abortAllCliRuns(): Promise<void> {
   }
 }
 
+const createAbortError = ({ message }: { message: string }) =>
+  Object.assign(new Error(message), { name: 'AbortError' });
+
 /**
- * Runs one CLI call: at most one per `connectionKey` at a time and at most `AI_CLI_MAX_CONCURRENT_RUNS`
- * instance-wide, FIFO. `abortSignal` bounds the whole call including the queue wait; the run timeout
+ * Aborts every queued and running CLI call and waits for them to settle: the Codex home write-back
+ * and temp dir removal run on that path. Used by graceful shutdown.
+ */
+export function abortAllCliRuns(): Promise<void> {
+  return abortAndSettle({
+    runs: [...trackedRuns],
+    reason: createAbortError({ message: 'The CLI run was aborted: the server is shutting down' }),
+  });
+}
+
+/**
+ * Aborts every queued and running CLI call of one connection and waits for them to settle (same
+ * 3 s cap). Disconnecting a connection uses it so no run is still using the credential, or the shared
+ * Codex home, while the connection is signed out and deleted.
+ */
+export function abortCliRunsForConnection({ connectionKey }: { connectionKey: string }): Promise<void> {
+  return abortAndSettle({
+    runs: [...trackedRuns].filter((run) => run.connectionKey === connectionKey),
+    reason: createAbortError({ message: 'The CLI run was aborted: the connection is being disconnected' }),
+  });
+}
+
+/**
+ * Runs one CLI call: at most `AI_CLI_MAX_CONCURRENT_RUNS` (default 4) instance-wide, FIFO, whatever the
+ * connection. Calls of one `connectionKey` run in parallel; `connectionKey` only tags the call so
+ * `abortCliRunsForConnection` can find it. Serializing a credential's users is the credential layer's
+ * job (`withCodexHome` shares one home per connection). `abortSignal` bounds the whole call including the queue wait; the run timeout
  * starts only once the slot is held, so time spent behind another run never counts against it.
  * `maxWaitMs` makes a waiter give up with `CliSlotBusyError`. `abortAllCliRuns` aborts the call too.
  */
@@ -218,7 +239,7 @@ export function runWithCliSlot<T>({
   const callSignal = anySignal({ signals: [abortSignal, controller.signal] });
 
   const result = (async () => {
-    const release = await acquireSlot({ connectionKey, abortSignal: callSignal, maxWaitMs });
+    const release = await acquireSlot({ abortSignal: callSignal, maxWaitMs });
     const runTimeout = createTimeout({ ms: timeoutMs });
 
     try {
@@ -229,7 +250,7 @@ export function runWithCliSlot<T>({
     }
   })();
 
-  const tracked: TrackedRun = { controller, settled: result.catch(() => undefined) };
+  const tracked: TrackedRun = { connectionKey, controller, settled: result.catch(() => undefined) };
 
   trackedRuns.add(tracked);
   void tracked.settled.then(() => trackedRuns.delete(tracked));

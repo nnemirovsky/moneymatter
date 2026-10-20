@@ -1,18 +1,20 @@
 <script lang="ts" setup>
-import { loadBudgetStats, loadSystemBudgets } from '@/api/budgets';
+import { loadTrackerStats, loadTrackers } from '@/api/trackers';
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const';
 import { buttonVariants } from '@/components/lib/ui/button';
 import { ScrollArea } from '@/components/lib/ui/scroll-area';
 import { DesktopOnlyTooltip } from '@/components/lib/ui/tooltip';
 import { useFormatCurrency } from '@/composable/formatters';
 import { cn } from '@/lib/utils';
-import { utilizationClasses } from '@/pages/budgets/budget-list-cards/shared/utilization-classes';
+import { getTrackerSpent } from '@/pages/trackers/trackers-info/tracker-summary';
+import UtilizationBar from '@/pages/trackers/components/utilization-bar.vue';
+import { getTrackerTimeStatus } from '@/pages/trackers/tracker-time-status';
+import { utilizationClasses } from '@/pages/trackers/utilization-classes';
 import { ROUTES_NAMES } from '@/routes/constants';
 import { useRootStore } from '@/stores';
-import { BUDGET_STATUSES } from '@bt/shared/types';
-import { ArrowUpRightIcon, TagsIcon } from '@lucide/vue';
+import { TRACKER_STATUSES } from '@bt/shared/types';
+import { ArrowUpRightIcon, TargetIcon } from '@lucide/vue';
 import { useQueries, useQuery } from '@tanstack/vue-query';
-import { isPast } from 'date-fns';
 import { storeToRefs } from 'pinia';
 import { computed } from 'vue';
 
@@ -26,8 +28,8 @@ const { formatBaseCurrency } = useFormatCurrency();
 const SKELETON_ROWS = 4;
 
 const listQuery = useQuery({
-  queryKey: [...VUE_QUERY_CACHE_KEYS.budgetsList, BUDGET_STATUSES.active],
-  queryFn: () => loadSystemBudgets({ status: BUDGET_STATUSES.active }),
+  queryKey: [...VUE_QUERY_CACHE_KEYS.trackersList, TRACKER_STATUSES.active],
+  queryFn: () => loadTrackers({ status: TRACKER_STATUSES.active }),
   enabled: isAppInitialized,
 });
 
@@ -36,8 +38,8 @@ const trackers = computed(() => listQuery.data.value ?? []);
 const statsQueries = useQueries({
   queries: computed(() =>
     trackers.value.map((tracker) => ({
-      queryKey: [...VUE_QUERY_CACHE_KEYS.budgetStats, tracker.id],
-      queryFn: () => loadBudgetStats({ budgetId: tracker.id }),
+      queryKey: [...VUE_QUERY_CACHE_KEYS.trackerStats, tracker.id],
+      queryFn: () => loadTrackerStats({ trackerId: tracker.id }),
     })),
   ),
 });
@@ -53,7 +55,7 @@ const rows = computed(() =>
           tracker,
           summary,
           utilizationRate,
-          ended: !!tracker.endDate && isPast(new Date(tracker.endDate)),
+          ended: getTrackerTimeStatus({ startDate: tracker.startDate, endDate: tracker.endDate }).kind === 'ended',
           tone: utilizationClasses({ rate: utilizationRate ?? 0 }),
         },
       ];
@@ -79,7 +81,7 @@ const retry = () => {
         <span class="inline-flex">
           <router-link
             :class="buttonVariants({ variant: 'ghost', size: 'icon-sm', class: 'text-muted-foreground' })"
-            :to="{ name: ROUTES_NAMES.plannedBudgets }"
+            :to="{ name: ROUTES_NAMES.plannedTrackers }"
             :aria-label="$t('common.actions.viewAll')"
           >
             <ArrowUpRightIcon class="size-4" />
@@ -105,11 +107,11 @@ const retry = () => {
     </div>
 
     <div v-else-if="!rows.length" class="flex min-h-[220px] flex-col items-center justify-center gap-3 text-center">
-      <TagsIcon class="text-muted-foreground size-10" />
+      <TargetIcon class="text-muted-foreground size-10" />
       <p class="text-muted-foreground text-sm">{{ $t('dashboard.widgets.trackers.empty') }}</p>
       <router-link
         :class="buttonVariants({ variant: 'outline', size: 'sm' })"
-        :to="{ name: ROUTES_NAMES.plannedBudgets }"
+        :to="{ name: ROUTES_NAMES.plannedTrackers }"
       >
         {{ $t('dashboard.widgets.trackers.create') }}
       </router-link>
@@ -120,7 +122,7 @@ const retry = () => {
         <router-link
           v-for="row in rows"
           :key="row.tracker.id"
-          :to="{ name: ROUTES_NAMES.plannedBudgetDetails, params: { id: row.tracker.id } }"
+          :to="{ name: ROUTES_NAMES.plannedTrackerDetails, params: { id: row.tracker.id } }"
           :class="
             cn('hover:bg-foreground/5 -mx-2 block rounded-md px-2 py-2 transition-colors', row.ended && 'opacity-60')
           "
@@ -143,19 +145,14 @@ const retry = () => {
             </span>
           </span>
 
-          <span v-if="row.utilizationRate !== null" class="bg-muted mt-1.5 block h-1.5 overflow-hidden rounded-full">
-            <span
-              :class="cn('block h-full rounded-full', row.tone.bg)"
-              :style="{ width: `${Math.min(row.utilizationRate, 100)}%` }"
-            />
-          </span>
+          <UtilizationBar v-if="row.utilizationRate !== null" :rate="row.utilizationRate" class="mt-1.5" />
 
           <span class="text-muted-foreground mt-1 flex justify-between gap-3 text-xs leading-4 tabular-nums">
             <span class="min-w-0 truncate">
               {{
                 row.utilizationRate !== null
                   ? $t('dashboard.widgets.trackers.spentOfLimit', {
-                      spent: formatBaseCurrency(row.summary.actualExpense),
+                      spent: formatBaseCurrency(getTrackerSpent({ summary: row.summary })),
                       limit: formatBaseCurrency(row.tracker.limitAmount ?? 0),
                     })
                   : $t('dashboard.widgets.trackers.inOut', {

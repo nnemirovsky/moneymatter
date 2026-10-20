@@ -51,7 +51,7 @@ const childState = ref<ChildState>('pending');
 /**
  * Captured at accept-time so the "go to resource" button can route to the right page
  * even after the dialog rerenders. `null` while pending; populated to the just-accepted
- * resource on success. Account / budget are routed to their respective detail pages;
+ * resource on success. Account / tracker are routed to their respective detail pages;
  * other resource types fall through to a generic "close" action.
  */
 const acceptedResource = ref<{ type: ResourceType; id: string } | null>(null);
@@ -69,12 +69,12 @@ const acceptMutation = useMutation({
     emit('accepted', { acceptedAccountId: acceptedAccountId.value });
     addSuccessNotification(t('dialogs.shareInvitationDialog.acceptSuccess'));
     queryClient.invalidateQueries({ queryKey: VUE_QUERY_CACHE_KEYS.shareInvitationsReceived });
-    if (data.share.resourceType === RESOURCE_TYPES.budget) {
-      // Newly accepted budget surfaces in the owned+shared budget list — invalidate the
-      // list query and the per-budget detail query (in case the user opens the budget
+    if (data.share.resourceType === RESOURCE_TYPES.tracker) {
+      // Newly accepted tracker surfaces in the owned+shared tracker list — invalidate the
+      // list query and the per-tracker detail query (in case the user opens the tracker
       // before the list refetches).
-      queryClient.invalidateQueries({ queryKey: VUE_QUERY_CACHE_KEYS.budgetsList });
-      queryClient.invalidateQueries({ queryKey: VUE_QUERY_CACHE_KEYS.budgetsListItem });
+      queryClient.invalidateQueries({ queryKey: VUE_QUERY_CACHE_KEYS.trackersList });
+      queryClient.invalidateQueries({ queryKey: VUE_QUERY_CACHE_KEYS.trackersListItem });
     } else {
       queryClient.invalidateQueries({ queryKey: VUE_QUERY_CACHE_KEYS.allAccounts });
     }
@@ -122,15 +122,15 @@ const goToResource = () => {
     router.push({ name: ROUTES_NAMES.account, params: { id: accepted.id } });
     return;
   }
-  if (accepted.type === RESOURCE_TYPES.budget) {
-    router.push({ name: ROUTES_NAMES.plannedBudgetDetails, params: { id: accepted.id } });
+  if (accepted.type === RESOURCE_TYPES.tracker) {
+    router.push({ name: ROUTES_NAMES.plannedTrackerDetails, params: { id: accepted.id } });
     return;
   }
   emit('close');
 };
 
 const goToResourceLabel = computed(() => {
-  if (acceptedResource.value?.type === RESOURCE_TYPES.budget) {
+  if (acceptedResource.value?.type === RESOURCE_TYPES.tracker) {
     return t('dialogs.shareInvitationDialog.goToBudget');
   }
   return t('dialogs.shareInvitationDialog.goToAccount');

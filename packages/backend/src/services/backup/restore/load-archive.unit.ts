@@ -1,4 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { BACKUP_FORMAT_VERSION } from '@bt/shared/types';
+import { i18nextReady, t } from '@i18n/index';
+import { beforeAll, describe, expect, it } from '@jest/globals';
 import JSZip from 'jszip';
 
 import { sha256Hex } from '../sha256';
@@ -96,12 +98,16 @@ async function buildArchiveFromFiles({
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
 
+beforeAll(async () => {
+  await i18nextReady;
+});
+
 describe('loadBackupArchive file-shape guards', () => {
   it('rejects a data file whose array carries a non-object element', async () => {
     const buffer = await buildArchiveFromFiles({ files: { 'data/transactions.json': '[null]' } });
 
     await expect(loadBackupArchive({ fileContent: buffer.toString('base64') })).rejects.toThrow(
-      /every row must be a JSON object/,
+      t({ key: 'backup.restore.errors.rowNotObject', variables: { path: 'data/transactions.json' } }),
     );
   });
 
@@ -109,7 +115,7 @@ describe('loadBackupArchive file-shape guards', () => {
     const buffer = await buildArchiveFromFiles({ files: { 'reference/securities.json': '{}' } });
 
     await expect(loadBackupArchive({ fileContent: buffer.toString('base64') })).rejects.toThrow(
-      /expected a JSON array of rows/,
+      t({ key: 'backup.restore.errors.rowsNotArray', variables: { path: 'reference/securities.json' } }),
     );
   });
 
@@ -117,7 +123,7 @@ describe('loadBackupArchive file-shape guards', () => {
     const buffer = await buildArchiveFromFiles({ files: { 'reference/securities.json': '[null]' } });
 
     await expect(loadBackupArchive({ fileContent: buffer.toString('base64') })).rejects.toThrow(
-      /every row must be a JSON object/,
+      t({ key: 'backup.restore.errors.rowNotObject', variables: { path: 'reference/securities.json' } }),
     );
   });
 
@@ -125,7 +131,7 @@ describe('loadBackupArchive file-shape guards', () => {
     const buffer = await buildArchiveFromFiles({ files: { 'data/user.json': '42' } });
 
     await expect(loadBackupArchive({ fileContent: buffer.toString('base64') })).rejects.toThrow(
-      /the user record must be a JSON object/,
+      t({ key: 'backup.restore.errors.userNotObject', variables: { path: 'data/user.json' } }),
     );
   });
 
@@ -146,7 +152,7 @@ describe('loadBackupArchive uncompressed-size budget', () => {
 
     await expect(
       loadBackupArchive({ fileContent: buffer.toString('base64'), maxUncompressedBytes: SMALL_BUDGET }),
-    ).rejects.toThrow(/exceed the size limit/);
+    ).rejects.toThrow(t({ key: 'backup.restore.errors.archiveTooLarge' }));
   });
 
   it('rejects a forged archive that understates its declared sizes as a clean 422', async () => {
@@ -160,7 +166,7 @@ describe('loadBackupArchive uncompressed-size budget', () => {
     // error escape as a generic 500.
     await expect(
       loadBackupArchive({ fileContent: buffer.toString('base64'), maxUncompressedBytes: SMALL_BUDGET }),
-    ).rejects.toThrow(/corrupt or has been tampered with/);
+    ).rejects.toThrow(t({ key: 'backup.restore.errors.archiveCorrupt' }));
   });
 
   it('accepts an archive whose uncompressed contents fit the budget', async () => {
@@ -186,9 +192,37 @@ describe('loadBackupArchive money format', () => {
     expect(archive.data.get('transactions')).toEqual([{ id: 'a', amount: '15.5', refAmount: null }]);
   });
 
-  it('keeps the money of a format version 2 archive as it is', async () => {
+  it('converts the cents of a format version 2 archive written with the tracker names', async () => {
+    const buffer = await buildArchiveFromFiles({
+      files: { 'data/transactions.json': rows, 'data/trackers.json': JSON.stringify([{ id: 't', limitAmount: 5000 }]) },
+      formatVersion: 2,
+    });
+
+    const archive = await loadBackupArchive({ fileContent: buffer.toString('base64') });
+
+    expect(archive.data.get('transactions')).toEqual([{ id: 'a', amount: '15.5', refAmount: null }]);
+    expect(archive.data.get('trackers')).toEqual([{ id: 't', limitAmount: '50' }]);
+  });
+
+  it('keeps the decimal money of a format version 2 archive that still carries the budget names', async () => {
     const decimalRows = JSON.stringify([{ id: 'a', amount: '15.500000000000000000', refAmount: null }]);
-    const buffer = await buildArchiveFromFiles({ files: { 'data/transactions.json': decimalRows }, formatVersion: 2 });
+    const buffer = await buildArchiveFromFiles({
+      files: {
+        'data/transactions.json': decimalRows,
+        'data/budgets.json': JSON.stringify([{ id: 't', limitAmount: '50.000000000000000000' }]),
+      },
+      formatVersion: 2,
+    });
+
+    const archive = await loadBackupArchive({ fileContent: buffer.toString('base64') });
+
+    expect(archive.data.get('transactions')).toEqual([{ id: 'a', amount: '15.500000000000000000', refAmount: null }]);
+    expect(archive.data.get('trackers')).toEqual([{ id: 't', limitAmount: '50.000000000000000000' }]);
+  });
+
+  it('keeps the money of a format version 3 archive as it is', async () => {
+    const decimalRows = JSON.stringify([{ id: 'a', amount: '15.500000000000000000', refAmount: null }]);
+    const buffer = await buildArchiveFromFiles({ files: { 'data/transactions.json': decimalRows }, formatVersion: 3 });
 
     const archive = await loadBackupArchive({ fileContent: buffer.toString('base64') });
 
@@ -196,7 +230,10 @@ describe('loadBackupArchive money format', () => {
   });
 
   it('rejects a version newer than this app writes', async () => {
-    const buffer = await buildArchiveFromFiles({ files: { 'data/transactions.json': rows }, formatVersion: 3 });
+    const buffer = await buildArchiveFromFiles({
+      files: { 'data/transactions.json': rows },
+      formatVersion: BACKUP_FORMAT_VERSION + 1,
+    });
 
     await expect(loadBackupArchive({ fileContent: buffer.toString('base64') })).rejects.toThrow(/newer than/);
   });

@@ -37,7 +37,7 @@ export type DemoAccountConfig = DemoAccountBase &
   );
 
 /**
- * The demo's accounts, currencies and FX, budgets and subscriptions.
+ * The demo's accounts, currencies and FX, trackers and subscriptions.
  *
  * Lives apart from the seeders so the pure template generator can read it
  * without importing DB-touching code. Records that only a seeder builds
@@ -89,12 +89,12 @@ export const DEMO_CONFIG = {
     },
   ] as const satisfies readonly DemoAccountConfig[],
   /**
-   * Budget limits derive from what the generated data spends, not a number fixed
+   * Tracker limits derive from what the generated data spends, not a number fixed
    * here, so each card lands on its target utilization regardless of generator drift.
    * `targetUtilization` sets the fraction of the limit the trailing window should
    * consume: under, near, and over, so a visitor sees all three progress-bar states.
    */
-  budgets: [
+  trackers: [
     { name: 'Groceries', categoryKeys: ['food/groceries'], targetUtilization: 0.72 },
     { name: 'Eating Out', categoryKeys: ['food/restaurant', 'food/bar-cafe'], targetUtilization: 1.14 },
     {

@@ -115,6 +115,7 @@ import { SCROLL_AREA_IDS } from '@/components/lib/ui/scroll-area/types';
 import { Separator } from '@/components/lib/ui/separator';
 import * as Tabs from '@/components/lib/ui/tabs';
 import TransactionsList from '@/components/transactions-list/transactions-list.vue';
+import { provideChatPageContext } from '@/composable/chat/use-chat-page-context';
 import { ROUTES_NAMES } from '@/routes/constants';
 import { useAccountsStore } from '@/stores';
 import { ACCOUNT_CATEGORIES } from '@bt/shared/types';
@@ -135,6 +136,9 @@ const router = useRouter();
 const accountsStore = useAccountsStore();
 const { accounts, accountsRecord, isAccountsFetched } = storeToRefs(accountsStore);
 const account = computed(() => accountsRecord.value[route.params.id as string] ?? null);
+
+// The chat answers about this account when it is opened from here.
+provideChatPageContext(() => (account.value ? { entity: { kind: 'account', id: String(route.params.id) } } : {}));
 
 // The accounts store's query has staleTime: Infinity and is only refetched on
 // explicit refetchAccounts() calls (e.g. after connecting a bank). When the

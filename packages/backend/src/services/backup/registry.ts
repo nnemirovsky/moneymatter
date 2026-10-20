@@ -22,13 +22,14 @@ export type BackupParentScope =
   | 'transactions'
   | 'transactionGroups'
   | 'transactionTemplates'
-  | 'budgets'
+  | 'trackers'
   | 'subscriptions'
   | 'ventureEvents'
   | 'subscriptionPeriods'
   | 'importBatches'
   | 'budgetPlans'
-  | 'budgetLines';
+  | 'budgetLines'
+  | 'trackerLines';
 
 /**
  * How a table's rows are selected for the current user.
@@ -289,8 +290,8 @@ const TABLE_DEFS = [
     restoreMode: 'insert',
   },
   {
-    fileName: 'budgets',
-    model: models.Budgets,
+    fileName: 'trackers',
+    model: models.Trackers,
     tier: 3,
     scope: { strategy: 'userColumn', column: 'userId' },
     restoreMode: 'insert',
@@ -406,6 +407,13 @@ const TABLE_DEFS = [
     scope: { strategy: 'viaParent', fk: 'planId', parent: 'budgetPlans' },
     restoreMode: 'insert',
   },
+  {
+    fileName: 'tracker-lines',
+    model: models.TrackerLines,
+    tier: 4,
+    scope: { strategy: 'viaParent', fk: 'trackerId', parent: 'trackers' },
+    restoreMode: 'insert',
+  },
 
   // tier 5
   {
@@ -430,17 +438,17 @@ const TABLE_DEFS = [
     restoreMode: 'insert',
   },
   {
-    fileName: 'budget-transactions',
-    model: models.BudgetTransactions,
+    fileName: 'tracker-transactions',
+    model: models.TrackerTransactions,
     tier: 5,
-    scope: { strategy: 'viaParent', fk: 'budgetId', parent: 'budgets' },
+    scope: { strategy: 'viaParent', fk: 'trackerId', parent: 'trackers' },
     restoreMode: 'insert',
   },
   {
-    fileName: 'budget-categories',
-    model: models.BudgetCategories,
+    fileName: 'tracker-categories',
+    model: models.TrackerCategories,
     tier: 5,
-    scope: { strategy: 'viaParent', fk: 'budgetId', parent: 'budgets' },
+    scope: { strategy: 'viaParent', fk: 'trackerId', parent: 'trackers' },
     restoreMode: 'insert',
   },
   {
@@ -497,6 +505,20 @@ const TABLE_DEFS = [
     model: models.BudgetLines,
     tier: 5,
     scope: { strategy: 'viaParent', fk: 'planId', parent: 'budgetPlans' },
+    restoreMode: 'insert',
+  },
+  {
+    fileName: 'tracker-line-categories',
+    model: models.TrackerLineCategories,
+    tier: 5,
+    scope: { strategy: 'viaParent', fk: 'lineId', parent: 'trackerLines' },
+    restoreMode: 'insert',
+  },
+  {
+    fileName: 'tracker-suggestions',
+    model: models.TrackerSuggestions,
+    tier: 5,
+    scope: { strategy: 'viaParent', fk: 'trackerId', parent: 'trackers' },
     restoreMode: 'insert',
   },
 
@@ -626,6 +648,31 @@ export const BACKUP_EXCLUDED: readonly BackupExcludedDef[] = [
     model: models.TransactionAttachments,
     reason:
       'Rows point at files in attachment storage, which the backup archive does not carry — restoring rows alone would list attachments that cannot be opened. Attachments are not part of backup/restore.',
+  },
+  {
+    model: models.PushSubscriptions,
+    reason:
+      "Device-bound push endpoints and keys tied to one browser profile and this instance's VAPID key; restored elsewhere they would push to dead or foreign devices.",
+  },
+  {
+    model: models.ChatThreads,
+    reason:
+      'Short-lived, self-expiring conversation log that holds untrusted copies of documents. Wipe and restore delete it explicitly (destroyUserOwnedData), because it is not walked through this registry.',
+  },
+  {
+    model: models.ChatMessages,
+    reason:
+      'Belongs to a chat thread: private conversation history, expires with the thread and is deleted by wipe and restore.',
+  },
+  {
+    model: models.ChatProposals,
+    reason:
+      'Cards carry the ids of the data that existed when they were proposed; restored into other data they could be approved against the wrong rows. Applied cards live and die with their thread.',
+  },
+  {
+    model: models.ChatAttachments,
+    reason:
+      'Context files a user attached to a chat message, kept as prepared content that expires with the thread; never part of the finance data.',
   },
 ];
 

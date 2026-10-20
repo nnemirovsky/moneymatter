@@ -10,6 +10,10 @@ jest.mock('@i18n/index', () => ({
     variables ? `${key} ${JSON.stringify(variables)}` : key,
 }));
 
+// These tests start real fake-CLI processes in PTYs; jest's default 5 s is too tight on a loaded runner, and
+// fake timers cannot help with a child process. Each flow fails with its own message before this timeout does.
+jest.setTimeout(30_000);
+
 const VERIFICATION = { authUrl: 'https://auth.openai.com/codex/device', userCode: 'ABCD-EFGH1' };
 
 describe('startCodexDeviceAuthFlow', () => {
@@ -71,7 +75,9 @@ describe('startCodexDeviceAuthFlow', () => {
     await expect(flow.result).rejects.toThrow('ai.cliLoginTimedOut');
   });
 
-  it('cancel ends the flow', async () => {
+  it('cancel ends a flow that is still waiting for the approval', async () => {
+    // The default fake approves itself 200 ms after printing the code, which a loaded runner can outlast.
+    fakes.setScenario({ scenario: 'awaiting-approval' });
     const flow = startCodexDeviceAuthFlow({ timeouts: { ...DEFAULT_LOGIN_TIMEOUTS, completionMs: 60 * 1000 } });
 
     await flow.ready;

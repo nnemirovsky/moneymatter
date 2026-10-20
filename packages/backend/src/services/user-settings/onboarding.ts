@@ -1,6 +1,6 @@
 import Accounts from '@models/accounts.model';
 import BankDataProviderConnections from '@models/bank-data-provider-connections.model';
-import Budgets from '@models/budget.model';
+import Trackers from '@models/trackers.model';
 import { countTransactions } from '@models/transactions-query';
 import UserSettings, {
   DEFAULT_ONBOARDING_STATE,
@@ -108,7 +108,7 @@ export const detectCompletedTasks = withTransaction(async ({ userId }: { userId:
   const completedTasks: string[] = [];
 
   // Run all checks in parallel for efficiency
-  const [baseCurrency, accountCount, transactionCount, budgetCount, bankConnectionCount, userSettings] =
+  const [baseCurrency, accountCount, transactionCount, trackerCount, bankConnectionCount, userSettings] =
     await Promise.all([
       // Check if base currency is set
       UsersCurrencies.findOne({
@@ -123,8 +123,8 @@ export const detectCompletedTasks = withTransaction(async ({ userId }: { userId:
       // records screen", which a plan satisfies as much as a real row does.
       countTransactions({ planned: 'include', access: { creator: userId }, balanceAdjustments: 'include' }),
 
-      // Check if user has created any budgets
-      Budgets.count({ where: { userId } }),
+      // Check if user has created any trackers
+      Trackers.count({ where: { userId } }),
 
       // Check if user has connected any bank accounts
       BankDataProviderConnections.count({ where: { userId } }),
@@ -149,8 +149,8 @@ export const detectCompletedTasks = withTransaction(async ({ userId }: { userId:
     completedTasks.push('add-transaction');
   }
 
-  if (budgetCount > 0) {
-    completedTasks.push('create-budget');
+  if (trackerCount > 0) {
+    completedTasks.push('create-tracker');
   }
 
   if (bankConnectionCount > 0) {

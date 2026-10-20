@@ -78,7 +78,8 @@ fi
 if [ -z "$RESTORED" ]; then
   echo "Running migrations on template database..."
   compose exec -T test-runner \
-    npx ts-node packages/backend/src/tests/run-template-migrations.ts
+    npx ts-node packages/backend/src/tests/run-template-migrations.ts \
+    || { echo "ERROR: template migrations failed, see output above"; exit 1; }
 fi
 
 echo "Creating worker databases from template..."

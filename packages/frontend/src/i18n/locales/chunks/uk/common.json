@@ -137,6 +137,10 @@
       "receiptParsing": {
         "name": "Зіставлення інвойсів",
         "description": "Читає завантажений інвойс або чек і знаходить транзакцію, до якої він належить."
+      },
+      "trackerMatching": {
+        "name": "Зіставлення трекерів",
+        "description": "Переглядає нові транзакції та пропонує ті, що належать до розумного трекера."
       }
     },
     "transactions": {
@@ -152,6 +156,7 @@
       },
       "record": {
         "addedByTooltip": "Цю транзакцію додав до трекера {handle}",
+        "matchedByAi": "Зіставлено AI",
         "externalLinkTooltip": "Відкрити зовнішнє посилання",
         "locationTooltip": "Відкрити місце на карті",
         "attachmentsTooltip": "Є вкладення",
@@ -220,7 +225,9 @@
     "logo": {
       "tabs": {
         "brand": "Бренд",
-        "letters": "Літери"
+        "letters": "Літери",
+        "icon": "Іконка",
+        "custom": "Зображення"
       },
       "searchPlaceholder": "Назва бренду або домен",
       "searchHint": "Введіть назву бренду або домен, як-от amazon.com",
@@ -240,8 +247,17 @@
       "colorLabel": "Колір",
       "colorSwatchAriaLabel": "Використати колір {color}",
       "customColorAriaLabel": "Вибрати власний колір",
-      "applyLetters": "Застосувати",
-      "lettersSelectedLabel": "Літери «{letters}»"
+      "lettersSelectedLabel": "Літери «{letters}»",
+      "lettersHint": "1–2 літери або емодзі",
+      "chooseImage": "Вибрати зображення",
+      "replaceImage": "Замінити зображення",
+      "imageHint": "Обрізається до квадрата й стискається до 200×200 на вашому пристрої.",
+      "imageTooLarge": "Після стиснення зображення все ще перевищує 50 КБ. Спробуйте простіше зображення.",
+      "imageUnreadable": "Не вдалося прочитати цей файл як зображення."
+    },
+    "iconPicker": {
+      "searchPlaceholder": "Пошук іконок...",
+      "clear": "Очистити іконку"
     },
     "importBatchDeleteOverlay": {
       "title": "Видалення імпортованих транзакцій",
@@ -298,11 +314,19 @@
     "title": "Сповіщення",
     "markAllAsRead": "Позначити всі як прочитані",
     "empty": "Сповіщень ще немає",
+    "notFound": "Це сповіщення більше недоступне",
     "containerAriaLabel": "Сповіщення",
     "closeToast": "Закрити сповіщення",
     "viewOnGitHub": "Переглянути на GitHub",
     "newVersion": "Нова версія {version}",
     "newRelease": "Новий реліз",
+    "trackerAiMatches": {
+      "title": "{name}: {summary}",
+      "added": "додано {count} транзакцію | додано {count} транзакції | додано {count} транзакцій",
+      "toReview": "{count} транзакція на перевірку | {count} транзакції на перевірку | {count} транзакцій на перевірку",
+      "toReviewShort": "{count} на перевірку",
+      "both": "{added}, {toReview}"
+    },
     "tagReminder": {
       "thresholdMessage": "витрачено {amount} (поріг: {threshold})",
       "existenceMessage": "{count} транзакція | {count} транзакції | {count} транзакцій"
@@ -403,6 +427,7 @@
   },
   "billing": {
     "seePlans": "Переглянути плани",
+    "trialStartFailed": "Не вдалося почати безкоштовний пробний період. Спробуйте ще раз.",
     "updatePaymentMethod": "Оновіть спосіб оплати",
     "planRequired": {
       "essential": "Включено в план Essential",
@@ -448,6 +473,44 @@
     "estimatedCost": {
       "yourApiKey": "(ваш API-ключ)",
       "setByEndpoint": "Вартість визначає ваш провайдер"
+    },
+    "connectionModel": {
+      "label": "Модель із цього підключення",
+      "placeholder": "Виберіть модель",
+      "default": "За замовчуванням ({model})"
+    }
+  },
+  "aiUsage": {
+    "title": "Включене використання AI",
+    "used": "використано",
+    "percentUsed": "Використано {percent}%",
+    "resetsOn": "Оновиться {date}",
+    "connectOwnModel": "Підключити власну модель",
+    "gotIt": "Зрозуміло",
+    "badge": {
+      "used": "Використано AI: {percent}%",
+      "reached": "Ліміт AI вичерпано"
+    },
+    "dialog": {
+      "description": "Розбір виписок, категоризація, чеки та пропозиції для бюджету використовують спільний ліміт.",
+      "status": {
+        "plusWarning": "Ви використали більшу частину AI, що входить у цей місяць. Коли ліміт вичерпається, AI-функції буде призупинено до {date}.",
+        "plusReached": "Ви використали AI, що входить у цей місяць. AI-функції призупинено до {date}.",
+        "trialWarning": "Ви використали більшу частину AI, що входить у ваш план цього місяця. Коли ліміт вичерпається, AI-функції буде призупинено.",
+        "trialReached": "Ви використали AI, що входить у ваш план цього місяця. Оформіть підписку Plus або підключіть власну модель, щоб і далі користуватися AI-функціями."
+      }
+    },
+    "options": {
+      "connectDescription": "Використовуйте власну модель Anthropic, OpenAI, Gemini або локальну. Вона ніколи не враховується в цьому ліміті.",
+      "subscribeTitle": "Оформити підписку Plus",
+      "subscribeDescription": "Отримуйте більше AI щомісяця.",
+      "waitTitle": "Дочекатися оновлення",
+      "waitDescription": "Включений AI відновиться {date}."
+    },
+    "meter": {
+      "ok": "Оновиться {date}. Ваші власні підключені моделі ніколи не враховуються.",
+      "warning": "Коли ліміт вичерпається, AI-функції буде призупинено до {date}, якщо ви не підключите власну модель.",
+      "reached": "Вичерпано до {date}. AI-функції призупинено."
     }
   },
   "transactionGroups": {

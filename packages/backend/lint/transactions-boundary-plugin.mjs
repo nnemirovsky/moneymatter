@@ -24,7 +24,7 @@ const ANNOTATION = 'planned-ok:';
 
 const MODEL_MODULE = 'transactions.model';
 
-// `budget-transactions.model` and friends must not match, so the whole final path segment is compared.
+// `tracker-transactions.model` and friends must not match, so the whole final path segment is compared.
 function isTransactionsModel(source) {
   if (typeof source !== 'string') return false;
 

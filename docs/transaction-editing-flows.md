@@ -3,7 +3,7 @@
 This document maps every state a transaction can be in and the rules that govern editing it. It is written for engineers extending the editing logic, and is structured so it can be repurposed as end-user help content later.
 
 > **TL;DR**
-> A transaction's editability is not a single flag. It is the product of four dimensions: **type** (expense/income), **nature** (regular / transfer / portfolio-link), **account type** (manual system account vs synced external account), and **access source** (you own it, it was shared with you, or it's visible only through a shared budget). Combining these dimensions yields the matrix below.
+> A transaction's editability is not a single flag. It is the product of four dimensions: **type** (expense/income), **nature** (regular / transfer / portfolio-link), **account type** (manual system account vs synced external account), and **access source** (you own it, it was shared with you, or it's visible only through a shared tracker). Combining these dimensions yields the matrix below.
 
 ---
 
@@ -16,7 +16,7 @@ flowchart LR
     A[Transaction] --> B[type<br/>expense / income]
     A --> C[nature<br/>not_transfer / common_transfer<br/>transfer_out_wallet / transfer_to_portfolio]
     A --> D[account.type<br/>system / monobank / enable-banking / lunchflow / walutomat]
-    A --> E[access source<br/>owner / share / household / budget-visibility]
+    A --> E[access source<br/>owner / share / household / tracker-visibility]
 
     B --> F[Editing rules]
     C --> F
@@ -26,7 +26,7 @@ flowchart LR
 
 You should always ask these four questions in this order before deciding what a user can do:
 
-1. **Who is the caller relative to this transaction?** Owner, write-share recipient, read-share recipient, household member, budget-visibility-only viewer.
+1. **Who is the caller relative to this transaction?** Owner, write-share recipient, read-share recipient, household member, tracker-visibility-only viewer.
 2. **What is the account type?** System (fully editable) or external (most fields locked).
 3. **Is the transaction part of a link?** Transfer (with another tx), portfolio link, refund link, subscription link, split parent/child.
 4. **What is the transaction's own type?** Expense vs income — usually free to flip on system accounts, locked on external accounts.
@@ -37,15 +37,15 @@ If any earlier question yields a restrictive answer, the later answers don't mat
 
 ## 2. Access Source — Who Can Edit At All
 
-| Access source                   | Backend tag                                               | What can be edited                                                                                                                                                                            |
-| ------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Owner                           | `ACCESS_SOURCES.owner`                                    | Everything the type / nature / account allow.                                                                                                                                                 |
-| Shared account, write or manage | `ACCESS_SOURCES.share` with permission `write` / `manage` | Fields only (note, amount, time, category, tags, payment type, splits). **Cannot** create/discard transfers, link/unlink refunds, move tx to another account.                                 |
-| Shared account, write-scope=own | Same, with `transactionsWriteScope: 'own'`                | Same as above, but **only on transactions they themselves created**. Rows created by the owner are read-only to them.                                                                         |
-| Shared account, read            | `ACCESS_SOURCES.share` with permission `read`             | Read-only.                                                                                                                                                                                    |
-| Household                       | `ACCESS_SOURCES.household`                                | Same as `share`, gated by the same permission set.                                                                                                                                            |
-| Budget visibility only          | `ACCESS_SOURCES.budget`                                   | **Always read-only.** The transaction is visible because the budget it's attached to was shared; the underlying account is not. The dialog renders as a "Details" view with no Submit button. |
-| Revoked share                   | (no longer accessible)                                    | The API returns 404. The tx disappears from the user's view. There is no "soft" revoked state — this is intentional, not a gap to close.                                                      |
+| Access source                   | Backend tag                                               | What can be edited                                                                                                                                                                             |
+| ------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Owner                           | `ACCESS_SOURCES.owner`                                    | Everything the type / nature / account allow.                                                                                                                                                  |
+| Shared account, write or manage | `ACCESS_SOURCES.share` with permission `write` / `manage` | Fields only (note, amount, time, category, tags, payment type, splits). **Cannot** create/discard transfers, link/unlink refunds, move tx to another account.                                  |
+| Shared account, write-scope=own | Same, with `transactionsWriteScope: 'own'`                | Same as above, but **only on transactions they themselves created**. Rows created by the owner are read-only to them.                                                                          |
+| Shared account, read            | `ACCESS_SOURCES.share` with permission `read`             | Read-only.                                                                                                                                                                                     |
+| Household                       | `ACCESS_SOURCES.household`                                | Same as `share`, gated by the same permission set.                                                                                                                                             |
+| Tracker visibility only         | `ACCESS_SOURCES.tracker`                                  | **Always read-only.** The transaction is visible because the tracker it's attached to was shared; the underlying account is not. The dialog renders as a "Details" view with no Submit button. |
+| Revoked share                   | (no longer accessible)                                    | The API returns 404. The tx disappears from the user's view. There is no "soft" revoked state — this is intentional, not a gap to close.                                                       |
 
 ### Decision tree
 
@@ -54,7 +54,7 @@ flowchart TD
     Start([User opens transaction]) --> Q1{Owner of the account?}
     Q1 -->|Yes| FullEdit[Full editing subject to<br/>account-type / nature rules]
     Q1 -->|No| Q2{Have a ResourceShare<br/>on the account?}
-    Q2 -->|No share| Q3{Visible via a shared budget?}
+    Q2 -->|No share| Q3{Visible via a shared tracker?}
     Q3 -->|Yes| ReadOnly[Read-only — Details view]
     Q3 -->|No| NotFound[404 - hidden from UI]
     Q2 -->|read| ReadOnly
@@ -339,7 +339,7 @@ flowchart LR
 | Portfolio-linked         | ❌                           | ❌                                        | n/a                       | ❌                | ❌               | ❌                   |
 | Shared (write recipient) | Per type rules               | ❌                                        | ❌                        | Per row ownership | ✅               | ❌                   |
 | Shared (read recipient)  | ❌                           | ❌                                        | ❌                        | ❌                | ❌               | ❌                   |
-| Budget-visible only      | ❌                           | ❌                                        | ❌                        | ❌                | ❌               | ❌                   |
+| Tracker-visible only     | ❌                           | ❌                                        | ❌                        | ❌                | ❌               | ❌                   |
 | Revoked share            | (404 — invisible)            | —                                         | —                         | —                 | —                | —                    |
 
 ---
@@ -351,7 +351,7 @@ The following are the rules I propose the app explicitly enforce, both to make b
 1. **Type changes on a transfer require an explicit "Unlink" step.** The Edit dialog disables the Expense/Income tabs for transfer legs and surfaces "Unlink" as the primary action for state changes. (See [§5.3](#53-proposed-rule-always-unlink-first).)
 2. **Portfolio-linked transactions are read-only.** The only allowed action is "Unlink from Portfolio". All numeric edits go through the portfolio API.
 3. **External-account transactions are read-mostly.** The only editable fields are note, category, tags, payment type. The type, amount, time, and account are locked.
-4. **Budget-visible transactions are read-only.** A user who can see a transaction only because of a shared budget cannot edit it.
+4. **Tracker-visible transactions are read-only.** A user who can see a transaction only because of a shared tracker cannot edit it.
 5. **Shared-account write recipients have a restricted toolkit.** They can edit fields, manage tags and splits, but cannot create/discard transfer links, link/unlink refunds, or move a transaction to a different account.
 6. **Splits and transfers are mutually exclusive.** Converting a split parent to a transfer requires removing the splits first, with a confirmation dialog. The current silent deletion should be replaced with an explicit prompt.
 

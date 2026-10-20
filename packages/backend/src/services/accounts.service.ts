@@ -208,7 +208,7 @@ export const createAccount = withTransaction(
     payload: Omit<Accounts.CreateAccountPayload, 'refCreditLimit' | 'refInitialBalance'>,
   ): Promise<Accounts.default | null> => {
     try {
-      const { logoDomain, logoInitials, logoColor, ...rest } = payload;
+      const { logoDomain, logoInitials, logoColor, logoIcon, ...rest } = payload;
       const { userId, accountCategory, currencyCode } = rest;
 
       if (accountCategory && isDedicatedFlowAccountCategory(accountCategory)) {
@@ -255,7 +255,7 @@ export const createAccount = withTransaction(
         initialBalance,
         refCreditLimit,
         refInitialBalance,
-        ...applyManualLogoPatch({ patch: { logoDomain, logoInitials, logoColor } }),
+        ...applyManualLogoPatch({ patch: { logoDomain, logoInitials, logoColor, logoIcon } }),
       });
     } catch (e) {
       // A 4xx is the caller's mistake, not a failure of account creation, so it
@@ -305,6 +305,7 @@ export const updateAccount = withTransaction(
     logoDomain,
     logoInitials,
     logoColor,
+    logoIcon,
     initialBalance: nextInitialBalance,
     ...payload
   }: Accounts.UpdateAccountByIdPayload &
@@ -438,12 +439,8 @@ export const updateAccount = withTransaction(
     }
 
     const logoPatch = applyManualLogoPatch({
-      patch: { logoDomain, logoInitials, logoColor },
-      stored: {
-        logoDomain: accountData.logoDomain,
-        logoInitials: accountData.logoInitials,
-        logoColor: accountData.logoColor,
-      },
+      patch: { logoDomain, logoInitials, logoColor, logoIcon },
+      stored: accountData,
     });
 
     // `refInitialBalance` is intentionally NOT written here: the ref side of the

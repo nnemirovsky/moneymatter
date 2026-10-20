@@ -12,7 +12,12 @@ import {
 } from '@lucide/vue';
 import { watch } from 'vue';
 
-import { SIDEBAR_BUDGET_NAV_ITEM, SIDEBAR_NAV_CHILDREN, useAccountsNavChildren } from './nav-items';
+import {
+  SIDEBAR_BUDGET_NAV_ITEM,
+  SIDEBAR_CHAT_NAV_ITEM,
+  SIDEBAR_NAV_CHILDREN,
+  useAccountsNavChildren,
+} from './nav-items';
 import { useSidebarNavCollapse } from './use-nav-collapse';
 import { useSidebarNavRoutes } from './use-nav-routes';
 
@@ -24,7 +29,7 @@ const navIconBase = 'size-4 shrink-0';
 const navIconActive = 'text-primary-text';
 
 const { isAccountsOpen, isTransactionsOpen, isPlannedOpen } = useSidebarNavCollapse();
-const { isAccountsRoute, isTransactionsRoute, isBudgetRoute, isPlannedRoute } = useSidebarNavRoutes();
+const { isAccountsRoute, isTransactionsRoute, isBudgetRoute, isPlannedRoute, isChatRoute } = useSidebarNavRoutes();
 const accountsNavChildren = useAccountsNavChildren();
 
 watch(
@@ -224,6 +229,18 @@ watch(
     >
       <ChartColumnIcon :class="[navIconBase, isActive && navIconActive]" />
       <span :class="{ 'max-sm:hidden': bottomNav }"> {{ $t('navigation.analytics') }} </span>
+    </ui-button>
+  </router-link>
+
+  <router-link v-if="!bottomNav" :to="{ name: SIDEBAR_CHAT_NAV_ITEM.routeName }">
+    <ui-button
+      variant="ghost"
+      as="span"
+      :class="[navItemBase, 'justify-start', isChatRoute && navItemActive]"
+      size="default"
+    >
+      <component :is="SIDEBAR_CHAT_NAV_ITEM.icon" :class="[navIconBase, isChatRoute && navIconActive]" />
+      <span>{{ $t(SIDEBAR_CHAT_NAV_ITEM.labelKey) }}</span>
     </ui-button>
   </router-link>
 </template>

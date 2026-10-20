@@ -1,10 +1,25 @@
-import { AI_FEATURE } from '@bt/shared/types';
-import { FileTextIcon, LineChartIcon, ReceiptIcon, TagIcon } from '@lucide/vue';
+import { type AIFeatureStatus, AI_FEATURE } from '@bt/shared/types';
+import { FileTextIcon, LineChartIcon, ListChecksIcon, ReceiptIcon, TagIcon } from '@lucide/vue';
 import type { Component } from 'vue';
 
 export type AIModelTier = 'light' | 'balanced' | 'smart';
 
-export type AIModelNeed = 'textOnly' | 'runsOften' | 'longAnswers' | 'readsFiles' | 'structuredAnswers';
+export type AIModelNeed = 'textOnly' | 'runsOften' | 'longAnswers' | 'readsFiles' | 'structuredAnswers' | 'toolCalling';
+
+/**
+ * Features whose model the user picks in Settings. Chat is not one: every chat thread carries its own
+ * connection, picked in the chat.
+ */
+export type ConfigurableAIFeature = Exclude<AI_FEATURE, AI_FEATURE.chat>;
+
+export type ConfigurableAIFeatureStatus = AIFeatureStatus & { feature: ConfigurableAIFeature };
+
+export const pickConfigurableFeatureStatuses = ({
+  statuses,
+}: {
+  statuses: AIFeatureStatus[];
+}): ConfigurableAIFeatureStatus[] =>
+  statuses.filter((status): status is ConfigurableAIFeatureStatus => status.feature !== AI_FEATURE.chat);
 
 interface AIFeatureDisplayInfo {
   nameKey: string;
@@ -19,9 +34,9 @@ interface AIFeatureDisplayInfo {
 }
 
 /**
- * `Record<AI_FEATURE, ...>` makes a new AI_FEATURE a compile error until it's described here.
+ * `Record<ConfigurableAIFeature, ...>` makes a new configurable AI_FEATURE a compile error until it's described here.
  */
-const AI_FEATURE_DISPLAY_INFO: Record<AI_FEATURE, AIFeatureDisplayInfo> = {
+const AI_FEATURE_DISPLAY_INFO: Record<ConfigurableAIFeature, AIFeatureDisplayInfo> = {
   [AI_FEATURE.categorization]: {
     nameKey: 'common.aiFeatures.categorization.name',
     descriptionKey: 'common.aiFeatures.categorization.description',
@@ -87,8 +102,23 @@ const AI_FEATURE_DISPLAY_INFO: Record<AI_FEATURE, AIFeatureDisplayInfo> = {
     },
     howItWorksKeys: [],
   },
+  [AI_FEATURE.trackerMatching]: {
+    nameKey: 'common.aiFeatures.trackerMatching.name',
+    descriptionKey: 'common.aiFeatures.trackerMatching.description',
+    icon: ListChecksIcon,
+    // Tracker description and examples plus a pipe table in, a few scored matches out
+    tokensPerUnit: { input: 60, output: 10 },
+    unitLabelKey: 'settings.ai.modelSelector.modelInfo.per100Transactions',
+    modelGuide: {
+      tier: 'light',
+      needs: ['textOnly', 'runsOften', 'structuredAnswers'],
+      whyKey: 'settings.ai.modelGuide.why.trackerMatching',
+      picksKey: 'settings.ai.modelGuide.picks.trackerMatching',
+    },
+    howItWorksKeys: [],
+  },
 };
 
-export function getAIFeatureDisplayInfo({ feature }: { feature: AI_FEATURE }): AIFeatureDisplayInfo {
+export function getAIFeatureDisplayInfo({ feature }: { feature: ConfigurableAIFeature }): AIFeatureDisplayInfo {
   return AI_FEATURE_DISPLAY_INFO[feature];
 }

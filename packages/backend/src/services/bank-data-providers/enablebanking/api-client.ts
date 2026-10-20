@@ -101,6 +101,8 @@ export function classifyAspspError({
   return { matched: false };
 }
 
+const GENERIC_ASPSP_MESSAGE = 'Error interacting with ASPSP';
+
 /**
  * True when 400 from /transactions means the bank refused the lookback as too wide.
  * Callers shrink the window and retry on true.
@@ -111,21 +113,26 @@ export function classifyAspspError({
  * Match: concept anchor + limit verb + time window, all three required.
  *   concept    – datefrom/dateto/date OR range/period/window/lookback/history/interval/transactions
  *   limit verb – within/exceed/maximum/limited to/older than/less than/more than
- *   time       – N day/week/month/year
+ *   time       – N (digits or one..twelve) day/week/month/year
  * Each alone is too permissive (e.g. "account opened within last 30 days" hits
  * limit + time but has no concept anchor). Bare "date" is an anchor because
  * BNP Paribas rejects with "The date must be equal or less than 13 months".
  * The wrapper `error` tag is not checked: BNP puts its own code there
  * (WRONG_TRANSACTIONS_PERIOD), not "ASPSP_ERROR".
+ * A bare ASPSP_ERROR wrapper with no bank text also matches: Enable Banking
+ * drops SNS's (NL) date-limit message, and a wasted retry is cheaper than no sync.
  */
 export function isAspspDateRangeRejection(error: unknown): boolean {
   if (!(error instanceof BadRequestError)) return false;
 
   const details = error.details as
-    | { method?: unknown; aspspMessage?: unknown; aspspErrorDataStr?: unknown }
+    | { method?: unknown; aspspError?: unknown; aspspMessage?: unknown; aspspErrorDataStr?: unknown }
     | undefined;
   if (!details) return false;
   if (details.method !== 'getAccountTransactions') return false;
+
+  const hasBankText = typeof details.aspspMessage === 'string' && details.aspspMessage !== GENERIC_ASPSP_MESSAGE;
+  if (details.aspspError === 'ASPSP_ERROR' && !hasBankText) return true;
 
   const parts: string[] = [];
   if (typeof details.aspspMessage === 'string') parts.push(details.aspspMessage);
@@ -136,7 +143,11 @@ export function isAspspDateRangeRejection(error: unknown): boolean {
 
   const hasLimitVerb =
     /\b(?:within|exceed|exceeds|maximum|max|limited?\s+to|older\s+than|less\s+than|more\s+than)\b/.test(haystack);
-  const hasTimeWindow = /\b\d+\s*(?:day|week|month|year)s?\b/.test(haystack);
+  // SNS (NL): "One or more date fields are more than two years in the past."
+  const hasTimeWindow =
+    /\b(?:\d+|an?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s*(?:day|week|month|year)s?\b/.test(
+      haystack,
+    );
   if (!hasLimitVerb || !hasTimeWindow) return false;
 
   const hasFieldName = /\b(?:datefrom|dateto|dates?)\b/.test(haystack);

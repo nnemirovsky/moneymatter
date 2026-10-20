@@ -1,13 +1,24 @@
 import { PAYMENT_TYPES, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES } from '@bt/shared/types';
 import { currencyCode, recordId } from '@common/lib/zod/custom-types';
-import { nonNegativeAmountSchema, positiveAmountSchema } from '@controllers/transactions.controller/schemas';
+import {
+  nonNegativeAmountSchema,
+  payeeIdSchema,
+  positiveAmountSchema,
+} from '@controllers/transactions.controller/schemas';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { deserializeCreateTransaction, serializeTransactionTuple } from '@root/serializers';
 import { createTransaction } from '@services/transactions/create-transaction';
 import { z } from 'zod';
 
-import { assertOriginalCurrencyArgs, getUserId, jsonContent, requireScope } from './helpers';
+import {
+  assertBaseCurrencyUnlocked,
+  assertOriginalCurrencyArgs,
+  getUserId,
+  jsonContent,
+  requireScope,
+  type ToolArgs,
+} from './helpers';
 
 const inputSchema = {
   accountId: recordId().describe('ID of the account the transaction belongs to'),
@@ -59,6 +70,16 @@ const inputSchema = {
     .describe('Split the transaction across multiple categories'),
   tagIds: z.array(recordId()).optional().describe('Tag IDs to assign to this transaction'),
   isPlanned: z.boolean().optional().describe('Mark the transaction as planned rather than an already-happened record'),
+  payeeId: payeeIdSchema().describe(
+    'ID of an existing payee to link (from get_payees). Cannot be combined with merchantName',
+  ),
+  merchantName: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'Raw merchant name, resolved to a payee the way bank sync and imports do: an existing payee is matched by name or alias, and a new one is created only once the name has repeated enough (the instance promotion rule). Cannot be combined with payeeId',
+    ),
   originalAmount: z
     .number()
     .nonnegative()
@@ -74,20 +95,29 @@ const inputSchema = {
     ),
 };
 
+/** The cross-field rules the plain input shape cannot hold: the original-currency pair, and a payee id or a merchant name, not both. */
+export function validateCreateTransactionArgs({ args }: { args: ToolArgs<typeof inputSchema> }) {
+  assertOriginalCurrencyArgs({ args });
+  if (args.payeeId != null && args.merchantName) {
+    throw new Error('"payeeId" and "merchantName" cannot be used together');
+  }
+}
+
 export function registerCreateTransaction(server: McpServer) {
   server.registerTool(
     'create_transaction',
     {
       description:
-        'Create a new transaction (income, expense, or transfer). Requires accountId, amount (decimal), transactionType, paymentType, and transferNature. For transfers, also provide destinationAccountId and destinationAmount. Use splits to categorize portions of the amount. Use originalAmount + originalCurrencyCode to record what the purchase cost in its invoice currency when that differs from the account currency.',
+        "Create a new transaction (income, expense, or transfer). Requires accountId, amount (decimal), transactionType, paymentType, and transferNature. Take the payment type from the account's other transactions; never pick cash for an account that is not paid in cash. For transfers, also provide destinationAccountId and destinationAmount. Use splits to categorize portions of the amount. Use originalAmount + originalCurrencyCode to record what the purchase cost in its invoice currency when that differs from the account currency. Use payeeId to link an existing payee, or merchantName to let the server resolve a payee from a raw merchant name (it matches an existing payee by name or alias and follows the instance's normal promotion rules, so it may not create a payee on first sight); the two cannot be combined.",
       inputSchema,
     },
     async (args, extra) => {
       const userId = getUserId({ extra });
       requireScope({ extra, scope: 'finance:write' });
+      await assertBaseCurrencyUnlocked({ userId });
       trackMcpToolUsed({ userId, tool: 'create_transaction', clientId: extra.authInfo?.clientId });
 
-      assertOriginalCurrencyArgs({ args });
+      validateCreateTransactionArgs({ args });
 
       const params = deserializeCreateTransaction(
         {
@@ -107,11 +137,12 @@ export function registerCreateTransaction(server: McpServer) {
           isPlanned: args.isPlanned,
           originalAmount: args.originalAmount,
           originalCurrencyCode: args.originalCurrencyCode,
+          payeeId: args.payeeId,
         },
         userId,
       );
 
-      const result = await createTransaction(params);
+      const result = await createTransaction({ ...params, rawMerchantName: args.merchantName });
       return jsonContent({ data: serializeTransactionTuple(result) });
     },
   );

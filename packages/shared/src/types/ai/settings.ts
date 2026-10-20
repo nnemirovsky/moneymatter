@@ -23,6 +23,8 @@ export enum AI_FEATURE {
   statementParsing = 'statement_parsing',
   investmentTransactionsParsing = 'investment_transactions_parsing',
   receiptParsing = 'receipt_parsing',
+  chat = 'chat',
+  trackerMatching = 'tracker_matching',
   // Future features:
   // insights = 'insights',
 }
@@ -40,6 +42,8 @@ export interface AIModelCapabilities {
   inputs: string[];
   maxOutputTokens: number | null;
   structuredOutput: boolean | null;
+  /** Whether the model can call tools, which the chat needs to look up the user's data */
+  toolCalling: boolean | null;
 }
 
 /** Providers that run a vendor CLI signed in with a subscription; no API key, no base URL. */
@@ -92,21 +96,28 @@ export interface CliAiModel {
 /**
  * Curated models per CLI provider, one entry per model. Neither CLI can list models without a
  * signed-in session, so the picker offers this list; the create/test probe confirms the pick.
- * Claude entries use the CLI aliases (`sonnet`), which follow the newest model of their family, so a
- * CLI bump needs no change here; `catalogId` only drives capability and price display.
+ * Claude Code takes either an alias (`sonnet`, which follows the newest model of its family, so a CLI
+ * bump needs no change here) or a versioned id that pins one model. The versioned ids are the current
+ * and previous generations the CLI's own model picker names, and the CLI passes any id on to the API.
+ * `catalogId` only drives capability and price display.
  */
 export const CLI_AI_MODELS: Record<AICliProvider, CliAiModel[]> = {
   [AI_PROVIDER.claudeCode]: [
-    {
-      id: 'sonnet',
-      label: 'Claude Sonnet 5.5',
-      catalogId: 'claude-sonnet-5-5',
-      isDefault: true,
-      legacyIds: ['claude-sonnet-5-5'],
-    },
-    { id: 'opus', label: 'Claude Opus 5.5', catalogId: 'claude-opus-5-5', legacyIds: ['claude-opus-5-5'] },
-    { id: 'haiku', label: 'Claude Haiku 5.5', catalogId: 'claude-haiku-5-5', legacyIds: ['claude-haiku-5-5'] },
-    { id: 'fable', label: 'Claude Fable 5.1', catalogId: 'claude-fable-5-1', legacyIds: ['claude-fable-5-1'] },
+    { id: 'sonnet', label: 'sonnet (latest)', catalogId: 'claude-sonnet-5-5', isDefault: true },
+    { id: 'opus', label: 'opus (latest)', catalogId: 'claude-opus-5-5' },
+    { id: 'haiku', label: 'haiku (latest)', catalogId: 'claude-haiku-5-5' },
+    { id: 'fable', label: 'fable (latest)', catalogId: 'claude-fable-5-1' },
+    ...[
+      'claude-fable-5-1',
+      'claude-opus-5-5',
+      'claude-sonnet-5-5',
+      'claude-haiku-5-5',
+      'claude-fable-5',
+      'claude-opus-5',
+      'claude-opus-4-8',
+      'claude-sonnet-5',
+      'claude-haiku-4-5',
+    ].map((id) => ({ id, label: id, catalogId: id })),
   ],
   [AI_PROVIDER.codex]: [
     { id: 'gpt-6-astra', label: 'GPT-6 Astra', catalogId: 'gpt-6-astra', isDefault: true },
@@ -154,10 +165,15 @@ export interface AIConnectionInfo {
   credentialExpiresAt?: string;
 }
 
-/** Stored per feature. `connectionId: null` = explicitly the included server model. */
+/**
+ * Stored per feature. `connectionId: null` = explicitly the included server model.
+ * `modelId` runs the feature on another model of that connection's provider; unset, the connection's own model.
+ * It is never set with a null `connectionId`.
+ */
 export interface AIFeatureConfig {
   feature: AI_FEATURE;
   connectionId: string | null;
+  modelId?: string;
 }
 
 /**
@@ -170,6 +186,8 @@ export interface AIFeatureStatus {
   isConfigured: boolean;
   /** The stored pick when `isConfigured`: a connection id, or null for the server model */
   configuredConnectionId?: string | null;
+  /** The stored model override of the picked connection, unset while the connection's own model answers */
+  configuredModelId?: string;
   /** `null` when nothing answers: no credentials at all, or every connection is down */
   servedBy: 'connection' | 'server' | null;
   /** `provider/model` of what answers (e.g. 'custom/llama3.2'), '' when nothing does */
@@ -187,6 +205,23 @@ export interface AIFeatureStatus {
   connectionName?: string;
   /** Display name of the included server model for this feature, null when the user can't use it */
   serverModelName: string | null;
+}
+
+/** This month's spend on the server AI keys, against the user's included allowance. */
+export interface AIAllowance {
+  usedPercent: number;
+  /** `warning` from 60%; `reached` leaves server-served features unserved until the reset. */
+  state: 'ok' | 'warning' | 'reached';
+  /** ISO timestamp the allowance resets at, the start of the next UTC month */
+  resetsAt: string;
+  /** `trial` covers everyone without paid Plus: trials, early adopters and free users */
+  plan: 'plus' | 'trial';
+}
+
+/** GET /user/settings/ai/features */
+export interface AIFeaturesStatusResponse {
+  features: AIFeatureStatus[];
+  aiAllowance: AIAllowance | null;
 }
 
 /** POST /user/settings/ai/connections */
@@ -240,7 +275,7 @@ export interface ListAIConnectionModelsResponse {
 }
 
 /** PUT /user/settings/ai/features/:feature */
-export type SetAIFeatureConfigBody = Pick<AIFeatureConfig, 'connectionId'>;
+export type SetAIFeatureConfigBody = Pick<AIFeatureConfig, 'connectionId' | 'modelId'>;
 
 export type CliAuthSessionStatus = 'starting' | 'awaiting-user' | 'verifying' | 'succeeded' | 'failed' | 'expired';
 

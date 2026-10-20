@@ -19,14 +19,14 @@ export type AccessPolicy =
   | { creator: number } // rows authored by this userId
   | { accountOwner: number } // rows on accounts owned by this userId, regardless of author
   | { accessibleTo: number } // rows on accounts this user owns OR that are shared with them
-  | { budgetScoped: RecordId[] } // rows linked to these budget ids
+  | { trackerScoped: RecordId[] } // rows linked to these tracker ids
   | 'unscoped-internal'; // no row filter — see above
 
 /**
  * The `AccessPolicy` subset that is expressible as a plain Transactions where key.
  * `findWithFilters` composes its own where clause, so scopes that need a pre-resolved id
- * list (accessible accounts, budget junction) are resolved by the caller and handed over
- * through `accountIds`/`budgetIds` — which is what `'pre-scoped'` declares.
+ * list (accessible accounts, tracker junction) are resolved by the caller and handed over
+ * through `accountIds`/`trackerIds` — which is what `'pre-scoped'` declares.
  */
 export type WhereAccessPolicy = { creator: number } | 'pre-scoped';
 

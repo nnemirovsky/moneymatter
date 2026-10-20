@@ -9,7 +9,7 @@ import { CategoryRefundPair, resolveRefundPairs } from './category-allocation';
 
 /**
  * What counts as money movement for reporting, for the reports that aggregate transaction rows
- * over a window (cash-flow, expenses history, cumulative, pivot, savings, budget spend). Reports
+ * over a window (cash-flow, expenses history, cumulative, pivot, savings, tracker spend). Reports
  * that read something other than those rows — earliest date, vehicle anchors, refund pair
  * resolution — go to the boundary directly.
  *
@@ -34,23 +34,27 @@ interface StatsWindow {
   to?: string | Date;
 }
 
-interface StatsTransactionsOptions {
+type StatsRefundsOptions =
+  | { refunds: Exclude<StatsRefundsPolicy, 'net'> }
+  /** `decimals` of the base currency: the scale the resolved pairs' minor units are at. */
+  | { refunds: 'net'; decimals: number };
+
+type StatsTransactionsOptions = StatsRefundsOptions & {
   access: AccessPolicy;
   planned: PlannedPolicy;
-  refunds: StatsRefundsPolicy;
   window: StatsWindow;
   where?: WhereOptions;
   attributes?: FindAttributeOptions;
   include?: Includeable[];
   order?: Order;
-}
+};
 
 export interface StatsTransactionsResult {
   rows: Transactions[];
   /**
    * Refund pairs touching `rows`, oriented into expense/income sides. Empty unless
    * `refunds: 'net'`. Reports keyed on payee/tag (pivot) or on original/refund orientation
-   * (budgets) resolve their own pairs — those shapes carry data a category pair cannot express.
+   * (trackers) resolve their own pairs — those shapes carry data a category pair cannot express.
    */
   refundPairs: CategoryRefundPair[];
 }
@@ -86,16 +90,8 @@ const windowWhere = ({ window }: { window: StatsWindow }): WhereOptions | null =
  * `refunds: 'net'` needs the projection to carry `id`, `refAmount`, `categoryId`,
  * `transactionType`, `time` and `refundLinked` — the pair resolver reads them off the rows.
  */
-export const statsTransactions = async ({
-  access,
-  planned,
-  refunds,
-  window,
-  where,
-  attributes,
-  include = [],
-  order,
-}: StatsTransactionsOptions): Promise<StatsTransactionsResult> => {
+export const statsTransactions = async (options: StatsTransactionsOptions): Promise<StatsTransactionsResult> => {
+  const { access, planned, refunds, window, where, attributes, include = [], order } = options;
   // Op.and rather than a merged object: a caller's own `time` clause or Op.or must never
   // overwrite (or be overwritten by) the window and refund fragments.
   const timeWhere = windowWhere({ window });
@@ -119,6 +115,9 @@ export const statsTransactions = async ({
 
   return {
     rows,
-    refundPairs: refunds === 'net' && rows.length > 0 ? await resolveRefundPairs({ transactions: rows }) : [],
+    refundPairs:
+      options.refunds === 'net' && rows.length > 0
+        ? await resolveRefundPairs({ transactions: rows, decimals: options.decimals })
+        : [],
   };
 };

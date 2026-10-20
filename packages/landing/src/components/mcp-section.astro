@@ -108,7 +108,7 @@ const QUESTIONS: { id: string; label: string; tool: string; prompt: string; rows
   {
     id: 'budget',
     label: 'Over budget?',
-    tool: 'get_budget_spending_stats',
+    tool: 'get_tracker_spending_stats',
     prompt: 'Am I over budget on anything this month?',
     rows: [
       { label: 'Dining', sub: '$548 of $500', value: '110%', bar: 110, over: true },
@@ -139,7 +139,7 @@ const AUTOMATIONS = [
   {
     title: 'Budget health check',
     trigger: '1st of every month',
-    tool: 'get_budget_spending_stats',
+    tool: 'get_tracker_spending_stats',
     message:
       '3 of 4 budgets stayed on track in September. Trimming Dining by <strong class="font-medium">$50/month</strong> gets you to your savings goal by December.',
   },

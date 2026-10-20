@@ -95,15 +95,12 @@ describe('buildNotificationRoute', () => {
     });
 
     it('returns null when resourceType is not account (no router target yet)', () => {
-      // Phase 1 only ships RESOURCE_TYPES.account; later phases add budget/portfolio/etc.
-      // Use a string cast so this test stays meaningful as soon as a second resource type
-      // is added — at that point flip this to the new value.
+      // Only RESOURCE_TYPES.account has a router target; trackers land nowhere yet.
       const route = buildNotificationRoute(
         baseNotification({
           type: NOTIFICATION_TYPES.shareAccepted,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           payload: {
-            resourceType: 'budget' as any,
+            resourceType: RESOURCE_TYPES.tracker,
             resourceId: '5',
             resourceName: 'Groceries',
             counterpartUser: { id: 2, username: 'bob', avatar: null },
@@ -116,32 +113,32 @@ describe('buildNotificationRoute', () => {
     });
   });
 
-  describe('budget_alert', () => {
-    it('returns SPA route to planned budget details when budgetId present', () => {
+  describe('tracker_alert', () => {
+    it('returns SPA route to planned tracker details when trackerId present', () => {
       const route = buildNotificationRoute(
         baseNotification({
-          type: NOTIFICATION_TYPES.budgetAlert,
-          payload: { budgetId: 7 },
+          type: NOTIFICATION_TYPES.trackerAlert,
+          payload: { trackerId: 7 },
         }),
       );
 
       expect(route).toEqual({
         kind: 'spa',
-        to: { name: ROUTES_NAMES.plannedBudgetDetails, params: { id: 7 } },
+        to: { name: ROUTES_NAMES.plannedTrackerDetails, params: { id: 7 } },
       });
     });
 
-    it('falls back to planned budgets list when budgetId is missing', () => {
+    it('falls back to planned trackers list when trackerId is missing', () => {
       const route = buildNotificationRoute(
         baseNotification({
-          type: NOTIFICATION_TYPES.budgetAlert,
+          type: NOTIFICATION_TYPES.trackerAlert,
           payload: {},
         }),
       );
 
       expect(route).toEqual({
         kind: 'spa',
-        to: { name: ROUTES_NAMES.plannedBudgets },
+        to: { name: ROUTES_NAMES.plannedTrackers },
       });
     });
   });
@@ -159,6 +156,32 @@ describe('buildNotificationRoute', () => {
     ])('returns null for type "%s"', (type) => {
       const route = buildNotificationRoute(baseNotification({ type, payload: {} }));
       expect(route).toBeNull();
+    });
+  });
+
+  describe('tracker_ai_matches', () => {
+    it('opens the tracker transactions tab with the review expanded', () => {
+      const route = buildNotificationRoute(
+        baseNotification({
+          type: NOTIFICATION_TYPES.trackerAiMatches,
+          payload: { trackerId: 't-1', trackerName: 'Greece 2026', linkedCount: 3, suggestedCount: 4 },
+        }),
+      );
+
+      expect(route).toEqual({
+        kind: 'spa',
+        to: {
+          name: ROUTES_NAMES.plannedTrackerDetails,
+          params: { id: 't-1' },
+          query: { tab: 'transactions', review: '1' },
+        },
+      });
+    });
+
+    it('returns null without a trackerId', () => {
+      expect(
+        buildNotificationRoute(baseNotification({ type: NOTIFICATION_TYPES.trackerAiMatches, payload: {} })),
+      ).toBeNull();
     });
   });
 

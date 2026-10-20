@@ -55,18 +55,27 @@ describe('card-payment shortcut generator', () => {
   });
 
   it('orders the setup actions as in the plan', () => {
-    expect(actions.slice(0, 8).map(id)).toEqual([
+    expect(actions.slice(0, 9).map(id)).toEqual([
       SHORTCUT_ACTIONS.text,
       SHORTCUT_ACTIONS.replaceText,
       SHORTCUT_ACTIONS.base64,
+      SHORTCUT_ACTIONS.detectText,
       SHORTCUT_ACTIONS.detectDictionary,
       SHORTCUT_ACTIONS.getValue,
       SHORTCUT_ACTIONS.getValue,
       SHORTCUT_ACTIONS.getValue,
       SHORTCUT_ACTIONS.getValue,
     ]);
-    expect(actions[8] && id(actions[8])).toBe(SHORTCUT_ACTIONS.conditional);
-    expect(byId(SHORTCUT_ACTIONS.notification)).toHaveLength(1);
+    // Three setup guards (code, url, token) come before the payment branch.
+    const guard = [
+      SHORTCUT_ACTIONS.conditional,
+      SHORTCUT_ACTIONS.notification,
+      SHORTCUT_ACTIONS.exit,
+      SHORTCUT_ACTIONS.conditional,
+    ];
+    expect(actions.slice(9, 21).map(id)).toEqual([...guard, ...guard, ...guard]);
+    expect(actions[21] && id(actions[21])).toBe(SHORTCUT_ACTIONS.conditional);
+    expect(byId(SHORTCUT_ACTIONS.notification)).toHaveLength(4);
     expect(id(actions[actions.length - 1]!)).toBe(SHORTCUT_ACTIONS.notification);
   });
 
@@ -156,11 +165,11 @@ describe('card-payment shortcut generator', () => {
         .filter((value) => value !== undefined);
 
       expect(CONDITION_CODES).toEqual({ 'Has Any Value': 100, 'Does Not Have Any Value': 101 });
-      expect(conditions).toEqual([100, 101]);
+      expect(conditions).toEqual([101, 101, 101, 100, 101]);
     });
 
     it('guards the payment branch with a has-any-value check on the shortcut input', () => {
-      const conditional = actions[8]!;
+      const conditional = actions[21]!;
 
       expect(params(conditional)[SHORTCUT_PARAMS.controlFlowMode]).toBe(0);
       expect(params(conditional)[SHORTCUT_PARAMS.condition]).toBe(100);
@@ -215,6 +224,96 @@ describe('card-payment shortcut generator', () => {
         cfAccessId: 'id.access',
         cfAccessSecret: 'cf-secret',
       });
+    });
+
+    it('serializes each variable slot the way Shortcuts reads it', () => {
+      const serialization = (identifier: string, key: string) =>
+        byId(identifier).map((action) => params(action)[key].WFSerializationType);
+
+      // Typed-into slots take a text token; variable-only slots take a bare attachment.
+      expect(serialization(SHORTCUT_ACTIONS.replaceText, SHORTCUT_PARAMS.input)).toEqual(['WFTextTokenString']);
+      expect(serialization(SHORTCUT_ACTIONS.formatDate, SHORTCUT_PARAMS.date)).toEqual([
+        'WFTextTokenString',
+        'WFTextTokenString',
+      ]);
+      expect(serialization(SHORTCUT_ACTIONS.base64, SHORTCUT_PARAMS.input)).toEqual(['WFTextTokenAttachment']);
+      expect(serialization(SHORTCUT_ACTIONS.detectText, SHORTCUT_PARAMS.input)).toEqual(['WFTextTokenAttachment']);
+      expect(serialization(SHORTCUT_ACTIONS.detectDictionary, SHORTCUT_PARAMS.input)).toEqual([
+        'WFTextTokenAttachment',
+      ]);
+      expect(new Set(serialization(SHORTCUT_ACTIONS.getValue, SHORTCUT_PARAMS.input))).toEqual(
+        new Set(['WFTextTokenAttachment']),
+      );
+      expect(serialization(SHORTCUT_ACTIONS.hash, SHORTCUT_PARAMS.input)).toEqual(['WFTextTokenAttachment']);
+      expect(new Set(serialization(SHORTCUT_ACTIONS.setVariable, SHORTCUT_PARAMS.input))).toEqual(
+        new Set(['WFTextTokenAttachment']),
+      );
+      expect(serialization(SHORTCUT_ACTIONS.downloadUrl, SHORTCUT_PARAMS.url)).toEqual([
+        'WFTextTokenString',
+        'WFTextTokenString',
+      ]);
+      expect(serialization(SHORTCUT_ACTIONS.notification, SHORTCUT_PARAMS.notificationBody)).toEqual(
+        Array(4).fill('WFTextTokenString'),
+      );
+    });
+
+    it('reads the decoded bytes as text before parsing them as a dictionary', () => {
+      const [, , decode, text, dictionary] = actions;
+      const reads = (action: Dict) => {
+        const input = params(action)[SHORTCUT_PARAMS.input];
+
+        return input.WFSerializationType === 'WFTextTokenString'
+          ? tokenAttachments(input)[0]!.OutputUUID
+          : input.Value.OutputUUID;
+      };
+
+      expect(actions.slice(1, 5).map(id)).toEqual([
+        SHORTCUT_ACTIONS.replaceText,
+        SHORTCUT_ACTIONS.base64,
+        SHORTCUT_ACTIONS.detectText,
+        SHORTCUT_ACTIONS.detectDictionary,
+      ]);
+      expect(reads(actions[1]!)).toBe(params(actions[0]!).UUID);
+      expect(reads(decode!)).toBe(params(actions[1]!).UUID);
+      expect(reads(text!)).toBe(params(decode!).UUID);
+      expect(reads(dictionary!)).toBe(params(text!).UUID);
+    });
+
+    it('stops with a message that names what failed when the code, url or token is empty', () => {
+      const guards = [actions[9]!, actions[13]!, actions[17]!];
+      const [urlValue, tokenValue] = getValues;
+
+      expect(guards.map((g) => params(g)[SHORTCUT_PARAMS.condition])).toEqual([101, 101, 101]);
+      expect(guards.map((g) => params(g)[SHORTCUT_PARAMS.input].Variable.Value.OutputUUID)).toEqual([
+        params(actions[0]!).UUID,
+        params(urlValue!).UUID,
+        params(tokenValue!).UUID,
+      ]);
+
+      const messages = [9, 13, 17].map(
+        (index) => params(actions[index + 1]!)[SHORTCUT_PARAMS.notificationBody].Value.string,
+      );
+      expect(messages[0]).toContain('No MoneyMatter setup code was entered');
+      expect(messages[1]).toContain('setup code could not be read');
+      expect(messages[2]).toBe(messages[1]);
+
+      for (const index of [9, 13, 17]) {
+        expect(id(actions[index + 2]!)).toBe(SHORTCUT_ACTIONS.exit);
+        // Each guard is closed before the next block starts.
+        expect(params(actions[index + 3]!)[SHORTCUT_PARAMS.controlFlowMode]).toBe(2);
+      }
+      expect(params(actions[8]!)[SHORTCUT_PARAMS.dictionaryKey]).toBe('cfAccessSecret');
+    });
+
+    it('builds a code the strict iOS Base64 Decode accepts', () => {
+      const payload = code.replace(new RegExp(params(replace)[SHORTCUT_PARAMS.replaceFind]), '');
+
+      expect(code.startsWith('v1.')).toBe(true);
+      // Standard base64 only (no URL-safe characters, no stray prefix characters), padded to a multiple of 4.
+      expect(payload).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
+      expect(payload.length % 4).toBe(0);
+      // Node's decoder is lenient; a canonical round trip proves nothing was skipped.
+      expect(Buffer.from(payload, 'base64').toString('base64')).toBe(payload);
     });
 
     it('fails without the Replace Text step, so the step is needed', () => {

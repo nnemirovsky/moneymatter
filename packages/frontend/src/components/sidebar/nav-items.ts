@@ -1,4 +1,5 @@
 import type { SidebarNavConfig } from '@/api/user-settings';
+import { AiChatIcon } from '@/components/chat/chat-icon';
 import { useUserSettings } from '@/composable/data-queries/user-settings';
 import { ROUTES_NAMES } from '@/routes/constants';
 import {
@@ -7,6 +8,7 @@ import {
   HandCoinsIcon,
   RepeatIcon,
   RocketIcon,
+  TargetIcon,
   TrendingUpIcon,
   WalletIcon,
   WrenchIcon,
@@ -31,6 +33,13 @@ export const SIDEBAR_BUDGET_NAV_ITEM: SidebarNavChild = {
   icon: WalletIcon,
 };
 
+/** Top-level, ungrouped nav entry for the AI chat page. */
+export const SIDEBAR_CHAT_NAV_ITEM: SidebarNavChild = {
+  routeName: ROUTES_NAMES.chat,
+  labelKey: 'navigation.chat',
+  icon: AiChatIcon,
+};
+
 /** Sub-links of the collapsible nav groups, rendered by both the full nav and the rail flyouts. */
 export const SIDEBAR_NAV_CHILDREN = {
   accounts: [
@@ -52,7 +61,7 @@ export const SIDEBAR_NAV_CHILDREN = {
   ],
   planned: [
     { routeName: ROUTES_NAMES.plannedSubscriptions, labelKey: 'navigation.planned.subscriptions', icon: RepeatIcon },
-    { routeName: ROUTES_NAMES.plannedBudgets, labelKey: 'navigation.planned.budgets', icon: WalletIcon },
+    { routeName: ROUTES_NAMES.plannedTrackers, labelKey: 'navigation.planned.budgets', icon: TargetIcon },
   ],
 } satisfies Record<string, SidebarNavChild[]>;
 

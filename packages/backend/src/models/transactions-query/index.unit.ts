@@ -13,7 +13,7 @@ jest.mock('@models/transactions.model', () => ({
   default: { findAll: jest.fn(), update: jest.fn(), destroy: jest.fn() },
 }));
 jest.mock('@models/accounts.model', () => ({ __esModule: true, default: { findAll: jest.fn() } }));
-jest.mock('@models/budget-transactions.model', () => ({ __esModule: true, default: { findAll: jest.fn() } }));
+jest.mock('@models/tracker-transactions.model', () => ({ __esModule: true, default: { findAll: jest.fn() } }));
 jest.mock('@services/sharing/auth/get-accessible-account-ids.service', () => ({
   __esModule: true,
   getAccessibleAccountIdsForUser: jest.fn(),

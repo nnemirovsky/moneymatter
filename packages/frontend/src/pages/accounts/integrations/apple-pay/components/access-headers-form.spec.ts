@@ -23,12 +23,18 @@ const NOT_CONFIGURED: AccessHeadersStatusDto = { configured: false, clientIdHint
 const CONFIGURED: AccessHeadersStatusDto = { configured: true, clientIdHint: '…a1b2' };
 const SECRET = 'cf-secret-THAT-MUST-NOT-LINGER';
 
-const mountForm = async (status: AccessHeadersStatusDto) => {
+const mountForm = async (status: AccessHeadersStatusDto, { expanded = true }: { expanded?: boolean } = {}) => {
   mockGetHeaders.mockResolvedValue(status);
   const { queryClient, plugins } = createGlobalPlugins();
-  const wrapper = mount(AccessHeadersForm, { global: { plugins } });
+  const wrapper = mount(AccessHeadersForm, { global: { plugins }, attachTo: document.body });
   await flushPromises();
+  if (expanded) await expand(wrapper);
   return { wrapper, queryClient };
+};
+
+const expand = async (wrapper: VueWrapper) => {
+  await wrapper.get('[data-testid="access-headers-toggle"]').trigger('click');
+  await flushPromises();
 };
 
 const input = (wrapper: VueWrapper, testId: string) =>
@@ -48,6 +54,19 @@ describe('AccessHeadersForm', () => {
     mockSetHeaders.mockResolvedValue(CONFIGURED);
   });
 
+  it('starts folded, with only the title and a state hint, even when headers are stored', async () => {
+    const { wrapper } = await mountForm(CONFIGURED, { expanded: false });
+
+    expect(wrapper.text()).toContain('Cloudflare Access (optional)');
+    expect(wrapper.get('[data-testid="access-headers-status"]').text()).toBe('Configured');
+    expect(wrapper.find('form').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('CF-Access-Client-Id');
+
+    await expand(wrapper);
+
+    expect(wrapper.find('form').exists()).toBe(true);
+  });
+
   it('explains what the fields are for and that they are optional', async () => {
     const { wrapper } = await mountForm(NOT_CONFIGURED);
 
@@ -59,15 +78,15 @@ describe('AccessHeadersForm', () => {
   it('says the headers are not set', async () => {
     const { wrapper } = await mountForm(NOT_CONFIGURED);
 
-    expect(wrapper.get('[data-testid="access-headers-status"]').text()).toContain('Not set');
+    expect(wrapper.get('[data-testid="access-headers-status"]').text()).toBe('Not set');
     expect(wrapper.find('[data-testid="access-headers-remove"]').exists()).toBe(false);
   });
 
-  it('shows only the client id hint of stored headers and keeps the secret field write-only', async () => {
+  it('shows stored state as placeholders and keeps the secret field write-only', async () => {
     const { wrapper } = await mountForm(CONFIGURED);
 
-    expect(wrapper.get('[data-testid="access-headers-status"]').text()).toBe(
-      'Stored for the setup code: Client ID …a1b2',
+    expect(input(wrapper, 'access-headers-client-id').attributes('placeholder')).toBe(
+      'Stored (…a1b2). Enter a new ID to replace it',
     );
     const secretField = input(wrapper, 'access-headers-client-secret');
     expect(secretField.attributes('type')).toBe('password');
@@ -144,8 +163,12 @@ describe('AccessHeadersForm', () => {
 
   it('shows an error when the status cannot be loaded', async () => {
     mockGetHeaders.mockRejectedValue(new Error('boom'));
-    const wrapper = mount(AccessHeadersForm, { global: { plugins: createGlobalPlugins().plugins } });
+    const wrapper = mount(AccessHeadersForm, {
+      global: { plugins: createGlobalPlugins().plugins },
+      attachTo: document.body,
+    });
     await flushPromises();
+    await expand(wrapper);
 
     expect(wrapper.find('[data-testid="access-headers-error"]').exists()).toBe(true);
   });

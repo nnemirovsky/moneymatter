@@ -8,7 +8,7 @@ import type { DemoTemplate, DemoTemplateTransaction } from './types';
 /**
  * The derived budget limits only land on their intended utilization if this sum
  * counts the same rows the budget card does, so each case here mirrors one rule
- * from `services/budgets/stats.ts`.
+ * from `services/trackers/stats.ts`.
  */
 describe('sumSpendByCategoryKey', () => {
   const CURRENCY_BY_ACCOUNT_KEY: Partial<Record<DemoAccountKey, string>> = {

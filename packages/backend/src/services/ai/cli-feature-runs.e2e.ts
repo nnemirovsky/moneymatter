@@ -1,6 +1,14 @@
-import { AICliProvider, AI_PROVIDER, CATEGORIZATION_SOURCE, type RecordId } from '@bt/shared/types';
+import {
+  AICliProvider,
+  AI_FEATURE,
+  AI_PROVIDER,
+  CLI_AI_MODELS,
+  CATEGORIZATION_SOURCE,
+  type RecordId,
+} from '@bt/shared/types';
 import { ASSET_CLASS } from '@bt/shared/types/investments';
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
+import { ERROR_CODES } from '@js/errors';
 import { resetCliAuthSessions } from '@services/ai/cli/login/cli-auth-sessions';
 import { RateLimitService } from '@services/common/rate-limit.service';
 import { PNG_1X1_BASE64 } from '@tests/fixtures/statement-parser-fixtures';
@@ -130,6 +138,49 @@ describe('AI features on subscription CLI connections', () => {
   afterEach(() => {
     resetCliAuthSessions();
     delete process.env.AI_CLI_RUN_TIMEOUT_MS;
+  });
+
+  describe('model override', () => {
+    it('lets a feature pick another curated model of the subscription', async () => {
+      const connection = await createSignedInConnection({ provider: CLAUDE });
+
+      const status = await helpers.setAiFeatureConfig({
+        feature: AI_FEATURE.categorization,
+        connectionId: connection.id,
+        modelId: 'haiku',
+        raw: true,
+      });
+
+      expect(status).toMatchObject({ configuredModelId: 'haiku', modelId: `${CLAUDE}/haiku` });
+    });
+
+    it.each(CLI_AI_MODELS[CLAUDE].map((model) => model.id))(
+      'accepts the listed Claude Code id %s, alias and versioned id alike',
+      async (modelId) => {
+        const connection = await createSignedInConnection({ provider: CLAUDE });
+
+        const response = await helpers.setAiFeatureConfig({
+          feature: AI_FEATURE.categorization,
+          connectionId: connection.id,
+          modelId,
+        });
+
+        expect(response.statusCode).toBe(200);
+      },
+      TEST_TIMEOUT_MS,
+    );
+
+    it('refuses a model the subscription does not offer', async () => {
+      const connection = await createSignedInConnection({ provider: CLAUDE });
+
+      const response = await helpers.setAiFeatureConfig({
+        feature: AI_FEATURE.categorization,
+        connectionId: connection.id,
+        modelId: 'gpt-6-astra',
+      });
+
+      expect(response.statusCode).toBe(ERROR_CODES.ValidationError);
+    });
   });
 
   describe('successful runs', () => {

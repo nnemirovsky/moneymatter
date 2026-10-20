@@ -13,7 +13,7 @@ interface SpendContribution {
 /**
  * Base-currency spend per category key over the demo's budget window.
  *
- * Matches `services/budgets/stats.ts`: a transaction with splits is skipped and
+ * Matches `services/trackers/stats.ts`: a transaction with splits is skipped and
  * its split rows counted instead, and refund pairs are netted out the same way
  * its `applyRefundAdjustments` does, so a limit derived here lands the budget
  * card on the intended utilization.

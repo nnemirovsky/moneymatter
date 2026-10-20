@@ -1,12 +1,4 @@
-import {
-  AI_FEATURE,
-  AI_PROVIDER,
-  BILLING_CYCLES,
-  type Entitlements,
-  FEATURES,
-  PLANS,
-  SUBSCRIPTION_STATUSES,
-} from '@bt/shared/types';
+import { AI_FEATURE, AI_PROVIDER, type Entitlements, FEATURES } from '@bt/shared/types';
 import { i18nextReady, t } from '@i18n/index';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import type { StoredAiSettings, StoredConnection } from '@models/user-settings.model';
@@ -18,12 +10,14 @@ import {
   getStoredAiSettings,
   markConnectionInvalid,
 } from '../user-settings/ai-connections';
+import { isWithinAiAllowance } from './ai-allowance';
 import { resolveAIConfiguration } from './ai-model-resolver';
 import { getCliAiAccess } from './cli/cli-access';
 import { CONNECTION_KEY_UNREADABLE_ERROR_MESSAGE } from './connection-failure';
-import { PLUS_SERVER_MODELS, SERVER_MODELS, buildConnectionModelId } from './resolution-ladder';
+import { FALLBACK_SERVER_MODELS, PRIMARY_SERVER_MODEL, buildConnectionModelId } from './resolution-ladder';
 
 jest.mock('../entitlements/resolve-entitlements.service', () => ({ getEntitlementsByUserId: jest.fn() }));
+jest.mock('./ai-allowance', () => ({ isWithinAiAllowance: jest.fn() }));
 jest.mock('../user-settings/ai-connections', () => ({
   getStoredAiSettings: jest.fn(),
   decryptConnectionKey: jest.fn(),
@@ -39,10 +33,10 @@ jest.mock('@js/utils/logger', () => ({
 const FEATURE = AI_FEATURE.categorization;
 const USER_ID = 1;
 const NOW = new Date().toISOString();
-const IN_A_MONTH = new Date(Date.now() + 30 * 86_400_000).toISOString();
-const SERVER_KEY_ENV_VARS = ['GEMINI_API_KEY', 'GEMINI_PLUS_API_KEY', 'ANTHROPIC_PLUS_API_KEY'] as const;
+const SERVER_KEY_ENV_VARS = ['GEMINI_API_KEY', 'ANTHROPIC_API_KEY'] as const;
 
 const getEntitlementsMock = jest.mocked(getEntitlementsByUserId);
+const isWithinAiAllowanceMock = jest.mocked(isWithinAiAllowance);
 const getStoredAiSettingsMock = jest.mocked(getStoredAiSettings);
 const decryptConnectionKeyMock = jest.mocked(decryptConnectionKey);
 const markConnectionInvalidMock = jest.mocked(markConnectionInvalid);
@@ -113,9 +107,9 @@ describe('resolveAIConfiguration', () => {
   beforeEach(() => {
     for (const name of SERVER_KEY_ENV_VARS) envBeforeTest.set(name, process.env[name]);
     process.env.GEMINI_API_KEY = 'server-key';
-    delete process.env.GEMINI_PLUS_API_KEY;
-    delete process.env.ANTHROPIC_PLUS_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
     getStoredAiSettingsMock.mockResolvedValue(null);
+    isWithinAiAllowanceMock.mockResolvedValue(true);
     grantEntitlements();
   });
 
@@ -132,64 +126,34 @@ describe('resolveAIConfiguration', () => {
     expect(await resolveAIConfiguration({ userId: USER_ID, feature: FEATURE })).toBeNull();
   });
 
-  describe('included model key', () => {
-    const plusSubscription = {
-      externalSubscriptionId: 'sub_plus',
-      tier: PLANS.plus,
-      status: SUBSCRIPTION_STATUSES.active,
-      billingCycle: BILLING_CYCLES.month,
-      currentPeriodEndsAt: IN_A_MONTH,
-      scheduledChange: null,
-    };
-
+  describe('server model', () => {
     beforeEach(() => {
-      process.env.GEMINI_PLUS_API_KEY = 'plus-key';
+      grantEntitlements({ features: [FEATURES.operator_ai] });
     });
 
-    it.each<[string, Partial<Entitlements>, string]>([
-      ['a paying Plus subscriber', { subscriptions: [plusSubscription] }, 'plus-key'],
-      ['an early adopter', { plan: PLANS.early_adopter }, 'server-key'],
-      ['a trial user', { trialEndsAt: IN_A_MONTH }, 'server-key'],
-      [
-        'a lapsed Plus subscriber',
-        { subscriptions: [{ ...plusSubscription, status: SUBSCRIPTION_STATUSES.canceled }] },
-        'server-key',
-      ],
-    ])('serves %s from the matching key', async (_label, overrides, apiKey) => {
-      grantEntitlements({ features: [FEATURES.operator_ai], ...overrides });
+    it('serves the primary Anthropic model once ANTHROPIC_API_KEY is set', async () => {
+      process.env.ANTHROPIC_API_KEY = 'anthropic-key';
 
       expect(await resolveAIConfiguration({ userId: USER_ID, feature: FEATURE })).toMatchObject({
         kind: 'server',
-        apiKey,
+        modelId: buildConnectionModelId(PRIMARY_SERVER_MODEL),
+        apiKey: 'anthropic-key',
+        usingUserKey: false,
       });
     });
 
-    it('falls back to the shared key for a Plus subscriber while the Plus key is unset', async () => {
-      delete process.env.GEMINI_PLUS_API_KEY;
-      grantEntitlements({ features: [FEATURES.operator_ai], subscriptions: [plusSubscription] });
+    it('leaves the server model unserved over the AI allowance, but still dials a user connection', async () => {
+      isWithinAiAllowanceMock.mockResolvedValue(false);
+
+      expect(await resolveAIConfiguration({ userId: USER_ID, feature: FEATURE })).toBeNull();
+
+      storeSettings({ connections: [CLAUDE] });
+      decryptConnectionKeyMock.mockReturnValue('user-key');
 
       expect(await resolveAIConfiguration({ userId: USER_ID, feature: FEATURE })).toMatchObject({
-        kind: 'server',
-        apiKey: 'server-key',
-      });
-    });
-
-    it.each<[string, Partial<Entitlements>, string, string]>([
-      [
-        'a paying Plus subscriber',
-        { subscriptions: [plusSubscription] },
-        buildConnectionModelId(PLUS_SERVER_MODELS[FEATURE]!),
-        'anthropic-plus-key',
-      ],
-      ['a trial user', { trialEndsAt: IN_A_MONTH }, buildConnectionModelId(SERVER_MODELS[FEATURE]), 'server-key'],
-    ])('picks the model for %s once the Anthropic Plus key is set', async (_label, overrides, modelId, apiKey) => {
-      process.env.ANTHROPIC_PLUS_API_KEY = 'anthropic-plus-key';
-      grantEntitlements({ features: [FEATURES.operator_ai], ...overrides });
-
-      expect(await resolveAIConfiguration({ userId: USER_ID, feature: FEATURE })).toMatchObject({
-        kind: 'server',
-        modelId,
-        apiKey,
+        kind: 'connection',
+        connectionId: CLAUDE.id,
+        usingUserKey: true,
       });
     });
   });
@@ -199,8 +163,23 @@ describe('resolveAIConfiguration', () => {
 
     expect(await resolveAIConfiguration({ userId: USER_ID, feature: FEATURE })).toMatchObject({
       kind: 'server',
-      modelId: buildConnectionModelId(SERVER_MODELS[FEATURE]),
+      modelId: buildConnectionModelId(FALLBACK_SERVER_MODELS[FEATURE]!),
       apiKey: 'server-key',
+      usingUserKey: false,
+    });
+  });
+
+  it('serves tracker matching from the server key only with smart_tracking, not operator_ai', async () => {
+    const feature = AI_FEATURE.trackerMatching;
+    process.env.ANTHROPIC_API_KEY = 'anthropic-key';
+    grantEntitlements({ features: [FEATURES.operator_ai] });
+
+    expect(await resolveAIConfiguration({ userId: USER_ID, feature })).toBeNull();
+
+    grantEntitlements({ features: [FEATURES.smart_tracking] });
+
+    expect(await resolveAIConfiguration({ userId: USER_ID, feature })).toMatchObject({
+      kind: 'server',
       usingUserKey: false,
     });
   });
@@ -217,6 +196,84 @@ describe('resolveAIConfiguration', () => {
       apiKey: 'user-key',
       connectionId: CLAUDE.id,
       usingUserKey: true,
+    });
+  });
+
+  describe('model override', () => {
+    beforeEach(() => {
+      decryptConnectionKeyMock.mockReturnValue('user-key');
+    });
+
+    it('dials the stored override on the configured connection, keeping its credentials', async () => {
+      storeSettings({
+        connections: [OLLAMA, CLAUDE],
+        featureConfigs: [{ feature: FEATURE, connectionId: CLAUDE.id, modelId: 'claude-haiku-5-5' }],
+      });
+
+      expect(await resolveAIConfiguration({ userId: USER_ID, feature: FEATURE })).toEqual({
+        kind: 'connection',
+        provider: AI_PROVIDER.anthropic,
+        model: 'claude-haiku-5-5',
+        modelId: 'anthropic/claude-haiku-5-5',
+        modelOverridden: true,
+        apiKey: 'user-key',
+        connectionId: CLAUDE.id,
+        usingUserKey: true,
+      });
+    });
+
+    it('dials a subscription connection on the override through its credential source', async () => {
+      connectionCredentialSourceMock.mockReturnValue(CLI_SOURCE);
+      getCliAiAccessMock.mockResolvedValue({ allowed: true });
+      storeSettings({
+        connections: [CODEX],
+        featureConfigs: [{ feature: FEATURE, connectionId: CODEX.id, modelId: 'gpt-5.5' }],
+      });
+
+      expect(await resolveAIConfiguration({ userId: USER_ID, feature: FEATURE })).toMatchObject({
+        model: 'gpt-5.5',
+        modelId: 'codex/gpt-5.5',
+        modelOverridden: true,
+        credentialSource: CLI_SOURCE,
+      });
+    });
+
+    it('does not carry the override over to another connection when the configured one cannot be dialled', async () => {
+      storeSettings({
+        connections: [CLAUDE, OLLAMA],
+        featureConfigs: [{ feature: FEATURE, connectionId: CLAUDE.id, modelId: 'claude-haiku-5-5' }],
+      });
+      decryptConnectionKeyMock.mockReturnValue(null);
+
+      const resolution = await resolveAIConfiguration({ userId: USER_ID, feature: FEATURE });
+
+      expect(resolution).toMatchObject({ connectionId: OLLAMA.id, model: 'llama3.2' });
+      expect(resolution).not.toHaveProperty('modelOverridden');
+    });
+
+    it('lets a pinned connection carry its own model, which a chat thread uses', async () => {
+      storeSettings({ connections: [OLLAMA, CLAUDE] });
+
+      expect(
+        await resolveAIConfiguration({
+          userId: USER_ID,
+          feature: AI_FEATURE.chat,
+          pinnedConnectionId: CLAUDE.id,
+          pinnedModelId: 'claude-opus-5',
+        }),
+      ).toMatchObject({ connectionId: CLAUDE.id, model: 'claude-opus-5', modelOverridden: true });
+    });
+
+    it('runs on the connection model when no override is stored', async () => {
+      storeSettings({
+        connections: [CLAUDE],
+        featureConfigs: [{ feature: FEATURE, connectionId: CLAUDE.id }],
+      });
+
+      const resolution = await resolveAIConfiguration({ userId: USER_ID, feature: FEATURE });
+
+      expect(resolution).toMatchObject({ model: CLAUDE.model });
+      expect(resolution).not.toHaveProperty('modelOverridden');
     });
   });
 
@@ -323,5 +380,69 @@ describe('resolveAIConfiguration', () => {
     storeSettings({ connections: [{ ...CLAUDE, status: 'invalid' }] });
 
     expect(await resolveAIConfiguration({ userId: USER_ID, feature: FEATURE })).toBeNull();
+  });
+  describe('pinned connection', () => {
+    beforeEach(() => {
+      decryptConnectionKeyMock.mockReturnValue('decrypted-key');
+    });
+
+    it('dials the pinned connection instead of the default one', async () => {
+      storeSettings({ connections: [CLAUDE, OLLAMA] });
+
+      const resolution = await resolveAIConfiguration({
+        userId: USER_ID,
+        feature: AI_FEATURE.chat,
+        pinnedConnectionId: OLLAMA.id,
+      });
+
+      expect(resolution).toMatchObject({ kind: 'connection', connectionId: OLLAMA.id });
+    });
+
+    it('overrides a stored config of the feature', async () => {
+      storeSettings({
+        connections: [CLAUDE, OLLAMA],
+        featureConfigs: [{ feature: FEATURE, connectionId: CLAUDE.id }],
+      });
+
+      const resolution = await resolveAIConfiguration({
+        userId: USER_ID,
+        feature: FEATURE,
+        pinnedConnectionId: OLLAMA.id,
+      });
+
+      expect(resolution).toMatchObject({ kind: 'connection', connectionId: OLLAMA.id });
+    });
+
+    it('falls to the default connection when the pinned one no longer exists', async () => {
+      storeSettings({ connections: [CLAUDE] });
+
+      const resolution = await resolveAIConfiguration({
+        userId: USER_ID,
+        feature: AI_FEATURE.chat,
+        pinnedConnectionId: OLLAMA.id,
+      });
+
+      expect(resolution).toMatchObject({ kind: 'connection', connectionId: CLAUDE.id });
+    });
+
+    it('never reads a stored chat config', async () => {
+      storeSettings({
+        connections: [CLAUDE, OLLAMA],
+        featureConfigs: [{ feature: AI_FEATURE.chat, connectionId: OLLAMA.id }],
+      });
+
+      const resolution = await resolveAIConfiguration({ userId: USER_ID, feature: AI_FEATURE.chat });
+
+      expect(resolution).toMatchObject({ kind: 'connection', connectionId: CLAUDE.id });
+    });
+
+    it('answers null for the included model when no server model serves chat', async () => {
+      grantEntitlements({ features: [FEATURES.operator_ai] });
+      storeSettings({ connections: [] });
+
+      expect(
+        await resolveAIConfiguration({ userId: USER_ID, feature: AI_FEATURE.chat, pinnedConnectionId: null }),
+      ).toBeNull();
+    });
   });
 });

@@ -198,11 +198,21 @@ function loggerErrorHandler(
     messageResult = 'Default error message from logger';
   }
 
+  const errorObj =
+    messageParam instanceof Error
+      ? messageParam
+      : typeof messageParam === 'object' && messageParam.error
+        ? messageParam.error
+        : null;
+  const errorDetails = (errorObj as { details?: unknown } | null)?.details;
+
   if (showLogsInTests) {
     winstonLogger.error({
       message: messageResult,
       requestId: getCurrentRequestId() ?? null,
       ...extra,
+      // Self-hosters without Sentry only have this line to report upstream failures.
+      ...(errorDetails && typeof errorDetails === 'object' ? { errorDetails } : {}),
     });
   }
 
@@ -214,14 +224,6 @@ function loggerErrorHandler(
       if (requestId) scope.setTag('requestId', requestId);
       if (sessionId) scope.setTag('sessionId', sessionId);
 
-      // Extract the Error object for proper stack traces in Sentry
-      const errorObj =
-        messageParam instanceof Error
-          ? messageParam
-          : typeof messageParam === 'object' && messageParam.error
-            ? messageParam.error
-            : null;
-
       if (errorObj) {
         // A logged 4xx is not a Sentry-worthy bug — the local log above keeps it.
         if (isExpectedClientError(errorObj)) return;
@@ -231,7 +233,6 @@ function loggerErrorHandler(
         }
         // Surface CustomError.details so wrapped HTTP/upstream context lands
         // in Sentry — Sentry's default capture only serializes name/message/stack.
-        const errorDetails = (errorObj as { details?: unknown }).details;
         if (errorDetails && typeof errorDetails === 'object') {
           scope.setExtras(errorDetails as Record<string, unknown>);
         }

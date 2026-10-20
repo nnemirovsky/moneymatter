@@ -5,7 +5,7 @@
  */
 
 /** Bump when the on-disk shape of an export changes in a backwards-incompatible way. */
-export const EXPORT_SCHEMA_VERSION = 1;
+export const EXPORT_SCHEMA_VERSION = 2;
 
 export const EXPORT_FORMATS = ['json', 'csv', 'xlsx'] as const;
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
@@ -28,7 +28,7 @@ export const MAX_EXPORT_ROWS = 250_000;
  * investment transactions, portfolio transfers, and budget periods (kept when
  * the period overlaps the range). The range never filters reference tables
  * (accounts, categories, tags, payees, vehicles, portfolios, holdings,
- * budgets, budget lines, subscriptions), so the filtered CSV columns resolve to
+ * trackers, budget lines, subscriptions), so the filtered CSV columns resolve to
  * readable names regardless of which window the user picked. Narrowing to a
  * subset of accounts is the separate `accountIds` request filter, which
  * constrains transactions, balance history and the accounts file.

@@ -30,6 +30,13 @@ const routes: RouteRecordRaw[] = [
         meta: { i18nChunks: ['pages/dashboard', 'pages/transactions'] },
       },
       {
+        // Target of every push notification: resolves the notification by id, marks it read and
+        // replaces itself with the type's real route.
+        path: '/notifications/:id',
+        name: ROUTES_NAMES.notificationOpen,
+        component: () => import('@/pages/notification-open/index.vue'),
+      },
+      {
         path: '/accounts',
         name: ROUTES_NAMES.accounts,
         component: () => import('@/pages/accounts/accounts.vue'),
@@ -174,7 +181,7 @@ const routes: RouteRecordRaw[] = [
           },
         ],
       },
-      // The "Budget" (budget plans). "Trackers" are the `budgets` routes under /planned.
+      // The "Budget" (budget plans). Trackers live under /planned.
       {
         path: '/budget',
         name: ROUTES_NAMES.budget,
@@ -204,48 +211,21 @@ const routes: RouteRecordRaw[] = [
             name: ROUTES_NAMES.plannedSubscriptionDetails,
             component: () => import('@/pages/planned/subscriptions/subscription-details.vue'),
           },
-          // Shown as "Trackers"; route names, pages and the API keep "budgets".
           {
             path: 'trackers',
-            name: ROUTES_NAMES.plannedBudgets,
-            component: () => import('@/pages/budgets/budgets.vue'),
+            name: ROUTES_NAMES.plannedTrackers,
+            component: () => import('@/pages/trackers/trackers.vue'),
             meta: { i18nChunks: ['pages/budgets'] },
           },
           {
             path: 'trackers/:id',
-            name: ROUTES_NAMES.plannedBudgetDetails,
-            component: () => import('@/pages/budgets/budgets-info/index.vue'),
+            name: ROUTES_NAMES.plannedTrackerDetails,
+            component: () => import('@/pages/trackers/trackers-info/index.vue'),
             meta: {
               i18nChunks: ['pages/budgets', 'pages/budget-details', 'pages/transactions'],
             },
           },
         ],
-      },
-      // Backward-compat redirects for old budget URLs
-      {
-        path: '/budgets',
-        name: ROUTES_NAMES.budgets,
-        redirect: { name: ROUTES_NAMES.plannedBudgets },
-      },
-      {
-        path: '/budgets/:id',
-        name: ROUTES_NAMES.budgetsInfo,
-        redirect: (to) => ({
-          name: ROUTES_NAMES.plannedBudgetDetails,
-          params: { id: to.params.id },
-        }),
-      },
-      // /planned/budgets URLs are in bookmarks and sent notification links.
-      {
-        path: '/planned/budgets',
-        redirect: { name: ROUTES_NAMES.plannedBudgets },
-      },
-      {
-        path: '/planned/budgets/:id',
-        redirect: (to) => ({
-          name: ROUTES_NAMES.plannedBudgetDetails,
-          params: { id: to.params.id },
-        }),
       },
       // Backward-compat redirects for the old /planned/subscriptions URLs, so links
       // already sent (e.g. payment reminder emails) still resolve after the rename
@@ -329,6 +309,20 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/automations/editor.vue'),
         meta: { navSection: 'transactions', i18nChunks: ['pages/automations'] },
       },
+      // One page for both records: the conversation is read from the `threadId` param, so moving between
+      // threads (or to a new chat) keeps the page and its thread list mounted.
+      {
+        path: '/chat',
+        name: ROUTES_NAMES.chat,
+        component: () => import('@/pages/chat/index.vue'),
+        meta: { navSection: 'chat', i18nChunks: ['pages/chat'] },
+      },
+      {
+        path: '/chat/:threadId',
+        name: ROUTES_NAMES.chatThread,
+        component: () => import('@/pages/chat/index.vue'),
+        meta: { navSection: 'chat', i18nChunks: ['pages/chat'] },
+      },
       {
         path: '/settings',
         name: ROUTES_NAMES.settings,
@@ -346,6 +340,7 @@ const routes: RouteRecordRaw[] = [
             'settings/general',
             'settings/ai',
             'settings/security',
+            'settings/notifications',
             'settings/admin',
             'pages/shared-with-me',
           ],
@@ -503,6 +498,12 @@ const routes: RouteRecordRaw[] = [
             meta: { i18nChunks: ['settings/general'] },
           },
           {
+            path: 'notifications',
+            name: ROUTES_NAMES.settingsNotifications,
+            component: () => import('@/pages/settings/subpages/notifications/index.vue'),
+            meta: { i18nChunks: ['settings/notifications'] },
+          },
+          {
             path: 'admin',
             name: ROUTES_NAMES.settingsAdmin,
             component: () => import('@/pages/settings/subpages/admin/index.vue'),
@@ -514,7 +515,7 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/pages/settings/subpages/ai/index.vue'),
             redirect: { name: ROUTES_NAMES.settingsAiFeatures },
             // Chunk names match the Crowdin files, so the merged page keeps both.
-            meta: { i18nChunks: ['settings/ai', 'settings/ai-integrations'] },
+            meta: { i18nChunks: ['settings/ai', 'settings/ai-integrations', 'pages/chat'] },
             children: [
               {
                 path: 'features',
@@ -530,6 +531,11 @@ const routes: RouteRecordRaw[] = [
                 path: 'connected-apps',
                 name: ROUTES_NAMES.settingsAiConnectedApps,
                 component: () => import('@/pages/settings/subpages/ai/pages/connected-apps.vue'),
+              },
+              {
+                path: 'chat-applied',
+                name: ROUTES_NAMES.settingsAiChatApplied,
+                component: () => import('@/pages/settings/subpages/ai/pages/chat-applied-changes.vue'),
               },
               { path: 'keys', redirect: { name: ROUTES_NAMES.settingsAiModels } },
               { path: 'endpoints', redirect: { name: ROUTES_NAMES.settingsAiModels } },

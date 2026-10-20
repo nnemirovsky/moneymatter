@@ -35,11 +35,14 @@ const RUNAWAY_SWEEP_THRESHOLD = 100;
  * iterates this list for both ResourceShares and ShareInvitations, so adding a new
  * shareable resource type is a single entry here instead of four parallel SQL queries.
  */
-const ORPHAN_SWEEP_DEFINITIONS: ReadonlyArray<{ resourceType: string; foreignTable: string }> = [
+const ORPHAN_SWEEP_DEFINITIONS: ReadonlyArray<{
+  resourceType: string;
+  foreignTable: string;
+}> = [
   { resourceType: RESOURCE_TYPES.account, foreignTable: 'Accounts' },
   // Household rows store `resourceId = ownerUserId::text` by convention.
   { resourceType: RESOURCE_TYPES.household, foreignTable: 'Users' },
-  { resourceType: RESOURCE_TYPES.budget, foreignTable: 'Budgets' },
+  { resourceType: RESOURCE_TYPES.tracker, foreignTable: 'Trackers' },
 ];
 
 const sweepOrphans = async ({

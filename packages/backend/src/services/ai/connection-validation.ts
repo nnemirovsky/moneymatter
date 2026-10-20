@@ -349,7 +349,9 @@ export function judgeCliProbeFailure({
   const { kind, cause, httpStatus } = classifyAiCallFailure({ error });
 
   switch (kind) {
+    // The sign-in and the model were recognised; the balance is the user's to top up.
     case 'rate-limited':
+    case 'quota-exhausted':
       return { isValid: true };
     case 'temporary':
       return httpStatus === 503
@@ -373,11 +375,13 @@ export function judgeCliProbeFailure({
 }
 
 /**
- * Probes a subscription CLI through the model's own `doGenerate`, so the probe takes the
- * connection's slot like any run and loads the credential from `credentialSource` inside it.
- * `onValid` runs while the slot is still held and only for a passing probe (a session that is
- * consumed there cannot be read, refreshed and written back by a concurrent probe afterwards).
- * A slot that stays busy past the wait limit is not a verdict: it throws `ai.cliConnectionBusy`.
+ * Probes a subscription CLI through the model's own `doGenerate`, so the probe takes a run slot like
+ * any run and loads the credential from `credentialSource` inside it.
+ * `onValid` runs while the slot is still held and only for a passing probe. A Codex refresh is written
+ * back before `onValid` consumes a sign-in session (a concurrent probe of the same session shares the
+ * Codex home, so a refresh it makes after the consume is skipped, the session being gone).
+ * No slot within the wait limit (the instance-wide cap is in use) is not a verdict: it throws
+ * `ai.cliConnectionBusy`.
  */
 export async function validateCliConnection({
   provider,

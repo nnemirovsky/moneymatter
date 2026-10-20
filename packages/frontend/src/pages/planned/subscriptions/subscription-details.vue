@@ -48,6 +48,7 @@ import {
   RepeatIcon,
   SettingsIcon,
   SkipForwardIcon,
+  StickyNoteIcon,
   Trash2Icon,
   UndoIcon,
   UnlinkIcon,
@@ -57,16 +58,18 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
 import BrandLogo from '@/components/common/brand-logo.vue';
+import { toEntityLogoDisplayProps } from '@/components/common/logo-selection';
 
 import { AUTOMATION_MODES, type AutomationMode, deriveAutomationMode } from './automation-editor-state';
 import EditAutomationDialog from './components/edit-automation-dialog.vue';
 import EditBasicsDialog from './components/edit-basics-dialog.vue';
 import EditOrganizeDialog from './components/edit-organize-dialog.vue';
+import EditPeriodNoteDialog from './components/edit-period-note-dialog.vue';
 import EditScheduleDialog from './components/edit-schedule-dialog.vue';
 import LinkedTransactionsSection from './components/linked-transactions-section.vue';
 import SubscriptionMarkPaidDialog from './components/subscription-mark-paid-dialog.vue';
 import SubscriptionTypeBadge from './components/subscription-type-badge.vue';
-import { daysUntilDue } from './subscription-due-status';
+import { daysUntilDue, hasUpcomingDue } from './subscription-due-status';
 import { formatFrequency, getTransactionTypePrefix, getTransactionTypeStyles } from './utils';
 
 const ManageTransactionDialogContent = defineAsyncComponent(
@@ -301,6 +304,13 @@ const currentPeriod = computed(() => {
   );
 });
 
+/** A paused or already-ended subscription has no upcoming payment to show or act on. */
+const upcomingPeriod = computed(() => {
+  const period = currentPeriod.value;
+  if (!period || !subscription.value) return null;
+  return hasUpcomingDue({ subscription: subscription.value, dueDate: period.dueDate }) ? period : null;
+});
+
 function getDaysUntilDue({ dueDate }: { dueDate: string }): number | null {
   return daysUntilDue({ dueDate, now: now.value });
 }
@@ -445,6 +455,15 @@ const revertDescriptionKey = computed(() => {
   return 'planned.subscriptions.periods.dialogs.revertDescription';
 });
 
+// Edit period note
+const noteTarget = ref<SubscriptionPeriodModel | null>(null);
+const isNoteDialogOpen = computed({
+  get: () => !!noteTarget.value,
+  set: (val: boolean) => {
+    if (!val) noteTarget.value = null;
+  },
+});
+
 const isPeriodActionPending = computed(
   () => isMarkingPaid.value || isSkipping.value || isUnlinkingPeriod.value || isReverting.value,
 );
@@ -494,13 +513,7 @@ async function openTransaction({ transactionId }: { transactionId: string }) {
     <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
       <div>
         <div class="flex items-center gap-3">
-          <BrandLogo
-            :domain="subscription.logoDomain"
-            :initials="subscription.logoInitials"
-            :color="subscription.logoColor"
-            :name="subscription.name"
-            class="size-10"
-          />
+          <BrandLogo v-bind="toEntityLogoDisplayProps(subscription)" :name="subscription.name" class="size-10" />
           <h1 class="text-2xl font-semibold tracking-tight">{{ subscription.name }}</h1>
           <SubscriptionTypeBadge :type="subscription.type" size="md" />
           <span
@@ -728,9 +741,7 @@ async function openTransaction({ transactionId }: { transactionId: string }) {
               <dd class="flex items-center gap-1.5 text-right font-medium">
                 <template v-if="resolvedPayee">
                   <BrandLogo
-                    :domain="resolvedPayee.logoDomain"
-                    :initials="resolvedPayee.logoInitials"
-                    :color="resolvedPayee.logoColor"
+                    v-bind="toEntityLogoDisplayProps(resolvedPayee)"
                     :name="resolvedPayee.name"
                     class="size-5 shrink-0"
                   />
@@ -813,7 +824,7 @@ async function openTransaction({ transactionId }: { transactionId: string }) {
     </div>
 
     <!-- Next Due (scheduled subscriptions only) -->
-    <div v-if="isScheduled && currentPeriod" class="bg-card mb-6 rounded-lg border p-4">
+    <div v-if="isScheduled && currentPeriod && upcomingPeriod" class="bg-card mb-6 rounded-lg border p-4">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p class="text-muted-foreground text-xs font-medium uppercase">
@@ -949,6 +960,17 @@ async function openTransaction({ transactionId }: { transactionId: string }) {
                     <SkipForwardIcon class="size-4" />
                   </Button>
                 </DesktopOnlyTooltip>
+                <DesktopOnlyTooltip :content="$t('planned.subscriptions.periods.tooltips.editNote')">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    :aria-label="$t('planned.subscriptions.periods.tooltips.editNote')"
+                    :disabled="isPeriodActionPending"
+                    @click="noteTarget = period"
+                  >
+                    <StickyNoteIcon class="size-4" />
+                  </Button>
+                </DesktopOnlyTooltip>
                 <DesktopOnlyTooltip
                   v-if="period.transactionId"
                   :content="$t('planned.subscriptions.periods.tooltips.unlinkTransaction')"
@@ -1074,6 +1096,8 @@ async function openTransaction({ transactionId }: { transactionId: string }) {
         {{ $t(revertDescriptionKey, { date: revertTarget?.dueDate }) }}
       </template>
     </ResponsiveAlertDialog>
+
+    <EditPeriodNoteDialog v-model:open="isNoteDialogOpen" :subscription-id="subscription.id" :period="noteTarget" />
 
     <!-- Mark-paid flow (decides instant vs. amount dialog internally) -->
     <SubscriptionMarkPaidDialog ref="markPaidRef" @paid="invalidateQueries" />

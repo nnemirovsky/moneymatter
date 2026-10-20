@@ -36,6 +36,7 @@ export default defineConfig({
       ],
       sidebar: [
         { label: 'Getting started', items: [{ autogenerate: { directory: 'getting-started' } }] },
+        { label: 'AI', items: [{ autogenerate: { directory: 'ai' } }] },
         { label: 'Accounts', items: [{ autogenerate: { directory: 'accounts' } }] },
         { label: 'Transactions', items: [{ autogenerate: { directory: 'transactions' } }] },
         { label: 'Budgeting', items: [{ autogenerate: { directory: 'budgeting' } }] },

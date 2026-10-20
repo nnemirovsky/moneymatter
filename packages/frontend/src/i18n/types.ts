@@ -46,6 +46,7 @@ const I18N_CHUNKS = [
   'pages/shared-with-me',
   'pages/household',
   'pages/payees',
+  'pages/chat',
   // Settings subpages
   'settings/index',
   'settings/categories',
@@ -58,6 +59,7 @@ const I18N_CHUNKS = [
   'settings/general',
   'settings/ai',
   'settings/security',
+  'settings/notifications',
   'settings/admin',
   'settings/ai-integrations',
   'settings/integrations',

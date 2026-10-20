@@ -8,20 +8,20 @@ import { appName, appUrl, buildEmailShell, escapeHtml, fromEmail, resend } from 
 const RESOURCE_TYPE_LABELS: Record<ResourceType, string> = {
   account: 'account',
   household: 'household',
-  budget: 'budget',
+  tracker: 'tracker',
 };
 
 // Owners managing a resource land on the dashboard surface that lists that
 // resource type. Mirrors the deep-link strategy in share-invitation-email.ts.
 const RESOURCE_OWNER_MANAGE_PATHS: Record<ResourceType, string> = {
   account: '/accounts',
-  budget: '/budgets',
+  tracker: '/planned/trackers',
   household: '/settings/household',
 };
 
 const RESOURCE_OWNER_MANAGE_CTA: Record<ResourceType, string> = {
   account: 'Manage your accounts',
-  budget: 'Manage your budgets',
+  tracker: 'Manage your trackers',
   household: 'Manage your household',
 };
 
@@ -72,7 +72,10 @@ export const sendShareRevokedEmail = async ({
     return result.data?.id ?? null;
   } catch (error) {
     logger.error(
-      { message: '[ShareRevokedEmail] Failed to send revocation email', error: error as Error },
+      {
+        message: '[ShareRevokedEmail] Failed to send revocation email',
+        error: error as Error,
+      },
       { code: 'SHARE_REVOKED_EMAIL_FAILED', resourceType, resourceName },
     );
     return null;
@@ -126,7 +129,10 @@ export const sendShareLeftEmail = async ({
     return result.data?.id ?? null;
   } catch (error) {
     logger.error(
-      { message: '[ShareLeftEmail] Failed to send share-left email', error: error as Error },
+      {
+        message: '[ShareLeftEmail] Failed to send share-left email',
+        error: error as Error,
+      },
       { code: 'SHARE_LEFT_EMAIL_FAILED', resourceType, resourceName },
     );
     return null;

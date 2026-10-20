@@ -13,12 +13,15 @@
  * On-disk backup shape version. Restore hard-fails a manifest whose
  * `formatVersion` is greater than this (app too old for the backup).
  *
- * - 1: money columns are integer cents (BIGINT storage).
- * - 2: money columns are exact decimal strings (DECIMAL storage) and the money
- *   fields inside JSON columns are decimals. A version 1 archive is converted
+ * - 1: money columns are integer cents (BIGINT storage); trackers carry the older "budget" names.
+ * - 2: trackers use their current names and money is integer cents (what upstream writes). An
+ *   earlier build of this fork also wrote version 2, with decimal money but the older "budget"
+ *   names; restore tells the two apart by their tracker file names.
+ * - 3: money columns are exact decimal strings (DECIMAL storage) and the money fields inside JSON
+ *   columns are decimals; trackers use their current names. A version 1 or 2 archive is converted
  *   to this shape on restore.
  */
-export const BACKUP_FORMAT_VERSION = 2;
+export const BACKUP_FORMAT_VERSION = 3;
 
 /**
  * Global-catalog subset embedded under `reference/`. Only the security
@@ -89,13 +92,20 @@ export type BackupRestoreWarningCode =
   // was reset to null and the row kept.
   | 'foreign_reference_nulled';
 
+/**
+ * Built inside the restore worker, which has no request locale, so it carries
+ * only a code plus params and the frontend renders the translated text.
+ */
 export interface BackupRestoreWarning {
   code: BackupRestoreWarningCode;
   /** Table the warning applies to, when table-scoped. */
   table?: string;
-  message: string;
   /** How many rows/columns the warning covers, when countable. */
   count?: number;
+  /** Foreign-key column, for `foreign_reference_dropped` / `foreign_reference_nulled`. */
+  column?: string;
+  /** Dropped column names, for `unknown_column_dropped`. */
+  columns?: string[];
 }
 
 /** Coarse restore phases reported through job progress and the poll fallback. */
@@ -123,8 +133,10 @@ export interface BackupRestoreStatusResponse {
   status: BackupRestoreJobStatus;
   progress?: BackupRestoreProgress;
   summary?: BackupRestoreSummary;
-  /** Human-readable failure reason when status is `failed`. */
+  /** Translated failure reason when status is `failed`. */
   error?: string;
+  /** Untranslated technical diagnostics (table, constraint) for support, when available. */
+  errorDetail?: string;
 }
 
 /**

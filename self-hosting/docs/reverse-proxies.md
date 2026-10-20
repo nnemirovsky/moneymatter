@@ -27,6 +27,9 @@ no second port to configure.
   fetch `/mcp`, `/.well-known/oauth-*` and `/authorize`, `/token`, `/register`.
   If you hand-wrote per-path rules, those requests land on the wrong place and
   MCP silently connects to the hosted service instead of yours.
+- **Don't cache `/sw.js`.** The push service worker is served with
+  `Cache-Control: no-cache` so browsers pick up a fixed version. Leave that
+  header alone, or notification fixes never reach your users.
 - **Close the direct port.** Your proxy serves the app over HTTPS, but the
   plain-HTTP port `8080` is still open to anyone until you close it –
   see [setup-guide.md](setup-guide.md#3-behind-your-own-reverse-proxy), step 3.
@@ -35,6 +38,81 @@ And on the app side: `BETTER_AUTH_URL` and `AUTH_ORIGIN` in `.env` must be
 set to the URL people type in the browser (e.g. `https://budget.example.com`)
 – see [setup-guide.md](setup-guide.md#3-behind-your-own-reverse-proxy),
 step 2.
+
+## Auth proxies (Cloudflare Access and similar)
+
+A proxy that asks people to sign in before it forwards a request (Cloudflare
+Access, Authelia, oauth2-proxy) works with browser notifications without any
+exception rule. Do not add a bypass for `/sw.js`, the manifest or `/api/`.
+
+- **Delivery doesn't pass through the proxy.** The backend sends each
+  notification straight to the browser's push service (Apple, Google, Mozilla
+  or Microsoft) over outbound HTTPS. The push service then reaches the device.
+  Nothing connects to your domain, so the proxy never sees it. The backend
+  needs outbound access on port 443 to `*.push.apple.com`,
+  `fcm.googleapis.com`, `*.push.services.mozilla.com` and
+  `*.notify.windows.com` (see `WEB_PUSH_ALLOWED_HOSTS` in the
+  [environment reference](environment-reference.md#browser-notifications)).
+- **The browser fetches `/sw.js` and the manifest with the proxy's cookie.**
+  The service worker script is a normal same-origin request, so it carries the
+  cookie the proxy set when you signed in. The app's manifest link is declared
+  with `crossorigin="use-credentials"`, so the manifest request carries it too.
+  Without that the browser would fetch the manifest anonymously and get the
+  proxy's sign-in page instead of JSON, which can break adding the app to an
+  iPhone's Home Screen.
+- **API calls are ordinary requests.** Turning notifications on, the device
+  list and the test button go through `/api/` like everything else, with the
+  same cookies.
+- **An expired proxy session doesn't stop delivery.** If the browser replaces
+  its push subscription while you aren't signed in to the proxy, the worker's
+  background request to register the new one is refused. The app registers it
+  the next time you open it.
+
+## Cloudflare Tunnel
+
+A Cloudflare Tunnel (`cloudflared`) needs no open port at all: run the
+`cloudflared` container on the app's `budget-tracker` Docker network and point
+the tunnel's public hostname at `http://budget-tracker:80`, the same address
+the other containerized proxies use (see
+[Proxy running in Docker on the same server](#proxy-running-in-docker-on-the-same-server)).
+Put Cloudflare Access in front if you want a sign-in before the app is even
+reachable (see [Auth proxies](#auth-proxies-cloudflare-access-and-similar)).
+
+Nothing else to set for the client address either: the tunnel container sits
+on a private Docker address, which the backend trusts by default. See
+[Client IP address](#client-ip-address).
+
+## Client IP address
+
+The backend stores the address a session was created from (Settings → Security
+→ Active Sessions) and counts sign-in attempts per address. Behind a proxy it
+reads that address from `X-Forwarded-For`, but only when the request really
+arrives from a proxy it trusts. A request from any other address has the
+header ignored, so nobody can claim a different address by sending their own.
+
+Proxies on private addresses are trusted by default: the same host
+(`127.0.0.1`), or the app's Docker network (`172.16.0.0/12` and the other
+private ranges). That covers every setup on this page, including Cloudflare
+Tunnel, Nginx Proxy Manager, Caddy and Traefik running in Docker, so you
+usually don't set anything. When the addresses come out wrong, the symptom is
+"Unknown location" on every session, or sessions that all show the proxy's
+own address.
+
+If a proxy in front of the app sits on a **public** address (for example a
+proxy on another server), add it to the defaults in `.env`, then run
+`docker compose up -d`:
+
+```
+TRUSTED_PROXIES=loopback,linklocal,uniquelocal,203.0.113.10
+```
+
+Always keep `loopback,linklocal,uniquelocal` in the list: the bundled frontend
+container reaches the backend from a private Docker address, and the backend
+also calls itself over loopback. Without them every session shows the
+frontend container's address. The value is a comma-separated list of IP
+addresses and CIDR ranges. A typo fails the start with a message naming the bad
+entry, rather than trusting the wrong host. Don't list addresses you don't
+control.
 
 ## Proxies with access control
 

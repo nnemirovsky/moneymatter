@@ -4,7 +4,9 @@ import {
   AI_CUSTOM_INSTRUCTIONS_MAX_LENGTH,
   AI_FEATURE,
   AI_PROVIDER,
+  CHAT_RETENTION_OPTIONS,
   CURRENCY_DISPLAY_PREFERENCES,
+  type ChatRetentionDays,
   type CategoryMappingPreset,
   type Equals,
   type Expect,
@@ -21,6 +23,8 @@ import {
   PIVOT_GRANULARITIES,
   PIVOT_MEASURES,
   PIVOT_ROW_DIMENSIONS,
+  PUSH_GROUPS,
+  type PushGroup,
   RecordId,
   SAVED_PIVOT_VIEW_NAME_MAX_LENGTH,
   SAVED_TRANSACTION_VIEW_NAME_MAX_LENGTH,
@@ -48,6 +52,8 @@ import Users from './users.model';
 const ZodAiFeatureConfigSchema = z.object({
   feature: z.nativeEnum(AI_FEATURE),
   connectionId: z.string().nullable(),
+  /** A model of the connection's provider; never set with a null `connectionId`. */
+  modelId: modelField.optional(),
 });
 
 // Field constraints are shared with the create/update routes so a restored row can't be
@@ -86,15 +92,49 @@ const ZodAiSettingsSchema = z.object({
   customInstructions: z.string().max(AI_CUSTOM_INSTRUCTIONS_MAX_LENGTH).optional(),
   /** List order is priority: the first dialable connection answers unconfigured features. */
   connections: z.array(ZodAiConnectionSchema).max(MAX_AI_CONNECTIONS).optional(),
+  /**
+   * Written only by `PUT /chat/settings`, which recomputes every thread's expiry in the same
+   * transaction. No `.default()`: a missing value reads as `CHAT_DEFAULT_RETENTION_DAYS`.
+   */
+  chat: z
+    .object({
+      /** `null` keeps unpinned threads until the user deletes them */
+      retentionDays: z
+        .number()
+        .refine((days): days is ChatRetentionDays => CHAT_RETENTION_OPTIONS.some((option) => option === days))
+        .nullable()
+        .optional(),
+    })
+    .optional(),
 });
 
+// No `.default()`: the PATCH deep merge would write defaults over stored values, and an unset
+// group takes its default from `PUSH_GROUP_DEFAULTS` when it is read.
+const ZodPushGroupsSchema = z.object({
+  [PUSH_GROUPS.reminders]: z.boolean().optional(),
+  [PUSH_GROUPS.bankSync]: z.boolean().optional(),
+  [PUSH_GROUPS.sharing]: z.boolean().optional(),
+  [PUSH_GROUPS.system]: z.boolean().optional(),
+  [PUSH_GROUPS.releases]: z.boolean().optional(),
+});
+
+const ZodPushPreferencesSchema = z.object({
+  groups: ZodPushGroupsSchema.optional(),
+});
+
+// `enabled` and `types` carry no `.default()` and are optional: nothing reads them and no row
+// stores them by default. Settings are re-validated with this full schema after a PATCH merge, so
+// requiring `types` would reject a push-group save on every row that never held it.
 const ZodNotificationPreferencesSchema = z.object({
-  enabled: z.boolean().default(true),
-  types: z.object({
-    [NOTIFICATION_TYPES.budgetAlert]: z.boolean().default(true),
-    [NOTIFICATION_TYPES.system]: z.boolean().default(true),
-    [NOTIFICATION_TYPES.changelog]: z.boolean().default(true),
-  }),
+  enabled: z.boolean().optional(),
+  types: z
+    .object({
+      [NOTIFICATION_TYPES.trackerAlert]: z.boolean().default(true),
+      [NOTIFICATION_TYPES.system]: z.boolean().default(true),
+      [NOTIFICATION_TYPES.changelog]: z.boolean().default(true),
+    })
+    .optional(),
+  push: ZodPushPreferencesSchema.optional(),
 });
 
 // Onboarding state schema for Quick Start feature
@@ -345,6 +385,8 @@ export const ZodSettingsSchema = z.object({
   // When true, the sidebar Accounts panel hides accounts whose display balance is
   // zero, and hides any account group left with no non-zero account. Off by default.
   hideZeroBalances: z.boolean().optional(),
+  // Hides the "turn on smart tracking" tip on every tracker's Transactions tab.
+  hideSmartTrackingTip: z.boolean().optional(),
   // When true, manual (`system`) accounts are offered as candidates to the bank-sync transfer
   // matcher. Opt-in because linking turns a manually recorded row into a transfer leg, and
   // transfer legs carry no category, so the row disappears from category stats.
@@ -389,11 +431,12 @@ export const ZodSettingsPatchSchema = z.object({
       enabled: z.boolean().optional(),
       types: z
         .object({
-          [NOTIFICATION_TYPES.budgetAlert]: z.boolean().optional(),
+          [NOTIFICATION_TYPES.trackerAlert]: z.boolean().optional(),
           [NOTIFICATION_TYPES.system]: z.boolean().optional(),
           [NOTIFICATION_TYPES.changelog]: z.boolean().optional(),
         })
         .optional(),
+      push: ZodPushPreferencesSchema.optional(),
     })
     .optional(),
   dashboard: z
@@ -465,6 +508,7 @@ export const ZodSettingsPatchSchema = z.object({
   payeePromotionThreshold: z.number().int().min(1).max(3).optional(),
   showSupportButton: z.boolean().optional(),
   hideZeroBalances: z.boolean().optional(),
+  hideSmartTrackingTip: z.boolean().optional(),
   matchTransfersWithManualAccounts: z.boolean().optional(),
   importPendingBankTransactions: z.boolean().optional(),
   bankSyncHoursUtc: z.array(z.number().int().min(0).max(23)).length(2).optional(),
@@ -487,7 +531,7 @@ type DeepPartial<T> = {
 };
 
 type PatchableSettings = Omit<SettingsSchema, 'onboarding' | 'ai'> & {
-  ai?: Omit<NonNullable<SettingsSchema['ai']>, 'connections' | 'featureConfigs'>;
+  ai?: Omit<NonNullable<SettingsSchema['ai']>, 'connections' | 'featureConfigs' | 'chat'>;
 };
 
 /**
@@ -497,6 +541,15 @@ type PatchableSettings = Omit<SettingsSchema, 'onboarding' | 'ai'> & {
  * @public exported only so the assertion isn't flagged as unused.
  */
 export type SettingsPatchSchemaIsInSync = Expect<Equals<SettingsPatchSchema, DeepPartial<PatchableSettings>>>;
+
+/**
+ * Compile-time drift guard: the stored push groups must be exactly the shared `PushGroup` keys.
+ *
+ * @public exported only so the assertion isn't flagged as unused.
+ */
+export type PushGroupsSchemaIsInSync = Expect<
+  Equals<z.infer<typeof ZodPushGroupsSchema>, Partial<Record<PushGroup, boolean>>>
+>;
 
 /** @public exported only so the assertion isn't flagged as unused. */
 export type FireSettingsSchemaIsInSync = Expect<Equals<z.infer<typeof ZodFireSettingsSchema>, FireSettings>>;

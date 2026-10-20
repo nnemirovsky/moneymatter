@@ -97,7 +97,7 @@ describe('boundary/no-direct-transactions-queries', () => {
       rule: boundaryRule,
       count: 0,
       code: `
-        import Transactions from './budget-transactions.model';
+        import Transactions from './tracker-transactions.model';
         export const load = () => Transactions.findAll({});
       `,
     });

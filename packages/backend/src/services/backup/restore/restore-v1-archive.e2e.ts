@@ -173,7 +173,7 @@ describe('Restoring a format version 1 backup (cents to decimals)', () => {
     expectDecimal({ actual: loan!.plannedPayment, expected: '1250.5' });
     expectDecimal({ actual: loan!.refPlannedPayment, expected: '1250.5' });
 
-    const [budget] = rowsOf({ archive, name: 'budgets' });
+    const [budget] = rowsOf({ archive, name: 'trackers' });
     expectDecimal({ actual: budget!.limitAmount, expected: '50000.25' });
 
     const [subscription] = rowsOf({ archive, name: 'subscriptions' });
@@ -222,7 +222,7 @@ describe('Restoring a format version 1 backup (cents to decimals)', () => {
     for (const item of userCurrencies) expect(item.logoUrl).toBeNull();
   });
 
-  it('exports the restored ledger as a format version 2 archive that round-trips exactly', async () => {
+  it('exports the restored ledger as a format version 3 archive that round-trips exactly', async () => {
     await restoreUpload({ base64: await buildFixtureUpload() });
     const firstExport = await helpers.exportBackup();
     const first = helpers.parseBackupArchive({ buffer: firstExport.body });
@@ -313,10 +313,10 @@ describe('Restoring a format version 1 backup (cents to decimals)', () => {
     expect(restore.message).toMatch(/version/i);
   });
 
-  it('exports a user with no data as a format version 2 archive with empty money files', async () => {
+  it('exports a user with no data as a format version 3 archive with empty money files', async () => {
     const archive = await exportParsed();
 
-    expect(archive.manifest.formatVersion).toBe(2);
+    expect(archive.manifest.formatVersion).toBe(BACKUP_FORMAT_VERSION);
     expect(rowsOf({ archive, name: 'accounts' })).toEqual([]);
     expect(rowsOf({ archive, name: 'transactions' })).toEqual([]);
   });

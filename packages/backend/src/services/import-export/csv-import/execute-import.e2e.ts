@@ -1027,6 +1027,10 @@ describe('Execute Import endpoint (async)', () => {
       if (overlongCategory.progress.status !== 'failed') throw new Error('unreachable');
       expect(overlongCategory.progress.error).toMatch(/category name.*too long|too long.*category/i);
       expect(overlongCategory.progress.error).not.toMatch(/character varying|sequelize/i);
+      expect(overlongCategory.progress.failure).toEqual({
+        code: 'category-name-too-long',
+        params: { name: expect.any(String), length: tooLongCategoryName.length, max: 255 },
+      });
     }, 60_000);
 
     it('fails the job when link-existing rows carry a different currency than the linked account', async () => {
@@ -1047,6 +1051,8 @@ describe('Execute Import endpoint (async)', () => {
       expect(progress.error).toMatch(/currencies must match/i);
       expect(progress.error).toContain(mismatchedCurrency);
       expect(progress.error).toContain(account.currencyCode);
+      expect(progress.failure?.code).toBe('account-currency-mismatch');
+      expect(progress.failure?.params?.mismatches).toContain(mismatchedCurrency);
 
       // Zero state: no rows were written and the balance never moved.
       const after = await helpers.getAccount({ id: account.id, raw: true });
@@ -1729,6 +1735,71 @@ describe('Execute Import endpoint (async)', () => {
         expect(await helpers.getBatchesHistory({ raw: true })).toEqual({ items: [], totalCount: 0 });
         expect((await helpers.getAccounts()).map((account) => account.id)).not.toContain(created.id);
       });
+    });
+  });
+
+  describe('amounts at the account currency decimals', () => {
+    const importAmounts = async ({ currencyCode, amounts }: { currencyCode: string; amounts: string[] }) => {
+      await helpers.addUserCurrencies({ currencyCodes: [currencyCode], raw: true });
+      const account = await helpers.createAccount({
+        payload: helpers.buildAccountPayload({ currencyCode }),
+        raw: true,
+      });
+
+      const { progress } = await runImport({
+        fileContent: buildCsv(
+          amounts.map((amount, index) => ({
+            date: `2024-01-${String(index + 10).padStart(2, '0')}`,
+            amount,
+            description: `Row ${amount}`,
+            account: 'CSV Account',
+            currency: currencyCode,
+            type: 'expense' as const,
+          })),
+        ),
+        accountMapping: { 'CSV Account': { action: 'link-existing', accountId: account.id } },
+      });
+      expectCsvImportCompleted(progress);
+      expect(progress.summary.errors).toHaveLength(0);
+
+      const transactions = await helpers.getTransactions({ raw: true });
+
+      return (amount: string) => transactions.find((tx) => tx.note === `Row ${amount}`)?.amount;
+    };
+
+    it('imports a KWD 1.234 exactly and rounds 1.2345 half-up to 1.235', async () => {
+      const storedAmount = await importAmounts({ currencyCode: 'KWD', amounts: ['1.234', '1.2345'] });
+
+      expect(storedAmount('1.234')).toBe(1.234);
+      expect(storedAmount('1.2345')).toBe(1.235);
+    });
+
+    it('stores a JPY 1500.6 as 1501', async () => {
+      const storedAmount = await importAmounts({ currencyCode: 'JPY', amounts: ['1500.6'] });
+
+      expect(storedAmount('1500.6')).toBe(1501);
+    });
+
+    it('stores a 2-decimal 12.345 as 12.35', async () => {
+      const account = await helpers.createAccount({ raw: true });
+
+      const { progress } = await runImport({
+        fileContent: buildCsv([
+          {
+            date: '2024-01-10',
+            amount: '12.345',
+            description: 'Row 12.345',
+            account: 'CSV Account',
+            currency: account.currencyCode,
+            type: 'expense',
+          },
+        ]),
+        accountMapping: { 'CSV Account': { action: 'link-existing', accountId: account.id } },
+      });
+      expectCsvImportCompleted(progress);
+
+      const transactions = await helpers.getTransactions({ raw: true });
+      expect(transactions.find((tx) => tx.note === 'Row 12.345')?.amount).toBe(12.35);
     });
   });
 });

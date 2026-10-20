@@ -13,7 +13,7 @@ import {
 } from '@bt/shared/types';
 import { decryptToken, encryptToken } from '@common/utils/encryption';
 import { t } from '@i18n/index';
-import { NotFoundError, ValidationError } from '@js/errors';
+import { NotFoundError, TooManyRequests, ValidationError } from '@js/errors';
 import { logger } from '@js/utils/logger';
 import UserSettings, {
   DEFAULT_SETTINGS,
@@ -25,10 +25,19 @@ import { randomUUID } from 'node:crypto';
 
 import { assertCliAiAllowed } from '../ai/cli/cli-access';
 import { CliCredentialSource } from '../ai/cli/cli-credential-run';
+import { abortCliRunsForConnection } from '../ai/cli/cli-run-limiter';
+import { retireCodexHome } from '../ai/cli/codex-home';
 import { logoutCodexConnection } from '../ai/cli/codex-logout';
 import { consumeCredential, peekCredential, sessionCredentialSource } from '../ai/cli/login/cli-auth-sessions';
 import { validateCliConnection, validateConnection } from '../ai/connection-validation';
 import { listConnectionModels } from '../ai/list-connection-models';
+import {
+  AI_PROBE_RATE_LIMIT_MAX_ATTEMPTS,
+  AI_PROBE_RATE_LIMIT_WINDOW_SECONDS,
+  aiProbeRateLimitKey,
+} from '../ai/probe-rate-limit';
+import { getCachedServedModels } from '../ai/served-models-cache';
+import { RateLimitService } from '../common/rate-limit.service';
 import { withTransaction } from '../common/with-transaction';
 import { getOrCreateUserSettings } from './get-or-create-user-settings';
 
@@ -102,9 +111,10 @@ function readStoredKey({ connection, userId }: { connection: StoredConnection; u
 }
 
 /**
- * A CLI connection's credential as a source the CLI runner loads inside the connection's slot. The
- * row is read fresh and decrypted per run, so no caller holds a decrypted CLI credential, and a
- * Codex refresh a previous run persisted is what the next run starts from.
+ * A CLI connection's credential as a source the CLI runner loads inside a run. The row is read fresh
+ * and decrypted when a run (Claude Code) or the connection's shared Codex home (Codex) needs it, so no
+ * caller holds a decrypted CLI credential, and a Codex refresh a previous run persisted is what the
+ * next shared home starts from.
  */
 export function connectionCredentialSource({
   userId,
@@ -128,13 +138,17 @@ export function connectionCredentialSource({
 
       return { credential, revision: connection.keyEncrypted };
     },
-    save: ({ credential, loadedRevision }) =>
-      replaceConnectionCredential({
+    save: async ({ credential, loadedRevision }) => {
+      const keyEncrypted = encryptToken(credential);
+      const swapped = await replaceConnectionCredential({
         userId,
         connectionId,
         expectedKeyEncrypted: loadedRevision,
-        keyEncrypted: encryptToken(credential),
-      }),
+        keyEncrypted,
+      });
+
+      return swapped ? { revision: keyEncrypted } : null;
+    },
   };
 }
 
@@ -168,6 +182,7 @@ export function swapConnectionCredential({
 /**
  * Persists a credential the CLI refreshed during a run as a compare-and-swap on `keyEncrypted`.
  * A connection deleted mid-run is not resurrected, and a credential replaced mid-run is kept.
+ * Returns whether the new ciphertext was stored.
  */
 export async function replaceConnectionCredential({
   userId,
@@ -179,13 +194,17 @@ export async function replaceConnectionCredential({
   connectionId: string;
   expectedKeyEncrypted: string;
   keyEncrypted: string;
-}): Promise<void> {
+}): Promise<boolean> {
+  let stored = false;
+
   await mutateConnections({
     userId,
     connectionId,
     onMissing: 'skip',
     mutate: ({ connections }) => {
       const result = swapConnectionCredential({ connections, connectionId, expectedKeyEncrypted, keyEncrypted });
+
+      stored = result.swapped;
 
       if (!result.swapped) {
         logger.warn('Skipped saving a refreshed CLI credential: the stored credential changed during the run', {
@@ -197,6 +216,8 @@ export async function replaceConnectionCredential({
       return { connections: result.connections };
     },
   });
+
+  return stored;
 }
 
 function toConnectionInfo({ connection }: { connection: StoredConnection }): AIConnectionInfo {
@@ -732,11 +753,23 @@ export const updateConnection = async ({
 };
 
 /**
- * Features pinned to the deleted connection become automatic again. A Codex connection is signed
- * out first, best effort, so the tokens it held stop working; Claude Code has no CLI revoke.
+ * Features pinned to the deleted connection become automatic again. A CLI connection's active runs
+ * are cancelled first (and waited for, briefly), so nothing keeps using the credential, or the
+ * connection's shared Codex home, while it is signed out: cancelling is the safe choice, since
+ * waiting out a feature run could take minutes for a connection that is going away. A Codex
+ * connection is then signed out, best effort, so the tokens it held stop working; Claude Code has no
+ * CLI revoke. A run that starts in the instant between the cancel and the delete is not stopped:
+ * it fails at the sign-out or completes against the deleted row, which is harmless.
  */
 export const deleteConnection = async ({ userId, connectionId }: { userId: number; connectionId: string }) => {
   const stored = (await readStoredConnections({ userId })).find((connection) => connection.id === connectionId);
+
+  if (stored && asAiCliProvider({ provider: stored.provider })) {
+    await abortCliRunsForConnection({ connectionKey: connectionId });
+    // A run that outlived the cancel (past its 3 s wait) keeps its home but is not written back, and the
+    // sign-out below starts from a fresh home.
+    await retireCodexHome({ connectionKey: connectionId });
+  }
 
   if (stored?.provider === AI_PROVIDER.codex && stored.keyEncrypted) {
     const { connectionKey, load } = connectionCredentialSource({ userId, connectionId });
@@ -897,6 +930,92 @@ export const listAvailableModels = async ({
   const effectiveApiKey = apiKey ?? (saved ? decryptConnectionKey({ connection: saved, userId }) : null);
 
   return listConnectionModels({ provider, baseUrl: effectiveBaseUrl, apiKey: effectiveApiKey });
+};
+
+/**
+ * Spends one live probe from the user's budget, the one the connection routes share. A model pick that has
+ * to probe is not behind those routes' middleware, so it takes the budget here. Fails open, like the middleware.
+ */
+async function spendProbeBudget({ userId }: { userId: number }): Promise<void> {
+  const budget = await RateLimitService.checkRateLimit(
+    aiProbeRateLimitKey({ userId }),
+    AI_PROBE_RATE_LIMIT_WINDOW_SECONDS,
+    AI_PROBE_RATE_LIMIT_MAX_ATTEMPTS,
+  );
+
+  if (!budget.allowed) {
+    throw new TooManyRequests({
+      message: t({ key: 'middleware.tooManyRequests' }),
+      details: { retryAfter: budget.remainingSeconds ?? 0, resetTime: budget.resetTime?.toISOString() },
+    });
+  }
+}
+
+/**
+ * Throws unless `connectionId` can serve `modelId`, so a feature or a chat thread never stores a model
+ * the connection's provider does not offer. Returns what to store: the model, or null when it is the
+ * connection's own model (always accepted: it is what the connection was validated with).
+ *
+ * The check reads the provider's model listing, cached for a few minutes per connection, and a subscription
+ * provider its curated list. Only a provider that lists nothing gets the live probe a connection create runs,
+ * and that one is paid for, so it is spent from the shared probe budget.
+ */
+export const assertConnectionServesModel = async ({
+  userId,
+  connectionId,
+  modelId,
+}: {
+  userId: number;
+  connectionId: string;
+  modelId: string;
+}): Promise<string | null> => {
+  const connection = findConnectionOrThrow({ connections: await readStoredConnections({ userId }), connectionId });
+  const model = normalizeModel({ model: modelId });
+
+  if (model === connection.model) return null;
+
+  const cliProvider = asAiCliProvider({ provider: connection.provider });
+
+  if (cliProvider) {
+    await assertCliAiAllowed({ userId });
+
+    if (!(await listConnectionModels({ provider: cliProvider, apiKey: null })).includes(model)) {
+      throw new ValidationError({ message: t({ key: 'ai.connectionModelNotOffered', variables: { model } }) });
+    }
+    return model;
+  }
+
+  const listed = await getCachedServedModels({
+    key: [connection.id, connection.baseUrl ?? '', connection.keyEncrypted ?? ''].join('|'),
+    load: () =>
+      listConnectionModels({
+        provider: connection.provider,
+        baseUrl: connection.baseUrl,
+        apiKey: readStoredKey({ connection, userId }),
+      }),
+  });
+
+  if (listed.length > 0) {
+    if (!listed.includes(model)) {
+      throw new ValidationError({ message: t({ key: 'ai.connectionModelNotOffered', variables: { model } }) });
+    }
+    return model;
+  }
+
+  await spendProbeBudget({ userId });
+
+  const validation = await validateConnection({
+    provider: connection.provider,
+    model,
+    apiKey: readStoredKey({ connection, userId }),
+    baseUrl: connection.baseUrl,
+  });
+
+  if (!validation.isValid) {
+    throw new ValidationError({ message: validation.error });
+  }
+
+  return model;
 };
 
 async function patchConnectionStatus({

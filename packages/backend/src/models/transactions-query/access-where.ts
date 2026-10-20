@@ -1,5 +1,5 @@
 import Accounts from '@models/accounts.model';
-import BudgetTransactions from '@models/budget-transactions.model';
+import TrackerTransactions from '@models/tracker-transactions.model';
 import { getAccessibleAccountIdsForUser } from '@services/sharing/auth/get-accessible-account-ids.service';
 import { Op, WhereOptions } from 'sequelize';
 
@@ -28,8 +28,8 @@ export const accessWhere = async ({ policy }: { policy: AccessPolicy }): Promise
     return { accountId: { [Op.in]: await getAccessibleAccountIdsForUser({ userId: policy.accessibleTo }) } };
   }
 
-  const rows = (await BudgetTransactions.findAll({
-    where: { budgetId: { [Op.in]: policy.budgetScoped } },
+  const rows = (await TrackerTransactions.findAll({
+    where: { trackerId: { [Op.in]: policy.trackerScoped } },
     attributes: ['transactionId'],
     raw: true,
   })) as unknown as { transactionId: string }[];

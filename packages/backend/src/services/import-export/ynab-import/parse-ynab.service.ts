@@ -15,6 +15,7 @@ import {
   type YnabParseTransfer,
   type YnabParseWarning,
 } from '@bt/shared/types';
+import { t } from '@i18n/index';
 import { ValidationError } from '@js/errors';
 import { removeFloatDrift } from '@services/import-export/core/remove-float-drift';
 import { parse } from 'csv-parse/sync';
@@ -74,7 +75,7 @@ export function parseYnabRegister({
   customCurrencyCodes?: readonly string[];
 }): YnabParseResult {
   if (typeof fileContent !== 'string' || fileContent.trim() === '') {
-    throw new ValidationError({ message: 'YNAB Register.csv is empty.' });
+    throw new ValidationError({ message: t({ key: 'importExport.ynab.parse.fileEmpty' }) });
   }
 
   let records: Record<string, string>[];
@@ -86,19 +87,20 @@ export function parseYnabRegister({
       relax_column_count: true,
       bom: true,
     }) as Record<string, string>[];
-  } catch (err) {
-    throw new ValidationError({
-      message: `YNAB Register.csv could not be parsed: ${err instanceof Error ? err.message : 'unknown error'}`,
-    });
+  } catch {
+    throw new ValidationError({ message: t({ key: 'importExport.ynab.parse.unparseable' }) });
   }
 
   if (records.length === 0) {
-    throw new ValidationError({ message: 'YNAB Register.csv contains no transactions.' });
+    throw new ValidationError({ message: t({ key: 'importExport.ynab.parse.noTransactions' }) });
   }
 
   if (records.length > YNAB_MAX_REGISTER_ROWS) {
     throw new ValidationError({
-      message: `YNAB Register.csv has ${records.length} rows; max supported is ${YNAB_MAX_REGISTER_ROWS}.`,
+      message: t({
+        key: 'importExport.ynab.parse.tooManyRows',
+        variables: { rows: records.length, max: YNAB_MAX_REGISTER_ROWS },
+      }),
     });
   }
 
@@ -106,7 +108,7 @@ export function parseYnabRegister({
   const missing = REQUIRED_HEADERS.filter((h) => !(h in firstRow));
   if (missing.length > 0) {
     throw new ValidationError({
-      message: `YNAB Register.csv is missing required column(s): ${missing.join(', ')}. The export format may have changed.`,
+      message: t({ key: 'importExport.ynab.parse.missingColumns', variables: { columns: missing.join(', ') } }),
     });
   }
 
@@ -119,8 +121,7 @@ export function parseYnabRegister({
   const detectedDateFormat = detectDateColumnFormat({ values: dateValues, locale: 'en' });
   if (!detectedDateFormat.ok) {
     throw new ValidationError({
-      message:
-        'The Date column in YNAB Register.csv mixes contradictory day/month orders — some rows only make sense as DD/MM/YYYY and others only as MM/DD/YYYY. Re-export the budget with a single date format.',
+      message: t({ key: 'importExport.ynab.parse.mixedDateOrders' }),
     });
   }
   const { fieldOrder } = detectedDateFormat.format;
@@ -128,8 +129,7 @@ export function parseYnabRegister({
   if (hasAmbiguousDateFieldOrder({ values: dateValues })) {
     warnings.push({
       code: 'ambiguous-date-order',
-      message:
-        'No row in the Date column settles whether it is day-first or month-first; dates were interpreted as MM/DD/YYYY. Check a few transactions after import.',
+      message: t({ key: 'importExport.ynab.warnings.ambiguousDateOrder' }),
     });
   }
 
@@ -143,7 +143,7 @@ export function parseYnabRegister({
 
     const accountName = (record['Account'] ?? '').trim();
     if (!accountName) {
-      warnings.push({ rowIndex, code: 'row-skipped', message: 'Row has no Account; skipped.' });
+      warnings.push({ rowIndex, code: 'row-skipped', message: t({ key: 'importExport.ynab.warnings.noAccount' }) });
       return;
     }
 
@@ -152,7 +152,7 @@ export function parseYnabRegister({
       warnings.push({
         rowIndex,
         code: 'unparseable-date',
-        message: `Could not parse date "${record['Date'] ?? ''}"; row skipped.`,
+        message: t({ key: 'importExport.ynab.warnings.unparseableDate', variables: { value: record['Date'] ?? '' } }),
       });
       return;
     }
@@ -165,14 +165,14 @@ export function parseYnabRegister({
       warnings.push({
         rowIndex,
         code: 'unparseable-amount',
-        message: `Could not parse Outflow "${record['Outflow']}"; row skipped.`,
+        message: t({ key: 'importExport.ynab.warnings.unparseableOutflow', variables: { value: record['Outflow'] } }),
       });
     }
     if (inflowUnparseable) {
       warnings.push({
         rowIndex,
         code: 'unparseable-amount',
-        message: `Could not parse Inflow "${record['Inflow']}"; row skipped.`,
+        message: t({ key: 'importExport.ynab.warnings.unparseableInflow', variables: { value: record['Inflow'] } }),
       });
     }
     // Skip the whole row when either side is junk — silently substituting 0
@@ -194,7 +194,11 @@ export function parseYnabRegister({
       if (FLAG_COLOR_SET.has(flagRaw)) {
         flag = flagRaw as YnabFlagColor;
       } else {
-        warnings.push({ rowIndex, code: 'unknown-flag', message: `Unknown flag value "${flagRaw}"; ignored.` });
+        warnings.push({
+          rowIndex,
+          code: 'unknown-flag',
+          message: t({ key: 'importExport.ynab.warnings.unknownFlag', variables: { value: flagRaw } }),
+        });
       }
     }
 
@@ -224,9 +228,9 @@ export function parseYnabRegister({
   if (classifiedRows.length === 0) {
     const firstProblem = warnings.find((w) => w.rowIndex !== undefined);
     throw new ValidationError({
-      message:
-        'No usable rows found in YNAB Register.csv (all rows were skipped or unparseable).' +
-        (firstProblem ? ` First problem: ${firstProblem.message}` : ''),
+      message: firstProblem
+        ? t({ key: 'importExport.ynab.parse.noUsableRowsWithProblem', variables: { problem: firstProblem.message } })
+        : t({ key: 'importExport.ynab.parse.noUsableRows' }),
     });
   }
 
@@ -301,7 +305,10 @@ function pairTransfers({ rows, warnings }: { rows: ClassifiedRow[]; warnings: Yn
       warnings.push({
         rowIndex: leg.rowIndex,
         code: 'transfer-counterpart-missing',
-        message: `Transfer to "${leg.transferCounterpart}" has no matching inflow row; will import as a regular expense.`,
+        message: t({
+          key: 'importExport.ynab.warnings.transferNoInflow',
+          variables: { account: leg.transferCounterpart },
+        }),
       });
       continue;
     }
@@ -326,7 +333,10 @@ function pairTransfers({ rows, warnings }: { rows: ClassifiedRow[]; warnings: Yn
     warnings.push({
       rowIndex: leg.rowIndex,
       code: 'transfer-counterpart-missing',
-      message: `Transfer from "${leg.transferCounterpart}" has no matching outflow row; will import as a regular income.`,
+      message: t({
+        key: 'importExport.ynab.warnings.transferNoOutflow',
+        variables: { account: leg.transferCounterpart },
+      }),
     });
   }
 
@@ -401,7 +411,7 @@ function collectAccounts({
     if (!detectedCurrency) {
       warnings.push({
         code: 'currency-undetected',
-        message: `Could not detect currency for account "${originalName}"; please pick one in the preview.`,
+        message: t({ key: 'importExport.ynab.warnings.currencyUndetected', variables: { account: originalName } }),
       });
     }
     return {

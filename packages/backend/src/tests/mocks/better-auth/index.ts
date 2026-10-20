@@ -4,6 +4,7 @@
  */
 import { requestContext } from '@common/request-context';
 import { connection } from '@models/index';
+import { isIP } from 'node:net';
 
 // Types and non-ESM exports can come from actual package
 // For now, provide a basic mock that supports our test scenarios
@@ -25,7 +26,7 @@ interface BetterAuthConfig {
   };
   socialProviders?: Record<string, unknown>;
   plugins?: unknown[];
-  advanced?: Record<string, unknown>;
+  advanced?: { ipAddress?: { ipAddressHeaders?: string[] } } & Record<string, unknown>;
   databaseHooks?: {
     user?: {
       create?: {
@@ -133,6 +134,21 @@ function resolveSession(
 }
 
 /**
+ * Approximates better-auth's `getIp`: first header in `ipAddressHeaders` holding exactly one valid IP.
+ * Skips its IPv6 /64 masking and its dev/test `127.0.0.1` fallback.
+ */
+function resolveSessionIpAddress({ config, headers }: { config: BetterAuthConfig; headers: Headers }): string {
+  const headerNames = config.advanced?.ipAddress?.ipAddressHeaders ?? ['x-forwarded-for'];
+
+  for (const name of headerNames) {
+    const value = headers.get(name)?.trim();
+    if (value && isIP(value)) return value;
+  }
+
+  return '';
+}
+
+/**
  * Creates a better-auth instance.
  * This is a simplified mock that provides the essential API shape.
  */
@@ -211,7 +227,11 @@ export function betterAuth(config: BetterAuthConfig): AuthInstance {
         return new Response(
           JSON.stringify({
             user: newUser,
-            session: { id: 'test-session-id', token: sessionToken },
+            session: {
+              id: 'test-session-id',
+              token: sessionToken,
+              ipAddress: resolveSessionIpAddress({ config, headers: request.headers }),
+            },
           }),
           {
             status: 200,
@@ -234,7 +254,11 @@ export function betterAuth(config: BetterAuthConfig): AuthInstance {
         return new Response(
           JSON.stringify({
             user,
-            session: { id: 'test-session-id', token: sessionToken },
+            session: {
+              id: 'test-session-id',
+              token: sessionToken,
+              ipAddress: resolveSessionIpAddress({ config, headers: request.headers }),
+            },
           }),
           {
             status: 200,
@@ -305,6 +329,22 @@ export function betterAuth(config: BetterAuthConfig): AuthInstance {
             'Content-Type': 'application/json',
             'Set-Cookie': 'bt_auth.session_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT',
           },
+        });
+      }
+
+      // Mirrors better-auth's origin check: any `Cookie` header demands an `Origin` header.
+      if (path === '/oauth2/register' && request.method === 'POST') {
+        if (request.headers.has('cookie') && !request.headers.get('origin')) {
+          return new Response(JSON.stringify({ message: 'Missing or null Origin', code: 'MISSING_OR_NULL_ORIGIN' }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
+        const body = (await request.json()) as Record<string, unknown>;
+        return new Response(JSON.stringify({ ...body, client_id: `test-registered-client-${crypto.randomUUID()}` }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
         });
       }
 

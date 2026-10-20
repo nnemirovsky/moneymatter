@@ -1,4 +1,11 @@
-import { AINativeProvider, AI_FEATURE, AI_PROVIDER, FEATURES, asAiCliProvider, hasPaidPlus } from '@bt/shared/types';
+import {
+  AIFeatureConfig,
+  AINativeProvider,
+  AI_FEATURE,
+  AI_PROVIDER,
+  asAiCliProvider,
+  hasServerAiEntitlement,
+} from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { logger } from '@js/utils/logger';
 import type { StoredConnection } from '@models/user-settings.model';
@@ -10,13 +17,26 @@ import {
   getStoredAiSettings,
   markConnectionInvalid,
 } from '../user-settings/ai-connections';
+import { isWithinAiAllowance } from './ai-allowance';
 import type { ProviderModelSpec } from './ai-client-factory';
 import { getCliAiAccess } from './cli/cli-access';
 import { CONNECTION_KEY_UNREADABLE_ERROR_MESSAGE } from './connection-failure';
-import { buildConnectionModelId, getServerApiKey, pickResolutionStep } from './resolution-ladder';
+import {
+  buildConnectionModelId,
+  findStoredFeatureConfig,
+  getServerApiKey,
+  pickResolutionStep,
+} from './resolution-ladder';
 
 type AIConfigResolution =
-  | (ProviderModelSpec & { kind: 'connection'; modelId: string; connectionId: string; usingUserKey: true })
+  | (ProviderModelSpec & {
+      kind: 'connection';
+      modelId: string;
+      connectionId: string;
+      usingUserKey: true;
+      /** The run uses a model picked for the feature or thread, not the connection's own */
+      modelOverridden?: true;
+    })
   | { kind: 'server'; provider: AINativeProvider; model: string; modelId: string; apiKey: string; usingUserKey: false };
 
 /**
@@ -25,14 +45,19 @@ type AIConfigResolution =
  * A CLI connection is dialled through a credential source and is never decrypted here.
  */
 function toProviderModelSpec({
-  connection,
+  connection: stored,
+  model,
   apiKey,
   userId,
 }: {
   connection: StoredConnection;
+  /** The model to dial: the connection's own, or the override picked for the feature or thread. */
+  model: string;
   apiKey: string | null;
   userId: number;
 }): ProviderModelSpec | null {
+  const connection = { ...stored, model };
+
   if (connection.provider === AI_PROVIDER.claudeCode || connection.provider === AI_PROVIDER.codex) {
     return connection.keyEncrypted
       ? {
@@ -66,18 +91,31 @@ export async function resolveAIConfiguration({
   userId,
   feature,
   allowOperatorKey = false,
+  pinnedConnectionId,
+  pinnedModelId,
 }: {
   userId: number;
   feature: AI_FEATURE;
   /** Grants the server key for this one call, for a feature the caller gates itself. */
   allowOperatorKey?: boolean;
+  /**
+   * Stands in for the stored feature config: a connection id, or null for the included server model.
+   * Omitted, the stored config applies (chat has none: its threads carry the pick).
+   */
+  pinnedConnectionId?: string | null;
+  /** With a pinned connection: a model of that connection's provider to run instead of its own. */
+  pinnedModelId?: string | null;
 }): Promise<AIConfigResolution | null> {
   const aiSettings = await getStoredAiSettings({ userId });
   const connections = aiSettings?.connections ?? [];
-  const config = aiSettings?.featureConfigs?.find((candidate) => candidate.feature === feature) ?? null;
+  const config: AIFeatureConfig | null =
+    pinnedConnectionId === undefined
+      ? findStoredFeatureConfig({ aiSettings, feature })
+      : { feature, connectionId: pinnedConnectionId, ...(pinnedModelId ? { modelId: pinnedModelId } : {}) };
   const entitlements = await getEntitlementsByUserId({ userId });
-  const serverKeysAllowed = allowOperatorKey || entitlements.features.includes(FEATURES.operator_ai);
-  const paidPlus = hasPaidPlus({ entitlements });
+  const entitled = allowOperatorKey || hasServerAiEntitlement({ entitlements, feature });
+  const withinAllowance = entitled ? await isWithinAiAllowance({ userId, entitlements }) : undefined;
+  const serverKeysAllowed = withinAllowance === true;
   const excludedConnectionIds = new Set<string>();
 
   // Every pass either returns or excludes one more connection, so the walk ends.
@@ -87,7 +125,6 @@ export async function resolveAIConfiguration({
       config,
       connections,
       serverKeysAllowed,
-      paidPlus,
       excludedConnectionIds,
     });
 
@@ -118,8 +155,11 @@ export async function resolveAIConfiguration({
           continue;
         }
 
+        // Only the picked connection takes the override. A walk that landed on another one runs its own model.
+        const model = (step.kind === 'configured' && step.modelId) || connection.model;
         const spec = toProviderModelSpec({
           connection,
+          model,
           apiKey: asAiCliProvider({ provider: connection.provider })
             ? null
             : decryptConnectionKey({ connection, userId }),
@@ -142,15 +182,16 @@ export async function resolveAIConfiguration({
         return {
           ...spec,
           kind: 'connection',
-          modelId: buildConnectionModelId(connection),
+          modelId: buildConnectionModelId({ provider: connection.provider, model }),
           connectionId: connection.id,
           usingUserKey: true,
+          ...(model === connection.model ? {} : { modelOverridden: true as const }),
         };
       }
 
       case 'configured-server':
       case 'server-default': {
-        const apiKey = getServerApiKey({ provider: step.model.provider, paidPlus });
+        const apiKey = getServerApiKey({ provider: step.model.provider });
         if (!apiKey) {
           logger.error('Server AI key vanished between pick and use', { feature, provider: step.model.provider });
           return null;
@@ -171,12 +212,7 @@ export async function resolveAIConfiguration({
         return null;
 
       case 'unserved':
-        logger.info(
-          serverKeysAllowed
-            ? 'No AI model available for feature'
-            : 'AI feature not served: user lacks the operator_ai entitlement',
-          { userId, feature },
-        );
+        logger.info('No AI model available for feature', { userId, feature, entitled, withinAllowance });
         return null;
     }
   }

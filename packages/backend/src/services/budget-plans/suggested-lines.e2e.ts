@@ -798,14 +798,14 @@ describe('Suggested budget lines', () => {
       });
     });
 
-    it('falls through to the free model when the paid one fails', async () => {
+    it('falls through to the fallback model when the primary one fails', async () => {
       enableServerModel();
-      process.env.ANTHROPIC_PLUS_API_KEY = 'server-side-anthropic-key';
+      process.env.ANTHROPIC_API_KEY = 'server-side-anthropic-key';
       const { attached, rent } = await seedHistory();
-      let paidCalls = 0;
+      let primaryCalls = 0;
       global.mswMockServer.use(
         http.post(ANTHROPIC_API_URL, () => {
-          paidCalls += 1;
+          primaryCalls += 1;
           return HttpResponse.json(
             { type: 'error', error: { type: 'invalid_request_error', message: 'Bad request' } },
             { status: 400 },
@@ -821,9 +821,137 @@ describe('Suggested budget lines', () => {
         raw: true,
       });
 
-      expect(paidCalls).toBe(1);
+      expect(primaryCalls).toBe(1);
       expect(requests).toHaveLength(1);
       expect(lines.map((line) => line.name)).toEqual(['Rent']);
+    });
+
+    it('skips every model once the AI allowance is used up', async () => {
+      enableServerModel();
+      process.env.ANTHROPIC_API_KEY = 'server-side-anthropic-key';
+      process.env.AI_MONTHLY_CAP_USD_TRIAL = '0';
+      const { attached, rent } = await seedHistory();
+      let primaryCalls = 0;
+      global.mswMockServer.use(
+        http.post(ANTHROPIC_API_URL, () => {
+          primaryCalls += 1;
+          return HttpResponse.json({}, { status: 500 });
+        }),
+      );
+      const requests = mockLayout({
+        layout: { groups: [{ name: 'Home', lines: [{ name: 'Rent', categories: [rent.name] }] }] },
+      });
+
+      const { plan, lines } = await helpers.createBudgetPlan({
+        payload: { accountIds: [attached.id], withSuggestedLines: true },
+        raw: true,
+      });
+
+      expect(primaryCalls).toBe(0);
+      expect(requests).toHaveLength(0);
+      expect(lines).toHaveLength(4);
+      const view = await currentView({ planId: plan.id });
+      expect(view.groups.map((group) => group.name)).toEqual(['Bills', 'Everyday']);
+    });
+
+    it('counts the AI layout toward the AI allowance', async () => {
+      enableServerModel();
+      process.env.AI_MONTHLY_CAP_USD_TRIAL = '0.001';
+      const { attached, rent } = await seedHistory();
+      mockLayout({ layout: { groups: [{ name: 'Home', lines: [{ name: 'Rent', categories: [rent.name] }] }] } });
+
+      await helpers.createBudgetPlan({
+        payload: { accountIds: [attached.id], withSuggestedLines: true },
+        raw: true,
+      });
+
+      const { aiAllowance } = await helpers.getAiFeaturesStatus({ raw: true });
+      expect(aiAllowance?.usedPercent).toBeGreaterThan(0);
+    });
+  });
+
+  describe('base currency decimals', () => {
+    /** Runs `fn` as a user whose base currency has its own decimals, holding one account in it. */
+    const inBaseCurrency = async ({
+      currencyCode,
+      fn,
+    }: {
+      currencyCode: string;
+      fn: (params: { accountId: RecordId; groceries: CategoryModel }) => Promise<void>;
+    }) => {
+      const user = await helpers.provisionSecondUserWithBaseCurrency({ currencyCode });
+
+      await helpers.asUser({
+        cookies: user.cookies,
+        fn: async () => {
+          await helpers.addUserCurrencies({ currencyCodes: [currencyCode], raw: true });
+          const account = await helpers.createAccount({
+            payload: helpers.buildAccountPayload({ currencyCode }),
+            raw: true,
+          });
+          const groceries = findCategory({
+            categories: await helpers.getCategoriesList(),
+            parentKey: 'food',
+            key: 'groceries',
+          });
+          await fn({ accountId: account.id, groceries });
+        },
+      });
+    };
+
+    it('averages the history at 3 decimals and rounds a KWD plan up to a whole 10 KWD', async () => {
+      await inBaseCurrency({
+        currencyCode: 'KWD',
+        fn: async ({ accountId, groceries }) => {
+          await createTx({ accountId, categoryId: groceries.id, amount: 301.25, monthsAgo: 1 });
+
+          const context = await helpers.getBudgetSuggestionContext({ accountIds: accountId, raw: true });
+          expect(context).toEqual({
+            hasHistory: true,
+            categories: [{ id: groceries.parentId, monthlyAvg: 100.417 }],
+          });
+
+          const { plan } = await helpers.createBudgetPlan({
+            payload: { accountIds: [accountId], withSuggestedLines: true },
+            raw: true,
+          });
+          const view = await currentView({ planId: plan.id });
+
+          expect(view.lines).toHaveLength(1);
+          expect(view.lines[0]).toMatchObject({
+            categoryIds: [groceries.id],
+            assigned: 110,
+            assignedSource: 'baseline',
+          });
+        },
+      });
+    });
+
+    it('averages the history in whole units and rounds a JPY plan up to a whole 10 JPY', async () => {
+      await inBaseCurrency({
+        currencyCode: 'JPY',
+        fn: async ({ accountId, groceries }) => {
+          await createTx({ accountId, categoryId: groceries.id, amount: 12_345, monthsAgo: 1 });
+
+          const context = await helpers.getBudgetSuggestionContext({ accountIds: accountId, raw: true });
+          expect(context).toEqual({
+            hasHistory: true,
+            categories: [{ id: groceries.parentId, monthlyAvg: 4115 }],
+          });
+
+          const { plan } = await helpers.createBudgetPlan({
+            payload: { accountIds: [accountId], withSuggestedLines: true },
+            raw: true,
+          });
+          const view = await currentView({ planId: plan.id });
+
+          expect(view.lines[0]).toMatchObject({
+            categoryIds: [groceries.id],
+            assigned: 4120,
+            assignedSource: 'baseline',
+          });
+        },
+      });
     });
   });
 });

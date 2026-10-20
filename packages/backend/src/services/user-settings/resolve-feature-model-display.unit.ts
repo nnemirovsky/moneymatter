@@ -3,14 +3,19 @@ import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals
 import type { StoredConnection } from '@models/user-settings.model';
 
 import type { ModelProfile } from '../ai/model-catalog';
-import { PLUS_SERVER_MODELS, SERVER_MODELS } from '../ai/resolution-ladder';
+import { FALLBACK_SERVER_MODELS, PRIMARY_SERVER_MODEL } from '../ai/resolution-ladder';
 import { resolveFeatureStatus } from './resolve-feature-model-display';
 
 const mockSonnetProfile: ModelProfile = {
   name: 'Claude Sonnet 5',
   contextWindow: 1_000_000,
   pricing: { inputPerMillion: 2, outputPerMillion: 10 },
-  capabilities: { inputs: ['text', 'image', 'pdf'], maxOutputTokens: 64_000, structuredOutput: true },
+  capabilities: {
+    inputs: ['text', 'image', 'pdf'],
+    maxOutputTokens: 64_000,
+    structuredOutput: true,
+    toolCalling: true,
+  },
 };
 
 jest.mock('../ai/model-catalog', () => ({
@@ -21,10 +26,10 @@ jest.mock('../ai/model-catalog', () => ({
   ),
 }));
 
-const SERVER_KEY_ENV_VARS = ['GEMINI_API_KEY', 'ANTHROPIC_PLUS_API_KEY'] as const;
+const SERVER_KEY_ENV_VARS = ['GEMINI_API_KEY', 'ANTHROPIC_API_KEY'] as const;
 
 const FEATURE = AI_FEATURE.categorization;
-const SERVER_MODEL = SERVER_MODELS[FEATURE];
+const SERVER_MODEL = FALLBACK_SERVER_MODELS[FEATURE]!;
 const NOW = new Date().toISOString();
 
 const OLLAMA: StoredConnection = {
@@ -53,18 +58,15 @@ function status({
   connections = [],
   config,
   serverKeysAllowed = true,
-  paidPlus = false,
 }: {
   connections?: StoredConnection[];
   config?: AIFeatureConfig;
   serverKeysAllowed?: boolean;
-  paidPlus?: boolean;
 } = {}) {
   return resolveFeatureStatus({
     feature: FEATURE,
     aiSettings: { connections, featureConfigs: config ? [config] : [] },
     serverKeysAllowed,
-    paidPlus,
   });
 }
 
@@ -86,16 +88,15 @@ describe('resolveFeatureStatus', () => {
     }
   });
 
-  it('names the Plus model for a paying Plus user only', async () => {
+  it('names the primary model while ANTHROPIC_API_KEY is set, and the Gemini model otherwise', async () => {
     process.env.GEMINI_API_KEY = 'server-key';
-    process.env.ANTHROPIC_PLUS_API_KEY = 'anthropic-plus-key';
-    const plusModelName = PLUS_SERVER_MODELS[FEATURE]!.model;
-
-    expect(await status({ paidPlus: true })).toMatchObject({
-      modelName: plusModelName,
-      serverModelName: plusModelName,
-    });
     expect(await status()).toMatchObject({ modelName: SERVER_MODEL.model, serverModelName: SERVER_MODEL.model });
+
+    process.env.ANTHROPIC_API_KEY = 'anthropic-key';
+    expect(await status()).toMatchObject({
+      modelName: PRIMARY_SERVER_MODEL.model,
+      serverModelName: PRIMARY_SERVER_MODEL.model,
+    });
   });
 
   it('names the configured connection with its catalog model name and price', async () => {
@@ -116,6 +117,32 @@ describe('resolveFeatureStatus', () => {
       connectionName: CLAUDE.name,
       serverModelName: null,
     });
+  });
+
+  it('names the model override of the configured connection and reports it as configured', async () => {
+    expect(
+      await status({
+        connections: [OLLAMA, CLAUDE],
+        config: { feature: FEATURE, connectionId: CLAUDE.id, modelId: 'claude-haiku-5-5' },
+      }),
+    ).toMatchObject({
+      isConfigured: true,
+      configuredConnectionId: CLAUDE.id,
+      configuredModelId: 'claude-haiku-5-5',
+      modelId: 'anthropic/claude-haiku-5-5',
+      modelName: 'claude-haiku-5-5',
+      connectionId: CLAUDE.id,
+    });
+  });
+
+  it('reports no configured model for a pick that keeps the connection default', async () => {
+    const result = await status({
+      connections: [CLAUDE],
+      config: { feature: FEATURE, connectionId: CLAUDE.id },
+    });
+
+    expect(result.configuredModelId).toBeUndefined();
+    expect(result.modelId).toBe('anthropic/claude-sonnet-5');
   });
 
   it.each<[AI_PROVIDER, string]>([

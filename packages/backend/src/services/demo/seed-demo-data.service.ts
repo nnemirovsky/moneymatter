@@ -1,8 +1,8 @@
 import type { RecordId } from '@bt/shared/types';
 import {
   ACCOUNT_TYPES,
-  BUDGET_STATUSES,
-  BUDGET_TYPES,
+  TRACKER_STATUSES,
+  TRACKER_TYPES,
   DEPRECIATION_PRESET,
   LOAN_TYPE,
   SUPPORTED_LOAN_TYPES,
@@ -18,10 +18,10 @@ import UserSettings, { DEFAULT_SETTINGS, type SettingsSchema } from '@models/use
 import * as UsersCurrencies from '@models/users-currencies.model';
 import * as accountsService from '@services/accounts.service';
 import { adjustAccountBalance } from '@services/accounts/balance-adjustment';
-import { createBudget } from '@services/budgets/create-budget';
 import * as categoriesService from '@services/categories.service';
 import { createLoan } from '@services/loans/create-loan.service';
 import * as tagsService from '@services/tags';
+import { createTracker } from '@services/trackers/create-tracker';
 import * as userService from '@services/user.service';
 import { createVehicle } from '@services/vehicles/create-vehicle.service';
 import { createVentureDeal } from '@services/venture/deals/create.service';
@@ -226,13 +226,13 @@ function roundToNearestTenDollars({ cents }: { cents: number }): number {
 }
 
 /**
- * Seeds category budgets over a trailing window. Skipping `type: category` or
- * `startDate`/`endDate` breaks the read path: `createBudget` then writes no
- * `BudgetCategories` rows (every card reads zero), or `buildDateFilter` drops
+ * Seeds category trackers over a trailing window. Skipping `type: category` or
+ * `startDate`/`endDate` breaks the read path: `createTracker` then writes no
+ * `TrackerCategories` rows (every card reads zero), or `buildDateFilter` drops
  * the filter and totals all history against a one-month limit. Limits derive
  * from actual spend in the window so the cards keep their under/near/over states.
  */
-export async function createBudgets({
+export async function createTrackers({
   userId,
   categoryMap,
   spendByCategoryKey,
@@ -249,8 +249,8 @@ export async function createBudgets({
   let skippedUnknownCategories = 0;
   let skippedNoSpend = 0;
 
-  for (const budgetConfig of DEMO_CONFIG.budgets) {
-    const categoryIds = budgetConfig.categoryKeys
+  for (const trackerConfig of DEMO_CONFIG.trackers) {
+    const categoryIds = trackerConfig.categoryKeys
       .map((key) => categoryMap.get(key))
       .filter((id): id is string => id !== undefined);
 
@@ -259,30 +259,30 @@ export async function createBudgets({
       continue;
     }
 
-    const spent = budgetConfig.categoryKeys.reduce((total, key) => total + (spendByCategoryKey.get(key) ?? 0), 0);
+    const spent = trackerConfig.categoryKeys.reduce((total, key) => total + (spendByCategoryKey.get(key) ?? 0), 0);
     if (spent <= 0) {
       skippedNoSpend += 1;
       continue;
     }
 
-    await createBudget({
+    await createTracker({
       userId,
-      name: budgetConfig.name,
-      status: BUDGET_STATUSES.active,
-      type: BUDGET_TYPES.category,
+      name: trackerConfig.name,
+      status: TRACKER_STATUSES.active,
+      type: TRACKER_TYPES.category,
       categoryIds,
-      limitAmount: Money.fromCents(roundToNearestTenDollars({ cents: spent / budgetConfig.targetUtilization })),
+      limitAmount: Money.fromCents(roundToNearestTenDollars({ cents: spent / trackerConfig.targetUtilization })),
       startDate: windowStart,
       endDate: windowEnd,
     });
     created += 1;
   }
 
-  const summary = `Created ${created} of ${DEMO_CONFIG.budgets.length} demo budgets (skipped: ${skippedUnknownCategories} with no matching category, ${skippedNoSpend} with no spend in the window)`;
+  const summary = `Created ${created} of ${DEMO_CONFIG.trackers.length} demo trackers (skipped: ${skippedUnknownCategories} with no matching category, ${skippedNoSpend} with no spend in the window)`;
 
-  // Zero budgets leaves the Budgets page empty for every demo user; the skip
+  // Zero trackers leaves the Trackers page empty for every demo user; the skip
   // counters above narrow it to a category-key or generator drift.
-  if (created === 0 && DEMO_CONFIG.budgets.length > 0) {
+  if (created === 0 && DEMO_CONFIG.trackers.length > 0) {
     logger.error(summary);
   } else {
     logger.info(summary);

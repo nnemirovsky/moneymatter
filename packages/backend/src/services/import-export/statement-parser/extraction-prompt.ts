@@ -37,7 +37,10 @@ RULES:
    a decimal comma. A line without a usable amount will be discarded.
 5. The output separator is a COMMA, whatever the source uses. Never join several source
    columns into one output field with the source's own separator.
-6. Date format: YYYY-MM-DD or YYYY-MM-DD HH:MM:SS (include time if available in the statement)
+6. Date format: YYYY-MM-DD or YYYY-MM-DD HH:MM:SS (include time if available in the statement,
+   writing :00 for the seconds when the source shows only hours and minutes). Always a
+   four-digit year with the month and day as numbers, whatever the source prints:
+   "18 Oct 2026" and "18.10.2026" are both written 2026-10-18.
 7. Type: E for expense, I for income
 8. Confidence: number 0-100 (integer)
 9. Empty value = field not available (just leave empty between commas)
@@ -119,6 +122,8 @@ export function createImageExtractionPrompt({ today }: { today: string }): strin
 
 A receipt is ONE transaction: its grand total including tax, on the purchase date, with the store as the merchant. Never list a receipt's line items as separate transactions.
 
+A banking app usually titles a transaction with the merchant (e.g. "SP STUSSY EUROPE AMSTERDAM NLD"). Write that title as the merchant too, even though it is also the description.
+
 Today is ${today}. Resolve relative dates ("Today", "Yesterday") against it, and when a date shows no year, use the latest year that does not put it in the future.
 
 Output CSV only. First line metadata, then transactions.`;
@@ -163,17 +168,22 @@ const TYPE_PATTERN = /^[EI]$/i;
 const EXTERNAL_REFERENCE_MAX_LENGTH = 255;
 
 /**
- * The prompt asks for `YYYY-MM-DD HH:MM:SS`, but the model copies full ISO timestamps out
- * of app exports, so the `T` separator, fractional seconds and a zone are all tolerated.
+ * The prompt asks for `YYYY-MM-DD HH:MM:SS`, but a banking app shows "00:46", so seconds are
+ * optional. The model also copies full ISO timestamps out of app exports, so the `T`
+ * separator, fractional seconds and a zone are all tolerated.
  */
-const DATE_PATTERN = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
+const DATE_PATTERN =
+  /^(\d{4}-\d{2}-\d{2})(?:[ T]([01]?\d|2[0-3]):([0-5]\d)(?::([0-5]\d)(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
 
 /** Drops sub-second precision and any zone designator, so the wall clock stands as the statement wrote it. */
 function normalizeDate({ date }: { date: string }): string | null {
   const match = DATE_PATTERN.exec(date);
   if (!match) return null;
 
-  return match[2] ? `${match[1]} ${match[2]}` : match[1]!;
+  const [, ymd, hours, minutes, seconds] = match;
+  if (hours === undefined) return ymd!;
+
+  return `${ymd} ${hours.padStart(2, '0')}:${minutes}:${seconds ?? '00'}`;
 }
 
 interface TransactionFields {
@@ -250,6 +260,25 @@ function readOriginalAmount({
   if (originalAmount === null || originalAmount <= 0 || !isKnownCode) return {};
 
   return { originalAmount, originalCurrencyCode };
+}
+
+/** The model sometimes adds or drops a metadata field, which pushes a date into the currency slot. */
+function readCurrencyCode({ fields }: { fields: string[] }): string | null {
+  const code =
+    fields
+      .slice(1)
+      .map((field) => field.toUpperCase())
+      .find((field) => cc.code(field) !== undefined) ?? null;
+
+  const currencySlot = fields[4];
+  if (currencySlot && currencySlot.toUpperCase() !== code) {
+    logger.info('[Statement Parser] Metadata currency slot held no valid code', {
+      currencySlot,
+      resolvedCurrency: code,
+    });
+  }
+
+  return code;
 }
 
 /** `parseDecimalAmount` rejects signed input, and a balance can be negative when the account is overdrawn. */
@@ -332,7 +361,7 @@ export function parseAIResponse({
               to: metadataFields[3],
             }
           : null,
-      currencyCode: metadataFields[4] || null,
+      currencyCode: readCurrencyCode({ fields: metadataFields }),
     };
 
     // Parse transactions (remaining lines)

@@ -9,7 +9,7 @@ export * from './transactions.serializer';
 export * from './logo-fields.serializer';
 export * from './accounts.serializer';
 export * from './account-groups.serializer';
-export * from './budgets.serializer';
+export * from './trackers.serializer';
 export * from './refund-transactions.serializer';
 export * from './tag-reminders.serializer';
 export * from './stats.serializer';

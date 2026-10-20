@@ -89,7 +89,7 @@ MoneyMatter shows you where your money is and where it goes. Add accounts by han
 - **Multi-currency** with [automatic exchange rates](https://docs.moneymatter.app/settings/base-currency-and-currencies/) and one base currency for every total
 - **Import** from [CSV](https://docs.moneymatter.app/import/import-from-csv/), OFX/QFX, [YNAB, Wallet and Microsoft Money](https://docs.moneymatter.app/import/other-import-sources/), or any statement file parsed with AI. Export to JSON, CSV or XLSX, and [back up and restore](https://docs.moneymatter.app/settings/security-and-account/#backup-and-restore) everything
 - **AI**: bring your own model (OpenAI, Anthropic, Google, Ollama or any OpenAI-compatible endpoint) for categorization and statement parsing, and a remote MCP server for Claude, ChatGPT or any agent
-- **Sharing**: share an account or budget with someone, or give a household member access to all your accounts
+- **Sharing**: share an account or tracker with someone, or give a household member access to all your accounts
 - **Security**: sign in with [email, Google, GitHub or passkeys](https://docs.moneymatter.app/settings/security-and-account/), credentials encrypted at rest, and your data exportable or deletable at any time
 - **Everywhere**: light and dark theme, a layout that works on your phone, and English, Ukrainian, Spanish, Indonesian and Russian
 

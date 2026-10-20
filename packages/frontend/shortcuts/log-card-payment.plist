@@ -34,15 +34,23 @@
 					<dict>
 						<key>Value</key>
 						<dict>
-							<key>OutputName</key>
-							<string>Text</string>
-							<key>OutputUUID</key>
-							<string>58F86236-1567-46EE-B7AF-DBAAD1CAC9CA</string>
-							<key>Type</key>
-							<string>ActionOutput</string>
+							<key>attachmentsByRange</key>
+							<dict>
+								<key>{0, 1}</key>
+								<dict>
+									<key>OutputName</key>
+									<string>Text</string>
+									<key>OutputUUID</key>
+									<string>58F86236-1567-46EE-B7AF-DBAAD1CAC9CA</string>
+									<key>Type</key>
+									<string>ActionOutput</string>
+								</dict>
+							</dict>
+							<key>string</key>
+							<string>￼</string>
 						</dict>
 						<key>WFSerializationType</key>
-						<string>WFTextTokenAttachment</string>
+						<string>WFTextTokenString</string>
 					</dict>
 					<key>UUID</key>
 					<string>245F6362-AACA-44B6-ABB7-4860858D3889</string>
@@ -75,7 +83,7 @@
 			</dict>
 			<dict>
 				<key>WFWorkflowActionIdentifier</key>
-				<string>is.workflow.actions.detect.dictionary</string>
+				<string>is.workflow.actions.detect.text</string>
 				<key>WFWorkflowActionParameters</key>
 				<dict>
 					<key>WFInput</key>
@@ -98,19 +106,15 @@
 			</dict>
 			<dict>
 				<key>WFWorkflowActionIdentifier</key>
-				<string>is.workflow.actions.getvalueforkey</string>
+				<string>is.workflow.actions.detect.dictionary</string>
 				<key>WFWorkflowActionParameters</key>
 				<dict>
-					<key>WFDictionaryKey</key>
-					<string>url</string>
-					<key>WFGetDictionaryValueType</key>
-					<string>Value</string>
 					<key>WFInput</key>
 					<dict>
 						<key>Value</key>
 						<dict>
 							<key>OutputName</key>
-							<string>Dictionary</string>
+							<string>Text</string>
 							<key>OutputUUID</key>
 							<string>0ACC5249-A5EB-4E1D-88CA-A2D26FEE67FF</string>
 							<key>Type</key>
@@ -129,6 +133,33 @@
 				<key>WFWorkflowActionParameters</key>
 				<dict>
 					<key>WFDictionaryKey</key>
+					<string>url</string>
+					<key>WFGetDictionaryValueType</key>
+					<string>Value</string>
+					<key>WFInput</key>
+					<dict>
+						<key>Value</key>
+						<dict>
+							<key>OutputName</key>
+							<string>Dictionary</string>
+							<key>OutputUUID</key>
+							<string>E8DCAD23-64B2-4FAE-8A98-CF2F3EEED6AB</string>
+							<key>Type</key>
+							<string>ActionOutput</string>
+						</dict>
+						<key>WFSerializationType</key>
+						<string>WFTextTokenAttachment</string>
+					</dict>
+					<key>UUID</key>
+					<string>E2ADB24C-F355-438B-9B77-881B9A8B7A5D</string>
+				</dict>
+			</dict>
+			<dict>
+				<key>WFWorkflowActionIdentifier</key>
+				<string>is.workflow.actions.getvalueforkey</string>
+				<key>WFWorkflowActionParameters</key>
+				<dict>
+					<key>WFDictionaryKey</key>
 					<string>token</string>
 					<key>WFGetDictionaryValueType</key>
 					<string>Value</string>
@@ -139,7 +170,7 @@
 							<key>OutputName</key>
 							<string>Dictionary</string>
 							<key>OutputUUID</key>
-							<string>0ACC5249-A5EB-4E1D-88CA-A2D26FEE67FF</string>
+							<string>E8DCAD23-64B2-4FAE-8A98-CF2F3EEED6AB</string>
 							<key>Type</key>
 							<string>ActionOutput</string>
 						</dict>
@@ -147,7 +178,7 @@
 						<string>WFTextTokenAttachment</string>
 					</dict>
 					<key>UUID</key>
-					<string>E2ADB24C-F355-438B-9B77-881B9A8B7A5D</string>
+					<string>01316C58-9016-447D-8B6D-E68F4EFD7E82</string>
 				</dict>
 			</dict>
 			<dict>
@@ -166,7 +197,7 @@
 							<key>OutputName</key>
 							<string>Dictionary</string>
 							<key>OutputUUID</key>
-							<string>0ACC5249-A5EB-4E1D-88CA-A2D26FEE67FF</string>
+							<string>E8DCAD23-64B2-4FAE-8A98-CF2F3EEED6AB</string>
 							<key>Type</key>
 							<string>ActionOutput</string>
 						</dict>
@@ -174,7 +205,7 @@
 						<string>WFTextTokenAttachment</string>
 					</dict>
 					<key>UUID</key>
-					<string>01316C58-9016-447D-8B6D-E68F4EFD7E82</string>
+					<string>026D9D8A-4958-4963-93FC-C416B398D751</string>
 				</dict>
 			</dict>
 			<dict>
@@ -193,7 +224,7 @@
 							<key>OutputName</key>
 							<string>Dictionary</string>
 							<key>OutputUUID</key>
-							<string>0ACC5249-A5EB-4E1D-88CA-A2D26FEE67FF</string>
+							<string>E8DCAD23-64B2-4FAE-8A98-CF2F3EEED6AB</string>
 							<key>Type</key>
 							<string>ActionOutput</string>
 						</dict>
@@ -201,7 +232,238 @@
 						<string>WFTextTokenAttachment</string>
 					</dict>
 					<key>UUID</key>
-					<string>026D9D8A-4958-4963-93FC-C416B398D751</string>
+					<string>E0F4FB75-1012-406E-B65C-83356BF5D8FD</string>
+				</dict>
+			</dict>
+			<dict>
+				<key>WFWorkflowActionIdentifier</key>
+				<string>is.workflow.actions.conditional</string>
+				<key>WFWorkflowActionParameters</key>
+				<dict>
+					<key>GroupingIdentifier</key>
+					<string>5ED61AD9-DADD-44E7-BBE0-0FEAEB2155F8</string>
+					<key>WFControlFlowMode</key>
+					<integer>0</integer>
+					<key>WFCondition</key>
+					<integer>101</integer>
+					<key>WFInput</key>
+					<dict>
+						<key>Type</key>
+						<string>Variable</string>
+						<key>Variable</key>
+						<dict>
+							<key>Value</key>
+							<dict>
+								<key>OutputName</key>
+								<string>Text</string>
+								<key>OutputUUID</key>
+								<string>58F86236-1567-46EE-B7AF-DBAAD1CAC9CA</string>
+								<key>Type</key>
+								<string>ActionOutput</string>
+							</dict>
+							<key>WFSerializationType</key>
+							<string>WFTextTokenAttachment</string>
+						</dict>
+					</dict>
+					<key>UUID</key>
+					<string>F850F66F-9B11-435E-B0BF-17992C889752</string>
+				</dict>
+			</dict>
+			<dict>
+				<key>WFWorkflowActionIdentifier</key>
+				<string>is.workflow.actions.notification</string>
+				<key>WFWorkflowActionParameters</key>
+				<dict>
+					<key>WFNotificationActionTitle</key>
+					<string>MoneyMatter - Log card payment</string>
+					<key>WFNotificationActionBody</key>
+					<dict>
+						<key>Value</key>
+						<dict>
+							<key>string</key>
+							<string>No MoneyMatter setup code was entered. Generate one on the Apple Pay page and add the shortcut again.</string>
+						</dict>
+						<key>WFSerializationType</key>
+						<string>WFTextTokenString</string>
+					</dict>
+					<key>UUID</key>
+					<string>575EA50A-9F3A-4F8A-8802-5158E41BC9C2</string>
+				</dict>
+			</dict>
+			<dict>
+				<key>WFWorkflowActionIdentifier</key>
+				<string>is.workflow.actions.exit</string>
+				<key>WFWorkflowActionParameters</key>
+				<dict>
+					<key>UUID</key>
+					<string>8825378A-B78C-4330-B676-4DABDEE051D0</string>
+				</dict>
+			</dict>
+			<dict>
+				<key>WFWorkflowActionIdentifier</key>
+				<string>is.workflow.actions.conditional</string>
+				<key>WFWorkflowActionParameters</key>
+				<dict>
+					<key>GroupingIdentifier</key>
+					<string>5ED61AD9-DADD-44E7-BBE0-0FEAEB2155F8</string>
+					<key>WFControlFlowMode</key>
+					<integer>2</integer>
+					<key>UUID</key>
+					<string>65BBADE0-FAA7-4123-98F7-F7C15E699F4A</string>
+				</dict>
+			</dict>
+			<dict>
+				<key>WFWorkflowActionIdentifier</key>
+				<string>is.workflow.actions.conditional</string>
+				<key>WFWorkflowActionParameters</key>
+				<dict>
+					<key>GroupingIdentifier</key>
+					<string>ED1F17AB-1FCC-4543-8A5F-366DD24151F0</string>
+					<key>WFControlFlowMode</key>
+					<integer>0</integer>
+					<key>WFCondition</key>
+					<integer>101</integer>
+					<key>WFInput</key>
+					<dict>
+						<key>Type</key>
+						<string>Variable</string>
+						<key>Variable</key>
+						<dict>
+							<key>Value</key>
+							<dict>
+								<key>OutputName</key>
+								<string>Dictionary Value</string>
+								<key>OutputUUID</key>
+								<string>E2ADB24C-F355-438B-9B77-881B9A8B7A5D</string>
+								<key>Type</key>
+								<string>ActionOutput</string>
+							</dict>
+							<key>WFSerializationType</key>
+							<string>WFTextTokenAttachment</string>
+						</dict>
+					</dict>
+					<key>UUID</key>
+					<string>8BECAEE9-D5AA-4982-998C-4E3A83944A3D</string>
+				</dict>
+			</dict>
+			<dict>
+				<key>WFWorkflowActionIdentifier</key>
+				<string>is.workflow.actions.notification</string>
+				<key>WFWorkflowActionParameters</key>
+				<dict>
+					<key>WFNotificationActionTitle</key>
+					<string>MoneyMatter - Log card payment</string>
+					<key>WFNotificationActionBody</key>
+					<dict>
+						<key>Value</key>
+						<dict>
+							<key>string</key>
+							<string>The MoneyMatter setup code could not be read. Generate a new one on the Apple Pay page and add the shortcut again.</string>
+						</dict>
+						<key>WFSerializationType</key>
+						<string>WFTextTokenString</string>
+					</dict>
+					<key>UUID</key>
+					<string>9283D753-4A94-49D9-8A7D-50A11DBF1DE6</string>
+				</dict>
+			</dict>
+			<dict>
+				<key>WFWorkflowActionIdentifier</key>
+				<string>is.workflow.actions.exit</string>
+				<key>WFWorkflowActionParameters</key>
+				<dict>
+					<key>UUID</key>
+					<string>125EAE01-7DFE-4464-A09D-83C1F716E778</string>
+				</dict>
+			</dict>
+			<dict>
+				<key>WFWorkflowActionIdentifier</key>
+				<string>is.workflow.actions.conditional</string>
+				<key>WFWorkflowActionParameters</key>
+				<dict>
+					<key>GroupingIdentifier</key>
+					<string>ED1F17AB-1FCC-4543-8A5F-366DD24151F0</string>
+					<key>WFControlFlowMode</key>
+					<integer>2</integer>
+					<key>UUID</key>
+					<string>2213ACE8-A4CD-4F2F-BAAA-97522E020299</string>
+				</dict>
+			</dict>
+			<dict>
+				<key>WFWorkflowActionIdentifier</key>
+				<string>is.workflow.actions.conditional</string>
+				<key>WFWorkflowActionParameters</key>
+				<dict>
+					<key>GroupingIdentifier</key>
+					<string>3E1C1323-CB67-4219-8CFC-9B6192699AF1</string>
+					<key>WFControlFlowMode</key>
+					<integer>0</integer>
+					<key>WFCondition</key>
+					<integer>101</integer>
+					<key>WFInput</key>
+					<dict>
+						<key>Type</key>
+						<string>Variable</string>
+						<key>Variable</key>
+						<dict>
+							<key>Value</key>
+							<dict>
+								<key>OutputName</key>
+								<string>Dictionary Value</string>
+								<key>OutputUUID</key>
+								<string>01316C58-9016-447D-8B6D-E68F4EFD7E82</string>
+								<key>Type</key>
+								<string>ActionOutput</string>
+							</dict>
+							<key>WFSerializationType</key>
+							<string>WFTextTokenAttachment</string>
+						</dict>
+					</dict>
+					<key>UUID</key>
+					<string>7FE2AD6A-3322-4B78-9B48-FA925D0050C5</string>
+				</dict>
+			</dict>
+			<dict>
+				<key>WFWorkflowActionIdentifier</key>
+				<string>is.workflow.actions.notification</string>
+				<key>WFWorkflowActionParameters</key>
+				<dict>
+					<key>WFNotificationActionTitle</key>
+					<string>MoneyMatter - Log card payment</string>
+					<key>WFNotificationActionBody</key>
+					<dict>
+						<key>Value</key>
+						<dict>
+							<key>string</key>
+							<string>The MoneyMatter setup code could not be read. Generate a new one on the Apple Pay page and add the shortcut again.</string>
+						</dict>
+						<key>WFSerializationType</key>
+						<string>WFTextTokenString</string>
+					</dict>
+					<key>UUID</key>
+					<string>3713F21D-6377-40F8-B0E7-AB5D255053FB</string>
+				</dict>
+			</dict>
+			<dict>
+				<key>WFWorkflowActionIdentifier</key>
+				<string>is.workflow.actions.exit</string>
+				<key>WFWorkflowActionParameters</key>
+				<dict>
+					<key>UUID</key>
+					<string>F6225235-A457-4A8A-B5BB-7A4843DAA4B3</string>
+				</dict>
+			</dict>
+			<dict>
+				<key>WFWorkflowActionIdentifier</key>
+				<string>is.workflow.actions.conditional</string>
+				<key>WFWorkflowActionParameters</key>
+				<dict>
+					<key>GroupingIdentifier</key>
+					<string>3E1C1323-CB67-4219-8CFC-9B6192699AF1</string>
+					<key>WFControlFlowMode</key>
+					<integer>2</integer>
+					<key>UUID</key>
+					<string>30305C45-4A7C-4126-9A7F-AF12986B5063</string>
 				</dict>
 			</dict>
 			<dict>
@@ -231,7 +493,7 @@
 						</dict>
 					</dict>
 					<key>UUID</key>
-					<string>E0F4FB75-1012-406E-B65C-83356BF5D8FD</string>
+					<string>6AE4A61E-54BC-4DA2-B11D-89F29AFD4869</string>
 				</dict>
 			</dict>
 			<dict>
@@ -242,7 +504,7 @@
 					<key>WFDateActionMode</key>
 					<string>Current Date</string>
 					<key>UUID</key>
-					<string>F850F66F-9B11-435E-B0BF-17992C889752</string>
+					<string>09C558EE-B10E-4E19-9B2F-E06554F2DBF0</string>
 				</dict>
 			</dict>
 			<dict>
@@ -265,7 +527,7 @@
 									<key>OutputName</key>
 									<string>Date</string>
 									<key>OutputUUID</key>
-									<string>F850F66F-9B11-435E-B0BF-17992C889752</string>
+									<string>09C558EE-B10E-4E19-9B2F-E06554F2DBF0</string>
 									<key>Type</key>
 									<string>ActionOutput</string>
 								</dict>
@@ -277,7 +539,7 @@
 						<string>WFTextTokenString</string>
 					</dict>
 					<key>UUID</key>
-					<string>575EA50A-9F3A-4F8A-8802-5158E41BC9C2</string>
+					<string>E8861CCB-7780-4F33-8C0C-BDC84A94B462</string>
 				</dict>
 			</dict>
 			<dict>
@@ -300,7 +562,7 @@
 									<key>OutputName</key>
 									<string>Date</string>
 									<key>OutputUUID</key>
-									<string>F850F66F-9B11-435E-B0BF-17992C889752</string>
+									<string>09C558EE-B10E-4E19-9B2F-E06554F2DBF0</string>
 									<key>Type</key>
 									<string>ActionOutput</string>
 								</dict>
@@ -312,7 +574,7 @@
 						<string>WFTextTokenString</string>
 					</dict>
 					<key>UUID</key>
-					<string>8825378A-B78C-4330-B676-4DABDEE051D0</string>
+					<string>D5D607C7-0D40-433F-84C2-25E61DDE3E4D</string>
 				</dict>
 			</dict>
 			<dict>
@@ -373,7 +635,7 @@
 									<key>OutputName</key>
 									<string>Formatted Date</string>
 									<key>OutputUUID</key>
-									<string>8825378A-B78C-4330-B676-4DABDEE051D0</string>
+									<string>D5D607C7-0D40-433F-84C2-25E61DDE3E4D</string>
 									<key>Type</key>
 									<string>ActionOutput</string>
 								</dict>
@@ -385,7 +647,7 @@
 						<string>WFTextTokenString</string>
 					</dict>
 					<key>UUID</key>
-					<string>65BBADE0-FAA7-4123-98F7-F7C15E699F4A</string>
+					<string>822010F5-9356-4021-A458-846356B93691</string>
 				</dict>
 			</dict>
 			<dict>
@@ -402,7 +664,7 @@
 							<key>OutputName</key>
 							<string>Text</string>
 							<key>OutputUUID</key>
-							<string>65BBADE0-FAA7-4123-98F7-F7C15E699F4A</string>
+							<string>822010F5-9356-4021-A458-846356B93691</string>
 							<key>Type</key>
 							<string>ActionOutput</string>
 						</dict>
@@ -410,7 +672,7 @@
 						<string>WFTextTokenAttachment</string>
 					</dict>
 					<key>UUID</key>
-					<string>8BECAEE9-D5AA-4982-998C-4E3A83944A3D</string>
+					<string>9907F80B-645E-4930-A1B6-8DEFAFBECF5A</string>
 				</dict>
 			</dict>
 			<dict>
@@ -429,7 +691,7 @@
 									<key>OutputName</key>
 									<string>Dictionary Value</string>
 									<key>OutputUUID</key>
-									<string>E8DCAD23-64B2-4FAE-8A98-CF2F3EEED6AB</string>
+									<string>E2ADB24C-F355-438B-9B77-881B9A8B7A5D</string>
 									<key>Type</key>
 									<string>ActionOutput</string>
 								</dict>
@@ -474,7 +736,7 @@
 													<key>OutputName</key>
 													<string>Dictionary Value</string>
 													<key>OutputUUID</key>
-													<string>E2ADB24C-F355-438B-9B77-881B9A8B7A5D</string>
+													<string>01316C58-9016-447D-8B6D-E68F4EFD7E82</string>
 													<key>Type</key>
 													<string>ActionOutput</string>
 												</dict>
@@ -510,7 +772,7 @@
 													<key>OutputName</key>
 													<string>Dictionary Value</string>
 													<key>OutputUUID</key>
-													<string>01316C58-9016-447D-8B6D-E68F4EFD7E82</string>
+													<string>026D9D8A-4958-4963-93FC-C416B398D751</string>
 													<key>Type</key>
 													<string>ActionOutput</string>
 												</dict>
@@ -546,7 +808,7 @@
 													<key>OutputName</key>
 													<string>Dictionary Value</string>
 													<key>OutputUUID</key>
-													<string>026D9D8A-4958-4963-93FC-C416B398D751</string>
+													<string>E0F4FB75-1012-406E-B65C-83356BF5D8FD</string>
 													<key>Type</key>
 													<string>ActionOutput</string>
 												</dict>
@@ -759,7 +1021,7 @@
 													<key>OutputName</key>
 													<string>Formatted Date</string>
 													<key>OutputUUID</key>
-													<string>575EA50A-9F3A-4F8A-8802-5158E41BC9C2</string>
+													<string>E8861CCB-7780-4F33-8C0C-BDC84A94B462</string>
 													<key>Type</key>
 													<string>ActionOutput</string>
 												</dict>
@@ -795,7 +1057,7 @@
 													<key>OutputName</key>
 													<string>Hash</string>
 													<key>OutputUUID</key>
-													<string>8BECAEE9-D5AA-4982-998C-4E3A83944A3D</string>
+													<string>9907F80B-645E-4930-A1B6-8DEFAFBECF5A</string>
 													<key>Type</key>
 													<string>ActionOutput</string>
 												</dict>
@@ -837,7 +1099,7 @@
 						<string>WFDictionaryFieldValue</string>
 					</dict>
 					<key>UUID</key>
-					<string>9283D753-4A94-49D9-8A7D-50A11DBF1DE6</string>
+					<string>4F52B41C-AA0D-493A-AF17-5987CAD80CDC</string>
 				</dict>
 			</dict>
 			<dict>
@@ -854,7 +1116,7 @@
 							<key>OutputName</key>
 							<string>Contents of URL</string>
 							<key>OutputUUID</key>
-							<string>9283D753-4A94-49D9-8A7D-50A11DBF1DE6</string>
+							<string>4F52B41C-AA0D-493A-AF17-5987CAD80CDC</string>
 							<key>Type</key>
 							<string>ActionOutput</string>
 						</dict>
@@ -862,7 +1124,7 @@
 						<string>WFTextTokenAttachment</string>
 					</dict>
 					<key>UUID</key>
-					<string>125EAE01-7DFE-4464-A09D-83C1F716E778</string>
+					<string>26382386-055D-4960-BA04-45E31703BD6A</string>
 				</dict>
 			</dict>
 			<dict>
@@ -875,7 +1137,7 @@
 					<key>WFControlFlowMode</key>
 					<integer>1</integer>
 					<key>UUID</key>
-					<string>2213ACE8-A4CD-4F2F-BAAA-97522E020299</string>
+					<string>ADD272FF-2C0C-4BAD-9195-273B3508C64C</string>
 				</dict>
 			</dict>
 			<dict>
@@ -894,7 +1156,7 @@
 									<key>OutputName</key>
 									<string>Dictionary Value</string>
 									<key>OutputUUID</key>
-									<string>E8DCAD23-64B2-4FAE-8A98-CF2F3EEED6AB</string>
+									<string>E2ADB24C-F355-438B-9B77-881B9A8B7A5D</string>
 									<key>Type</key>
 									<string>ActionOutput</string>
 								</dict>
@@ -939,7 +1201,7 @@
 													<key>OutputName</key>
 													<string>Dictionary Value</string>
 													<key>OutputUUID</key>
-													<string>E2ADB24C-F355-438B-9B77-881B9A8B7A5D</string>
+													<string>01316C58-9016-447D-8B6D-E68F4EFD7E82</string>
 													<key>Type</key>
 													<string>ActionOutput</string>
 												</dict>
@@ -975,7 +1237,7 @@
 													<key>OutputName</key>
 													<string>Dictionary Value</string>
 													<key>OutputUUID</key>
-													<string>01316C58-9016-447D-8B6D-E68F4EFD7E82</string>
+													<string>026D9D8A-4958-4963-93FC-C416B398D751</string>
 													<key>Type</key>
 													<string>ActionOutput</string>
 												</dict>
@@ -1011,7 +1273,7 @@
 													<key>OutputName</key>
 													<string>Dictionary Value</string>
 													<key>OutputUUID</key>
-													<string>026D9D8A-4958-4963-93FC-C416B398D751</string>
+													<string>E0F4FB75-1012-406E-B65C-83356BF5D8FD</string>
 													<key>Type</key>
 													<string>ActionOutput</string>
 												</dict>
@@ -1061,7 +1323,7 @@
 						<string>WFDictionaryFieldValue</string>
 					</dict>
 					<key>UUID</key>
-					<string>7FE2AD6A-3322-4B78-9B48-FA925D0050C5</string>
+					<string>0502362B-0C7E-47C4-ADC5-E8679931796D</string>
 				</dict>
 			</dict>
 			<dict>
@@ -1078,7 +1340,7 @@
 							<key>OutputName</key>
 							<string>Contents of URL</string>
 							<key>OutputUUID</key>
-							<string>7FE2AD6A-3322-4B78-9B48-FA925D0050C5</string>
+							<string>0502362B-0C7E-47C4-ADC5-E8679931796D</string>
 							<key>Type</key>
 							<string>ActionOutput</string>
 						</dict>
@@ -1086,7 +1348,7 @@
 						<string>WFTextTokenAttachment</string>
 					</dict>
 					<key>UUID</key>
-					<string>3713F21D-6377-40F8-B0E7-AB5D255053FB</string>
+					<string>208CD5C7-1106-4577-A5D3-859AC1AF9658</string>
 				</dict>
 			</dict>
 			<dict>
@@ -1099,7 +1361,7 @@
 					<key>WFControlFlowMode</key>
 					<integer>2</integer>
 					<key>UUID</key>
-					<string>F6225235-A457-4A8A-B5BB-7A4843DAA4B3</string>
+					<string>AC0E3987-691C-4A84-A3BF-C6EC7DB5D382</string>
 				</dict>
 			</dict>
 			<dict>
@@ -1124,7 +1386,7 @@
 						<string>WFTextTokenAttachment</string>
 					</dict>
 					<key>UUID</key>
-					<string>30305C45-4A7C-4126-9A7F-AF12986B5063</string>
+					<string>5ECB4A92-99C8-428B-BAF1-29F21762BAB9</string>
 				</dict>
 			</dict>
 			<dict>
@@ -1143,7 +1405,7 @@
 							<key>OutputName</key>
 							<string>Dictionary Value</string>
 							<key>OutputUUID</key>
-							<string>30305C45-4A7C-4126-9A7F-AF12986B5063</string>
+							<string>5ECB4A92-99C8-428B-BAF1-29F21762BAB9</string>
 							<key>Type</key>
 							<string>ActionOutput</string>
 						</dict>
@@ -1151,7 +1413,7 @@
 						<string>WFTextTokenAttachment</string>
 					</dict>
 					<key>UUID</key>
-					<string>6AE4A61E-54BC-4DA2-B11D-89F29AFD4869</string>
+					<string>AA38ACFB-6B85-4D5A-BC7B-87E55F91E157</string>
 				</dict>
 			</dict>
 			<dict>
@@ -1168,7 +1430,7 @@
 							<key>OutputName</key>
 							<string>Dictionary Value</string>
 							<key>OutputUUID</key>
-							<string>6AE4A61E-54BC-4DA2-B11D-89F29AFD4869</string>
+							<string>AA38ACFB-6B85-4D5A-BC7B-87E55F91E157</string>
 							<key>Type</key>
 							<string>ActionOutput</string>
 						</dict>
@@ -1176,7 +1438,7 @@
 						<string>WFTextTokenAttachment</string>
 					</dict>
 					<key>UUID</key>
-					<string>09C558EE-B10E-4E19-9B2F-E06554F2DBF0</string>
+					<string>DE7490FA-A447-4D6F-8EC7-E0871FDB2BE7</string>
 				</dict>
 			</dict>
 			<dict>
@@ -1208,7 +1470,7 @@
 						</dict>
 					</dict>
 					<key>UUID</key>
-					<string>E8861CCB-7780-4F33-8C0C-BDC84A94B462</string>
+					<string>1856289A-196F-4BA5-A9B8-A73AE7BB1E1A</string>
 				</dict>
 			</dict>
 			<dict>
@@ -1227,7 +1489,7 @@
 							<key>OutputName</key>
 							<string>Dictionary Value</string>
 							<key>OutputUUID</key>
-							<string>30305C45-4A7C-4126-9A7F-AF12986B5063</string>
+							<string>5ECB4A92-99C8-428B-BAF1-29F21762BAB9</string>
 							<key>Type</key>
 							<string>ActionOutput</string>
 						</dict>
@@ -1235,7 +1497,7 @@
 						<string>WFTextTokenAttachment</string>
 					</dict>
 					<key>UUID</key>
-					<string>D5D607C7-0D40-433F-84C2-25E61DDE3E4D</string>
+					<string>B5302D9D-465F-46EC-825A-FA99483BCD20</string>
 				</dict>
 			</dict>
 			<dict>
@@ -1252,7 +1514,7 @@
 							<key>OutputName</key>
 							<string>Dictionary Value</string>
 							<key>OutputUUID</key>
-							<string>D5D607C7-0D40-433F-84C2-25E61DDE3E4D</string>
+							<string>B5302D9D-465F-46EC-825A-FA99483BCD20</string>
 							<key>Type</key>
 							<string>ActionOutput</string>
 						</dict>
@@ -1260,7 +1522,7 @@
 						<string>WFTextTokenAttachment</string>
 					</dict>
 					<key>UUID</key>
-					<string>822010F5-9356-4021-A458-846356B93691</string>
+					<string>4D139BDE-3E71-47C6-83AE-874D08A43C77</string>
 				</dict>
 			</dict>
 			<dict>
@@ -1273,7 +1535,7 @@
 					<key>WFControlFlowMode</key>
 					<integer>2</integer>
 					<key>UUID</key>
-					<string>9907F80B-645E-4930-A1B6-8DEFAFBECF5A</string>
+					<string>F0CF8B74-2684-40D5-A18D-809F3CCC37FF</string>
 				</dict>
 			</dict>
 			<dict>
@@ -1282,7 +1544,7 @@
 				<key>WFWorkflowActionParameters</key>
 				<dict>
 					<key>WFNotificationActionTitle</key>
-					<string>MoneyMatter: log card payment</string>
+					<string>MoneyMatter - Log card payment</string>
 					<key>WFNotificationActionBody</key>
 					<dict>
 						<key>Value</key>
@@ -1304,7 +1566,7 @@
 						<string>WFTextTokenString</string>
 					</dict>
 					<key>UUID</key>
-					<string>4F52B41C-AA0D-493A-AF17-5987CAD80CDC</string>
+					<string>2E2B9B42-90D3-42B5-8820-B1AC43CF7E73</string>
 				</dict>
 			</dict>
 		</array>
@@ -1363,7 +1625,7 @@
 		<key>WFWorkflowMinimumClientVersionString</key>
 		<string>900</string>
 		<key>WFWorkflowName</key>
-		<string>MoneyMatter: log card payment</string>
+		<string>MoneyMatter - Log card payment</string>
 		<key>WFWorkflowOutputContentItemClasses</key>
 		<array/>
 		<key>WFWorkflowTypes</key>

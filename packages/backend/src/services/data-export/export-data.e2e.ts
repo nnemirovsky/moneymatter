@@ -472,11 +472,11 @@ describe('Data export (POST /user/data-export)', () => {
   });
 
   describe('Multiple domain coverage', () => {
-    it('exports budgets, subscriptions, portfolios, and vehicles when their groups are enabled', async () => {
+    it('exports trackers, subscriptions, portfolios, and vehicles when their groups are enabled', async () => {
       const account = await helpers.createAccount({ raw: true });
       const category = await helpers.addCustomCategory({ name: 'MultiCat', color: '#AABBCC', raw: true });
-      await helpers.createCustomBudget({
-        name: 'Export budget',
+      await helpers.createTracker({
+        name: 'Export tracker',
         limitAmount: 100000,
         categoryIds: [category.id],
         raw: true,
@@ -510,8 +510,8 @@ describe('Data export (POST /user/data-export)', () => {
       const archive = helpers.parseExportArchive({ buffer: response.body });
       const json = archive.json as Record<string, unknown[]>;
 
-      expect(Array.isArray(json.budgets)).toBe(true);
-      expect((json.budgets as Array<Record<string, unknown>>).some((b) => b.name === 'Export budget')).toBe(true);
+      expect(Array.isArray(json.trackers)).toBe(true);
+      expect((json.trackers as Array<Record<string, unknown>>).some((b) => b.name === 'Export tracker')).toBe(true);
 
       expect(Array.isArray(json.subscriptions)).toBe(true);
       expect((json.subscriptions as Array<Record<string, unknown>>).some((s) => s.name === 'Multi subscription')).toBe(
@@ -585,25 +585,25 @@ describe('Data export (POST /user/data-export)', () => {
       expect(unpinned!.Tags).toBe('');
     });
 
-    it('handles budgets with NULL limitAmount without crashing', async () => {
-      // Budget.limitAmount is nullable; the transformer must guard the
-      // `.toNumber()` call so a budget without a cap exports as an empty cell
+    it('handles trackers with NULL limitAmount without crashing', async () => {
+      // Tracker.limitAmount is nullable; the transformer must guard the
+      // `.toNumber()` call so a tracker without a cap exports as an empty cell
       // rather than 500'ing the whole request.
       const category = await helpers.addCustomCategory({ name: 'NoLimitCat', color: '#AABBCC', raw: true });
-      await helpers.createCustomBudget({
-        name: 'Open-ended budget',
+      await helpers.createTracker({
+        name: 'Open-ended tracker',
         categoryIds: [category.id],
-        // limitAmount intentionally omitted – should be allowed by the budgets API.
+        // limitAmount intentionally omitted – should be allowed by the trackers API.
         raw: true,
       });
 
       const response = await helpers.exportData({ format: 'csv' });
       expect(response.statusCode).toBe(200);
       const archive = helpers.parseExportArchive({ buffer: response.body });
-      const budgetsCsv = archive.files.get('budgets.csv');
-      expect(budgetsCsv).toBeDefined();
-      const rows = helpers.parseExportCsv({ buffer: budgetsCsv! });
-      const seeded = rows.find((r) => r.Name === 'Open-ended budget');
+      const trackersCsv = archive.files.get('trackers.csv');
+      expect(trackersCsv).toBeDefined();
+      const rows = helpers.parseExportCsv({ buffer: trackersCsv! });
+      const seeded = rows.find((r) => r.Name === 'Open-ended tracker');
       expect(seeded).toBeDefined();
       expect(seeded?.LimitAmount).toBe('');
     });
@@ -1489,6 +1489,99 @@ describe('Data export (POST /user/data-export)', () => {
       expect(data.budget_periods.map((row) => row.periodStart)).toEqual(
         periods.slice(0, 4).map((period) => period.startDate),
       );
+    });
+
+    describe('plan currency decimals', () => {
+      /** Exports a one-line plan whose goal is 10.125 (or 10.12), assigned `assigned`, with `spent` on its category. */
+      const exportDecimalsPlan = async ({
+        currencyCode,
+        goal,
+        assigned,
+        spent,
+      }: {
+        currencyCode: string;
+        goal: number;
+        assigned: number;
+        spent: number;
+      }) => {
+        const account = await helpers.createAccount({
+          payload: helpers.buildAccountPayload({ currencyCode }),
+          raw: true,
+        });
+        const category = await helpers.addCustomCategory({ name: 'Plan decimals', color: '#111111', raw: true });
+        const { plan } = await helpers.createBudgetPlan({
+          payload: {
+            name: 'Decimals plan',
+            accountIds: [account.id],
+            epochDate: helpers.budgetPeriodStart({ monthsAgo: 0 }),
+          },
+          raw: true,
+        });
+        const [period] = await helpers.listBudgetPlanPeriods({ planId: plan.id, raw: true });
+        const line = await helpers.createBudgetPlanLine({
+          planId: plan.id,
+          payload: { name: 'Decimals line', categoryIds: [category.id], activeFrom: period!.startDate },
+          raw: true,
+        });
+        await helpers.setBudgetLineGoal({
+          planId: plan.id,
+          lineId: line.id,
+          payload: { frequency: 'every_period', behavior: 'budget_another', amount: goal },
+          raw: true,
+        });
+        await helpers.setBudgetAssignment({
+          planId: plan.id,
+          periodId: period!.id,
+          lineId: line.id,
+          payload: { scope: 'this_period', amount: assigned },
+          raw: true,
+        });
+        await helpers.createTransaction({
+          payload: {
+            ...helpers.buildTransactionPayload({
+              accountId: account.id,
+              categoryId: category.id,
+              amount: spent,
+              transactionType: TRANSACTION_TYPES.expense,
+            }),
+            time: `${period!.startDate}T12:00:00.000Z`,
+          },
+          raw: true,
+        });
+
+        return exportBudgets();
+      };
+
+      it('exports a KWD plan at 3 decimals', async () => {
+        const user = await helpers.provisionSecondUserWithBaseCurrency({ currencyCode: 'KWD' });
+        const data = await helpers.asUser({
+          cookies: user.cookies,
+          fn: async () => {
+            await helpers.addUserCurrencies({ currencyCodes: ['KWD'], raw: true });
+            return exportDecimalsPlan({ currencyCode: 'KWD', goal: 10.125, assigned: 1.234, spent: 0.5 });
+          },
+        });
+
+        expect(data.budget_lines[0]).toMatchObject({ goal: 'Budget another 10.125 every period', currency: 'KWD' });
+        expect(data.budget_periods[0]).toMatchObject({
+          assigned: 1.234,
+          spent: 0.5,
+          available: 0.734,
+          currency: 'KWD',
+        });
+      });
+
+      it('keeps the 2-decimal values for a 2-decimal plan', async () => {
+        const data = await exportDecimalsPlan({
+          currencyCode: global.BASE_CURRENCY.code,
+          goal: 10.12,
+          assigned: 1.23,
+          spent: 0.5,
+        });
+
+        expect(data.budget_lines[0]).toMatchObject({ goal: 'Budget another 10.12 every period' });
+        expect(data.budget_periods[0]).toMatchObject({ assigned: 1.23, spent: 0.5, available: 0.73 });
+      });
     });
 
     it('emits empty budget plan files for a user without plans', async () => {

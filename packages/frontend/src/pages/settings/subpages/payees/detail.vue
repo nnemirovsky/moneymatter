@@ -21,9 +21,7 @@
       <div class="mt-3 flex items-center gap-3 px-5 sm:px-6">
         <div class="group relative shrink-0">
           <BrandLogo
-            :domain="payeeData?.logoDomain ?? null"
-            :initials="payeeData?.logoInitials ?? null"
-            :color="payeeData?.logoColor ?? null"
+            v-bind="toEntityLogoDisplayProps(payeeData ?? {})"
             :name="payeeData?.name ?? ''"
             class="size-11 text-lg"
           />
@@ -329,6 +327,7 @@ import {
   usePayee,
   useUpdatePayee,
 } from '@/composable/data-queries/payees';
+import { provideChatPageContext } from '@/composable/chat/use-chat-page-context';
 import { useBaseCurrency } from '@/composable/data-queries/currencies';
 import { useNotificationCenter } from '@/components/notification-center';
 import { useCategoriesStore, useTagsStore } from '@/stores';
@@ -356,6 +355,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 
 import BrandLogo from '@/components/common/brand-logo.vue';
+import { toEntityLogoDisplayProps } from '@/components/common/logo-selection';
 
 import PayeeActionsDropdown from './components/payee-actions-dropdown.vue';
 import PayeeDefaultLocationField from './components/payee-default-location-field.vue';
@@ -371,6 +371,7 @@ const { t, locale } = useI18n();
 const { addSuccessNotification, addErrorNotification } = useNotificationCenter();
 
 const payeeId = computed(() => String(route.params.id));
+provideChatPageContext(() => ({ entity: { kind: 'payee', id: payeeId.value } }));
 
 const { data: payeeData, refetch } = usePayee({ id: payeeId });
 

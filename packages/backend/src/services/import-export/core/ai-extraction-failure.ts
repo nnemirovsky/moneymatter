@@ -1,8 +1,10 @@
+import { t } from '@i18n/index';
 import { logger } from '@js/utils';
 import {
   type AIClientResult,
   buildUnsupportedRequestMessage,
   classifyAiCallFailure,
+  describeQuotaExhausted,
   describeRateLimited,
   isUserFixableEndpointDown,
   markConnectionRejected,
@@ -21,8 +23,6 @@ export interface AIExtractionError {
   message: string;
   details?: string;
 }
-
-const TEMPORARY_ERROR_MESSAGE = 'AI provider temporarily unavailable. Please try again later.';
 
 /**
  * Turns a failed AI call into the error the parser answers with, and flags the failing
@@ -48,7 +48,10 @@ export async function resolveAiExtractionFailure({
   if (kind === 'endpoint-down' && !isUserFixableEndpointDown({ provider: aiClient.provider, error: cause })) {
     logger.info(`${logPrefix} AI provider connection failed`, { modelId: aiClient.modelId });
 
-    return { error: { code: 'AI_ERROR', message: TEMPORARY_ERROR_MESSAGE, details }, cause };
+    return {
+      error: { code: 'AI_ERROR', message: t({ key: 'importExport.aiTemporarilyUnavailable' }), details },
+      cause,
+    };
   }
 
   switch (kind) {
@@ -81,6 +84,12 @@ export async function resolveAiExtractionFailure({
       return { error: { code: 'AI_ERROR', message, details }, cause };
     }
 
+    case 'quota-exhausted': {
+      logger.info(`${logPrefix} AI subscription is out of credits`, { modelId: aiClient.modelId });
+
+      return { error: { code: 'AI_ERROR', message: describeQuotaExhausted({ aiClient }), details }, cause };
+    }
+
     case 'rate-limited': {
       logger.info(`${logPrefix} AI provider rate limit hit`, { modelId: aiClient.modelId });
 
@@ -108,13 +117,16 @@ export async function resolveAiExtractionFailure({
     case 'temporary': {
       logger.info(`${logPrefix} AI provider temporarily unavailable`, { modelId: aiClient.modelId });
 
-      return { error: { code: 'AI_ERROR', message: TEMPORARY_ERROR_MESSAGE, details }, cause };
+      return {
+        error: { code: 'AI_ERROR', message: t({ key: 'importExport.aiTemporarilyUnavailable' }), details },
+        cause,
+      };
     }
 
     default: {
       logger.error({ message: `${logPrefix} AI extraction failed`, error: cause });
 
-      return { error: { code: 'AI_ERROR', message: 'AI extraction failed', details }, cause };
+      return { error: { code: 'AI_ERROR', message: t({ key: 'importExport.aiExtractionFailed' }), details }, cause };
     }
   }
 }

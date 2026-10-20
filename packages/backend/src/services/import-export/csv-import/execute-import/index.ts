@@ -15,13 +15,15 @@ import {
   TRANSACTION_TYPES,
 } from '@bt/shared/types';
 import { Money } from '@common/types/money';
-import { ValidationError } from '@js/errors';
+import { t } from '@i18n/index';
 import { logger } from '@js/utils/logger';
 import { trackImportCompleted } from '@js/utils/posthog';
 import * as Accounts from '@models/accounts.model';
 import { addUserCurrencies } from '@services/currencies/add-user-currency';
+import { getAccountDecimals } from '@services/import-export/core/duplicates/get-account-decimals';
 import { type OpenImportBatch, withImportBatchRecord } from '@services/import-export/core/import-batch-record';
 import { partitionReconcileAccounts } from '@services/import-export/core/partition-reconcile-accounts';
+import { ImportJobError } from '@services/import-export/core/queue/import-job-error';
 import { startBalanceReconciliation } from '@services/import-export/core/reconcile-account-balances';
 import { createAccountsIfNeeded } from '@services/import-export/core/resolve/create-accounts-if-needed';
 import { createCategoriesIfNeeded } from '@services/import-export/core/resolve/create-categories-if-needed';
@@ -180,13 +182,15 @@ async function executeImportImpl({
     const mismatched = Array.from(rowCurrencies).filter((code) => code !== account.currencyCode);
     if (mismatched.length > 0) {
       currencyMismatches.push(
-        `"${accountName}" (${mismatched.join(', ')}) cannot be linked to "${account.name}" (${account.currencyCode})`,
+        `"${accountName}" (${mismatched.join(', ')}) → "${account.name}" (${account.currencyCode})`,
       );
     }
   }
   if (currencyMismatches.length > 0) {
-    throw new ValidationError({
-      message: `Currencies must match to link an existing account: ${currencyMismatches.join('; ')}. Link an account with the same currency or create a new one.`,
+    const params = { mismatches: currencyMismatches.join('; ') };
+    throw new ImportJobError({
+      message: t({ key: 'csvImport.linkedAccountCurrencyMismatch', variables: params }),
+      failure: { code: 'account-currency-mismatch', params },
     });
   }
 
@@ -265,6 +269,10 @@ async function executeImportImpl({
     payeeNames: uniquePayeeNames,
   });
 
+  // A row amount keeps every digit the file wrote. It is rounded to its account's decimals before it
+  // is written and tallied, so the stored amount, the balance tally and the balance hook agree.
+  const decimalsByAccountId = await getAccountDecimals({ accountIds: Array.from(new Set(accountNameToId.values())) });
+
   // Create transactions
   const errors: ImportError[] = [];
   const newTransactionIds: string[] = [];
@@ -291,6 +299,7 @@ async function executeImportImpl({
       if (!accountId) {
         errors.push({
           rowIndex: row.rowIndex,
+          code: 'account-unresolved',
           error: `Account "${row.accountName}" could not be resolved`,
         });
         continue;
@@ -315,7 +324,7 @@ async function executeImportImpl({
       const rowTagIds = resolveRowTagIds({ tagNames: row.tagNames, tagNameToId });
       const hasImportedTags = rowTagIds.length > 0;
 
-      const rowAmount = Money.fromCents(row.amount);
+      const rowAmount = Money.fromDecimal(row.amount).round(decimalsByAccountId.get(accountId)!);
 
       // Service-layer createTransaction handles refAmount + currency from the
       // account, plus Payee extraction + payee_rule via `rawMerchantName` when
@@ -398,6 +407,7 @@ async function executeImportImpl({
               });
               errors.push({
                 rowIndex: row.rowIndex,
+                code: 'payee-default-tags-failed',
                 error: 'Transaction was imported, but the payee default tags could not be applied',
               });
             }
@@ -415,6 +425,7 @@ async function executeImportImpl({
         });
         errors.push({
           rowIndex: row.rowIndex,
+          code: 'read-back-failed',
           error: 'Transaction was created but could not be read back; it is missing from the imported count',
         });
       }

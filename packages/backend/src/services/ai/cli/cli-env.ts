@@ -1,3 +1,5 @@
+import { CHAT_TOKEN_ENV } from './cli-chat-bridge';
+
 const DEFAULT_PATH = '/usr/local/bin:/usr/bin:/bin';
 
 /** Test-only variables the fake CLIs read; never forwarded outside `NODE_ENV=test`. */
@@ -35,8 +37,20 @@ function buildBaseEnv({ home }: { home: string }): Record<string, string> {
   return env;
 }
 
-/** `home` doubles as `CLAUDE_CONFIG_DIR`: a private directory per invocation. */
-export function buildClaudeEnv({ token, home }: { token?: string; home: string }): Record<string, string> {
+/**
+ * `home` doubles as `CLAUDE_CONFIG_DIR`: a private directory per invocation. `chatToken` is the bridge
+ * token of a chat run, handed over only here (the run's MCP config names the variable, not the value).
+ * Tool search stays off for a chat run, so every bridge tool is in the model's list from the first step.
+ */
+export function buildClaudeEnv({
+  token,
+  home,
+  chatToken,
+}: {
+  token?: string;
+  home: string;
+  chatToken?: string;
+}): Record<string, string> {
   const env: Record<string, string> = {
     ...buildBaseEnv({ home }),
     CLAUDE_CONFIG_DIR: home,
@@ -46,11 +60,28 @@ export function buildClaudeEnv({ token, home }: { token?: string; home: string }
 
   if (token) env.CLAUDE_CODE_OAUTH_TOKEN = token;
 
+  if (chatToken) {
+    env[CHAT_TOKEN_ENV] = chatToken;
+    env.ENABLE_TOOL_SEARCH = 'false';
+  }
+
   return env;
 }
 
-export function buildCodexEnv({ codexHome }: { codexHome: string }): Record<string, string> {
-  return { ...buildBaseEnv({ home: codexHome }), CODEX_HOME: codexHome, RUST_LOG: 'error' };
+export function buildCodexEnv({
+  codexHome,
+  chatToken,
+}: {
+  codexHome: string;
+  /** The bridge token of a chat run; `bearer_token_env_var` names the variable that carries it. */
+  chatToken?: string;
+}): Record<string, string> {
+  return {
+    ...buildBaseEnv({ home: codexHome }),
+    CODEX_HOME: codexHome,
+    RUST_LOG: 'error',
+    ...(chatToken ? { [CHAT_TOKEN_ENV]: chatToken } : {}),
+  };
 }
 
 /**

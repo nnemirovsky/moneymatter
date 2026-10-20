@@ -169,13 +169,13 @@ export interface TransactionModel {
    *  transactionCount is the group's full membership size, independent of how many of the
    *  group's members are in the current fetch window. */
   transactionGroups?: Array<{ id: RecordId; name: string; transactionCount: number }>;
-  /** Recipient who attached this tx to a shared budget. Present (possibly `null`) on
-   *  budget-scoped tx fetches; absent elsewhere. `null` ⇒ owner-attached, no chip in
-   *  the UI. Non-null ⇒ the budget recipient who clicked Attach for this row. */
+  /** Recipient who attached this tx to a shared tracker. Present (possibly `null`) on
+   *  tracker-scoped tx fetches; absent elsewhere. `null` ⇒ owner-attached, no chip in
+   *  the UI. Non-null ⇒ the tracker recipient who clicked Attach for this row. */
   addedBy?: { id: number; username: string; avatar: string | null } | null;
   /** Whether the caller has write access to this row. Set by list endpoints so the UI
    *  can render an inert details dialog (vs an edit form) when the row is visible –
-   *  typically via a budget share – but not editable. Absent on write-result payloads
+   *  typically via a tracker share – but not editable. Absent on write-result payloads
    *  and internal fetches; absent ⇒ "unknown / fall back to opportunistic UI". */
   canEdit?: boolean;
   /** Timestamp when the record was created (defaults to transaction time for existing records) */

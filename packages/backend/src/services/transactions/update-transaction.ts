@@ -1,4 +1,11 @@
-import { ACCOUNT_TYPES, TRANSACTION_TRANSFER_NATURE, isTwoLegTransfer } from '@bt/shared/types';
+import {
+  ACCOUNT_TYPES,
+  CATEGORIZATION_SOURCE,
+  RESOURCE_TYPES,
+  SHARE_PERMISSIONS,
+  TRANSACTION_TRANSFER_NATURE,
+  isTwoLegTransfer,
+} from '@bt/shared/types';
 import { roundToCurrency } from '@common/lib/currency-precision';
 import { Money } from '@common/types/money';
 import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
@@ -24,8 +31,12 @@ import {
   assertSharedWritePhase1Guards,
   assertTxWriteAccess,
 } from '@services/sharing/auth/authorize-account-write.service';
+import { canUserAccessResource } from '@services/sharing/auth/can-user-access-resource.service';
 import { ensureUserCurrencyConnected } from '@services/sharing/auth/ensure-currency-connected.service';
+import { matchTransactionToSubscriptions } from '@services/subscriptions/matching-engine';
+import { settlePeriodOnConfirm } from '@services/subscriptions/settle-period-on-match';
 import * as refundsService from '@services/tx-refunds';
+import { ConnectionError, DatabaseError, UniqueConstraintError } from 'sequelize';
 
 import { withTransaction } from '../common/with-transaction';
 import { calcTransferTransactionRefAmount, createOppositeTransaction } from './create-transaction';
@@ -613,6 +624,42 @@ const isDiscardingTransfer = (payload: UpdateTransactionParams, prevData: Transa
 };
 
 /**
+ * Does the edit change a field the subscription matching rules read (note, amount, account,
+ * type, time) or the payee? Only then can a row that matched nothing before match now.
+ */
+const changesMatchingFields = ({
+  payload,
+  prevData,
+}: {
+  payload: UpdateTransactionParams;
+  prevData: Transactions.default;
+}): boolean =>
+  (payload.note !== undefined && payload.note !== prevData.note) ||
+  (payload.amount !== undefined && !payload.amount.equals(prevData.amount)) ||
+  (payload.accountId !== undefined && payload.accountId !== prevData.accountId) ||
+  (payload.transactionType !== undefined && payload.transactionType !== prevData.transactionType) ||
+  (payload.payeeId !== undefined && payload.payeeId !== prevData.payeeId) ||
+  (payload.time !== undefined && payload.time.getTime() !== prevData.time.getTime());
+
+/**
+ * May a subscription match replace the row's category? Only a category nobody chose: the
+ * default ("uncategorized") one, or one an automatic source set. A manual choice stays.
+ */
+const isReplaceableCategory = async ({
+  categoryId,
+  source,
+  ownerUserId,
+}: {
+  categoryId: string;
+  source: CATEGORIZATION_SOURCE | undefined;
+  ownerUserId: number;
+}): Promise<boolean> => {
+  if (source) return source !== CATEGORIZATION_SOURCE.manual;
+
+  return categoryId === (await getUserDefaultCategory({ id: ownerUserId }));
+};
+
+/**
  * Updates transaction and updates account balance.
  */
 export const updateTransaction = withTransaction(
@@ -699,6 +746,10 @@ export const updateTransaction = withTransaction(
           message: 'Category not found or does not belong to user.',
         });
       }
+
+      // Read before the update, which may change `prevData` in place.
+      const editChangesMatchingFields = changesMatchingFields({ payload, prevData });
+      const prevCategory = { categoryId: prevData.categoryId, source: prevData.categorizationMeta?.source };
 
       // Make basic updation to the base transaction. "Transfer" transactions
       // handled down in the code
@@ -805,6 +856,70 @@ export const updateTransaction = withTransaction(
             // Emit event for real-time reminders check (handled by event listener)
             eventBus.emit(DOMAIN_EVENTS.TRANSACTIONS_TAGGED, { tagIds: payload.tagIds, userId: payload.userId });
           }
+        }
+      }
+
+      // A row that matched no subscription when it was created can match after an edit, say a
+      // note reworded to name the service. It matches as it would on create, as its author, and
+      // only while the author can still read the account: a revoked recipient's subscriptions
+      // must not reach a row on the owner's account. The engine skips a row that has any link
+      // row, so an unlinked one is never matched again, and a match settles the period. The
+      // subscription's category replaces only one nobody chose, and never one this edit sets.
+      // The response carries the row as the match left it.
+      const [matchedTx] = updatedTransactions;
+      if (editChangesMatchingFields && !isTwoLegTransfer(matchedTx.transferNature)) {
+        try {
+          const authorCanRead = await canUserAccessResource({
+            userId: matchedTx.userId,
+            resourceType: RESOURCE_TYPES.account,
+            resourceId: matchedTx.accountId,
+            requiredPermission: SHARE_PERMISSIONS.read,
+          });
+
+          if (!authorCanRead.granted) {
+            logger.info(`Skipped subscription matching of ${matchedTx.id}: its author no longer reads the account`);
+          } else {
+            const matched = await matchTransactionToSubscriptions({
+              transaction: matchedTx,
+              userId: matchedTx.userId,
+              preserveCategory:
+                payload.categoryId !== undefined ||
+                !(await isReplaceableCategory({ ...prevCategory, ownerUserId: ctx.accountOwnerUserId })),
+            });
+            if (matched) await matchedTx.reload();
+          }
+        } catch (error) {
+          if (
+            error instanceof DatabaseError ||
+            error instanceof UniqueConstraintError ||
+            error instanceof ConnectionError
+          ) {
+            throw error;
+          }
+          logger.error({
+            message: `Failed to match edited transaction ${matchedTx.id} to subscriptions`,
+            error: error as Error,
+          });
+        }
+      }
+
+      // Confirming a plan is the moment its money moves, so a subscription it is linked to
+      // can settle its period now.
+      if (prevData.isPlanned && !baseTransaction.isPlanned) {
+        try {
+          await settlePeriodOnConfirm({ transaction: baseTransaction, userId: ctx.accountOwnerUserId });
+        } catch (error) {
+          if (
+            error instanceof DatabaseError ||
+            error instanceof UniqueConstraintError ||
+            error instanceof ConnectionError
+          ) {
+            throw error;
+          }
+          logger.error({
+            message: `Failed to settle a subscription period for confirmed transaction ${baseTransaction.id}`,
+            error: error as Error,
+          });
         }
       }
 

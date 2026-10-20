@@ -3,10 +3,16 @@ import { CustomError } from '@js/errors';
 import { logger } from '@js/utils/logger';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 
+/** `oauth` sessions belong to the public `/mcp`; `chatBridge` sessions to one chat run on the loopback listener. */
+export type McpSessionKind = 'oauth' | 'chatBridge';
+
 interface McpSession {
   transport: StreamableHTTPServerTransport;
   lastActivity: number;
   userId: number;
+  kind: McpSessionKind;
+  /** Set for `chatBridge` sessions: the one run that may use the session. */
+  runId?: string;
 }
 
 const sessions = new Map<string, McpSession>();
@@ -49,10 +55,14 @@ export function registerSession({
   sessionId,
   transport,
   userId,
+  kind = 'oauth',
+  runId,
 }: {
   sessionId: string;
   transport: StreamableHTTPServerTransport;
   userId: number;
+  kind?: McpSessionKind;
+  runId?: string;
 }) {
   if (sessions.size >= MAX_SESSIONS) {
     throw new CustomError(503, API_ERROR_CODES.unexpected, 'Maximum number of concurrent MCP sessions reached');
@@ -62,6 +72,8 @@ export function registerSession({
     transport,
     lastActivity: Date.now(),
     userId,
+    kind,
+    runId,
   });
 }
 
@@ -83,5 +95,12 @@ export function removeSession({ sessionId }: { sessionId: string }) {
         error: (err as Error).message,
       });
     }
+  }
+}
+
+/** Closes every session of a chat run, so a CLI that outlives its run cannot keep calling. */
+export function removeSessionsOfRun({ runId }: { runId: string }) {
+  for (const [sessionId, session] of sessions) {
+    if (session.kind === 'chatBridge' && session.runId === runId) removeSession({ sessionId });
   }
 }

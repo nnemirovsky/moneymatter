@@ -111,6 +111,15 @@ export function buildUsage({
   };
 }
 
+/** The totals a run reports: all input tokens, output tokens, and the share of input served from cache. */
+export function toUsageCounts({ usage }: { usage: LanguageModelV3Usage }) {
+  return {
+    inputTokens: usage.inputTokens.total ?? 0,
+    outputTokens: usage.outputTokens.total ?? 0,
+    cachedInputTokens: usage.inputTokens.cacheRead ?? 0,
+  };
+}
+
 export const asCount = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 

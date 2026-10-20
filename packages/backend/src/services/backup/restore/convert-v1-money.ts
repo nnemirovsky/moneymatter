@@ -14,17 +14,17 @@ import { getModelAttributeInfos } from './model-attributes';
 type Row = Record<string, unknown>;
 
 /** Format versions below this one carry money as integer cents. */
-export const FIRST_DECIMAL_MONEY_FORMAT_VERSION = 2;
+export const FIRST_DECIMAL_MONEY_FORMAT_VERSION = 3;
 
 const CENTS_PER_UNIT = 100;
 
-export interface MoneyColumnRule {
+interface MoneyColumnRule {
   fileName: BackupFileName;
   /** Model-side name: the key a dumped row uses. */
   attrName: string;
 }
 
-export interface MoneyJsonRule {
+interface MoneyJsonRule {
   fileName: BackupFileName;
   /** Model-side name of the JSON column. */
   attrName: string;
@@ -33,7 +33,7 @@ export interface MoneyJsonRule {
   keys: readonly string[];
 }
 
-export interface V1ConversionRules {
+interface V1ConversionRules {
   columns: MoneyColumnRule[];
   jsonFields: MoneyJsonRule[];
 }
@@ -132,7 +132,7 @@ function convertJsonObject({ object, rule, where }: { object: Row; rule: MoneyJs
 }
 
 /**
- * Rewrite a format version 1 archive's money from integer cents to the decimals version 2
+ * Rewrite a format version 1 or 2 archive's money from integer cents to the decimals version 3
  * stores, in place. Covers every column and JSON field of the shared money-column list,
  * which is also what the storage migration converts.
  */

@@ -444,7 +444,7 @@ const isSubmitBlocked = computed(() => isFormCreation.value && !isCategoriesRead
 const canMutateCurrentTx = computed(() => canMutateTx(transaction.value, currentUser.value?.id));
 
 // Lazy server-side write-access check, used only when the parent account isn't in the
-// caller's local `accountsRecord` — typically when the row is visible via a budget
+// caller's local `accountsRecord` — typically when the row is visible via a tracker
 // share but the account itself isn't shared with the caller. `useAccountAccess` can't
 // decide that case (it has nothing to read), and the bulk list path intentionally
 // skips `canEdit` to keep common reads cheap. Returns `null` until resolved.

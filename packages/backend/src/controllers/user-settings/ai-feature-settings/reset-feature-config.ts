@@ -4,11 +4,12 @@ import { getStoredAiSettings } from '@services/user-settings/ai-connections';
 import { clearFeatureConfig } from '@services/user-settings/ai-feature-settings';
 import { z } from 'zod';
 
-import { buildFeatureStatusPayload } from './build-feature-status-payload';
+import { buildFeatureStatusPayload, isRequestWithinAiAllowance } from './build-feature-status-payload';
 
 const schema = z.object({
   params: z.object({
-    feature: z.nativeEnum(AI_FEATURE),
+    // Chat has no feature config: each thread carries its own connection.
+    feature: z.enum(AI_FEATURE).exclude([AI_FEATURE.chat]),
   }),
 });
 
@@ -19,6 +20,11 @@ export const resetFeatureConfigController = createController(schema, async ({ us
   await clearFeatureConfig({ userId, feature });
 
   return {
-    data: await buildFeatureStatusPayload({ req, feature, aiSettings: await getStoredAiSettings({ userId }) }),
+    data: await buildFeatureStatusPayload({
+      req,
+      feature,
+      aiSettings: await getStoredAiSettings({ userId }),
+      withinAllowance: await isRequestWithinAiAllowance({ req }),
+    }),
   };
 });

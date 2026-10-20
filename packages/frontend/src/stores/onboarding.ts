@@ -29,6 +29,8 @@ interface RawTask {
   route?: string;
   /** If true, this task is hidden for demo users */
   demoHidden?: boolean;
+  /** i18n key segment under `tasks.*` when it differs from `id` */
+  i18nKey?: string;
 }
 
 interface RawCategory {
@@ -64,7 +66,7 @@ const RAW_CATEGORIES: RawCategory[] = [
     tasks: [
       { id: 'create-category', route: ROUTES_NAMES.settingsCategories },
       { id: 'create-tag', route: ROUTES_NAMES.settingsTags },
-      { id: 'create-budget', route: ROUTES_NAMES.budgets },
+      { id: 'create-tracker', route: ROUTES_NAMES.plannedTrackers, i18nKey: 'create-budget' },
       { id: 'create-account-group', route: ROUTES_NAMES.settingsAccounts },
       { id: 'setup-tag-reminder', route: ROUTES_NAMES.settingsTags },
       { id: 'create-subscription', route: ROUTES_NAMES.plannedSubscriptions },
@@ -119,8 +121,8 @@ const translateCategory = ({ raw, isDemo }: { raw: RawCategory; isDemo: boolean 
     tasks: filteredTasks.map((task) => ({
       id: task.id,
       route: task.route,
-      title: t(`${prefix}.tasks.${task.id}.title`),
-      description: t(`${prefix}.tasks.${task.id}.description`),
+      title: t(`${prefix}.tasks.${task.i18nKey ?? task.id}.title`),
+      description: t(`${prefix}.tasks.${task.i18nKey ?? task.id}.description`),
     })),
   };
 };

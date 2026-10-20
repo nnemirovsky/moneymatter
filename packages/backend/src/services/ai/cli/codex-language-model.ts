@@ -67,7 +67,7 @@ export const CODEX_TOOL_DISABLE_ARGS: readonly string[] = CODEX_DISABLED_FEATURE
 const ALLOWED_ITEM_TYPES = new Set(['agent_message', 'reasoning', 'error']);
 
 /** Past this size the system prompt goes in on stdin instead of as one argv entry. */
-const MAX_DEVELOPER_INSTRUCTIONS_CHARS = 100_000;
+export const MAX_DEVELOPER_INSTRUCTIONS_CHARS = 100_000;
 
 const IMAGE_EXTENSIONS: Record<string, string> = {
   'image/png': 'png',
@@ -79,23 +79,78 @@ const IMAGE_EXTENSIONS: Record<string, string> = {
 
 const USAGE_LIMIT_SIGNAL = /usage_limit_(?:exceeded|reached)/i;
 
-interface CodexUsage {
+export interface CodexUsage {
   input_tokens?: number;
   cached_input_tokens?: number;
   output_tokens?: number;
   reasoning_output_tokens?: number;
 }
 
-interface CodexEvent {
+export interface CodexItem {
+  id?: unknown;
+  type?: unknown;
+  text?: unknown;
+  message?: unknown;
+  /** `mcp_tool_call` items: the MCP server and tool the call went to. */
+  server?: unknown;
+  tool?: unknown;
+}
+
+export interface CodexEvent {
   type?: string;
   message?: unknown;
   error?: { message?: unknown; type?: unknown; code?: unknown } | string;
-  item?: { type?: unknown; text?: unknown; message?: unknown };
+  item?: CodexItem;
   usage?: CodexUsage;
 }
 
 /** TOML basic string (the `-c` value is parsed as TOML), which JSON escaping satisfies apart from DEL. */
-const toTomlString = ({ value }: { value: string }) => JSON.stringify(value).replace(/\u007f/g, '\\u007f');
+export const toTomlString = ({ value }: { value: string }) => JSON.stringify(value).replace(/\u007f/g, '\\u007f');
+
+/**
+ * The hardening of every Codex run, feature or chat: a read-only sandbox with no approvals, no web
+ * search, an empty shell environment, the user config and rules ignored, and the agent tool
+ * features switched off. Chat mode adds its one MCP server on top.
+ */
+export const CODEX_HARDENING_ARGS: readonly string[] = [
+  'exec',
+  '--json',
+  '--ephemeral',
+  '--ignore-user-config',
+  '--ignore-rules',
+  '--skip-git-repo-check',
+  '-s',
+  'read-only',
+  '-c',
+  'approval_policy="never"',
+  '-c',
+  'cli_auth_credentials_store="file"',
+  '-c',
+  'web_search="disabled"',
+  '-c',
+  'shell_environment_policy.inherit="none"',
+  ...CODEX_TOOL_DISABLE_ARGS,
+];
+
+/**
+ * Fails closed on `--json` items: one the run's `isAllowedItem` does not accept means the model used
+ * a tool or something this code has not vetted, and the run is stopped. A feature run accepts only
+ * the answer item types; a chat run also accepts calls to its own MCP server.
+ */
+export function guardCodexItem({
+  item,
+  isAllowedItem,
+}: {
+  item: CodexItem | undefined;
+  isAllowedItem: (params: { item: CodexItem }) => boolean;
+}): void {
+  if (item && isAllowedItem({ item })) return;
+
+  throw createToolUseBlockedError({ provider: PROVIDER, detail: String(item?.type) });
+}
+
+/** An item type a plain answer produces; a chat run allows it too. */
+export const isCodexAnswerItem = ({ item }: { item: CodexItem }) => ALLOWED_ITEM_TYPES.has(String(item.type));
 
 function buildCodexArgs({
   model,
@@ -112,31 +167,7 @@ function buildCodexArgs({
   imagePaths: string[];
   developerInstructions: string | undefined;
 }): string[] {
-  const args = [
-    'exec',
-    '--json',
-    '--ephemeral',
-    '--ignore-user-config',
-    '--ignore-rules',
-    '--skip-git-repo-check',
-    '-s',
-    'read-only',
-    '-c',
-    'approval_policy="never"',
-    '-c',
-    'cli_auth_credentials_store="file"',
-    '-c',
-    'web_search="disabled"',
-    '-c',
-    'shell_environment_policy.inherit="none"',
-    ...CODEX_TOOL_DISABLE_ARGS,
-    '-m',
-    model,
-    '-C',
-    workdir,
-    '-o',
-    lastMessagePath,
-  ];
+  const args = [...CODEX_HARDENING_ARGS, '-m', model, '-C', workdir, '-o', lastMessagePath];
 
   if (developerInstructions)
     args.push('-c', `developer_instructions=${toTomlString({ value: developerInstructions })}`);
@@ -162,7 +193,61 @@ function eventErrorText({ event }: { event: CodexEvent }): string {
   return parts.join(' ');
 }
 
-function toUsage({ usage }: { usage: CodexUsage | undefined }) {
+/** What the non-item events of one `codex exec` turn add up to. */
+interface CodexTurnState {
+  sawTurnCompleted: boolean;
+  usage: CodexUsage | undefined;
+  errorTexts: string[];
+  turnFailedText: string | null;
+}
+
+export const createCodexTurnState = (): CodexTurnState => ({
+  sawTurnCompleted: false,
+  usage: undefined,
+  errorTexts: [],
+  turnFailedText: null,
+});
+
+/** Folds an `error` item or a turn-level event into the state; other events are left to the caller. */
+export function recordCodexTurnEvent({ state, event }: { state: CodexTurnState; event: CodexEvent }): void {
+  if (event.type?.startsWith('item.')) {
+    if (event.item?.type === 'error') state.errorTexts.push(eventErrorText({ event }));
+  } else if (event.type === 'turn.completed') {
+    state.sawTurnCompleted = true;
+    state.usage = event.usage;
+  } else if (event.type === 'turn.failed') {
+    state.turnFailedText = eventErrorText({ event });
+  } else if (event.type === 'error') {
+    state.errorTexts.push(eventErrorText({ event }));
+  }
+}
+
+/** Throws the mapped failure unless the process exited cleanly after a completed turn. */
+export function assertCodexTurnCompleted({
+  state,
+  exitCode,
+  stderrTail,
+}: {
+  state: CodexTurnState;
+  exitCode: number | null;
+  stderrTail: string;
+}): void {
+  const failureText = [state.turnFailedText, ...state.errorTexts].filter(Boolean).join(' ');
+
+  if (USAGE_LIMIT_SIGNAL.test(failureText)) {
+    throw mapCliFailure({ provider: PROVIDER, text: failureText, exitCode });
+  }
+
+  if (exitCode !== 0 || !state.sawTurnCompleted || state.turnFailedText !== null) {
+    throw mapCliFailure({
+      provider: PROVIDER,
+      text: state.turnFailedText ?? (state.errorTexts.at(-1) || stderrTail),
+      exitCode,
+    });
+  }
+}
+
+export function toUsage({ usage }: { usage: CodexUsage | undefined }) {
   const input = asCount(usage?.input_tokens);
   const cached = asCount(usage?.cached_input_tokens);
 
@@ -185,6 +270,33 @@ async function readLastMessage({ lastMessagePath }: { lastMessagePath: string })
   } catch {
     return null;
   }
+}
+
+/** Writes a prompt's images into `ioDir` for `-i` and returns their paths and the prompt's text parts. */
+export async function writeCodexPromptImages({
+  prompt,
+  ioDir,
+}: {
+  prompt: CliPrompt;
+  ioDir: string;
+}): Promise<{ imagePaths: string[]; textParts: string[] }> {
+  const imagePaths: string[] = [];
+  const textParts: string[] = [];
+
+  for (const part of prompt.parts) {
+    if (part.type === 'text') {
+      textParts.push(part.text);
+      continue;
+    }
+
+    const extension = IMAGE_EXTENSIONS[part.mediaType] ?? 'png';
+    const imagePath = path.join(ioDir, `img-${imagePaths.length}.${extension}`);
+
+    await writeFile(imagePath, Buffer.from(part.base64, 'base64'));
+    imagePaths.push(imagePath);
+  }
+
+  return { imagePaths, textParts };
 }
 
 async function runCodex({
@@ -217,21 +329,7 @@ async function runCodex({
         await writeFile(schemaPath, JSON.stringify(closeObjectSchemas({ schema: stripSchemaFormats({ schema }) })));
       }
 
-      const imagePaths: string[] = [];
-      const textParts: string[] = [];
-
-      for (const part of prompt.parts) {
-        if (part.type === 'text') {
-          textParts.push(part.text);
-          continue;
-        }
-
-        const extension = IMAGE_EXTENSIONS[part.mediaType] ?? 'png';
-        const imagePath = path.join(ioDir, `img-${imagePaths.length}.${extension}`);
-
-        await writeFile(imagePath, Buffer.from(part.base64, 'base64'));
-        imagePaths.push(imagePath);
-      }
+      const { imagePaths, textParts } = await writeCodexPromptImages({ prompt, ioDir });
 
       const systemFitsArgv = prompt.system.length <= MAX_DEVELOPER_INSTRUCTIONS_CHARS;
       const stdinParts = systemFitsArgv ? textParts : [prompt.system, ...textParts].filter(Boolean);
@@ -239,13 +337,7 @@ async function runCodex({
       // `codex exec -` refuses an empty prompt, which an image-only call would otherwise send.
       if (stdinParts.length === 0) stdinParts.push('Use the attached image(s) to answer.');
 
-      const state = {
-        sawTurnCompleted: false,
-        usage: undefined as CodexUsage | undefined,
-        lastAgentMessage: null as string | null,
-        errorTexts: [] as string[],
-        turnFailedText: null as string | null,
-      };
+      const state = { ...createCodexTurnState(), lastAgentMessage: null as string | null };
 
       const processResult = await runCliProcess({
         provider: PROVIDER,
@@ -274,49 +366,22 @@ async function runCodex({
           if (!event || typeof event !== 'object') return;
 
           if (event.type?.startsWith('item.')) {
-            const itemType = String(event.item?.type);
-
-            if (!ALLOWED_ITEM_TYPES.has(itemType)) {
-              throw createToolUseBlockedError({ provider: PROVIDER, detail: itemType });
-            }
-
-            if (itemType === 'error') state.errorTexts.push(eventErrorText({ event }));
+            guardCodexItem({ item: event.item, isAllowedItem: isCodexAnswerItem });
 
             if (
-              itemType === 'agent_message' &&
+              event.item?.type === 'agent_message' &&
               event.type === 'item.completed' &&
-              typeof event.item?.text === 'string'
+              typeof event.item.text === 'string'
             ) {
               state.lastAgentMessage = event.item.text;
             }
-
-            return;
           }
 
-          if (event.type === 'turn.completed') {
-            state.sawTurnCompleted = true;
-            state.usage = event.usage;
-          } else if (event.type === 'turn.failed') {
-            state.turnFailedText = eventErrorText({ event });
-          } else if (event.type === 'error') {
-            state.errorTexts.push(eventErrorText({ event }));
-          }
+          recordCodexTurnEvent({ state, event });
         },
       });
 
-      const failureText = [state.turnFailedText, ...state.errorTexts].filter(Boolean).join(' ');
-
-      if (USAGE_LIMIT_SIGNAL.test(failureText)) {
-        throw mapCliFailure({ provider: PROVIDER, text: failureText, exitCode: processResult.exitCode });
-      }
-
-      if (processResult.exitCode !== 0 || !state.sawTurnCompleted || state.turnFailedText !== null) {
-        throw mapCliFailure({
-          provider: PROVIDER,
-          text: state.turnFailedText ?? (state.errorTexts.at(-1) || processResult.stderrTail),
-          exitCode: processResult.exitCode,
-        });
-      }
+      assertCodexTurnCompleted({ state, exitCode: processResult.exitCode, stderrTail: processResult.stderrTail });
 
       const text = (await readLastMessage({ lastMessagePath })) ?? state.lastAgentMessage;
 

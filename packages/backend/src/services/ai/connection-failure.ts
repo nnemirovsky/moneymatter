@@ -1,13 +1,16 @@
 // Shared by every AI feature so a dead connection gets the same status and message.
 
-import { AI_PROVIDER, type AICliProvider, asAiCliProvider } from '@bt/shared/types';
+import { AI_PROVIDER, type AICliProvider, asAiCliProvider, hasServerAiEntitlement } from '@bt/shared/types';
+import { t } from '@i18n/index';
 import { APICallError } from 'ai';
 
+import { getEntitlementsByUserId } from '../entitlements/resolve-entitlements.service';
 import { getConnectionInfos, markConnectionInvalid } from '../user-settings/ai-connections';
+import { isWithinAiAllowance } from './ai-allowance';
 import type { AIClientResult } from './ai-client-factory';
 import { buildModelNotServedMessage } from './ai-error-classifiers';
 import { CLI_PROVIDER_LABEL, isCliNotInstalledError } from './cli/cli-errors';
-import { suspendAnthropicServerKey } from './resolution-ladder';
+import { PRIMARY_SERVER_MODEL, suspendPrimaryServerKey } from './resolution-ladder';
 
 /** Not translated: it surfaces in job error lists, where no request locale is available. */
 const CUSTOM_ENDPOINT_UNREACHABLE_ERROR_MESSAGE =
@@ -30,6 +33,9 @@ const INVALID_KEY_ERROR_MESSAGE =
 /** Nothing in the ladder yielded credentials: no connection and no server model. */
 const NO_AI_CONFIGURED_ERROR_MESSAGE = 'No AI model configured. Add one in Settings → AI.';
 
+const AI_ALLOWANCE_REACHED_ERROR_MESSAGE =
+  "You've used the AI included in your plan this month. Connect your own model in Settings → AI to keep going.";
+
 /** The CLI is part of the backend image, so the fix is on the operator's side, not a key the user can re-enter. */
 function buildCliNotInstalledMessage({ provider }: { provider: AICliProvider }): string {
   return `The ${CLI_PROVIDER_LABEL[provider]} CLI is not installed in the backend image. Update the image, then sign in again in Settings → AI.`;
@@ -46,6 +52,11 @@ export async function describeMissingAiConfiguration({ userId }: { userId: numbe
 
   if (!dialable && first) {
     return first.lastError ?? CUSTOM_ENDPOINT_UNREACHABLE_ERROR_MESSAGE;
+  }
+
+  const entitlements = await getEntitlementsByUserId({ userId });
+  if (hasServerAiEntitlement({ entitlements }) && !(await isWithinAiAllowance({ userId, entitlements }))) {
+    return AI_ALLOWANCE_REACHED_ERROR_MESSAGE;
   }
 
   return NO_AI_CONFIGURED_ERROR_MESSAGE;
@@ -85,13 +96,17 @@ export async function markEndpointUnreachable({
 const SERVER_MODEL_SUSPENDED_ERROR_MESSAGE = 'The AI model is temporarily unavailable. Please try again.';
 
 function suspendDeadServerKey({ aiClient, message }: { aiClient: AIClientResult; message: string }): string {
-  if (aiClient.usingUserKey || aiClient.provider !== AI_PROVIDER.anthropic) return message;
+  if (aiClient.usingUserKey || aiClient.provider !== PRIMARY_SERVER_MODEL.provider) return message;
 
-  suspendAnthropicServerKey({ reason: message });
+  suspendPrimaryServerKey({ reason: message });
   return SERVER_MODEL_SUSPENDED_ERROR_MESSAGE;
 }
 
-/** A saved model passed the live check, so the provider has since dropped or renamed it. */
+/**
+ * A saved model passed the live check, so the provider has since dropped or renamed it. A model picked
+ * for one feature or thread says nothing about the connection's own model, so only the message is
+ * returned and the connection stays as it is.
+ */
 export async function markModelNotServed({
   userId,
   aiClient,
@@ -101,7 +116,7 @@ export async function markModelNotServed({
 }): Promise<string> {
   const message = buildModelNotServedMessage({ modelId: aiClient.modelId });
 
-  if (aiClient.connectionId) {
+  if (aiClient.connectionId && !aiClient.modelOverridden) {
     await markConnectionInvalid({ userId, connectionId: aiClient.connectionId, errorMessage: message });
   }
 
@@ -136,7 +151,16 @@ export async function markConnectionRejected({
   return suspendDeadServerKey({ aiClient, message });
 }
 
-const RATE_LIMITED_ERROR_MESSAGE = 'AI provider rate limit reached. Please try again in a few minutes.';
+/**
+ * A subscription or workspace with no credits left. The connection itself is fine (the sign-in and the model
+ * worked), so nothing is flagged: the fix is to top up the subscription or use another connection.
+ */
+export function describeQuotaExhausted({ aiClient }: { aiClient: AIClientResult }): string {
+  const cliProvider = asAiCliProvider({ provider: aiClient.provider });
+  if (!cliProvider) return t({ key: 'importExport.aiQuotaExhaustedAccount' });
+
+  return t({ key: 'importExport.aiQuotaExhaustedSubscription', variables: { label: CLI_PROVIDER_LABEL[cliProvider] } });
+}
 
 /** `YYYY-MM-DD HH:mm UTC`: the message has no request locale or timezone to format against. */
 function formatResetTime({ resetsAt }: { resetsAt: unknown }): string | null {
@@ -154,13 +178,13 @@ function formatResetTime({ resetsAt }: { resetsAt: unknown }): string | null {
  */
 export function describeRateLimited({ aiClient, cause }: { aiClient: AIClientResult; cause: Error }): string {
   const cliProvider = asAiCliProvider({ provider: aiClient.provider });
-  if (!cliProvider) return RATE_LIMITED_ERROR_MESSAGE;
+  if (!cliProvider) return t({ key: 'importExport.aiRateLimited' });
 
   const label = CLI_PROVIDER_LABEL[cliProvider];
   const data = cause instanceof APICallError ? (cause.data as { resetsAt?: unknown } | undefined) : undefined;
   const resetTime = formatResetTime({ resetsAt: data?.resetsAt });
 
   return resetTime
-    ? `Your ${label} subscription usage limit is reached. It resets at ${resetTime}.`
-    : `Your ${label} subscription usage limit is reached. Try again after it resets.`;
+    ? t({ key: 'importExport.aiSubscriptionLimitResetsAt', variables: { label, resetTime } })
+    : t({ key: 'importExport.aiSubscriptionLimitReached', variables: { label } });
 }

@@ -1,10 +1,10 @@
 {
   "settings": {
     "ai": {
-      "title": "AI Settings",
+      "title": "AI settings",
       "description": "Pick which AI model powers each feature, add your own models, and connect AI apps like Claude or ChatGPT to your data.",
       "tabs": {
-        "features": "AI Features",
+        "features": "AI features",
         "models": "AI models",
         "connectedApps": "Connectors (MCP)",
         "invalidConnectionsTooltip": "One of your AI models needs attention"
@@ -15,7 +15,7 @@
         "invalidBadge": "Invalid"
       },
       "features": {
-        "title": "AI Features",
+        "title": "AI features",
         "description": "Configure which model to use for each AI-powered feature",
         "howItWorks": "How it works",
         "loadError": "Couldn't load your AI features."
@@ -54,8 +54,6 @@
           "subscription": "Subscription",
           "subscriptionTooltip": "Runs on your own Claude or ChatGPT subscription. There are no per-token charges, and your plan's usage limits apply."
         },
-        "sharedPoolNote": "On your current plan, the included model runs in a shared pool, so limits may apply when overall demand is high. {link} to avoid them.",
-        "sharedPoolNoteLink": "Upgrade to Plus",
         "modelLabel": "Model",
         "modelInfo": {
           "estimatedCost": "Est. cost:",
@@ -73,7 +71,8 @@
           "description": "Add your own AI model to use this feature."
         },
         "allConnectionsDown": "All your AI models need attention, so this feature is paused. Fix one in {link}.",
-        "allConnectionsDownLink": "AI models"
+        "allConnectionsDownLink": "AI models",
+        "connectionNameNeedsAttention": "{name} (needs attention)"
       },
       "modelGuide": {
         "trigger": "Which model fits?",
@@ -92,19 +91,22 @@
           "runsOften": "Runs on every sync",
           "longAnswers": "Long answers",
           "readsFiles": "Reads images & PDFs",
-          "structuredAnswers": "Structured answers"
+          "structuredAnswers": "Structured answers",
+          "toolCalling": "Tool calling"
         },
         "why": {
           "categorization": "A short, repetitive job. A small model handles it well and keeps the cost down.",
           "statementParsing": "Reads the whole statement and writes back every row, so it needs a model that stays accurate over long text.",
           "investmentTransactionsParsing": "Turns broker exports into buy and sell rows. Long exports need a model that can write long answers.",
-          "receiptParsing": "The model looks at the invoice file itself, so it has to read images and PDFs."
+          "receiptParsing": "The model looks at the invoice file itself, so it has to read images and PDFs.",
+          "trackerMatching": "A short, repetitive job that runs every day. A small model handles it well and keeps the cost down."
         },
         "picks": {
           "categorization": "Gemini Flash Lite · Claude Haiku",
           "statementParsing": "Gemini Flash · Claude Sonnet · GPT Terra",
           "investmentTransactionsParsing": "Gemini Flash · Claude Sonnet",
-          "receiptParsing": "Gemini Flash · Claude Sonnet"
+          "receiptParsing": "Gemini Flash · Claude Sonnet",
+          "trackerMatching": "Gemini Flash Lite · Claude Haiku"
         },
         "verdict": {
           "fit": "Good fit",
@@ -117,7 +119,8 @@
           "readsImages": "Can't read images",
           "readsPdfs": "Can't read PDFs",
           "longAnswers": "Short answers only",
-          "structuredAnswers": "No structured answers"
+          "structuredAnswers": "No structured answers",
+          "toolCalling": "No tool calling"
         },
         "checks": {
           "readsText": {
@@ -140,6 +143,10 @@
           "structuredAnswers": {
             "label": "Structured answers",
             "fail": "Its answers may come back in a shape the app can't read."
+          },
+          "toolCalling": {
+            "label": "Tool calling",
+            "fail": "It can't look up your data, so the chat can't answer or propose changes."
           }
         },
         "unknown": {
@@ -315,7 +322,7 @@
         }
       },
       "customInstructions": {
-        "title": "Custom Instructions",
+        "title": "Custom instructions",
         "description": "Provide context to help AI categorize your transactions. These instructions are included when categorizing transactions during bank sync and manual import.",
         "placeholder": "e.g., Transactions from 'Starbucks' should be 'Coffee'. My freelance income comes from 'Acme Corp'.",
         "serverModelHint": "Custom instructions only apply when one of your own AI models handles categorization. Pick one above.",
@@ -325,6 +332,38 @@
         "save": "Save",
         "saved": "Saved!",
         "saveFailed": "Failed to save custom instructions. Please try again."
+      },
+      "chat": {
+        "title": "Chat",
+        "description": "Your conversations with the assistant. Each conversation picks its own model in the chat.",
+        "retention": {
+          "title": "Conversation history",
+          "description": "Conversations are deleted automatically this long after their last message.",
+          "label": "Keep conversations for",
+          "placeholder": "Choose how long",
+          "options": {
+            "days7": "7 days",
+            "days30": "30 days",
+            "days90": "90 days",
+            "days365": "1 year",
+            "never": "Never delete automatically"
+          },
+          "pinnedNote": "Pinned conversations are never deleted automatically. Cards you have not approved expire after 24 hours, pinned or not.",
+          "saved": "History retention updated"
+        },
+        "applied": {
+          "link": "Applied changes",
+          "linkDescription": "Every change you approved in chat. Each record goes with its conversation.",
+          "title": "Applied changes",
+          "description": "Changes you approved in chat. A record is deleted together with its conversation.",
+          "emptyTitle": "Nothing applied yet",
+          "emptyDescription": "Changes you approve in chat will appear here.",
+          "openThread": "Open conversation",
+          "appliedAt": "Applied {date}",
+          "loadMore": "Show more",
+          "loadError": "Could not load the applied changes.",
+          "back": "Back to AI settings"
+        }
       }
     }
   }

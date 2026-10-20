@@ -28,14 +28,14 @@ const STRUCTURED_OUTPUT_TOOL = 'StructuredOutput';
 const MAX_TURNS = '3';
 const DEFAULT_SYSTEM_PROMPT = 'You are a precise assistant. Answer only with what was asked for.';
 
-interface ClaudeUsage {
+export interface ClaudeUsage {
   input_tokens?: number;
   output_tokens?: number;
   cache_read_input_tokens?: number;
   cache_creation_input_tokens?: number;
 }
 
-interface ClaudeResultEvent {
+export interface ClaudeResultEvent {
   type: 'result';
   subtype?: string;
   is_error?: boolean;
@@ -46,12 +46,37 @@ interface ClaudeResultEvent {
   usage?: ClaudeUsage;
 }
 
-interface ClaudeStreamEvent {
+export interface ClaudeStreamEvent {
   type?: string;
-  message?: { content?: unknown };
+  message?: { id?: string; content?: unknown };
+  /** The raw API event of a `stream_event` (only with `--include-partial-messages`). */
+  event?: { type?: string; index?: number; message?: { id?: string }; content_block?: unknown; delta?: unknown };
 }
 
-function buildStdinMessage({ prompt }: { prompt: CliPrompt }): string {
+/** The stream-json flags every Claude run starts with. */
+export const CLAUDE_STREAM_ARGS: readonly string[] = [
+  '-p',
+  '--input-format',
+  'stream-json',
+  '--output-format',
+  'stream-json',
+  '--verbose',
+];
+
+/**
+ * The tool hardening of every Claude run, feature or chat: no built-in tools, no settings files, only
+ * the MCP servers the run names, nothing kept on disk. Chat mode adds its one MCP server on top.
+ */
+export const CLAUDE_HARDENING_ARGS: readonly string[] = [
+  '--tools',
+  '',
+  '--setting-sources',
+  '',
+  '--strict-mcp-config',
+  '--no-session-persistence',
+];
+
+export function buildClaudeStdinMessage({ prompt }: { prompt: CliPrompt }): string {
   const content = prompt.parts.map((part) =>
     part.type === 'text'
       ? { type: 'text', text: part.text }
@@ -71,22 +96,12 @@ function buildClaudeArgs({
   schema: JSONSchema7 | undefined;
 }): string[] {
   const args = [
-    '-p',
-    '--input-format',
-    'stream-json',
-    '--output-format',
-    'stream-json',
-    '--verbose',
+    ...CLAUDE_STREAM_ARGS,
     '--model',
     model,
     '--system-prompt',
     system || DEFAULT_SYSTEM_PROMPT,
-    '--tools',
-    '',
-    '--setting-sources',
-    '',
-    '--strict-mcp-config',
-    '--no-session-persistence',
+    ...CLAUDE_HARDENING_ARGS,
     '--max-turns',
     MAX_TURNS,
   ];
@@ -96,39 +111,65 @@ function buildClaudeArgs({
   return args;
 }
 
+/** A `tool_use` block the model tried to use. `type` is the block's own type (`tool_use`, `server_tool_use`, ...). */
+type ClaudeToolBlock = { type?: unknown; name?: unknown };
+
 /**
  * Fails closed on tools: with `--tools ""` the model has none, so any `tool_use` block means the
- * hardening did not hold. The one exception is the CLI's own `StructuredOutput` call on a run that
- * passed `--json-schema`, once; it executes nothing and the answer is read from the `result` event.
+ * hardening did not hold. `isAllowedTool` names the exceptions (a chat run's own MCP server); a feature
+ * run has none. The CLI's own `StructuredOutput` call is the other exception, and only when
+ * `structuredOutput` is `'once'` (a run that passed `--json-schema`): it executes nothing and the
+ * answer is read from the `result` event. In `'never'` mode it is blocked like any other tool.
  */
-function createToolGuard({ hasSchema }: { hasSchema: boolean }) {
+export function createToolGuard({
+  isAllowedTool,
+  structuredOutput,
+}: {
+  isAllowedTool: (params: { name: string; type: string }) => boolean;
+  structuredOutput: 'once' | 'never';
+}) {
   let structuredOutputCalls = 0;
 
-  return ({ event }: { event: ClaudeStreamEvent }) => {
-    if (event.type !== 'assistant' || !Array.isArray(event.message?.content)) return;
+  const inspect = ({ block, countStructuredOutput }: { block: ClaudeToolBlock; countStructuredOutput: boolean }) => {
+    if (typeof block?.type !== 'string' || !block.type.endsWith('tool_use')) return;
 
-    for (const block of event.message.content as { type?: unknown; name?: unknown }[]) {
-      if (typeof block?.type !== 'string' || !block.type.endsWith('tool_use')) continue;
+    const name = typeof block.name === 'string' ? block.name : 'unknown';
 
-      const name = typeof block.name === 'string' ? block.name : 'unknown';
+    if (name === STRUCTURED_OUTPUT_TOOL && structuredOutput === 'once' && block.type === 'tool_use') {
+      if (!countStructuredOutput) return;
 
-      if (name === STRUCTURED_OUTPUT_TOOL && hasSchema && block.type === 'tool_use') {
-        structuredOutputCalls += 1;
+      structuredOutputCalls += 1;
 
-        if (structuredOutputCalls > 1) {
-          throw createToolUseBlockedError({ provider: PROVIDER, detail: `${STRUCTURED_OUTPUT_TOOL} called twice` });
-        }
-
-        continue;
+      if (structuredOutputCalls > 1) {
+        throw createToolUseBlockedError({ provider: PROVIDER, detail: `${STRUCTURED_OUTPUT_TOOL} called twice` });
       }
 
-      throw createToolUseBlockedError({
-        provider: PROVIDER,
-        detail: name === STRUCTURED_OUTPUT_TOOL ? `${STRUCTURED_OUTPUT_TOOL} without a schema` : name,
-      });
+      return;
+    }
+
+    if (name !== STRUCTURED_OUTPUT_TOOL && isAllowedTool({ name, type: block.type })) return;
+
+    throw createToolUseBlockedError({
+      provider: PROVIDER,
+      detail: name === STRUCTURED_OUTPUT_TOOL ? `${STRUCTURED_OUTPUT_TOOL} without a schema` : name,
+    });
+  };
+
+  return ({ event }: { event: ClaudeStreamEvent }) => {
+    if (event.type === 'assistant' && Array.isArray(event.message?.content)) {
+      for (const block of event.message.content as ClaudeToolBlock[]) {
+        inspect({ block, countStructuredOutput: true });
+      }
+    }
+
+    // A streamed block is seen when it opens, before the message that holds it is complete.
+    if (event.type === 'stream_event' && event.event?.type === 'content_block_start') {
+      inspect({ block: event.event.content_block as ClaudeToolBlock, countStructuredOutput: false });
     }
   };
 }
+
+const DENY_ALL_TOOLS = () => false;
 
 function resultErrorText({ event }: { event: ClaudeResultEvent }): string {
   if (typeof event.result === 'string' && event.result) return event.result;
@@ -140,7 +181,7 @@ function resultErrorText({ event }: { event: ClaudeResultEvent }): string {
   return '';
 }
 
-function toUsage({ usage }: { usage: ClaudeUsage | undefined }) {
+export function toUsage({ usage }: { usage: ClaudeUsage | undefined }) {
   const input = asCount(usage?.input_tokens);
   const cacheRead = asCount(usage?.cache_read_input_tokens);
   const cacheWrite = asCount(usage?.cache_creation_input_tokens);
@@ -178,7 +219,10 @@ async function runClaude({
       await mkdir(home, { mode: 0o700 });
       await mkdir(cwd, { mode: 0o700 });
 
-      const guardTools = createToolGuard({ hasSchema: Boolean(schema) });
+      const guardTools = createToolGuard({
+        isAllowedTool: DENY_ALL_TOOLS,
+        structuredOutput: schema ? 'once' : 'never',
+      });
       const seen: { result: ClaudeResultEvent | null } = { result: null };
 
       const processResult = await runCliProcess({
@@ -187,7 +231,7 @@ async function runClaude({
         args: buildClaudeArgs({ model, system: prompt.system, schema }),
         env: buildClaudeEnv({ token: credential, home }),
         cwd,
-        stdin: buildStdinMessage({ prompt }),
+        stdin: buildClaudeStdinMessage({ prompt }),
         signal,
         onStdoutLine: ({ line }) => {
           let event: (ClaudeStreamEvent & Partial<ClaudeResultEvent>) | null;
@@ -219,15 +263,11 @@ async function runClaude({
   });
 }
 
-function toGenerateResult({
-  event,
-  schema,
-  model,
-}: {
-  event: ClaudeResultEvent;
-  schema: JSONSchema7 | undefined;
-  model: string;
-}): LanguageModelV3GenerateResult {
+/**
+ * Throws the mapped failure when a `result` event reports one. Running out of turns is not a failure:
+ * the answer so far stands, and the caller reads `hitMaxTurns`.
+ */
+export function assertClaudeResultSucceeded({ event }: { event: ClaudeResultEvent }): { hitMaxTurns: boolean } {
   const hitMaxTurns = event.subtype === 'error_max_turns';
 
   if (!hitMaxTurns && (event.is_error === true || (event.subtype && event.subtype !== 'success'))) {
@@ -237,6 +277,20 @@ function toGenerateResult({
       apiErrorStatus: event.api_error_status,
     });
   }
+
+  return { hitMaxTurns };
+}
+
+function toGenerateResult({
+  event,
+  schema,
+  model,
+}: {
+  event: ClaudeResultEvent;
+  schema: JSONSchema7 | undefined;
+  model: string;
+}): LanguageModelV3GenerateResult {
+  const { hitMaxTurns } = assertClaudeResultSucceeded({ event });
 
   let text: string;
 
@@ -288,7 +342,7 @@ export function createClaudeCodeLanguageModel({
       timeoutMs: runOptions?.timeoutMs ?? getFeatureRunTimeoutMs(),
       maxWaitMs: runOptions?.maxWaitMs,
       beforeRelease: runOptions?.beforeRelease,
-      run: ({ credential, signal }) => runClaude({ model, credential, prompt, schema, signal }),
+      run: ({ credential, signal }) => runClaude({ model, credential: credential!, prompt, schema, signal }),
     });
   };
 

@@ -7,11 +7,15 @@ import * as Transactions from '@models/transactions.model';
 import { calculateRefAmount } from '@services/calculate-ref-amount.service';
 import { withTransaction } from '@services/common/with-transaction';
 
+import { settleNearestOpenPeriod } from './settle-period-on-match';
 import { stampSubscriptionPayeeAndTags } from './stamp-payee-and-tags';
 
 interface MatchTransactionParams {
   transaction: Transactions.default;
+  /** The row's author, as on create: the subscriptions looked up and the writes made are theirs. */
   userId: number;
+  /** Link and settle, but leave the row's category as it is: the user just set it. */
+  preserveCategory?: boolean;
 }
 
 interface EvaluateRuleParams {
@@ -26,7 +30,7 @@ interface EvaluateRuleParams {
  * links the best match. Returns the matched subscription or null.
  */
 export const matchTransactionToSubscriptions = withTransaction(
-  async ({ transaction, userId }: MatchTransactionParams): Promise<Subscriptions | null> => {
+  async ({ transaction, userId, preserveCategory = false }: MatchTransactionParams): Promise<Subscriptions | null> => {
     // Check if already linked (active) or previously unlinked (don't re-match)
     const existingLink = await SubscriptionTransactions.findOne({
       where: { transactionId: transaction.id },
@@ -95,7 +99,7 @@ export const matchTransactionToSubscriptions = withTransaction(
     }
 
     // Apply category if subscription has one
-    if (best.subscription.categoryId) {
+    if (best.subscription.categoryId && !preserveCategory) {
       await Transactions.updateTransactionById({
         id: transaction.id,
         userId,
@@ -109,6 +113,15 @@ export const matchTransactionToSubscriptions = withTransaction(
     }
 
     await stampSubscriptionPayeeAndTags({ subscription: best.subscription, transactionIds: [transaction.id] });
+
+    // The link alone leaves a scheduled subscription's period looking unpaid or overdue, so
+    // settle the open period this payment belongs to.
+    await settleNearestOpenPeriod({
+      subscription: best.subscription,
+      transactionId: transaction.id,
+      transactionTime: transaction.time,
+      userId,
+    });
 
     logger.info(
       `Subscription "${best.subscription.name}" matched transaction ${transaction.id} (score: ${best.score.toFixed(3)}, candidates: ${candidates.length})`,

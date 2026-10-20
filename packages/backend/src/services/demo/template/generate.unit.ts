@@ -92,7 +92,7 @@ describe('generateDemoTemplate', () => {
       }
     });
 
-    it('allocates the parent amount exactly, so no part of the receipt escapes budgets', () => {
+    it('allocates the parent amount exactly, so no part of the receipt escapes trackers', () => {
       const totalByRef = new Map<string, number>();
       for (const split of template.splits) {
         totalByRef.set(split.transactionRef, (totalByRef.get(split.transactionRef) ?? 0) + split.amount);

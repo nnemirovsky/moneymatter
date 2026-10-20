@@ -30,9 +30,9 @@ export const bulkCreate = withTransaction(
  *     (`family-sharing-categories.md`). Owned accounts behave like the no-arg path.
  *  2. `includeAccessible: true` — return the union of the caller's categories, every
  *     category belonging to owners of accounts the caller has read access to, and the
- *     specific categories referenced by transactions in budgets shared with (or by) the
- *     caller. Budget shares contribute only their referenced categories — never the
- *     counterparty's whole tree — so shared-budget tx names resolve without disclosing
+ *     specific categories referenced by transactions in trackers shared with (or by) the
+ *     caller. Tracker shares contribute only their referenced categories — never the
+ *     counterparty's whole tree — so shared-tracker tx names resolve without disclosing
  *     unrelated category names. Used by read-only display paths (transaction lists,
  *     dashboard widgets) so a single fetch populates the global lookup map for both own
  *     and shared txs, sparing each shared tx a per-owner round-trip to render its name.
@@ -62,8 +62,8 @@ export const getCategories = withTransaction(
       const scopedUserId = access.isOwner ? userId : access.ownerUserId!;
       categories = await Categories.getCategories({ userId: scopedUserId });
     } else if (includeAccessible) {
-      const { ownerUserIds, budgetCategoryIds } = await getAccessibleCategoryCatalogScope({ userId });
-      categories = await Categories.getAccessibleCategories({ userIds: ownerUserIds, categoryIds: budgetCategoryIds });
+      const { ownerUserIds, trackerCategoryIds } = await getAccessibleCategoryCatalogScope({ userId });
+      categories = await Categories.getAccessibleCategories({ userIds: ownerUserIds, categoryIds: trackerCategoryIds });
     } else {
       categories = await Categories.getCategories({ userId });
     }

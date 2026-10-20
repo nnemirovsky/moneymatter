@@ -1,7 +1,10 @@
 import { isPerfDebugEnabled, perfDebugMiddleware } from '@common/lib/perf/perf-debug';
+import { resolveTrustedProxies, TRUSTED_PROXIES_ENV } from '@config/trusted-proxies';
 import { logger } from '@js/utils/logger';
+import { setClientIpHeaderMiddleware } from '@middlewares/client-ip-header';
 import { requestIdMiddleware } from '@middlewares/request-id';
 import { sessionMiddleware } from '@middlewares/session-id';
+import { stripCloudflareAccessCookiesMiddleware } from '@middlewares/strip-cloudflare-access-cookies';
 import { MS_MONEY_FULL_PATHS } from '@routes/import-export/ms-money-paths';
 import { OFX_FULL_PATHS } from '@routes/import-export/ofx-paths';
 import cors from 'cors';
@@ -15,12 +18,16 @@ export function setupMiddleware(app: Express) {
   // Drop the default `X-Powered-By: Express` info-disclosure header.
   app.disable('x-powered-by');
 
-  // `req.ip` keys the per-IP rate limits. Behind nginx or Traefik the socket peer is the proxy, so
-  // Express has to read X-Forwarded-For. Trusting private ranges only means the first public
-  // address from the right wins, which a client cannot forge.
-  app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
+  // `req.ip` keys the per-IP rate limits and the address stored on auth sessions. Trusting private ranges
+  // only (the default) means the first public address from the right wins, which a client cannot forge.
+  app.set('trust proxy', resolveTrustedProxies({ raw: process.env[TRUSTED_PROXIES_ENV] }));
 
   app.use(requestIdMiddleware);
+
+  app.use(setClientIpHeaderMiddleware);
+
+  // Must run before the auth routes, including the register patch, which treats any cookie as a session.
+  app.use(stripCloudflareAccessCookiesMiddleware);
 
   // Opt-in (PERF_DEBUG=true): tag responses with per-request query count + timing.
   if (isPerfDebugEnabled) {

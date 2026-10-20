@@ -9,6 +9,7 @@ import {
 import { generateRandomRecordId } from '@common/lib/record-id-helpers';
 import { describe, expect, it } from '@jest/globals';
 import * as helpers from '@tests/helpers';
+import { addDays } from 'date-fns';
 
 /**
  * CRIT9 — GET /transactions/:id — 4-branch coverage for getTransactionById service.
@@ -216,7 +217,7 @@ describe('GET /transactions/:id — getTransactionById 4-branch coverage', () =>
 describe('GET /transactions/:id — canEdit flag', () => {
   // The single-tx endpoint surfaces `canEdit` from the already-resolved access result —
   // no extra DB cost. The FE uses it as the authoritative write-access signal when the
-  // parent account isn't in its local store (typically a budget-share-only fetch).
+  // parent account isn't in its local store (typically a tracker-share-only fetch).
   it("'own'-scope recipient gets canEdit: false on owner's tx, true on their own", async () => {
     const account = await helpers.createAccount({ raw: true });
     const [ownerTx] = await helpers.createTransaction({
@@ -254,48 +255,27 @@ describe('GET /transactions/:id — canEdit flag', () => {
   });
 });
 
-describe('GET /transactions/:id — budget-share visibility fallback', () => {
-  // Detail endpoint must match list visibility: a budget-share recipient sees owner-
-  // attached rows in the budget list, so the detail lookup for the same id should also
+describe('GET /transactions/:id — tracker-share visibility fallback', () => {
+  // Detail endpoint must match list visibility: a tracker-share recipient sees owner-
+  // attached rows in the tracker list, so the detail lookup for the same id should also
   // return the row (with `canEdit: false`). Otherwise the FE edit-dialog's lazy probe
   // reads a null detail response as "unknown" and unlocks the form.
-  async function shareBudgetWithRecipient({
-    budgetId,
-    recipient,
-    permission,
-  }: {
-    budgetId: string;
-    recipient: helpers.SecondUserHandle;
-    permission: (typeof SHARE_PERMISSIONS)[keyof typeof SHARE_PERMISSIONS];
-  }) {
-    const invitation = await helpers.createShareInvitation({
-      inviteeEmail: recipient.email,
-      resourceType: RESOURCE_TYPES.budget,
-      resourceId: budgetId,
-      permission,
-      raw: true,
-    });
-    await helpers.asUser({
-      cookies: recipient.cookies,
-      fn: () => helpers.acceptShareInvitation({ token: invitation.token, raw: true }),
-    });
-  }
 
-  it('budget-share recipient fetches owner-tx in the budget → tx returned with canEdit: false', async () => {
+  it('tracker-share recipient fetches owner-tx in the tracker → tx returned with canEdit: false', async () => {
     const account = await helpers.createAccount({ raw: true });
     const [ownerTx] = await helpers.createTransaction({
       payload: helpers.buildTransactionPayload({ accountId: account.id, amount: 42 }),
       raw: true,
     });
-    const budget = await helpers.createCustomBudget({ name: 'budget-visibility', raw: true });
-    await helpers.addTransactionToCustomBudget({
-      id: budget.id,
+    const tracker = await helpers.createTracker({ name: 'tracker-visibility', raw: true });
+    await helpers.addTransactionsToTracker({
+      id: tracker.id,
       payload: { transactionIds: [ownerTx!.id] },
       raw: true,
     });
     const recipient = await provisionRecipient();
-    await shareBudgetWithRecipient({
-      budgetId: budget.id,
+    await helpers.shareTrackerWith({
+      trackerId: tracker.id,
       recipient,
       permission: SHARE_PERMISSIONS.manage,
     });
@@ -310,19 +290,19 @@ describe('GET /transactions/:id — budget-share visibility fallback', () => {
     expect(result!.canEdit).toBe(false);
   });
 
-  it('non-recipient still gets null when tx is not in any budget they can see', async () => {
+  it('non-recipient still gets null when tx is not in any tracker they can see', async () => {
     const account = await helpers.createAccount({ raw: true });
     const [ownerTx] = await helpers.createTransaction({
       payload: helpers.buildTransactionPayload({ accountId: account.id, amount: 42 }),
       raw: true,
     });
-    const budget = await helpers.createCustomBudget({ name: 'private-budget', raw: true });
-    await helpers.addTransactionToCustomBudget({
-      id: budget.id,
+    const tracker = await helpers.createTracker({ name: 'private-tracker', raw: true });
+    await helpers.addTransactionsToTracker({
+      id: tracker.id,
       payload: { transactionIds: [ownerTx!.id] },
       raw: true,
     });
-    // Stranger has no budget share + no account share — fallback must stay null.
+    // Stranger has no tracker share + no account share — fallback must stay null.
     const stranger = await provisionRecipient();
 
     const res = await helpers.asUser({
@@ -335,7 +315,7 @@ describe('GET /transactions/:id — budget-share visibility fallback', () => {
     expect((res as any).body.response).toBeNull();
   });
 
-  it('budget-share recipient still 403s on PUT /transactions/:id for the same tx', async () => {
+  it('tracker-share recipient still 403s on PUT /transactions/:id for the same tx', async () => {
     // Detail endpoint widening must NOT change write semantics — recipient can read,
     // not write. This is the original bug; lock it down.
     const account = await helpers.createAccount({ raw: true });
@@ -343,15 +323,15 @@ describe('GET /transactions/:id — budget-share visibility fallback', () => {
       payload: helpers.buildTransactionPayload({ accountId: account.id, amount: 42 }),
       raw: true,
     });
-    const budget = await helpers.createCustomBudget({ name: 'budget-write-block', raw: true });
-    await helpers.addTransactionToCustomBudget({
-      id: budget.id,
+    const tracker = await helpers.createTracker({ name: 'tracker-write-block', raw: true });
+    await helpers.addTransactionsToTracker({
+      id: tracker.id,
       payload: { transactionIds: [ownerTx!.id] },
       raw: true,
     });
     const recipient = await provisionRecipient();
-    await shareBudgetWithRecipient({
-      budgetId: budget.id,
+    await helpers.shareTrackerWith({
+      trackerId: tracker.id,
       recipient,
       permission: SHARE_PERMISSIONS.manage,
     });
@@ -419,6 +399,99 @@ describe('GET /transactions/by-ids', () => {
 
     expect(missing.statusCode).toBe(422);
     expect(missing.body.status).toBe(API_RESPONSE_STATUS.error);
+  });
+});
+
+describe('GET /transactions/by-ids — access follows the current share, not the row author', () => {
+  it('returns the owner-authored transactions of a shared account to the read-only viewer', async () => {
+    const account = await helpers.createAccount({ raw: true });
+    const [ownerTx] = await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({ accountId: account.id, amount: 70 }),
+      raw: true,
+    });
+    const privateAccount = await helpers.createAccount({ raw: true });
+    const [privateTx] = await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({ accountId: privateAccount.id, amount: 80 }),
+      raw: true,
+    });
+
+    const recipient = await provisionRecipient();
+    await shareAccountWithRecipient({ accountId: account.id, recipient, permission: SHARE_PERMISSIONS.read });
+
+    const viewed = await helpers.asUser({
+      cookies: recipient.cookies,
+      fn: () => helpers.getTransactionsByIds({ ids: [ownerTx.id, privateTx.id], raw: true }),
+    });
+
+    expect(viewed.map((tx) => tx.id)).toEqual([ownerTx.id]);
+    expect(viewed[0]!.amount).toBe(70);
+  });
+
+  it("hides the owner's planned transactions from the share recipient but not from the owner", async () => {
+    const account = await helpers.createAccount({ raw: true });
+    const [plannedTx] = await helpers.createPlannedTransaction({
+      payload: { accountId: account.id, amount: 40, time: addDays(new Date(), 5).toISOString() },
+      raw: true,
+    });
+
+    const recipient = await provisionRecipient();
+    await shareAccountWithRecipient({ accountId: account.id, recipient, permission: SHARE_PERMISSIONS.read });
+
+    const viewed = await helpers.asUser({
+      cookies: recipient.cookies,
+      fn: () => helpers.getTransactionsByIds({ ids: [plannedTx.id], raw: true }),
+    });
+    expect(viewed).toEqual([]);
+
+    const ownerView = await helpers.getTransactionsByIds({ ids: [plannedTx.id], raw: true });
+    expect(ownerView.map((tx) => tx.id)).toEqual([plannedTx.id]);
+  });
+
+  it('stops returning a transaction the recipient authored once the owner revokes the share', async () => {
+    const account = await helpers.createAccount({ raw: true });
+    const ownerCategory = await helpers.addCustomCategory({ name: 'by-ids-cat', color: '#00AA00', raw: true });
+    const recipient = await provisionRecipient();
+    await shareAccountWithRecipient({
+      accountId: account.id,
+      recipient,
+      permission: SHARE_PERMISSIONS.write,
+      transactionsWriteScope: TRANSACTIONS_WRITE_SCOPES.all,
+    });
+    const [recipientTx] = await helpers.asUser({
+      cookies: recipient.cookies,
+      fn: () =>
+        helpers.createTransaction({
+          payload: helpers.buildTransactionPayload({
+            accountId: account.id,
+            amount: 25,
+            categoryId: ownerCategory.id,
+          }),
+          raw: true,
+        }),
+    });
+
+    const whileShared = await helpers.asUser({
+      cookies: recipient.cookies,
+      fn: () => helpers.getTransactionsByIds({ ids: [recipientTx.id], raw: true }),
+    });
+    expect(whileShared.map((tx) => tx.id)).toEqual([recipientTx.id]);
+
+    const recipientApp = await helpers.findAppUserByEmail({ email: recipient.email });
+    await helpers.revokeShareMember({
+      resourceType: RESOURCE_TYPES.account,
+      resourceId: account.id,
+      memberUserId: recipientApp.id,
+      raw: true,
+    });
+
+    const afterRevoke = await helpers.asUser({
+      cookies: recipient.cookies,
+      fn: () => helpers.getTransactionsByIds({ ids: [recipientTx.id], raw: true }),
+    });
+    expect(afterRevoke).toEqual([]);
+
+    const ownerView = await helpers.getTransactionsByIds({ ids: [recipientTx.id], raw: true });
+    expect(ownerView.map((tx) => tx.id)).toEqual([recipientTx.id]);
   });
 });
 

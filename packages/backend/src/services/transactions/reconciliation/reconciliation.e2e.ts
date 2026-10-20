@@ -119,8 +119,8 @@ async function setupEnableBanking({
   return { connectionId, accountId, accountIds: syncedAccounts.map((a) => a.id as RecordId), byAmount };
 }
 
-const budgetTxIds = async ({ budgetId }: { budgetId: RecordId }) =>
-  (await helpers.getTransactions({ budgetIds: [budgetId], raw: true })).map((tx) => tx.id);
+const trackerTxIds = async ({ trackerId }: { trackerId: RecordId }) =>
+  (await helpers.getTransactions({ trackerIds: [trackerId], raw: true })).map((tx) => tx.id);
 
 const groupTxIds = async ({ groupId }: { groupId: RecordId }) =>
   ((await helpers.getTransactionGroupById({ id: groupId, raw: true })).transactions ?? [])
@@ -130,10 +130,10 @@ const groupTxIds = async ({ groupId }: { groupId: RecordId }) =>
 const subscriptionTxIds = async ({ subscriptionId }: { subscriptionId: RecordId }) =>
   (await helpers.getSubscriptionById({ id: subscriptionId, raw: true })).transactions.map((tx) => tx.id);
 
-const createBudget = async ({ name, transactionIds }: { name: string; transactionIds: RecordId[] }) => {
-  const budget = await helpers.createCustomBudget({ name, autoInclude: false, raw: true });
-  await helpers.addTransactionToCustomBudget({ id: budget.id, payload: { transactionIds } });
-  return budget.id as RecordId;
+const createTracker = async ({ name, transactionIds }: { name: string; transactionIds: RecordId[] }) => {
+  const tracker = await helpers.createTracker({ name, autoInclude: false, raw: true });
+  await helpers.addTransactionsToTracker({ id: tracker.id, payload: { transactionIds } });
+  return tracker.id as RecordId;
 };
 
 const createGroup = async ({ transactionIds }: { transactionIds: RecordId[] }) =>
@@ -235,12 +235,12 @@ describe('Transactions reconciliation', () => {
       expect(after.filter((tx) => tx.originalId === 'mono-reconcile-2')).toHaveLength(keptCount);
     });
 
-    it('detaches budget, group and subscription links, and restore does not bring them back', async () => {
+    it('detaches tracker, group and subscription links, and restore does not bring them back', async () => {
       const fixed = [booked({ ref: 'r1', amount: '10.00' }), booked({ ref: 'r2', amount: '20.00' })];
       const { byAmount } = await setupEnableBanking({ transactions: fixed });
       const target = byAmount({ amount: 10 });
 
-      const budgetId = await createBudget({ name: 'Trip', transactionIds: [target.id] });
+      const trackerId = await createTracker({ name: 'Trip', transactionIds: [target.id] });
       const groupId = await createGroup({ transactionIds: [target.id, byAmount({ amount: 20 }).id] });
       const subscriptionId = await createSubscription({ name: 'Gym', transactionIds: [target.id] });
 
@@ -251,7 +251,7 @@ describe('Transactions reconciliation', () => {
 
       await helpers.reconciliationRestore({ transactionIds: [target.id], raw: true });
 
-      expect(await budgetTxIds({ budgetId })).toEqual([]);
+      expect(await trackerTxIds({ trackerId })).toEqual([]);
       expect(await subscriptionTxIds({ subscriptionId })).toEqual([]);
     });
 
@@ -392,7 +392,7 @@ describe('Transactions reconciliation', () => {
       const { byAmount } = await setupEnableBanking({ transactions: fixed });
       const [survivor, removed, other] = [byAmount({ amount: 10 }), byAmount({ amount: 11 }), byAmount({ amount: 12 })];
 
-      const budgetId = await createBudget({ name: 'Trip', transactionIds: [removed.id] });
+      const trackerId = await createTracker({ name: 'Trip', transactionIds: [removed.id] });
       const groupId = await createGroup({ transactionIds: [removed.id, other.id] });
       const subscriptionId = await createSubscription({ name: 'Gym', transactionIds: [removed.id] });
 
@@ -402,7 +402,7 @@ describe('Transactions reconciliation', () => {
         raw: true,
       });
 
-      expect(await budgetTxIds({ budgetId })).toEqual([survivor.id]);
+      expect(await trackerTxIds({ trackerId })).toEqual([survivor.id]);
       expect(await groupTxIds({ groupId })).toEqual([survivor.id, other.id].toSorted());
       expect(await subscriptionTxIds({ subscriptionId })).toEqual([survivor.id]);
     });
@@ -416,7 +416,7 @@ describe('Transactions reconciliation', () => {
       const { byAmount } = await setupEnableBanking({ transactions: fixed });
       const [survivor, removed, other] = [byAmount({ amount: 10 }), byAmount({ amount: 11 }), byAmount({ amount: 12 })];
 
-      const budgetId = await createBudget({ name: 'Trip', transactionIds: [survivor.id, removed.id] });
+      const trackerId = await createTracker({ name: 'Trip', transactionIds: [survivor.id, removed.id] });
       const groupId = await createGroup({ transactionIds: [survivor.id, removed.id, other.id] });
       const subscriptionId = await createSubscription({ name: 'Gym', transactionIds: [survivor.id, removed.id] });
 
@@ -426,7 +426,7 @@ describe('Transactions reconciliation', () => {
         raw: true,
       });
 
-      expect(await budgetTxIds({ budgetId })).toEqual([survivor.id]);
+      expect(await trackerTxIds({ trackerId })).toEqual([survivor.id]);
       expect(await groupTxIds({ groupId })).toEqual([survivor.id, other.id].toSorted());
       expect(await subscriptionTxIds({ subscriptionId })).toEqual([survivor.id]);
     });
@@ -436,8 +436,8 @@ describe('Transactions reconciliation', () => {
       const { accountId, byAmount } = await setupEnableBanking({ transactions: fixed });
       const t = ({ n }: { n: number }) => byAmount({ amount: n * 10 }).id;
 
-      await createBudget({ name: 'B1', transactionIds: [t({ n: 1 })] });
-      await createBudget({ name: 'B2', transactionIds: [t({ n: 2 })] });
+      await createTracker({ name: 'B1', transactionIds: [t({ n: 1 })] });
+      await createTracker({ name: 'B2', transactionIds: [t({ n: 2 })] });
       await createGroup({ transactionIds: [t({ n: 3 }), t({ n: 5 })] });
       await createGroup({ transactionIds: [t({ n: 4 }), t({ n: 6 })] });
       await createSubscription({ name: 'S1', transactionIds: [t({ n: 7 })] });
@@ -456,7 +456,7 @@ describe('Transactions reconciliation', () => {
       expect(await listIds({ accountId })).toHaveLength(8);
     });
 
-    it('adds the survivor to every budget of the removed rows', async () => {
+    it('adds the survivor to every tracker of the removed rows', async () => {
       const fixed = [
         booked({ ref: 'r1', amount: '10.00' }),
         booked({ ref: 'r2', amount: '11.00' }),
@@ -464,8 +464,8 @@ describe('Transactions reconciliation', () => {
       ];
       const { byAmount } = await setupEnableBanking({ transactions: fixed });
       const [survivor, a, b] = [byAmount({ amount: 10 }), byAmount({ amount: 11 }), byAmount({ amount: 12 })];
-      const budgetA = await createBudget({ name: 'A', transactionIds: [a.id] });
-      const budgetB = await createBudget({ name: 'B', transactionIds: [b.id] });
+      const trackerA = await createTracker({ name: 'A', transactionIds: [a.id] });
+      const trackerB = await createTracker({ name: 'B', transactionIds: [b.id] });
 
       await helpers.reconciliationMerge({
         transactionIds: [survivor.id, a.id, b.id],
@@ -473,8 +473,8 @@ describe('Transactions reconciliation', () => {
         raw: true,
       });
 
-      expect(await budgetTxIds({ budgetId: budgetA })).toEqual([survivor.id]);
-      expect(await budgetTxIds({ budgetId: budgetB })).toEqual([survivor.id]);
+      expect(await trackerTxIds({ trackerId: trackerA })).toEqual([survivor.id]);
+      expect(await trackerTxIds({ trackerId: trackerB })).toEqual([survivor.id]);
     });
 
     it('moves an active subscription link onto a survivor that was unlinked from that subscription', async () => {

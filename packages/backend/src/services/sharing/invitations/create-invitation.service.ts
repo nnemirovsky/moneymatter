@@ -13,8 +13,8 @@ import {
 import { ConflictError, NotFoundError, ValidationError } from '@js/errors';
 import { logger } from '@js/utils/logger';
 import Accounts from '@models/accounts.model';
-import Budgets from '@models/budget.model';
 import ShareInvitations from '@models/share-invitations.model';
+import Trackers from '@models/trackers.model';
 import { getBaseCurrency } from '@models/users-currencies.model';
 import Users from '@models/users.model';
 import { withTransaction } from '@services/common/with-transaction';
@@ -77,26 +77,28 @@ const resolveOwnedResource = async ({
       resourceName: account.name,
     };
   }
-  if (resourceType === RESOURCE_TYPES.budget) {
-    const budget = await Budgets.findOne({ where: { id: resourceId } });
-    if (!budget) {
+  if (resourceType === RESOURCE_TYPES.tracker) {
+    const tracker = await Trackers.findOne({ where: { id: resourceId } });
+    if (!tracker) {
       throw new NotFoundError({ message: 'Tracker not found' });
     }
-    if (budget.userId !== ownerUserId) {
+    if (tracker.userId !== ownerUserId) {
       // Don't leak existence — anyone other than the owner sees a 404.
       throw new NotFoundError({ message: 'Tracker not found' });
     }
-    // Budgets are denominated in the owner's base currency (limitAmount + spending
-    // stats), not a per-budget currency. Recipient base currency is locked against
+    // Trackers are denominated in the owner's base currency (limitAmount + spending
+    // stats), not a per-tracker currency. Recipient base currency is locked against
     // this at accept-time.
     const ownerBaseCurrency = await getBaseCurrency({ userId: ownerUserId });
     if (!ownerBaseCurrency) {
-      throw new ValidationError({ message: 'Set your base currency before sharing a budget.' });
+      throw new ValidationError({
+        message: 'Set your base currency before sharing a tracker.',
+      });
     }
     return {
-      ownerUserId: budget.userId,
+      ownerUserId: tracker.userId,
       ownerCurrencyCode: ownerBaseCurrency.currencyCode,
-      resourceName: budget.name,
+      resourceName: tracker.name,
     };
   }
   if (resourceType === RESOURCE_TYPES.household) {
@@ -105,7 +107,9 @@ const resolveOwnedResource = async ({
     // else is a client bug or a cross-household attempt.
     const numericResourceId = toPositiveInt(resourceId);
     if (numericResourceId === null || numericResourceId !== ownerUserId) {
-      throw new ValidationError({ message: 'A household invitation must target your own household.' });
+      throw new ValidationError({
+        message: 'A household invitation must target your own household.',
+      });
     }
     const ownerUser = await Users.findByPk(ownerUserId);
     if (!ownerUser) {
@@ -122,7 +126,9 @@ const resolveOwnedResource = async ({
     }
     const ownerBaseCurrency = await getBaseCurrency({ userId: ownerUserId });
     if (!ownerBaseCurrency) {
-      throw new ValidationError({ message: 'Set your base currency before inviting people to your household.' });
+      throw new ValidationError({
+        message: 'Set your base currency before inviting people to your household.',
+      });
     }
     return {
       ownerUserId,
@@ -131,7 +137,9 @@ const resolveOwnedResource = async ({
     };
   }
   // Defensive — controller-level zod validation already restricts resourceType.
-  throw new ValidationError({ message: `Unsupported resource type: ${resourceType}` });
+  throw new ValidationError({
+    message: `Unsupported resource type: ${resourceType}`,
+  });
 };
 
 const buildCleanPolicy = ({
@@ -146,10 +154,10 @@ const buildCleanPolicy = ({
   if (permission === SHARE_PERMISSIONS.read) {
     return null;
   }
-  // Budgets have no per-tx policy in MVP — `write` here means "attach own transactions",
+  // Trackers have no per-tx policy in MVP — `write` here means "attach own transactions",
   // nothing else. Storing a `transactionsWriteScope` here would leak meaningless data into
   // the row that a future reader could mistake for a real policy. Return null.
-  if (resourceType === RESOURCE_TYPES.budget) {
+  if (resourceType === RESOURCE_TYPES.tracker) {
     return null;
   }
   const scope = policy?.transactionsWriteScope ?? TRANSACTIONS_WRITE_SCOPES.all;
@@ -173,15 +181,26 @@ const createInvitationImpl = async (params: CreateInvitationParams): Promise<Cre
   // Household memberships never grant `manage` — DB CHECK constraints enforce this, but
   // surface a friendly error before the constraint trips.
   if (resourceType === RESOURCE_TYPES.household && permission === SHARE_PERMISSIONS.manage) {
-    throw new ValidationError({ message: 'Household members cannot receive manage permission.' });
+    throw new ValidationError({
+      message: 'Household members cannot receive manage permission.',
+    });
   }
 
   // Owner-side validation only. Anything that would distinguish "registered" from
   // "unregistered" emails is moved to the accept endpoint to avoid user enumeration.
-  const resource = await resolveOwnedResource({ ownerUserId, resourceType, resourceId: resourceIdStr });
+  const resource = await resolveOwnedResource({
+    ownerUserId,
+    resourceType,
+    resourceId: resourceIdStr,
+  });
 
   // Owner-side check, no enumeration leak: it reveals only the owner's own seat usage.
-  await assertSeatAvailable({ ownerUserId, resourceType, resourceId: resourceIdStr, voice: 'owner' });
+  await assertSeatAvailable({
+    ownerUserId,
+    resourceType,
+    resourceId: resourceIdStr,
+    voice: 'owner',
+  });
 
   // Cap on the number of pending invitations per (owner, resource). Test env uses a
   // smaller cap (see SHARING_LIMITS) so the boundary stays cheap to exercise. Dev/prod
@@ -209,10 +228,16 @@ const createInvitationImpl = async (params: CreateInvitationParams): Promise<Cre
   // unresolved-email path stays silent to avoid leaking which addresses are registered.
   const invitee = await findUserByEmail({ email: normalizedEmail });
   if (invitee && invitee.appUser.id === ownerUserId) {
-    throw new ValidationError({ message: 'You cannot share a resource with yourself.' });
+    throw new ValidationError({
+      message: 'You cannot share a resource with yourself.',
+    });
   }
 
-  const policy = buildCleanPolicy({ permission, policy: params.policy, resourceType });
+  const policy = buildCleanPolicy({
+    permission,
+    policy: params.policy,
+    resourceType,
+  });
   const expiresAt = new Date(Date.now() + SHARING_LIMITS.invitationExpirationDays * 24 * 60 * 60 * 1000);
   const token = generateInvitationToken();
 
@@ -349,7 +374,10 @@ export const createInvitation = async (params: CreateInvitationParams): Promise<
     return { invitation: result.invitation, emailOutcome: outcome.status };
   } catch (error) {
     logger.error(
-      { message: '[createInvitation] Post-commit fan-out failed', error: error as Error },
+      {
+        message: '[createInvitation] Post-commit fan-out failed',
+        error: error as Error,
+      },
       {
         code: 'SHARE_INVITATION_POST_COMMIT_FAILED',
         ownerUserId: params.ownerUserId,

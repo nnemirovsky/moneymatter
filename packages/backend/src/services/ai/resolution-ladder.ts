@@ -1,5 +1,6 @@
 import { AIConnectionStatus, AIFeatureConfig, AI_FEATURE, AI_PROVIDER } from '@bt/shared/types';
 import { logger } from '@js/utils/logger';
+import type { StoredAiSettings } from '@models/user-settings.model';
 
 // The one place that decides which model answers an AI feature. The runtime resolver and
 // the settings screens both walk this ladder, so what runs and what the UI names cannot
@@ -7,71 +8,92 @@ import { logger } from '@js/utils/logger';
 
 type ServerProvider = AI_PROVIDER.google | AI_PROVIDER.anthropic;
 
-let anthropicKeySuspendedUntil = 0;
-
-// ponytail: per-process and retried hourly, so a dead key fails one run per instance per hour.
-// Shared store plus a health probe if that matters.
-export const suspendAnthropicServerKey = ({ reason }: { reason: string }): void => {
-  anthropicKeySuspendedUntil = Date.now() + 60 * 60 * 1000;
-  logger.error('Anthropic Plus model suspended: paying Plus users fall back to the shared model for an hour', {
-    reason,
-  });
-};
-
-/**
- * Paying Plus users get their own quota once GEMINI_PLUS_API_KEY is set; everyone else shares
- * GEMINI_API_KEY. Anthropic has no shared key: ANTHROPIC_PLUS_API_KEY serves paying Plus users only.
- */
-export const getServerApiKey = ({
-  provider = AI_PROVIDER.google,
-  paidPlus = false,
-}: { provider?: ServerProvider; paidPlus?: boolean } = {}): string | null =>
-  provider === AI_PROVIDER.anthropic
-    ? (paidPlus && Date.now() >= anthropicKeySuspendedUntil && process.env.ANTHROPIC_PLUS_API_KEY) || null
-    : (paidPlus && process.env.GEMINI_PLUS_API_KEY) || process.env.GEMINI_API_KEY || null;
-
-interface ServerModel {
+export interface ServerModel {
   provider: ServerProvider;
   model: string;
 }
 
-/** The included model per feature, served with the operator's key. */
-export const SERVER_MODELS: Record<AI_FEATURE, ServerModel & { provider: AI_PROVIDER.google }> = {
+/** What every server-served AI call uses while its key works. Swapping providers starts here. */
+export const PRIMARY_SERVER_MODEL = {
+  provider: AI_PROVIDER.anthropic,
+  model: 'claude-haiku-5-5',
+} as const satisfies ServerModel;
+
+let primaryKeySuspendedUntil = 0;
+
+// ponytail: per-process and retried hourly, so a dead key fails one run per instance per hour.
+// Shared store plus a health probe if that matters.
+export const suspendPrimaryServerKey = ({ reason }: { reason: string }): void => {
+  primaryKeySuspendedUntil = Date.now() + 60 * 60 * 1000;
+  logger.error('Primary server model suspended: server-served features fall back to Gemini for an hour', {
+    reason,
+  });
+};
+
+const SERVER_API_KEY_ENV_VARS: Record<ServerProvider, string> = {
+  [AI_PROVIDER.anthropic]: 'ANTHROPIC_API_KEY',
+  [AI_PROVIDER.google]: 'GEMINI_API_KEY',
+};
+
+export const getServerApiKey = ({ provider = AI_PROVIDER.google }: { provider?: ServerProvider } = {}):
+  | string
+  | null => {
+  if (provider === PRIMARY_SERVER_MODEL.provider && Date.now() < primaryKeySuspendedUntil) return null;
+
+  return process.env[SERVER_API_KEY_ENV_VARS[provider]] || null;
+};
+
+/**
+ * The Gemini model per feature, used while the primary model has no usable key. A feature without an entry has
+ * no included model and needs one of the user's own connections (chat is one).
+ */
+export const FALLBACK_SERVER_MODELS: Partial<Record<AI_FEATURE, ServerModel & { provider: AI_PROVIDER.google }>> = {
   [AI_FEATURE.categorization]: { provider: AI_PROVIDER.google, model: 'gemma-4-31b-it' },
   [AI_FEATURE.statementParsing]: { provider: AI_PROVIDER.google, model: 'gemini-3.8-flash' },
   [AI_FEATURE.investmentTransactionsParsing]: { provider: AI_PROVIDER.google, model: 'gemini-3.8-flash' },
   [AI_FEATURE.receiptParsing]: { provider: AI_PROVIDER.google, model: 'gemini-3.5-flash-lite' },
+  [AI_FEATURE.trackerMatching]: { provider: AI_PROVIDER.google, model: 'gemini-3.5-flash-lite' },
 };
 
-/** Replaces the included model for paying Plus users while a key for its provider is usable. */
-export const PLUS_SERVER_MODELS: Partial<Record<AI_FEATURE, ServerModel>> = {
-  [AI_FEATURE.categorization]: { provider: AI_PROVIDER.anthropic, model: 'claude-haiku-5-5' },
-  [AI_FEATURE.statementParsing]: { provider: AI_PROVIDER.anthropic, model: 'claude-haiku-5-5' },
-  [AI_FEATURE.investmentTransactionsParsing]: { provider: AI_PROVIDER.anthropic, model: 'claude-haiku-5-5' },
-  [AI_FEATURE.receiptParsing]: { provider: AI_PROVIDER.anthropic, model: 'claude-haiku-5-5' },
-};
-
-/** The included model for the feature, or null when the user can't use it or no server key backs it. */
+/**
+ * The included model for the feature, or null when the user can't use it or no server key backs it.
+ * Callers fold the AI allowance into `serverKeysAllowed`.
+ */
 export function getServerModel({
   feature,
   serverKeysAllowed,
-  paidPlus,
 }: {
   feature: AI_FEATURE;
   serverKeysAllowed: boolean;
-  paidPlus: boolean;
 }): ServerModel | null {
   if (!serverKeysAllowed) return null;
 
-  const plusModel = PLUS_SERVER_MODELS[feature];
-  if (plusModel && getServerApiKey({ provider: plusModel.provider, paidPlus })) return plusModel;
+  const fallback = FALLBACK_SERVER_MODELS[feature];
+  if (!fallback) return null;
+  if (getServerApiKey({ provider: PRIMARY_SERVER_MODEL.provider })) return PRIMARY_SERVER_MODEL;
 
-  return getServerApiKey() ? SERVER_MODELS[feature] : null;
+  return getServerApiKey() ? fallback : null;
 }
 
 /** `provider/model`, e.g. `anthropic/claude-sonnet-5` or `custom/llama3.2`. */
 export function buildConnectionModelId({ provider, model }: { provider: AI_PROVIDER; model: string }): string {
   return `${provider}/${model}`;
+}
+
+/**
+ * The user's stored pick for a feature. Chat has none: each chat thread carries its own connection, so a
+ * chat config left in the settings by an earlier version is never read.
+ */
+export function findStoredFeatureConfig({
+  aiSettings,
+  feature,
+}: {
+  aiSettings: StoredAiSettings | null;
+  feature: AI_FEATURE;
+}): AIFeatureConfig | null {
+  if (feature === AI_FEATURE.chat) return null;
+
+  return aiSettings?.featureConfigs?.find((candidate) => candidate.feature === feature) ?? null;
 }
 
 export interface LadderConnection {
@@ -81,7 +103,7 @@ export interface LadderConnection {
 
 type ResolutionStep<C extends LadderConnection> =
   /** An explicit pick is dialled even while flagged invalid, so a recovered connection heals itself on the next run. */
-  | { kind: 'configured'; connection: C }
+  | { kind: 'configured'; connection: C; modelId?: string }
   | { kind: 'configured-server'; model: ServerModel }
   /** No usable config: the first connection not flagged invalid answers. */
   | { kind: 'default-connection'; connection: C }
@@ -92,7 +114,7 @@ type ResolutionStep<C extends LadderConnection> =
   | { kind: 'unserved' };
 
 /**
- * Priority order: explicit feature config, then the user's first dialable connection, then
+ * Priority order: explicit feature config (with its model override), then the user's first dialable connection, then
  * the included server model, but only for a user who owns no connections at all. Pure over
  * its inputs plus the server-key env vars and the Anthropic key suspension.
  *
@@ -105,7 +127,6 @@ export function pickResolutionStep<C extends LadderConnection>({
   config,
   connections,
   serverKeysAllowed,
-  paidPlus,
   excludedConnectionIds,
 }: {
   feature: AI_FEATURE;
@@ -114,11 +135,10 @@ export function pickResolutionStep<C extends LadderConnection>({
   connections: readonly C[];
   /** When false the walk behaves as if no server key existed. */
   serverKeysAllowed: boolean;
-  paidPlus: boolean;
   excludedConnectionIds?: ReadonlySet<string>;
 }): ResolutionStep<C> {
   const excluded = excludedConnectionIds ?? new Set<string>();
-  const serverModel = getServerModel({ feature, serverKeysAllowed, paidPlus });
+  const serverModel = getServerModel({ feature, serverKeysAllowed });
 
   if (config) {
     if (config.connectionId === null) {
@@ -127,7 +147,8 @@ export function pickResolutionStep<C extends LadderConnection>({
       const connection = connections.find(
         (candidate) => candidate.id === config.connectionId && !excluded.has(candidate.id),
       );
-      if (connection) return { kind: 'configured', connection };
+      // The override belongs to the picked connection: a fall-through to another one runs on its own model.
+      if (connection) return { kind: 'configured', connection, ...(config.modelId ? { modelId: config.modelId } : {}) };
     }
   }
 

@@ -41,6 +41,28 @@ describe('parseAIResponse', () => {
     });
   });
 
+  describe('metadata currency', () => {
+    const ROW = '2026-10-16 18:32:37,SP STUSSY EUROPE AMSTERDAM NLD,,218.98,E,,90,937.00,PLN,';
+    const currencyOf = ({ metadataLine }: { metadataLine: string }) =>
+      parseAIResponse({ response: [metadataLine, ROW].join('\n') })?.metadata.currencyCode;
+
+    it('finds the currency when an extra field pushed a date into its slot', () => {
+      expect(currencyOf({ metadataLine: ',,,2026-10-16,2026-10-16,EUR' })).toBe('EUR');
+    });
+
+    it('uppercases a lowercase code', () => {
+      expect(currencyOf({ metadataLine: 'Revolut,2112,2026-10-16,2026-10-16,eur' })).toBe('EUR');
+    });
+
+    it.each([
+      ['a date', 'Revolut,2112,2026-10-15,2026-10-16,2026-10-16'],
+      ['a symbol', 'Revolut,2112,2026-10-16,2026-10-16,€'],
+      ['nothing', 'Revolut,2112,2026-10-16,2026-10-16,'],
+    ])('reports no currency when the line carries %s instead of a code', (_, metadataLine) => {
+      expect(currencyOf({ metadataLine })).toBeNull();
+    });
+  });
+
   describe('date formats', () => {
     it('keeps a row whose timestamp has fractional seconds', () => {
       const result = parse({ rows: ['2026-06-16 18:17:19.587,Zona;Clips BYD,Sebastian,250,E,,90'] });
@@ -63,12 +85,29 @@ describe('parseAIResponse', () => {
       expect(result?.transactions[0]?.date).toBe('2026-06-16');
     });
 
-    it('drops a row whose date is unreadable', () => {
-      const result = parse({ rows: ['16/06/2026,Zona,Sebastian,250,E,,90'] });
+    // A banking app shows "00:46", not "00:46:00", and the prompt tells the model to keep the time.
+    it.each([
+      ['2026-10-18 00:46', '2026-10-18 00:46:00'],
+      ['2026-10-18 9:05', '2026-10-18 09:05:00'],
+      ['2026-10-18T00:46Z', '2026-10-18 00:46:00'],
+      ['2026-10-18 00:46+03:00', '2026-10-18 00:46:00'],
+    ])('accepts the time %s without seconds and keeps the wall clock', (written, expected) => {
+      const result = parse({ rows: [`${written},Apple Music,APPLE.COM/BILL,10.99,E,,90`] });
 
-      expect(result?.transactions).toHaveLength(0);
-      expect(result?.droppedRowCount).toBe(1);
+      expect(result?.droppedRowCount).toBe(0);
+      expect(result?.transactions[0]?.date).toBe(expected);
     });
+
+    // An out-of-range time would otherwise roll over into the next hour or day downstream.
+    it.each(['16/06/2026', '18 Oct 2026', '2026-10-18 25:00', '2026-10-18 9:65', '2026-10-18 12:4'])(
+      'drops a row whose date %s is unreadable',
+      (written) => {
+        const result = parse({ rows: [`${written},Zona,Sebastian,250,E,,90`] });
+
+        expect(result?.transactions).toHaveLength(0);
+        expect(result?.droppedRowCount).toBe(1);
+      },
+    );
 
     it('counts an unreadable date among the dropped rows', () => {
       const result = parse({
@@ -408,5 +447,13 @@ describe('custom currencies', () => {
     const prompt = buildStatementExtractionSystemPrompt({ customCurrencyCodes: ['BTC', 'USDT'] });
     expect(prompt.startsWith(STATEMENT_EXTRACTION_SYSTEM_PROMPT)).toBe(true);
     expect(prompt).toContain('BTC, USDT');
+  });
+});
+
+describe('statement extraction prompt dates', () => {
+  it('asks for seconds even when the source shows none, and for numeric year-month-day', () => {
+    expect(STATEMENT_EXTRACTION_SYSTEM_PROMPT).toContain('HH:MM:SS');
+    expect(STATEMENT_EXTRACTION_SYSTEM_PROMPT).toMatch(/:00 for the seconds/);
+    expect(STATEMENT_EXTRACTION_SYSTEM_PROMPT).toMatch(/18 Oct 2026.*2026-10-18/s);
   });
 });

@@ -1,33 +1,38 @@
 <template>
   <Collapsible v-slot="{ open }" class="@container/feature-header rounded-lg border">
-    <CollapsibleTrigger class="flex w-full items-center gap-3 p-4 text-left">
-      <ChevronRightIcon class="size-4 shrink-0 transition-transform" :class="{ 'rotate-90': open }" />
-      <div class="min-w-0 flex-1">
-        <div class="flex flex-wrap items-center gap-2">
-          <component :is="displayInfo.icon" class="text-muted-foreground size-4 shrink-0" />
-          <h4 class="font-medium">{{ $t(displayInfo.nameKey) }}</h4>
-          <!-- Stops the tap from also toggling the card -->
-          <span v-if="featureStatus.servedBy" class="inline-flex" @click.stop>
-            <ApiKeySourceBadge
-              :using-user-key="featureStatus.usingUserKey"
-              :is-subscription="featureStatus.billing === 'subscription'"
-            />
-          </span>
-          <span v-if="!open && fitWarningKey" :class="FIT_WARNING_BADGE_CLASS">
-            <TriangleAlertIcon class="size-3" />
-            {{ $t(fitWarningKey) }}
-          </span>
+    <div class="flex items-center">
+      <CollapsibleTrigger class="flex min-w-0 flex-1 items-center gap-3 p-4 text-left">
+        <ChevronRightIcon class="size-4 shrink-0 transition-transform" :class="{ 'rotate-90': open }" />
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <component :is="displayInfo.icon" class="text-muted-foreground size-4 shrink-0" />
+            <h4 class="font-medium">{{ $t(displayInfo.nameKey) }}</h4>
+            <!-- Stops the tap from also toggling the card -->
+            <span v-if="featureStatus.servedBy" class="inline-flex" @click.stop>
+              <ApiKeySourceBadge
+                :using-user-key="featureStatus.usingUserKey"
+                :is-subscription="featureStatus.billing === 'subscription'"
+              />
+            </span>
+            <span v-if="!open && fitWarningKey" :class="FIT_WARNING_BADGE_CLASS">
+              <TriangleAlertIcon class="size-3" />
+              {{ $t(fitWarningKey) }}
+            </span>
+          </div>
+          <p class="text-muted-foreground text-sm">{{ $t(displayInfo.descriptionKey) }}</p>
         </div>
-        <p class="text-muted-foreground text-sm">{{ $t(displayInfo.descriptionKey) }}</p>
-      </div>
 
-      <span
-        v-if="!open && collapsedModelLabel"
-        class="text-muted-foreground hidden max-w-60 shrink-0 truncate text-xs @lg/feature-header:inline"
-      >
-        {{ collapsedModelLabel }}
-      </span>
-    </CollapsibleTrigger>
+        <span
+          v-if="!open && collapsedModelLabel"
+          class="text-muted-foreground hidden max-w-60 shrink-0 truncate text-xs @lg/feature-header:inline"
+        >
+          {{ collapsedModelLabel }}
+        </span>
+      </CollapsibleTrigger>
+      <div class="shrink-0 pr-4 empty:hidden">
+        <AiUsageBadge :feature="featureStatus.feature" />
+      </div>
+    </div>
 
     <CollapsibleContent>
       <div class="border-t px-4 pt-4 pb-4">
@@ -68,6 +73,17 @@
             </template>
           </SelectField>
 
+          <ConnectionModelSelect
+            v-if="pickedConnection"
+            class="mt-3"
+            :connection="pickedConnection"
+            :model-id="featureStatus.configuredModelId ?? null"
+            :label="$t('ai.connectionModel.label')"
+            :disabled="isUpdating"
+            @select="handleModelChange"
+            @update:has-choice="(value) => (hasModelChoice = value)"
+          />
+
           <Callout
             v-if="!featureStatus.servedBy && featureStatus.connectionId"
             variant="destructive"
@@ -82,19 +98,6 @@
               </template>
             </i18n-t>
           </Callout>
-
-          <i18n-t
-            v-if="featureStatus.servedBy === 'server' && isOnSharedPool"
-            keypath="settings.ai.modelSelector.sharedPoolNote"
-            tag="p"
-            class="text-muted-foreground mt-2 text-xs"
-          >
-            <template #link>
-              <router-link :to="{ name: ROUTES_NAMES.settingsPlanBilling }" class="text-primary-text hover:underline">
-                {{ $t('settings.ai.modelSelector.sharedPoolNoteLink') }}
-              </router-link>
-            </template>
-          </i18n-t>
 
           <p v-if="costDisplay" class="text-muted-foreground mt-3 text-xs">
             <span class="font-medium">{{ $t('settings.ai.modelSelector.modelInfo.estimatedCost') }}</span>
@@ -121,7 +124,9 @@
 </template>
 
 <script setup lang="ts">
-import { getAIFeatureDisplayInfo } from '@/common/const';
+import { type ConfigurableAIFeatureStatus, getAIFeatureDisplayInfo } from '@/common/const';
+import ConnectionModelSelect from '@/components/common/ai-connection-model/connection-model-select.vue';
+import AiUsageBadge from '@/components/common/ai-usage/ai-usage-badge.vue';
 import ApiKeySourceBadge from '@/components/common/api-key-source-badge.vue';
 import SelectField from '@/components/fields/select-field.vue';
 import { Button } from '@/components/lib/ui/button';
@@ -132,10 +137,8 @@ import { useAiSettings } from '@/composable/data-queries/ai-settings';
 import { useAiConnectionsList } from '@/composable/data-queries/use-ai-connections';
 import { extractApiErrorMessage } from '@/js/errors';
 import { ROUTES_NAMES } from '@/routes';
-import { useUserStore } from '@/stores';
 import { AIFeatureStatus, AIModelPricing, getModelNameFromModelId } from '@bt/shared/types';
 import { BrainIcon, ChevronRightIcon, PlusIcon, TriangleAlertIcon } from '@lucide/vue';
-import { storeToRefs } from 'pinia';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -149,22 +152,25 @@ import { type ModelFitWarning, checkModelFit } from './model-fit';
 import ModelGuidePopover from './model-guide-popover.vue';
 
 const props = defineProps<{
-  featureStatus: AIFeatureStatus;
+  featureStatus: ConfigurableAIFeatureStatus;
 }>();
 
 const { t } = useI18n();
 const { addErrorNotification, addSuccessNotification } = useNotificationCenter();
 const { setFeatureConfig, isSettingFeatureConfig, resetFeatureConfig, isResettingFeatureConfig } = useAiSettings();
 const { connections } = useAiConnectionsList();
-const { canSeeBilling, entitlements, hasPlus } = storeToRefs(useUserStore());
-
-const isOnSharedPool = computed(() => canSeeBilling.value && entitlements.value !== null && !hasPlus.value);
-
 const displayInfo = computed(() => getAIFeatureDisplayInfo({ feature: props.featureStatus.feature }));
 const isUpdating = computed(() => isSettingFeatureConfig.value || isResettingFeatureConfig.value);
 
 const hasNothingToPick = computed(
   () => !props.featureStatus.connectionId && props.featureStatus.serverModelName === null,
+);
+
+/** The connection the feature is pinned to: the one whose model can be chosen. Automatic has none. */
+const pickedConnection = computed(() =>
+  props.featureStatus.isConfigured && props.featureStatus.configuredConnectionId
+    ? (connections.value.find(({ id }) => id === props.featureStatus.configuredConnectionId) ?? null)
+    : null,
 );
 
 const options = computed(() =>
@@ -198,6 +204,7 @@ const FIT_WARNING_KEYS: Record<ModelFitWarning, string> = {
   readsPdfs: 'settings.ai.modelGuide.warning.readsPdfs',
   longAnswers: 'settings.ai.modelGuide.warning.longAnswers',
   structuredAnswers: 'settings.ai.modelGuide.warning.structuredAnswers',
+  toolCalling: 'settings.ai.modelGuide.warning.toolCalling',
 };
 
 const FIT_WARNING_BADGE_CLASS =
@@ -210,8 +217,17 @@ const fitWarningKey = computed(() => {
 
 const serverLabel = computed(() => t('settings.ai.modelSelector.serverOption'));
 
+// While the model select below names the model, the connection is named alone.
+const hasModelChoice = ref(false);
+const showsModelSelect = computed(() => hasModelChoice.value && pickedConnection.value !== null);
+
 const formatOptionLabel = (option: FeatureModelOption) => {
   if (option.kind === 'server') return serverLabel.value;
+  if (option.kind === 'connection' && showsModelSelect.value) {
+    return option.needsAttention
+      ? t('settings.ai.modelSelector.connectionNameNeedsAttention', { name: option.name })
+      : option.name;
+  }
   if (option.kind === 'connection') {
     const params = { name: option.name, model: option.model };
     return option.needsAttention
@@ -289,6 +305,23 @@ const handleSelectChange = async (option: FeatureModelOption | null) => {
       ? 'settings.ai.modelSelector.notifications.resetFailed'
       : 'settings.ai.modelSelector.notifications.updateFailed';
     addErrorNotification(extractApiErrorMessage(error) ?? t(fallbackKey));
+  }
+};
+
+/** The model within the picked connection; null returns to the connection's own model. */
+const handleModelChange = async (modelId: string | null) => {
+  const connection = pickedConnection.value;
+  if (!connection) return;
+
+  try {
+    await setFeatureConfig({
+      feature: props.featureStatus.feature,
+      connectionId: connection.id,
+      modelId: modelId ?? undefined,
+    });
+    addSuccessNotification(t('settings.ai.modelSelector.notifications.updateSuccess'));
+  } catch (error) {
+    addErrorNotification(extractApiErrorMessage(error) ?? t('settings.ai.modelSelector.notifications.updateFailed'));
   }
 };
 </script>

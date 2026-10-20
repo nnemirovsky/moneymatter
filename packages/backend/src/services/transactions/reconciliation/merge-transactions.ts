@@ -1,9 +1,9 @@
 import { type ReconciliationActionResponse, RecordId, SUBSCRIPTION_LINK_STATUS } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { ValidationError } from '@js/errors';
-import BudgetTransactions from '@models/budget-transactions.model';
 import SubscriptionPeriods from '@models/subscription-periods.model';
 import SubscriptionTransactions from '@models/subscription-transactions.model';
+import TrackerTransactions from '@models/tracker-transactions.model';
 import TransactionGroupItems from '@models/transaction-group-items.model';
 import {
   hasSettledStatus,
@@ -71,15 +71,15 @@ export const mergeTransactions = withTransaction(
     }
 
     const where = { transactionId: { [Op.in]: transactionIds } };
-    const [budgetLinks, groupLinks, subscriptionLinks, periodLinks] = await Promise.all([
-      BudgetTransactions.findAll({ where }),
+    const [trackerLinks, groupLinks, subscriptionLinks, periodLinks] = await Promise.all([
+      TrackerTransactions.findAll({ where }),
       TransactionGroupItems.findAll({ where }),
       SubscriptionTransactions.findAll({ where: { ...where, status: SUBSCRIPTION_LINK_STATUS.active } }),
       SubscriptionPeriods.findAll({ where, attributes: ['id', 'transactionId'] }),
     ]);
 
-    const budgetsToMove = planOrReject({
-      links: budgetLinks.map((l) => ({ transactionId: l.transactionId, target: l.budgetId })),
+    const trackersToMove = planOrReject({
+      links: trackerLinks.map((l) => ({ transactionId: l.transactionId, target: l.trackerId })),
       survivorId,
       single: false,
       key: 'transactions.reconciliation.budgetConflict',
@@ -103,12 +103,12 @@ export const mergeTransactions = withTransaction(
       key: 'transactions.reconciliation.subscriptionConflict',
     });
 
-    if (budgetsToMove.length) {
-      await BudgetTransactions.bulkCreate(
-        budgetsToMove.map((budgetId) => ({
-          budgetId,
+    if (trackersToMove.length) {
+      await TrackerTransactions.bulkCreate(
+        trackersToMove.map((trackerId) => ({
+          trackerId,
           transactionId: survivorId,
-          metadata: budgetLinks.find((l) => l.budgetId === budgetId)!.metadata,
+          metadata: trackerLinks.find((l) => l.trackerId === trackerId)!.metadata,
         })),
       );
     }

@@ -43,8 +43,8 @@ interface AllocatableTransaction {
 export interface CategoryAllocationLeg {
   /** Exact category id, or null for the uncategorized residual. */
   categoryId: string | null;
-  /** Base legs are positive; refund legs are negative. Integer cents (base/reference currency). */
-  cents: number;
+  /** Base legs are positive; refund legs are negative. Integer minor units of the base currency. */
+  minor: number;
   /** Base legs use the transaction's own date; refund legs use the refund tx's date. */
   time: Date;
   /** Type of the transaction this leg came from; a split leg inherits its parent transaction's. */
@@ -63,7 +63,7 @@ export interface CategoryAllocations {
  *
  * A refund always pairs one expense with one income (`createSingleRefund` rejects same-type pairs),
  * so both sides are named: an expense report nets against `expenseCategoryId`, an income report
- * against `incomeCategoryId`. A report that shows both sides (cash flow) subtracts `cents` from
+ * against `incomeCategoryId`. A report that shows both sides (cash flow) subtracts `minor` from
  * each of them in the same bucket, which leaves its net flow untouched.
  *
  * When the refund targets a split, that split belongs to the *original* transaction, so its
@@ -73,13 +73,13 @@ export interface CategoryAllocations {
  * `resolveRefundPairs`. A side that was only fetched to resolve the pair contributed no positive
  * amount to the caller's report, so netting against it would invent money.
  *
- * Two siblings resolve refunds for other reports and stay separate on purpose: budgets'
- * `BudgetRefundPair` keys its scope flags on original/refund rather than expense/income, and the
+ * Two siblings resolve refunds for other reports and stay separate on purpose: trackers'
+ * `TrackerRefundPair` keys its scope flags on original/refund rather than expense/income, and the
  * pivot's `WholeTxRefund` carries payee/tag, which splits don't have.
  */
 export interface CategoryRefundPair {
-  /** Refund magnitude in integer cents (base/reference currency), always positive: callers negate it. */
-  cents: number;
+  /** Refund magnitude in integer minor units of the base currency, always positive: callers negate it. */
+  minor: number;
   /** The refund tx's own date — the bucket the money actually moved in. */
   time: Date;
   expenseCategoryId: string | null;
@@ -116,8 +116,11 @@ const toTxEntry = (tx: {
  */
 export const resolveRefundPairs = async ({
   transactions,
+  decimals,
 }: {
   transactions: AllocatableTransaction[];
+  /** Decimals of the base currency: the scale the pairs' minor units are at. */
+  decimals: number;
 }): Promise<CategoryRefundPair[]> => {
   const txIdsWithRefunds = transactions.filter((tx) => tx.refundLinked).map((tx) => tx.id);
   if (txIdsWithRefunds.length === 0) return [];
@@ -190,7 +193,7 @@ export const resolveRefundPairs = async ({
     const refundInScope = inScopeTxIds.has(refund.refundTxId);
 
     pairs.push({
-      cents: refundTx.refAmount.toCents(),
+      minor: refundTx.refAmount.toMinorUnits({ decimals }),
       time: refundTx.time,
       expenseCategoryId: originalIsExpense ? originalCategoryId : refundTx.categoryId,
       incomeCategoryId: originalIsExpense ? refundTx.categoryId : originalCategoryId,
@@ -205,10 +208,13 @@ export const resolveRefundPairs = async ({
 export const computeCategoryAllocations = async ({
   transactions,
   applyRefunds,
+  decimals,
   refundSide = TRANSACTION_TYPES.expense,
 }: {
   transactions: AllocatableTransaction[];
   applyRefunds: boolean;
+  /** Decimals of the base currency: the scale the legs' minor units are at. */
+  decimals: number;
   /** Which side of each refund pair the negative legs net against, so a refund never shows up as income. */
   refundSide?: TRANSACTION_TYPES;
 }): Promise<CategoryAllocations> => {
@@ -221,7 +227,7 @@ export const computeCategoryAllocations = async ({
       where: { transactionId: { [Op.in]: txIds } },
       attributes: ['id', 'transactionId', 'categoryId', 'refAmount'],
     }),
-    applyRefunds ? resolveRefundPairs({ transactions }) : Promise.resolve<CategoryRefundPair[]>([]),
+    applyRefunds ? resolveRefundPairs({ transactions, decimals }) : Promise.resolve<CategoryRefundPair[]>([]),
   ]);
 
   const splitsByTxId = new Map<string, TransactionSplits[]>();
@@ -241,22 +247,24 @@ export const computeCategoryAllocations = async ({
     const txSplits = splitsByTxId.get(tx.id);
     if (txSplits && txSplits.length > 0) {
       const valuedSplits = txSplits.flatMap((split) =>
-        split.refAmount === null ? [] : [{ categoryId: split.categoryId, cents: split.refAmount.toCents() }],
+        split.refAmount === null
+          ? []
+          : [{ categoryId: split.categoryId, minor: split.refAmount.toMinorUnits({ decimals }) }],
       );
-      const splitsTotal = valuedSplits.reduce((sum, split) => sum + split.cents, 0);
-      const primaryAmount = tx.refAmount.toCents() - splitsTotal;
-      if (primaryAmount > 0) base.push({ categoryId: tx.categoryId, cents: primaryAmount, time, transactionType });
+      const splitsTotal = valuedSplits.reduce((sum, split) => sum + split.minor, 0);
+      const primaryAmount = tx.refAmount.toMinorUnits({ decimals }) - splitsTotal;
+      if (primaryAmount > 0) base.push({ categoryId: tx.categoryId, minor: primaryAmount, time, transactionType });
       for (const split of valuedSplits) {
-        base.push({ categoryId: split.categoryId, cents: split.cents, time, transactionType });
+        base.push({ categoryId: split.categoryId, minor: split.minor, time, transactionType });
       }
     } else {
-      base.push({ categoryId: tx.categoryId, cents: tx.refAmount.toCents(), time, transactionType });
+      base.push({ categoryId: tx.categoryId, minor: tx.refAmount.toMinorUnits({ decimals }), time, transactionType });
     }
   }
 
   const refundLegs: CategoryAllocationLeg[] = refundPairs.map((pair) => ({
     categoryId: refundSide === TRANSACTION_TYPES.income ? pair.incomeCategoryId : pair.expenseCategoryId,
-    cents: -pair.cents,
+    minor: -pair.minor,
     time: pair.time,
     transactionType: refundSide,
   }));

@@ -1,8 +1,13 @@
 import { NOTIFICATION_PRIORITIES, NOTIFICATION_STATUSES, NOTIFICATION_TYPES } from '@bt/shared/types';
 import { beforeEach, describe, expect, it } from '@jest/globals';
+import { ERROR_CODES } from '@js/errors';
 import Notifications from '@models/notifications.model';
 import Users from '@models/users.model';
 import * as helpers from '@tests/helpers';
+import { Op } from 'sequelize';
+
+const listStatusCode = async (params: Parameters<typeof helpers.getNotifications>[0]) =>
+  (await helpers.getNotifications({ ...params, raw: false })).statusCode;
 
 describe('Notifications API', () => {
   let testUserId: number;
@@ -29,9 +34,9 @@ describe('Notifications API', () => {
         [
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
-            title: 'Budget Alert 1',
-            message: 'You exceeded your budget',
+            type: NOTIFICATION_TYPES.trackerAlert,
+            title: 'Tracker Alert 1',
+            message: 'You exceeded your tracker limit',
             priority: NOTIFICATION_PRIORITIES.high,
           },
           {
@@ -61,20 +66,20 @@ describe('Notifications API', () => {
         [
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             title: 'Unread notification',
             status: NOTIFICATION_STATUSES.unread,
           },
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             title: 'Read notification',
             status: NOTIFICATION_STATUSES.read,
             readAt: new Date(),
           },
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             title: 'Dismissed notification',
             status: NOTIFICATION_STATUSES.dismissed,
           },
@@ -108,7 +113,7 @@ describe('Notifications API', () => {
       expect(
         titlesOf(
           await helpers.getNotifications({
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             raw: true,
           }),
         ),
@@ -185,10 +190,10 @@ describe('Notifications API', () => {
     it('returns a specific notification by ID', async () => {
       const notification = await Notifications.create({
         userId: testUserId,
-        type: NOTIFICATION_TYPES.budgetAlert,
+        type: NOTIFICATION_TYPES.trackerAlert,
         title: 'Specific notification',
         message: 'Details here',
-        payload: { budgetId: 123 },
+        payload: { trackerId: 123 },
       });
 
       const result = await helpers.getNotificationById({ id: notification.id, raw: true });
@@ -197,7 +202,7 @@ describe('Notifications API', () => {
         id: notification.id,
         title: 'Specific notification',
         message: 'Details here',
-        payload: { budgetId: 123 },
+        payload: { trackerId: 123 },
       });
       expect(result).not.toHaveProperty('userId');
     });
@@ -209,26 +214,26 @@ describe('Notifications API', () => {
         [
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             title: 'Unread 1',
             status: NOTIFICATION_STATUSES.unread,
           },
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             title: 'Unread 2',
             status: NOTIFICATION_STATUSES.unread,
           },
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             title: 'Read',
             status: NOTIFICATION_STATUSES.read,
             readAt: new Date(),
           },
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             title: 'Dismissed',
             status: NOTIFICATION_STATUSES.dismissed,
           },
@@ -246,7 +251,7 @@ describe('Notifications API', () => {
     it('marks a notification as read', async () => {
       const notification = await Notifications.create({
         userId: testUserId,
-        type: NOTIFICATION_TYPES.budgetAlert,
+        type: NOTIFICATION_TYPES.trackerAlert,
         title: 'To be read',
         status: NOTIFICATION_STATUSES.unread,
       });
@@ -264,7 +269,7 @@ describe('Notifications API', () => {
     it('returns success even when notification is already read', async () => {
       const notification = await Notifications.create({
         userId: testUserId,
-        type: NOTIFICATION_TYPES.budgetAlert,
+        type: NOTIFICATION_TYPES.trackerAlert,
         title: 'Already read',
         status: NOTIFICATION_STATUSES.read,
         readAt: new Date(),
@@ -282,19 +287,19 @@ describe('Notifications API', () => {
         [
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             title: 'Unread 1',
             status: NOTIFICATION_STATUSES.unread,
           },
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             title: 'Unread 2',
             status: NOTIFICATION_STATUSES.unread,
           },
           {
             userId: testUserId,
-            type: NOTIFICATION_TYPES.budgetAlert,
+            type: NOTIFICATION_TYPES.trackerAlert,
             title: 'Already read',
             status: NOTIFICATION_STATUSES.read,
             readAt: new Date(),
@@ -317,7 +322,7 @@ describe('Notifications API', () => {
     it('returns 0 when no unread notifications exist', async () => {
       await Notifications.create({
         userId: testUserId,
-        type: NOTIFICATION_TYPES.budgetAlert,
+        type: NOTIFICATION_TYPES.trackerAlert,
         title: 'Already read',
         status: NOTIFICATION_STATUSES.read,
         readAt: new Date(),
@@ -333,7 +338,7 @@ describe('Notifications API', () => {
     it('dismisses a notification, removing it from the default list and the unread count', async () => {
       const notification = await Notifications.create({
         userId: testUserId,
-        type: NOTIFICATION_TYPES.budgetAlert,
+        type: NOTIFICATION_TYPES.trackerAlert,
         title: 'To be dismissed',
         status: NOTIFICATION_STATUSES.unread,
       });
@@ -356,7 +361,7 @@ describe('Notifications API', () => {
     it('can dismiss a read notification', async () => {
       const notification = await Notifications.create({
         userId: testUserId,
-        type: NOTIFICATION_TYPES.budgetAlert,
+        type: NOTIFICATION_TYPES.trackerAlert,
         title: 'Read notification',
         status: NOTIFICATION_STATUSES.read,
         readAt: new Date(),
@@ -376,7 +381,7 @@ describe('Notifications API', () => {
       // Create a valid notification first, then use a different valid UUID that doesn't exist
       const notification = await Notifications.create({
         userId: testUserId,
-        type: NOTIFICATION_TYPES.budgetAlert,
+        type: NOTIFICATION_TYPES.trackerAlert,
         title: 'Test',
       });
       const existingId = notification.id;
@@ -392,7 +397,7 @@ describe('Notifications API', () => {
     it('includes all expected fields in response and preserves payload data', async () => {
       const now = new Date();
       const expiresAt = new Date(now.getTime() + 86400000); // +1 day
-      const payload = { budgetId: 42, threshold: 90, currentSpending: 950 };
+      const payload = { trackerId: 42, threshold: 90, currentSpending: 950 };
 
       await Notifications.create({
         userId: testUserId,
@@ -420,6 +425,60 @@ describe('Notifications API', () => {
       expect(notification).toHaveProperty('expiresAt');
       // Should NOT have userId
       expect(notification).not.toHaveProperty('userId');
+    });
+  });
+
+  describe('list query validation', () => {
+    it('rejects an unknown status or type, a limit outside 1 to 100 and a negative offset', async () => {
+      expect(await listStatusCode({ status: 'archived' })).toBe(ERROR_CODES.ValidationError);
+      expect(await listStatusCode({ type: 'promo' })).toBe(ERROR_CODES.ValidationError);
+      expect(await listStatusCode({ limit: 0 })).toBe(ERROR_CODES.ValidationError);
+      expect(await listStatusCode({ limit: 101 })).toBe(ERROR_CODES.ValidationError);
+      expect(await listStatusCode({ offset: -1 })).toBe(ERROR_CODES.ValidationError);
+    });
+
+    it('accepts the bounds: limit 1 and 100, offset 0', async () => {
+      await Notifications.create({ userId: testUserId, type: NOTIFICATION_TYPES.system, title: 'Bounds' });
+
+      expect(await helpers.getNotifications({ limit: 1, offset: 0, raw: true })).toHaveLength(1);
+      expect(await helpers.getNotifications({ limit: 100, raw: true })).toHaveLength(1);
+    });
+  });
+
+  describe('cross-user isolation', () => {
+    it("lists none of another user's notifications and leaves them untouched on read, read-all and dismiss", async () => {
+      const mine = await Notifications.create({ userId: testUserId, type: NOTIFICATION_TYPES.system, title: 'Mine' });
+      const stranger = await helpers.signUpSecondUser();
+      const strangerRow = await Users.findOne({ where: { id: { [Op.ne]: testUserId } }, order: [['id', 'DESC']] });
+      const theirs = await Notifications.create({
+        userId: strangerRow!.id,
+        type: NOTIFICATION_TYPES.system,
+        title: 'Theirs',
+      });
+
+      // Seen from the first user.
+      expect((await helpers.getNotifications({ raw: true })).map((n) => n.title)).toEqual(['Mine']);
+      expect(await helpers.getNotificationById({ id: theirs.id, raw: true })).toBeNull();
+      expect((await helpers.markAsRead({ id: theirs.id, raw: true })).success).toBe(false);
+      expect((await helpers.dismissNotification({ id: theirs.id, raw: true })).success).toBe(false);
+      expect((await helpers.markAllAsRead({ raw: true })).updated).toBe(1);
+
+      await theirs.reload();
+      expect(theirs.status).toBe(NOTIFICATION_STATUSES.unread);
+
+      // Seen from the second user.
+      await helpers.asUser({
+        cookies: stranger.cookies,
+        fn: async () => {
+          expect((await helpers.getNotifications({ raw: true })).map((n) => n.title)).toEqual(['Theirs']);
+          expect(await helpers.getNotificationById({ id: mine.id, raw: true })).toBeNull();
+          expect((await helpers.dismissNotification({ id: mine.id, raw: true })).success).toBe(false);
+          expect((await helpers.getUnreadCount({ raw: true })).count).toBe(1);
+        },
+      });
+
+      await mine.reload();
+      expect(mine.status).toBe(NOTIFICATION_STATUSES.read);
     });
   });
 });

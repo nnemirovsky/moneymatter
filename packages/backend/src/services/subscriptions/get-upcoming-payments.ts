@@ -4,10 +4,11 @@ import Categories from '@models/categories.model';
 import SubscriptionPeriods from '@models/subscription-periods.model';
 import Subscriptions from '@models/subscriptions.model';
 import Transactions from '@models/transactions.model';
+import { serializeLogoFields } from '@root/serializers/logo-fields.serializer';
 import { Includeable, Op } from 'sequelize';
 
 import { calculateNextDueDate } from './calculate-next-due-date';
-import { computeNextExpectedDate } from './get-subscriptions';
+import { resolveNextExpectedDate } from './subscription-date.utils';
 
 /** What `nextPaymentDate` reads: linked real payments and the earliest open period. */
 export const scheduleInclude: Includeable[] = [
@@ -33,15 +34,20 @@ export const scheduleInclude: Includeable[] = [
   },
 ];
 
-type ScheduledSubscription = Pick<Subscriptions, 'startDate' | 'frequency' | 'transactions' | 'periods'>;
+type ScheduledSubscription = Pick<
+  Subscriptions,
+  'startDate' | 'frequency' | 'dueDate' | 'anchorDay' | 'transactions' | 'periods'
+>;
 
-/** The earliest open period's dueDate; legacy subscriptions with no open period derive it. */
+/** The earliest open period's dueDate; with no open period it follows the schedule, then the payments. */
 const nextPaymentDate = ({ subscription }: { subscription: ScheduledSubscription }): string | null =>
-  subscription.periods?.[0]?.dueDate ??
-  computeNextExpectedDate({
+  resolveNextExpectedDate({
     startDate: subscription.startDate,
     frequency: subscription.frequency,
     transactions: subscription.transactions,
+    dueDate: subscription.dueDate,
+    anchorDay: subscription.anchorDay,
+    openPeriodDueDate: subscription.periods?.[0]?.dueDate ?? null,
   });
 
 /** Every payment date in `[from, until)`, stepping from the next one. Needs `scheduleInclude` loaded. */
@@ -94,9 +100,7 @@ export const getUpcomingPayments = async ({ userId, limit = 5, type }: GetUpcomi
       return {
         subscriptionId: plain.id,
         subscriptionName: plain.name,
-        logoDomain: plain.logoDomain ?? null,
-        logoInitials: plain.logoInitials ?? null,
-        logoColor: plain.logoColor ?? null,
+        ...serializeLogoFields({ entity: plain }),
         expectedAmount: moneyToApiDecimalOrNull(plain.expectedAmount),
         expectedCurrencyCode: plain.expectedCurrencyCode,
         transactionType: plain.transactionType,

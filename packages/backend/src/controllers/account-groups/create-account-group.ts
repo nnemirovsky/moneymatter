@@ -1,24 +1,15 @@
-import { recordId } from '@common/lib/zod/custom-types';
-import { logoFieldsShape, refineLogoFieldsOnCreate } from '@controllers/common/logo-fields.schema';
 import { createController } from '@controllers/helpers/controller-factory';
 import * as accountGroupService from '@services/account-groups';
 import { z } from 'zod';
 
+import { createAccountGroupBodySchema } from './account-group-body.schema';
+
 export default createController(
   z.object({
-    body: z
-      .object({
-        name: z.string().min(1),
-        parentGroupId: recordId().nullable().optional(),
-        // Absent key → column stays null; a brand domain and monogram letters
-        // evict each other.
-        ...logoFieldsShape,
-      })
-      .strict()
-      .superRefine((data, ctx) => refineLogoFieldsOnCreate({ data, ctx })),
+    body: createAccountGroupBodySchema,
   }),
   async ({ user, body }) => {
-    const { name, parentGroupId, logoDomain, logoInitials, logoColor } = body;
+    const { name, parentGroupId, logoDomain, logoInitials, logoColor, logoIcon } = body;
 
     const data = await accountGroupService.createAccountGroup({
       userId: user.id,
@@ -27,6 +18,7 @@ export default createController(
       logoDomain,
       logoInitials,
       logoColor,
+      logoIcon,
     });
 
     return { data };

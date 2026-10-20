@@ -36,6 +36,12 @@ export const useFiltersFromQuery = () => {
         : [query.accountIds as string];
     }
 
+    if (query.trackerIds) {
+      filters.trackerIds = Array.isArray(query.trackerIds)
+        ? (query.trackerIds as string[])
+        : [query.trackerIds as string];
+    }
+
     if (query.start) {
       filters.start = parseISO(query.start as string);
     }

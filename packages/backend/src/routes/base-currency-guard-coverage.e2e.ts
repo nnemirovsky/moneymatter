@@ -41,6 +41,14 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   'POST /api/v1/notifications/read-all',
   'POST /api/v1/notifications/:id/read',
 
+  // Push device registration: no monetary data, and notifications must be switchable during a base-currency change.
+  'DELETE /api/v1/push/subscriptions/:id',
+  'POST /api/v1/push/subscriptions',
+  'POST /api/v1/push/subscriptions/sync',
+  'POST /api/v1/push/subscriptions/unsubscribe',
+  // Push test send: no monetary data.
+  'POST /api/v1/push/test',
+
   // Billing and admin plan grants: Stripe sessions and plan flags, no monetary data.
   'PATCH /api/v1/admin/users/:id/plan',
   'POST /api/v1/billing/checkout',
@@ -49,6 +57,9 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   // Lease extension writes no financial data, and refusing it mid-wizard would
   // drop the user's upload for nothing.
   'POST /api/v1/resource-leases/refresh',
+
+  // A subscription period's note: note text only, no monetary data.
+  'PATCH /api/v1/subscriptions/:id/periods/:periodId',
 
   // Client diagnostics only reach the log stream, and they must keep flowing
   // while a migration holds the lock.
@@ -91,6 +102,22 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   'PUT /api/v1/user/settings/card-payments/access-headers',
   'PUT /api/v1/user/settings/onboarding',
   'PUT /api/v1/user/update',
+
+  // Chat threads, retention, attachments and runs: conversation metadata, file context, and the
+  // start or stop of a conversation run, no monetary data. Editing, refreshing, rejecting and
+  // commenting on a card only change the card or start a run; approving (one or all) is the
+  // guarded route, because that is where the write handlers run.
+  'DELETE /api/v1/chat/threads/:id',
+  'PATCH /api/v1/chat/proposals/:id',
+  'PATCH /api/v1/chat/threads/:id',
+  'POST /api/v1/chat/proposals/:id/comment',
+  'POST /api/v1/chat/proposals/:id/refresh',
+  'POST /api/v1/chat/proposals/:id/reject',
+  'POST /api/v1/chat/runs/:runId/cancel',
+  'POST /api/v1/chat/threads',
+  'POST /api/v1/chat/threads/:id/attachments',
+  'POST /api/v1/chat/threads/:id/messages',
+  'PUT /api/v1/chat/settings',
 
   // Invoice matching only ranks candidates; the one write is the non-monetary trial counter.
   'POST /api/v1/transactions/match-invoice',

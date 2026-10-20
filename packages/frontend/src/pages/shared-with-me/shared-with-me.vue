@@ -22,7 +22,13 @@ const router = useRouter();
 const ICON_BY_RESOURCE_TYPE: Record<ResourceType, typeof LandmarkIcon> = {
   [RESOURCE_TYPES.account]: LandmarkIcon,
   [RESOURCE_TYPES.household]: HomeIcon,
-  [RESOURCE_TYPES.budget]: WalletIcon,
+  [RESOURCE_TYPES.tracker]: WalletIcon,
+};
+
+const SECTION_LABEL_KEY_BY_RESOURCE_TYPE: Record<ResourceType, string> = {
+  [RESOURCE_TYPES.account]: 'pages.sharedWithMe.sections.account',
+  [RESOURCE_TYPES.household]: 'pages.sharedWithMe.sections.household',
+  [RESOURCE_TYPES.tracker]: 'pages.sharedWithMe.sections.budget',
 };
 
 const sharesQuery = useQuery({
@@ -61,7 +67,7 @@ const groupedShares = computed(() => {
   const groups: Record<ResourceType, DisplayableRow[]> = {
     [RESOURCE_TYPES.account]: [],
     [RESOURCE_TYPES.household]: [],
-    [RESOURCE_TYPES.budget]: [],
+    [RESOURCE_TYPES.tracker]: [],
   };
   for (const row of sharesQuery.data.value ?? []) {
     (groups[row.resourceType] ??= []).push({ ...row, route: routeForRow(row) });
@@ -84,7 +90,9 @@ const leaveMutation = useMutation({
     // The recipient's resource lists also drop this row. Invalidating both is a no-op for
     // the bucket the row didn't live in, so we don't need to branch on `resourceType`.
     queryClient.invalidateQueries({ queryKey: VUE_QUERY_CACHE_KEYS.allAccounts });
-    queryClient.invalidateQueries({ queryKey: VUE_QUERY_CACHE_KEYS.budgetsList });
+    queryClient.invalidateQueries({ queryKey: VUE_QUERY_CACHE_KEYS.trackersList });
+    queryClient.invalidateQueries({ queryKey: VUE_QUERY_CACHE_KEYS.trackersListItem });
+    queryClient.invalidateQueries({ queryKey: VUE_QUERY_CACHE_KEYS.trackerStats });
     leaveOpen.value = false;
     leaveTarget.value = null;
   },
@@ -112,8 +120,8 @@ const routeForRow = (row: SharedWithMeRow) => {
     // offers a Leave action inline, so the link is purely an entry to the manage UI.
     return { name: ROUTES_NAMES.settingsHousehold };
   }
-  if (row.resourceType === RESOURCE_TYPES.budget) {
-    return { name: ROUTES_NAMES.plannedBudgetDetails, params: { id: row.resourceId } };
+  if (row.resourceType === RESOURCE_TYPES.tracker) {
+    return { name: ROUTES_NAMES.plannedTrackerDetails, params: { id: row.resourceId } };
   }
   return null;
 };
@@ -188,7 +196,7 @@ const isEverythingEmpty = computed(() => !pendingReceivedInvitations.value.lengt
         <template v-for="(rows, type) in groupedShares" :key="type">
           <section v-if="rows.length" class="grid gap-3">
             <h2 class="xs:text-lg text-base font-semibold">
-              {{ $t(`pages.sharedWithMe.sections.${type}`) }}
+              {{ $t(SECTION_LABEL_KEY_BY_RESOURCE_TYPE[type]) }}
             </h2>
 
             <div class="grid gap-3">
