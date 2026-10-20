@@ -134,9 +134,16 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
   | parked | "Needs your OK in MoneyMatter: 43.60 GEL at Wolt" | true |
   | still running | "Queued, will appear shortly" | true |
   | ignored, dropped, duplicate | — | false |
-  | any HTTP error (401/402/403/409/413/422/423/429) | the error `message` | — |
+  | 423 (base-currency change running) | "MoneyMatter is busy updating your currency. This payment wasn't saved, try again in a minute." (new `ingest.busy` message for ingest routes) | — |
+  | any other HTTP error (401/402/403/409/413/422/429) | the error `message` | — |
 
   - **Errors always show (owner-visible).** The shortcut shows `summary` when `notify` is true. On any non-2xx answer it shows `response.message`, as the tap shortcut does today. Only `ignored`, `dropped` and `duplicate` stay silent.
+  - **423 while the base currency changes (owner-visible).** `checkBaseCurrencyLock` stays on `POST /ingest/event` and `POST /ingest/card-payment`. The answer is 423 for both kinds, because nothing has been recorded yet.
+    - For ingest routes the middleware's message is the ingest-specific `ingest.busy` text, picked by a `messageKey` option on `checkBaseCurrencyLock` (default unchanged).
+    - **The shortcut retries once.** On 423 it waits 20 s (**Wait**) and sends the same body and idempotency key again. A still-locked second answer shows the busy banner.
+    - Why once and short: a change usually takes seconds to a minute; an automation that runs much longer risks being killed in the background; and the identical key makes the retry safe.
+    - What remains: a payment that hits a longer change is not saved. The banner says so, so the user can run the shortcut by hand or add the payment.
+    - A request accepted **before** the lock was taken is safe: its job re-delays while the lock is held (Guards table) and completes afterwards.
   - **Why a job plus a wait:** retries with backoff, crash safety, AI concurrency through the queue, and the same path as a UI retry. A synchronous AI call would lose the payment on a timeout.
   - **Why no delay:** tier 1 runs under one per-user lock in both paths, so order does not matter, and AI never attaches anything.
   - **Job ids:** each attempt gets its own id, `${requestId}-${attempt}` (`IngestRequests.attempts` is incremented when enqueuing; BullMQ rejects custom ids containing `:`, so every id in this plan joins its parts with `-`). The queue sets `removeOnComplete: true` and `removeOnFail: { age: 3600 }`. A UI retry therefore always enqueues, even while the failed job is still retained.
@@ -229,12 +236,18 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
 
     Anything looser becomes a tier-2 suggestion.
   - **Fold window (owner-visible).** The text fingerprint folds a repeat only when the times are within 5 s: the same notification on two devices, or a double fire. The time is the notification's own date when iOS exposes it, else the shortcut's run time **to the second**, which also goes into the idempotency key. Two identical Wallet payments minutes apart become two rows.
-  - **Tap fold, made consistent (owner-visible; changes shipped behaviour).** `findOriginalInWindow` (`card-payment/process-ingest-request.ts`) uses the transaction's own time when the request sends one (`timeProvided` in `parse-payload.ts`).
-    - When both requests carry a `time`, it folds only if the two are within 5 s.
-    - When neither carries one (the legacy shortcut, or an iOS that exposes no transaction time), it keeps today's 120 s receipt window.
-    - The iOS 27 shortcut sends the Transaction's own date when the input has one, so two identical taps a minute apart stay two rows.
-    - Without a time, two identical taps within 120 s still fold. On iOS 27 the second coffee still gets its own row from its Wallet notification, because the first row's `wallet-notification` slot is taken.
-    - `card-payment/constants.ts` adds `repeatWindowWithTimeMs: 5_000`. A new e2e pins both cases, and the existing repeat-window e2e stays green.
+  - **Tap fold, made consistent (owner-visible; changes shipped behaviour).** Every shipped shortcut sends `time`. The tap shortcut fills it with the **run time** (Current Date, `build-card-payment-shortcut.ts`), because the Transaction input has no date; `parse-payload.ts` accepts it. A "no `time`" branch therefore never runs for a shortcut. The rule is restated around what `time` actually means:
+    - **`timeSource`.** A new optional body field, `run` | `transaction`. The iOS 27 shortcut sends `transaction` only if the device capture shows that the Transaction input has its own date; otherwise it sends `run`. A request without `timeSource` (the shipped tap shortcut, other clients) counts as `run`. It is stored in `parsed`/`payload` and never trusted beyond the fold.
+    - **Run time (the common case): fold within 20 s.** `findOriginalInWindow` (`card-payment/process-ingest-request.ts`) folds a same-fingerprint request whose `time` is within `repeatWindowRunTimeMs` (20 s) of the original's.
+      - A double fire of one payment produces two runs from the same event, normally a second or two apart.
+      - Low Power Mode, a locked phone or a slow network delay a run, but they delay the whole automation, so both firings usually slip together. 20 s leaves room for one of the two runs stalling on its own.
+      - Two genuine identical payments need a second terminal transaction (the merchant keys the amount again, the user taps again), which takes about 30 s or more. The window stays below that floor, so two coffees a minute apart stay two rows.
+    - **Transaction time: fold within 2 s** (`repeatWindowTransactionTimeMs`), applied only when **both** requests carry `timeSource: transaction`. One payment has one timestamp, so only the same payment matches.
+    - **No `time` at all** (API clients): today's 120 s receipt window (`repeatWindowMs`), unchanged.
+    - **What can still go wrong:**
+      - A double fire where one run is held back for more than 20 s logs two rows. Both are ingest rows with the same amount and merchant, so the tier-2 judge raises a suggestion; nothing merges silently.
+      - The shipped tap shortcut's idempotency key is cut to the **minute** (`KEY_TIME_FORMAT`), so two identical taps within one calendar minute still share a key and the second replays as `duplicate`. That is a key collision the server cannot tell from a retry. The new shortcut keys to the second. Task 15 also changes the legacy generator's `KEY_TIME_FORMAT` to seconds, and the re-signed file fixes it for users who re-import; until then it is a documented limit.
+    - `card-payment/constants.ts`: `repeatWindowRunTimeMs: 20_000` and `repeatWindowTransactionTimeMs: 2_000` are added, and `repeatWindowMs: 120_000` stays for requests without `time`. On iOS 27 the Wallet notification adds a second check: a folded second coffee still gets its own row from its own notification, because the first row's `wallet-notification` slot is taken.
   - **Tier 2, AI judge: suggestions only.**
     - It runs **after** the logging transaction commits (as `categorize-after-commit.ts` does), never inside the dedup lock.
     - A match with confidence ≥ 0.6 stores a suggestion with `INSERT … ON CONFLICT DO NOTHING` on the ordered pair.
@@ -434,7 +447,8 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
   - ignore: `declined`, `security`, `promo`, `info`, `other`;
   - drop counters: `noAmount`, `security`, `promo`, `muted`, `self`, `rateLimited`, `expiredUnclassified`.
 - **Constants** (objects, so tests can shorten them):
-  - `notificationTimings`: wait 10 s, poll 250 ms, fold 5 s, interrupted after 30 min, unclassified text TTL 7 days, pending-source TTL 30 days;
+  - `notificationTimings`: wait 10 s, poll 250 ms, fold 5 s, lock retry delay 60 s, interrupted after 30 min, unclassified text TTL 7 days, pending-source TTL 30 days;
+  - `cardPaymentTimings` (existing): `repeatWindowRunTimeMs` 20 s, `repeatWindowTransactionTimeMs` 2 s, `repeatWindowMs` 120 s for requests without `time`;
   - `dedupConfig`: twin 30 min, settlement 7 days, judge 72 h, tolerance `CARD_PAYMENT_AMOUNT_TOLERANCE`, suggest ≥ 0.6, 5 candidates;
   - `inboxConfig`: 7 days, 200 cards, card TTL 30 days;
   - `assistantPushConfig`: debounce 60 s, thread cooldown 5 min, inbox 10 min, ingest 24 h, presence TTL 45 s, heartbeat 20 s.
@@ -552,7 +566,7 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
 
 - Create: `packages/backend/src/services/ingest/log-ingested-payment.ts` (writes `externalData.ingest.systemNote` and `systemCategoryId`); Modify: `packages/backend/src/services/ingest/card-payment/process-card-payment.ts`
 - Create: `packages/backend/src/services/ingest/event/{process-notification,resolve-notification-account,apply-payee-choice}.ts` + `apply-payee-choice.unit.ts`
-- Modify: `packages/backend/src/services/ingest/card-payment/{process-ingest-request,list-requests,retry-request,run-ingest-pass,format-summary}.ts` (branch on `pipeline`; `retry-request.ts` enqueues `${requestId}-${attempts + 1}` for notifications and accepts `force`), `packages/backend/src/controllers/ingest/card-payment-requests.controller.ts` (`{ force?: boolean }` on retry), `packages/backend/src/services/ingest/event/notification-sources.service.ts` (approve → enqueue the held requests; mute → delete them), `packages/backend/src/crons/ingest-requests-cleanup.ts`
+- Modify: `packages/backend/src/services/ingest/card-payment/{process-ingest-request,list-requests,retry-request,run-ingest-pass,format-summary}.ts` (branch on `pipeline`; `retry-request.ts` enqueues `${requestId}-${attempts + 1}` for notifications and accepts `force`), `packages/backend/src/controllers/ingest/card-payment-requests.controller.ts` (`{ force?: boolean }` on retry), `packages/backend/src/services/ingest/event/notification-sources.service.ts` (approve → enqueue the held requests; mute → delete them), `packages/backend/src/crons/ingest-requests-cleanup.ts`, `packages/backend/src/middlewares/check-base-currency-lock.ts` (a `messageKey` option; `ingest.route.ts` passes `ingest.busy` for both ingest routes) + backend i18n `ingest.busy` (`en` + `uk`), `packages/backend/src/services/ingest/card-payment/ingest-card-payment.e2e.ts` (the 423 case now expects the `ingest.busy` message)
 - Create: `packages/backend/src/services/ingest/event/{process-notification,payee-resolution}.e2e.ts`
 
 - [ ] write failing e2e (AI over MSW):
@@ -563,7 +577,8 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
   - `aiUnavailable`, `aiCapReached` and `aiLimitReached` → each followed by a successful retry;
   - `ownTransfer`/`lowConfidence` → `POST /user/settings/card-payments/requests/:id/retry { force: true }` logs them; without `force` the retry answers 409 with the park reason;
   - a notification request that ended `processingFailed` (an MSW 500 on every attempt) → `retry` enqueues `${requestId}-2` while the failed job is still retained, and the request is logged;
-  - a base-currency change in progress (the lock held) → the job re-delays without using an attempt and the banner says "Queued"; once the lock is released the request is logged;
+  - base currency, endpoint side: with the lock key set in Redis (as `ingest-card-payment.e2e.ts` does with `buildLockKey`), `POST /ingest/event` answers **423** with the `ingest.busy` message for both kinds, and no `IngestRequests` row is written;
+  - base currency, job side: a request accepted while unlocked (a pending source's notification, parked `sourceNotApproved`). The test then sets the lock key and approves the source through `PATCH /notification-sources/:id`, which only enqueues. The job sees the lock and re-delays with `attempts` unchanged and the row still `received`. The test deletes the lock key; after the re-delay (`notificationTimings.lockRetryDelayMs`, 60 s, shortened in the test) the request is logged;
   - FX → `originalAmount`;
   - a connected account → a planned row;
   - accounts: card name, `lastDigits`, source default, and `unknownAccount` with a guess;
@@ -585,7 +600,7 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
 **Files:**
 
 - Create: `packages/backend/src/services/ingest/dedup/{constants,source-slots,find-twin,find-settlement-target,enrich-twin}.ts` + unit specs, `twin.e2e.ts`
-- Modify: `packages/backend/src/services/ingest/log-ingested-payment.ts`, `packages/backend/src/services/ingest/event/process-notification.ts`, `packages/backend/src/services/ingest/card-payment/{process-ingest-request,constants}.ts` (tap fold by `time`), `packages/backend/src/services/ingest/card-payment/processing.e2e.ts` (the tap fold cases)
+- Modify: `packages/backend/src/services/ingest/log-ingested-payment.ts`, `packages/backend/src/services/ingest/event/process-notification.ts`, `packages/backend/src/services/ingest/card-payment/{process-ingest-request,constants,parse-payload}.ts` (fold by `time` and `timeSource`; `timeSource` parsed), `packages/shared/src/types/ingest/index.ts` (`timeSource` in the request keys), `packages/backend/src/services/ingest/card-payment/processing.e2e.ts` (the tap fold cases)
 
 - [ ] write failing unit tests:
   - slots, including legacy `externalData.cardPayment`;
@@ -593,9 +608,14 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
   - the settlement rule: same source, open authorization slot, same merchant text, 7 days
 - [ ] write failing e2e:
   - tap → Wallet → push → SMS gives one row in any order;
-  - **tap, tap, Wallet, Wallet** for two identical coffees, with the taps' `time` 60 s apart, gives two rows, each with two sources;
-  - the same order with taps carrying **no** `time`: the second tap folds (as today), and the result is still two rows: tap + Wallet, and Wallet only;
-  - the tap path alone: two identical taps with `time` 60 s apart → two rows; with `time` 2 s apart → folded; without `time` within 120 s → folded (shipped behaviour);
+  - **tap, tap, Wallet, Wallet** for two identical coffees, with the taps' run times 60 s apart and different keys, gives two rows, each with two sources;
+  - tap path alone, with run-time semantics (no `timeSource`, different keys, as the shipped shortcut sends across a minute boundary):
+    - run times 8 s apart → folded (`duplicate: true`);
+    - run times 25 s apart → two rows, and after Task 7 a suggestion for the pair;
+    - run times 60 s apart → two rows;
+  - `timeSource: transaction` on both: identical times → folded; times 10 s apart → two rows;
+  - same key (the shipped shortcut within one minute) → replayed as `duplicate`, as today;
+  - an API request without `time` → today's 120 s receipt window (the existing repeat-window e2e stays green);
   - a USD tap on a GEL manual account takes the bank's GEL and the balance follows;
   - the payee is filled and the spelling aliased;
   - a settlement **two days later** attaches to its authorization; one with a different merchant text logs a new row;
@@ -771,7 +791,7 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
 **Files:**
 
 - Create: `packages/frontend/scripts/shortcuts/shortcut-plist.ts` (helpers moved out of `build-card-payment-shortcut.ts`), `build-payments-shortcut.ts` + spec, `fixtures/triggers-input.xml`, `packages/frontend/shortcuts/log-payments.plist`
-- Modify: `packages/frontend/package.json` (`shortcuts:build`), `packages/frontend/public/shortcuts/README.md`, the Task 4 fixtures
+- Modify: `packages/frontend/package.json` (`shortcuts:build`), `packages/frontend/public/shortcuts/README.md`, the Task 4 fixtures, `packages/frontend/scripts/shortcuts/build-card-payment-shortcut.ts` + spec + `packages/frontend/shortcuts/log-card-payment.plist` (`KEY_TIME_FORMAT` to the second; one Wait-and-resend on 423, as in the new shortcut)
 
 - [ ] failing spec:
   - XML drift;
@@ -780,9 +800,11 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
   - the gate uses `code.gate`, falling back to `AMOUNT_GATE_PATTERNS.standard`; the shared samples pass through the same regex;
   - the gate uses only **Match Text** + **If** (no Apple Intelligence action identifiers appear);
   - an **If** on the input's app or bundle stops the run for the Shortcuts app and the MoneyMatter web app before Match Text (the `self` rule);
-  - the key includes the time to the second;
+  - the key includes the time to the second; `timeSource` is `transaction` only when the captured input has a date, otherwise `run`;
+  - the legacy generator's `KEY_TIME_FORMAT` is cut to the second (its drift spec updated; the file is re-signed in Post-Completion);
   - no input → dry run;
-  - a banner on `notify`, and `message` on a non-2xx answer
+  - a banner on `notify`, and `message` on a non-2xx answer;
+  - on 423 exactly one **Wait** 20 s and a resend with the same body and key, then the busy banner
 - [ ] add the real samples to the parser fixtures and re-run Task 4
 - [ ] gate: `npm run test:unit -- --run scripts/shortcuts`; backend unit `--testPathPattern='(ingest/event|amount-gate)'`
 
@@ -840,9 +862,10 @@ _Items requiring manual work or external systems; no checkboxes._
   - Is a balance line per account or a total?
   - Does iOS expose the notification's date? (It drives the fold window and the key.)
   - Does the any-app trigger receive the Shortcuts app's own banners and MoneyMatter's web pushes, and under which app name or bundle id? (It drives the `self` rule on both sides.)
-  - Does the Wallet Transaction input expose the transaction's own time? (It drives the tap fold.)
+  - Does the Wallet Transaction input expose the transaction's own time? If it does, the iOS 27 shortcut sends it with `timeSource: transaction` (2 s fold); if not, it sends the run time with `timeSource: run` (20 s fold).
+  - With the phone in Low Power Mode and locked, how many seconds pass between a tap and the automation's request? This checks the 20 s run-time window; log the server receive time against the tap.
 
-**Signing:** sign `log-payments.plist` (see `public/shortcuts/README.md`). Confirm the triggers survive signing and import, then run it once by hand for the dry-run banner. Share it from the iPhone to get an iCloud link, and set `PAYMENTS_SHORTCUT_ICLOUD_URL` (and `CARD_PAYMENT_SHORTCUT_ICLOUD_URL`, if it isn't set yet). PWA users need these links.
+**Signing:** sign `log-payments.plist` and re-sign the regenerated `log-card-payment.plist` (key to the second, 423 retry) (see `public/shortcuts/README.md`). Confirm the triggers survive signing and import, then run it once by hand for the dry-run banner. Share it from the iPhone to get an iCloud link, and set `PAYMENTS_SHORTCUT_ICLOUD_URL` (and `CARD_PAYMENT_SHORTCUT_ICLOUD_URL`, if it isn't set yet). PWA users need these links.
 
 **Home-screen web app check (owner's iPhone):** from the installed MoneyMatter app (standalone, not Safari):
 - tap each **Add shortcut** button and confirm the Shortcuts app offers the import, first with the iCloud link and then with only the file configured;
