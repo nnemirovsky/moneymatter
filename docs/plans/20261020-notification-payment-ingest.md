@@ -566,15 +566,17 @@ Gate results (Task 2): backend unit (full) 359 suites pass; e2e `services/ingest
 
 - Create: `packages/backend/src/services/ingest/event/{parse-wallet-notification,parse-notification-with-ai,notification-prompt,classify-notification,payee-candidates,balance-authority,ai-daily-limit}.ts` + unit specs, and `fixtures/notifications.ts`. The fixtures cover Wallet; Georgian, Russian, Ukrainian and English pushes, SMS and an email; debit, credit, decline, promo, FX and settlement texts; an "auth code" confirmation; `WOLT.COM TBILISI` and `SP *COFFEE LAB`; a total balance; and a chat message with an amount.
 
-- [ ] write failing unit tests (`jest.mock('ai')`):
+- [x] write failing unit tests (`jest.mock('ai')`):
   - the Wallet parser;
   - kind mapping; confidence < 0.6 → `lowConfidence`; invalid fields dropped; a `candidateId` outside the list dropped;
   - the prompt sections (payee rules, candidates, balance context, untrusted text);
   - candidates (tokens, Fuse, recent payees; deduped, capped at 15, generic words skipped);
   - balance authority (single currency, a non-zero sibling, zero siblings, `total`);
   - no client → `aiUnavailable`; a spent cap → `aiCapReached`; the daily limit → `aiLimitReached` with no call
-- [ ] implement on `createAIClient(notificationParsing)`, `Output.object`, `aiCallGuards`, `trackAiUsage` and `resolveAiExtractionFailure`
-- [ ] gate: unit `--testPathPattern='ingest/event/(parse|classify|payee-candidates|balance-authority|ai-daily-limit|notification-prompt)'`
+- [x] implement on `createAIClient(notificationParsing)`, `Output.object`, `aiCallGuards`, `trackAiUsage` and `resolveAiExtractionFailure`
+- [x] gate: unit `--testPathPattern='ingest/event/(parse|classify|payee-candidates|balance-authority|ai-daily-limit|notification-prompt)'`
+
+Gate results (Task 4): unit `ingest/event/(parse|classify|payee-candidates|balance-authority|ai-daily-limit|notification-prompt)` 8 suites, 222 tests pass; unit `ingest` 25 suites, 704 tests pass; backend typecheck, lint and knip clean; `payee-candidates` `loadPayeeCandidates` also run once against the e2e database in a throwaway spec (not committed).
 
 ### Task 5: Processing job, payee choice and the shared logging core
 
