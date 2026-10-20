@@ -8,6 +8,7 @@ import { extractApiErrorMessage } from '@/js/errors';
 import { cn } from '@/lib/utils';
 import type { ChatAttachment } from '@bt/shared/types';
 import { FileTextIcon, Loader2Icon, PaperclipIcon, SendIcon, SquareIcon, XIcon } from '@lucide/vue';
+import { useMediaQuery } from '@vueuse/core';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -29,6 +30,10 @@ const emit = defineEmits<{
   send: [message: { text: string; attachmentIds: string[] }];
   cancel: [];
 }>();
+
+// "Enter to send, Shift+Enter for a new line" does not apply on a touchscreen without a hardware keyboard.
+const isTouchOnly = useMediaQuery('(hover: none) and (pointer: coarse)');
+const showKeyboardHint = computed(() => !isTouchOnly.value);
 
 interface PendingAttachment {
   localId: number;
@@ -323,6 +328,6 @@ defineExpose({
         <SendIcon class="size-4" aria-hidden="true" />
       </Button>
     </div>
-    <p class="text-muted-foreground hidden px-1 text-xs @sm/chat-conversation:block">{{ $t('chat.composer.hint') }}</p>
+    <p v-if="showKeyboardHint" class="text-muted-foreground hidden px-1 text-xs @sm/chat-conversation:block">{{ $t('chat.composer.hint') }}</p>
   </div>
 </template>

@@ -2,7 +2,7 @@ import { uploadChatAttachment } from '@/api/chat';
 import { ApiErrorResponseError } from '@/js/errors';
 import { CHAT_ATTACHMENTS_PER_MESSAGE, type ChatAttachment } from '@bt/shared/types';
 import { flushPromises, mount } from '@vue/test-utils';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createChatI18n } from './cards/card-test-fixtures';
 import ChatComposer from './chat-composer.vue';
@@ -49,7 +49,39 @@ const pdf = ({ name = 'statement.pdf', size = 1024 } = {}) => {
   return file;
 };
 
+const stubMatchMedia = ({ matches }: { matches: boolean }) => {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+    })),
+  );
+};
+
 describe('ChatComposer', () => {
+  describe('keyboard hint', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('shows the Enter / Shift+Enter hint with a fine pointer', () => {
+      stubMatchMedia({ matches: false });
+
+      expect(mountComposer().find('p').exists()).toBe(true);
+    });
+
+    it('hides the hint on touch devices without hover', () => {
+      stubMatchMedia({ matches: true });
+
+      expect(mountComposer().find('p').exists()).toBe(false);
+    });
+  });
+
   beforeEach(() => {
     vi.mocked(uploadChatAttachment).mockReset();
   });
