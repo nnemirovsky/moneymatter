@@ -126,8 +126,9 @@
       </template>
     </PlanRestricted>
 
-    <!-- Apple Pay is not a bank provider, so it sits outside the bank-provider plan gate. -->
-    <div v-if="currentStep === 'select-provider'" class="border-border/60 mt-2 border-t pt-2">
+    <!-- Apple Pay is not a bank provider, so it sits outside the bank-provider plan gate. It works with any
+         bank, so no region filter dims it. -->
+    <div v-if="currentStep === 'select-provider'" class="mt-0.5 grid gap-0.5">
       <UiButton
         variant="ghost"
         class="h-auto w-full min-w-0 justify-start gap-3 px-3 py-2.5"
@@ -140,6 +141,41 @@
           <span class="block truncate text-sm font-medium">{{ t('pages.integrations.addDialog.applePay.name') }}</span>
           <span class="text-muted-foreground block truncate text-xs font-normal">
             {{ t('pages.integrations.addDialog.applePay.description') }}
+          </span>
+
+          <span class="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-normal">
+            <span :class="pricingClass('free')">{{ t('pages.integrations.labels.free') }}</span>
+
+            <span class="text-muted-foreground">·</span>
+
+            <ResponsiveTooltip
+              :content="t('pages.integrations.tooltips.applePay')"
+              content-class-name="max-w-xs text-wrap"
+            >
+              <span class="text-muted-foreground inline-flex items-center gap-1">
+                <span :class="difficultyDotClass('easy')" />
+                {{ t('pages.integrations.labels.easySetup') }}
+                <InfoIcon class="size-3" />
+              </span>
+            </ResponsiveTooltip>
+
+            <span class="text-muted-foreground">·</span>
+
+            <ResponsiveTooltip
+              :content="t('pages.integrations.addDialog.applePay.worldwideTooltip')"
+              content-class-name="max-w-xs text-wrap"
+            >
+              <span class="text-muted-foreground inline-flex items-center gap-1" data-testid="apple-pay-worldwide">
+                <GlobeIcon class="size-3.5" />
+                {{ t('pages.integrations.regions.worldwide') }}
+              </span>
+            </ResponsiveTooltip>
+
+            <span class="text-muted-foreground">·</span>
+
+            <span class="text-muted-foreground" data-testid="apple-pay-modes">
+              {{ applePayModes }}
+            </span>
           </span>
         </span>
 
@@ -170,7 +206,7 @@ import { trackAnalyticsEvent } from '@/lib/posthog';
 import { cn } from '@/lib/utils';
 import { BANK_PROVIDER_TYPE, FEATURES } from '@bt/shared/types';
 import { ROUTES_NAMES } from '@/routes';
-import { ChevronRightIcon, InfoIcon } from '@lucide/vue';
+import { ChevronRightIcon, GlobeIcon, InfoIcon } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
@@ -236,6 +272,11 @@ const providerRows = computed(() => {
     };
   });
 });
+
+/** Ways Apple Pay payments get logged. Add a key here when a new mode ships. */
+const APPLE_PAY_MODE_LABEL_KEYS = ['pages.integrations.addDialog.applePay.modes.taps'] as const;
+
+const applePayModes = computed(() => APPLE_PAY_MODE_LABEL_KEYS.map((key) => t(key)).join(' · '));
 
 const chipClass = (isActive: boolean) =>
   cn(

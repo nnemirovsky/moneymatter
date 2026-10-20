@@ -8,7 +8,11 @@
         "betaBadge": "Beta",
         "applePay": {
           "name": "Apple Pay",
-          "description": "Log every Apple Pay payment automatically with an iOS shortcut.",
+          "description": "Log every Apple Pay tap automatically with an iOS shortcut.",
+          "worldwideTooltip": "Works with any bank: the shortcut runs on your iPhone, so no bank connection is needed.",
+          "modes": {
+            "taps": "Apple Pay taps"
+          },
           "badge": "Set up"
         }
       },
@@ -433,6 +437,7 @@
         "veryDifficultSetup": "Very difficult to setup"
       },
       "regions": {
+        "worldwide": "Worldwide",
         "ukraine": "Ukraine",
         "eu": "EU",
         "uk": "UK",
@@ -448,6 +453,7 @@
         "euUk": "EU & UK"
       },
       "tooltips": {
+        "applePay": "Needs an iPhone and the iOS Shortcuts app. Copy a setup code and add the shortcut once; no developer setup or bank login is required.",
         "monobank": "Requires manually copying an API token from the Monobank mobile app",
         "enableBanking": "Since smooth integration requires several thousands $ per month to be paid, it's only possible to connect by creating own EnableBanking dev account, and setting up \"test\" application with real connection to own banks, storing certificates and keys and uploading them here. Moderate technical knowledge required",
         "lunchflow": "Just connect your banks on the LunchFlow side, then create and paste your LunchFlow API key",
