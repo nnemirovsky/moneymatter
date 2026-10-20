@@ -3,19 +3,27 @@
  * instance, in one pasteable or scannable string.
  *
  * Wire format: `v1.` + standard base64 (with padding) of the UTF-8 JSON
- * `{"v":1,"url":"…","token":"…","cfAccessId":"…","cfAccessSecret":"…"}`. The Cloudflare Access
- * fields are present only when set. The Shortcuts "Base64 Encode" action reads standard base64,
- * not base64url, and `.` is not a base64 character, so the shortcut strips the `v1.` prefix with
- * a Replace Text step before decoding. The prefix stays so a person and the server can tell the
- * format apart; `v` versions the payload itself.
+ * `{"v":1,"url":"…","token":"…","cfAccessId":"…","cfAccessSecret":"…","gate":"…"}`. The Cloudflare
+ * Access fields are present only when set. `gate` is the amount-gate regex of a non-default
+ * strictness; a code without it uses the standard pattern the shortcut carries. The Shortcuts
+ * "Base64 Encode" action reads standard base64, not base64url, and `.` is not a base64 character,
+ * so the shortcut strips the `v1.` prefix with a Replace Text step before decoding. The prefix
+ * stays so a person and the server can tell the format apart; `v` versions the payload itself.
  *
  * A code carries a live credential: callers must neither log it nor store it.
  */
 
 export const SETUP_CODE_PREFIX = 'v1.';
 export const SETUP_CODE_VERSION = 1;
-/** Longest code (prefix included) that is built or accepted, so the QR code stays scannable. */
-export const SETUP_CODE_MAX_LENGTH = 2048;
+/**
+ * Longest code (prefix included) that is built or accepted. A code without a `gate` stays under
+ * `SETUP_CODE_QR_MAX_LENGTH`; one that carries a gate regex is longer and is pasted, not scanned.
+ */
+export const SETUP_CODE_MAX_LENGTH = 6144;
+/** Longest code a QR code can carry and still scan on a phone. */
+export const SETUP_CODE_QR_MAX_LENGTH = 2048;
+/** Longest `gate` regex a code accepts. */
+const SETUP_CODE_GATE_MAX_LENGTH = 4096;
 
 export type SetupCodeErrorReason =
   | 'tooLarge'
@@ -26,7 +34,8 @@ export type SetupCodeErrorReason =
   | 'missingUrl'
   | 'invalidUrl'
   | 'missingToken'
-  | 'invalidAccessHeaders';
+  | 'invalidAccessHeaders'
+  | 'invalidGate';
 
 /** Carries a reason code only: the message never repeats any part of the code. */
 export class SetupCodeError extends Error {
@@ -44,6 +53,8 @@ export interface CardPaymentSetupCodePayload {
   token: string;
   cfAccessId?: string;
   cfAccessSecret?: string;
+  /** The amount-gate regex (ICU syntax) the shortcut applies on the device; absent means the standard pattern. */
+  gate?: string;
 }
 
 const BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/;
@@ -82,7 +93,7 @@ const fromBase64 = ({ encoded }: { encoded: string }): string => {
 
 /** Checks the fields a code needs, throwing the matching `SetupCodeError`. */
 const assertPayload = ({ payload }: { payload: Record<string, unknown> }): CardPaymentSetupCodePayload => {
-  const { url, token, cfAccessId, cfAccessSecret } = payload;
+  const { url, token, cfAccessId, cfAccessSecret, gate } = payload;
 
   if (!isNonEmptyString(url)) throw new SetupCodeError({ reason: 'missingUrl' });
   if (!isHttpUrl({ value: url })) throw new SetupCodeError({ reason: 'invalidUrl' });
@@ -96,20 +107,28 @@ const assertPayload = ({ payload }: { payload: Record<string, unknown> }): CardP
     throw new SetupCodeError({ reason: 'invalidAccessHeaders' });
   }
 
-  return hasId
-    ? { url, token, cfAccessId: cfAccessId as string, cfAccessSecret: cfAccessSecret as string }
-    : { url, token };
+  if (gate !== undefined && (!isNonEmptyString(gate) || gate.length > SETUP_CODE_GATE_MAX_LENGTH)) {
+    throw new SetupCodeError({ reason: 'invalidGate' });
+  }
+
+  return {
+    url,
+    token,
+    ...(hasId && { cfAccessId: cfAccessId as string, cfAccessSecret: cfAccessSecret as string }),
+    ...(gate !== undefined && { gate }),
+  };
 };
 
 /** Builds the setup code, or throws `SetupCodeError` for an unusable payload or an oversize result. */
 export const encodeSetupCode = (params: CardPaymentSetupCodePayload): string => {
-  const { url, token, cfAccessId, cfAccessSecret } = assertPayload({ payload: { ...params } });
+  const { url, token, cfAccessId, cfAccessSecret, gate } = assertPayload({ payload: { ...params } });
 
   const json = JSON.stringify({
     v: SETUP_CODE_VERSION,
     url,
     token,
     ...(cfAccessId !== undefined && { cfAccessId, cfAccessSecret }),
+    ...(gate !== undefined && { gate }),
   });
   const code = `${SETUP_CODE_PREFIX}${toBase64({ text: json })}`;
 

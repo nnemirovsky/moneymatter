@@ -1,7 +1,9 @@
 import type { RecordId } from '../record-id';
+import type { GateStrictness } from './amount-gate';
 
 export * from './amount-gate';
 export * from './card-payment-setup-code';
+export * from './ingest-event';
 export * from './normalize-card-label';
 export * from './notification-sources';
 
@@ -58,25 +60,44 @@ export const INGEST_PIPELINES = ['cardPayment', 'notification'] as const;
 
 export type IngestPipeline = (typeof INGEST_PIPELINES)[number];
 
-/** A link between a Wallet card name and the account its payments are logged on. */
+/**
+ * A link between a card and an account. One card (a Wallet card name, optionally with its last
+ * digits) holds one row per currency plus at most one default row: the row of the payment's
+ * currency wins, else the default row. A row of one card shares `cardLabel` and `lastDigits` with
+ * the others.
+ */
 export interface CardMappingDto {
   id: RecordId;
   /** The label as the user typed it. */
   cardLabel: string;
+  /** The card's last digits, for a notification that names no Wallet card; `null` when not set. */
+  lastDigits: string | null;
+  /** The currency this row serves, or `null` for the card's default row. */
+  currencyCode: string | null;
   accountId: RecordId;
   createdAt: string;
 }
+
+/** A card's last digits as a notification states them. */
+export const CARD_LAST_DIGITS_PATTERN = /^\d{4,8}$/;
 
 /** Request body of `POST /user/settings/card-mappings`. */
 export interface CreateCardMappingPayload {
   cardLabel: string;
   accountId: RecordId;
+  /** The currency the row serves; omitted or `null` makes the card's default row. */
+  currencyCode?: string | null;
+  lastDigits?: string | null;
 }
 
-/** Request body of `PATCH /user/settings/card-mappings/:id`; at least one field. */
+/**
+ * Request body of `PATCH /user/settings/card-mappings/:id`; at least one field. A new `cardLabel`
+ * or `lastDigits` applies to every row of the card. The currency of a row cannot change.
+ */
 export interface UpdateCardMappingPayload {
   cardLabel?: string;
   accountId?: RecordId;
+  lastDigits?: string | null;
 }
 
 /**
@@ -283,3 +304,8 @@ export type DuplicateSuggestionTrigger = (typeof DUPLICATE_SUGGESTION_TRIGGERS)[
 
 /** The lowest AI confidence that becomes a suggestion. */
 export const DUPLICATE_SUGGESTION_MIN_CONFIDENCE = 0.6;
+
+/** The answers of `GET`/`PUT /user/settings/card-payments/gate-strictness`. */
+export interface GateStrictnessDto {
+  strictness: GateStrictness;
+}
