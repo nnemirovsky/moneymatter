@@ -114,7 +114,9 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   // commenting on a card only change the card or start a run; approving (one or all) is the
   // guarded route, because that is where the write handlers run. Rejecting a confirm card of the
   // automation inbox deletes the payment, so its reject hook applies the lock and the plan check
-  // itself. Clearing and archiving the inbox thread are chat housekeeping.
+  // itself. Clearing and archiving the inbox thread are chat housekeeping, and presence only tells
+  // the assistant which thread is on screen.
+  'DELETE /api/v1/chat/presence',
   'DELETE /api/v1/chat/threads/:id',
   'PATCH /api/v1/chat/proposals/:id',
   'PATCH /api/v1/chat/threads/:id',
@@ -127,6 +129,7 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   'POST /api/v1/chat/threads/:id/attachments',
   'POST /api/v1/chat/threads/:id/clear-resolved',
   'POST /api/v1/chat/threads/:id/messages',
+  'PUT /api/v1/chat/presence',
   'PUT /api/v1/chat/settings',
 
   // Invoice matching only ranks candidates; the one write is the non-monetary trial counter.

@@ -307,4 +307,65 @@ describe('renderPushBody', () => {
       expect(body).toBe('alice deleted the tracker Holiday');
     });
   });
+
+  describe('assistant types', () => {
+    const render = ({
+      type,
+      payload,
+      locale = 'en',
+      message = 'Wolt 43.60 GEL, card 4321',
+    }: {
+      type: NotificationType;
+      payload: Record<string, unknown>;
+      locale?: string;
+      message?: string | null;
+    }) => renderPushBody({ notification: notification({ type, payload, message }), locale });
+
+    it('shows the thread title of a chat reply and of waiting cards', () => {
+      expect(
+        render({ type: NOTIFICATION_TYPES.chatReplyReady, payload: { threadId: 't', threadTitle: 'September spend' } }),
+      ).toBe('September spend');
+      expect(
+        render({
+          type: NOTIFICATION_TYPES.chatCardsWaiting,
+          payload: { threadId: 't', threadTitle: 'September spend', cardCount: 2 },
+        }),
+      ).toBe('September spend');
+    });
+
+    it('counts the inbox items in en and uk', () => {
+      const payload = { threadId: 'inbox', count: 3 };
+
+      expect(render({ type: NOTIFICATION_TYPES.automationInbox, payload })).toBe('3 new items to review');
+      expect(render({ type: NOTIFICATION_TYPES.automationInbox, payload, locale: 'uk' })).toBe(
+        '3 нові елементи для перегляду',
+      );
+    });
+
+    it('names the park reason of an ingest attention push in en and uk', () => {
+      const payload = { reason: 'aiLimitReached' };
+
+      expect(render({ type: NOTIFICATION_TYPES.ingestAttention, payload })).toBe(
+        'A bank notification could not be read: the daily AI limit for notifications is reached.',
+      );
+      expect(render({ type: NOTIFICATION_TYPES.ingestAttention, payload, locale: 'uk' })).toBe(
+        'Не вдалося прочитати сповіщення банку: вичерпано добовий ліміт ШІ для сповіщень.',
+      );
+    });
+
+    it('never uses the stored message, which could hold a notification text', () => {
+      const types = [
+        NOTIFICATION_TYPES.chatReplyReady,
+        NOTIFICATION_TYPES.chatCardsWaiting,
+        NOTIFICATION_TYPES.automationInbox,
+        NOTIFICATION_TYPES.ingestAttention,
+      ];
+
+      for (const type of types) {
+        const body = render({ type, payload: { threadId: 't', threadTitle: '', cardCount: 1, count: 1, reason: 'x' } });
+        expect(body).not.toContain('Wolt');
+        expect(body).not.toContain('4321');
+      }
+    });
+  });
 });

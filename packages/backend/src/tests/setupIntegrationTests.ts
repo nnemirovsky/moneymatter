@@ -13,6 +13,7 @@ import { loadCurrencyRatesJob } from '@root/crons/exchange-rates';
 import { REDIS_KEY_PREFIX, redisClient, redisReady } from '@root/redis-client';
 import { categorizationQueue, categorizationWorker } from '@services/ai-categorization/categorization-queue';
 import { flushAllPendingCategorizationBuffers } from '@services/ai-categorization/event-listeners';
+import { assistantPushQueue, assistantPushWorker } from '@services/assistant-push/assistant-push-queue';
 import { backupRestoreQueue, backupRestoreWorker } from '@services/backup/restore/restore-queue';
 import { closeAllMonobankQueueBundles } from '@services/bank-data-providers/monobank/transaction-sync-queue';
 import { accountSyncQueue, accountSyncWorker } from '@services/bank-data-providers/sync/account-sync-queue';
@@ -540,6 +541,8 @@ async function closeAllE2eResources() {
     await baseCurrencyChangeQueue.close();
     await webPushWorker.close();
     await webPushQueue.close();
+    await assistantPushWorker.close();
+    await assistantPushQueue.close();
 
     // The chat tail holds a connection of its own to Redis.
     await chatTailHub.close();

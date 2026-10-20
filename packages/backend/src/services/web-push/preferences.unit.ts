@@ -44,6 +44,13 @@ describe('NOTIFICATION_PUSH_GROUP', () => {
     expect(NOTIFICATION_PUSH_GROUP.system).toBe(PUSH_GROUPS.system);
     expect(NOTIFICATION_PUSH_GROUP.changelog).toBe(PUSH_GROUPS.releases);
   });
+
+  it('places the four assistant types in assistant', () => {
+    expect(NOTIFICATION_PUSH_GROUP.chat_reply_ready).toBe(PUSH_GROUPS.assistant);
+    expect(NOTIFICATION_PUSH_GROUP.chat_cards_waiting).toBe(PUSH_GROUPS.assistant);
+    expect(NOTIFICATION_PUSH_GROUP.automation_inbox).toBe(PUSH_GROUPS.assistant);
+    expect(NOTIFICATION_PUSH_GROUP.ingest_attention).toBe(PUSH_GROUPS.assistant);
+  });
 });
 
 describe('isPushGroupEnabled', () => {
@@ -52,6 +59,7 @@ describe('isPushGroupEnabled', () => {
     [PUSH_GROUPS.bankSync, true],
     [PUSH_GROUPS.sharing, true],
     [PUSH_GROUPS.system, true],
+    [PUSH_GROUPS.assistant, true],
     [PUSH_GROUPS.releases, false],
   ])('defaults %s to %s when nothing is stored', (group, expected) => {
     expect(isPushGroupEnabled({ settings: { locale: 'en' }, group })).toBe(expected);
@@ -78,6 +86,13 @@ describe('isPushGroupEnabled', () => {
 
     expect(isPushGroupEnabled({ settings, group: PUSH_GROUPS.reminders })).toBe(false);
     expect(isPushGroupEnabled({ settings, group: PUSH_GROUPS.releases })).toBe(true);
+  });
+
+  it('turns the assistant group off when the user saved false', () => {
+    const settings = { locale: 'en' as const, notifications: { push: { groups: { assistant: false } } } };
+
+    expect(isPushGroupEnabled({ settings, group: PUSH_GROUPS.assistant })).toBe(false);
+    expect(isPushGroupEnabled({ settings, group: PUSH_GROUPS.reminders })).toBe(true);
   });
 
   it('ignores the dormant notifications.enabled and types keys', () => {

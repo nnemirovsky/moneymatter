@@ -40,21 +40,21 @@ describe('push-groups-card', () => {
     vi.clearAllMocks();
   });
 
-  it('renders the five groups with their descriptions', async () => {
+  it('renders the six groups with their descriptions', async () => {
     const wrapper = await mountCard();
 
-    expect(wrapper.findAll('[role="switch"]')).toHaveLength(5);
+    expect(wrapper.findAll('[role="switch"]')).toHaveLength(6);
     Object.values(PUSH_GROUPS).forEach((group) => {
       expect(wrapper.text()).toContain(ITEMS[group].label);
       expect(wrapper.text()).toContain(ITEMS[group].description);
     });
   });
 
-  it('starts with releases off and every other group on when nothing was saved', async () => {
+  it('starts with releases off and every other group on (the assistant included) when nothing was saved', async () => {
     const wrapper = await mountCard();
 
     expect(switchOf({ wrapper, group: 'releases' }).attributes('aria-checked')).toBe('false');
-    (['reminders', 'bankSync', 'sharing', 'system'] as const).forEach((group) => {
+    (['reminders', 'bankSync', 'sharing', 'system', 'assistant'] as const).forEach((group) => {
       expect(switchOf({ wrapper, group }).attributes('aria-checked')).toBe('true');
     });
   });

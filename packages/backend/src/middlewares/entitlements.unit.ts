@@ -20,6 +20,8 @@ describe('isReadOnlyAllowed', () => {
       { method: 'POST', path: `/chat/proposals/${ID}/reject`, allowed: true },
       { method: 'POST', path: `/chat/proposals/${ID}/comment`, allowed: true },
       { method: 'PUT', path: '/chat/settings', allowed: true },
+      { method: 'PUT', path: '/chat/presence', allowed: true },
+      { method: 'DELETE', path: '/chat/presence', allowed: true },
       { method: 'PATCH', path: `/chat/proposals/${ID}`, allowed: false },
       { method: 'POST', path: `/chat/proposals/${ID}/approve`, allowed: false },
       { method: 'POST', path: `/chat/messages/${ID}/approve-all`, allowed: false },
@@ -33,6 +35,8 @@ describe('isReadOnlyAllowed', () => {
       expect(isReadOnlyAllowed({ method: 'PUT', path: '/chat/threads' })).toBe(false);
       expect(isReadOnlyAllowed({ method: 'POST', path: '/chat/settings' })).toBe(false);
       expect(isReadOnlyAllowed({ method: 'DELETE', path: `/chat/proposals/${ID}/reject` })).toBe(false);
+      expect(isReadOnlyAllowed({ method: 'POST', path: '/chat/presence' })).toBe(false);
+      expect(isReadOnlyAllowed({ method: 'PATCH', path: '/chat/presence' })).toBe(false);
     });
 
     it('does not let a path segment stand in for another or extend a rule', () => {

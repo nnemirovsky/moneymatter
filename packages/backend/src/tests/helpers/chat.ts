@@ -430,3 +430,26 @@ export async function getChatAppliedCards<R extends boolean | undefined = undefi
     raw,
   });
 }
+
+/** The caller is looking at a thread: the assistant sends no push for it while the mark lasts. */
+export async function putChatPresence<R extends boolean | undefined = undefined>({
+  threadId,
+  raw,
+}: {
+  /** Typed wide so a test can send a body the API must refuse. */
+  threadId: unknown;
+  raw?: R;
+}) {
+  return makeRequest<void, R>({ method: 'put', url: '/chat/presence', payload: { threadId }, raw });
+}
+
+/** The caller left the thread. */
+export async function deleteChatPresence<R extends boolean | undefined = undefined>({
+  threadId,
+  raw,
+}: {
+  threadId: string;
+  raw?: R;
+}) {
+  return makeRequest<void, R>({ method: 'delete', url: `/chat/presence${buildQuery({ params: { threadId } })}`, raw });
+}

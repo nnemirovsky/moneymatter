@@ -225,6 +225,61 @@ describe('buildPushPayload', () => {
   });
 });
 
+describe('buildPushPayload tags of the assistant types', () => {
+  beforeAll(async () => {
+    await i18nextReady;
+  });
+
+  const build = (overrides: Partial<PayloadNotification>) =>
+    buildPushPayload({ notification: notification(overrides), locale: 'en', origin: ORIGIN, unreadCount: 1 });
+
+  it('tags a chat reply and its waiting cards by thread, so the newer one replaces the older', () => {
+    const reply = build({ type: NOTIFICATION_TYPES.chatReplyReady, payload: { threadId: 'thread-1' } });
+    const cards = build({ type: NOTIFICATION_TYPES.chatCardsWaiting, payload: { threadId: 'thread-1' } });
+
+    expect(reply.notification.tag).toBe('assistant:thread-1');
+    expect(cards.notification.tag).toBe('assistant:thread-1');
+  });
+
+  it('tags the inbox push by the inbox thread', () => {
+    const inbox = build({ type: NOTIFICATION_TYPES.automationInbox, payload: { threadId: 'inbox-1', count: 3 } });
+
+    expect(inbox.notification.tag).toBe('assistant:inbox-1');
+  });
+
+  it('tags an ingest attention push by its reason', () => {
+    const attention = build({ type: NOTIFICATION_TYPES.ingestAttention, payload: { reason: 'aiCapReached' } });
+
+    expect(attention.notification.tag).toBe('assistant:ingest-aiCapReached');
+  });
+
+  it('keeps the notification id as the tag of every other type', () => {
+    expect(build({ type: NOTIFICATION_TYPES.system, payload: { threadId: 'thread-1' } }).notification.tag).toBe(ID);
+  });
+
+  it('opens the notification page and keeps the id, so the app resolves the deep link', () => {
+    const attention = build({ type: NOTIFICATION_TYPES.chatReplyReady, payload: { threadId: 'thread-1' } });
+
+    expect(attention.notification.data).toMatchObject({
+      notificationId: ID,
+      type: 'chat_reply_ready',
+      path: `/notifications/${ID}`,
+    });
+  });
+
+  it('does not put the stored message into an assistant push', () => {
+    const payload = build({
+      type: NOTIFICATION_TYPES.automationInbox,
+      title: 'Automation inbox',
+      message: 'Wolt 43.60 GEL',
+      payload: { threadId: 'inbox-1', count: 2 },
+    });
+
+    expect(payload.notification.body).toBe('2 new items to review');
+    expect(JSON.stringify(payload)).not.toContain('Wolt');
+  });
+});
+
 describe('buildTestPushPayload', () => {
   beforeAll(async () => {
     await i18nextReady;
