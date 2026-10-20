@@ -117,7 +117,7 @@ control.
 ## Proxies with access control
 
 If the proxy or a gateway in front of it makes people sign in (Cloudflare Access,
-Authelia, an OAuth proxy), the Apple Pay shortcut cannot pass that login: it runs
+Authelia, an OAuth proxy), the iOS Automation shortcuts cannot pass that login: it runs
 on a phone and sends plain HTTP requests. Keep the login on the app and open a
 single path to the shortcut with its own machine credential:
 
@@ -127,7 +127,7 @@ single path to the shortcut with its own machine credential:
   policy on that path), or a header your gateway checks. Never use a bypass rule.
 - The app still requires its own ingest token on that path, so the gateway
   exception doesn't open the app.
-- Enter the service token's id and secret on the Apple Pay page (Accounts → Apple Pay) so the setup code carries them.
+- Enter the service token's id and secret on the iOS Automation page (Accounts → iOS Automation) so the setup code carries them.
 
 ## Nginx Proxy Manager
 

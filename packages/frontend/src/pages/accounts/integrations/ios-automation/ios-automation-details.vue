@@ -133,7 +133,7 @@ defineOptions({
 });
 
 const LABEL_ROOT = 'settings.integrations.iosAutomation';
-const MANUAL_GUIDE_DOCS_PATH = '/integrations/apple-pay/';
+const MANUAL_GUIDE_DOCS_PATH = '/integrations/ios-automation/';
 
 interface LinkOffer {
   cardLabel: string;

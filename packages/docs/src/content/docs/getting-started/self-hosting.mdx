@@ -133,18 +133,27 @@ Keep these in mind:
 
 ### Reverse proxies with access control
 
-If your proxy or gateway asks people to sign in before it lets requests through (Cloudflare Access, Authelia, an OAuth proxy), the [Apple Pay shortcut](/integrations/apple-pay/) can't use that login: it runs on a phone and sends plain requests. Leave the gateway's login on the app, and give the shortcut its own way through for one path only:
+If your proxy or gateway asks people to sign in before it lets requests through (Cloudflare Access, Authelia, an OAuth proxy), the [iOS Automation shortcut](/integrations/ios-automation/) can't use that login: it runs on a phone and sends plain requests. Leave the gateway's login on the app, and give the shortcut its own way through for one path only:
 
-- **Cloudflare Access:** create a service token, then a second Access application for the path `/api/v1/ingest/` with one **Service Auth** policy that includes that token. The more specific path takes precedence over the site-wide application. Never add a bypass policy. In **Settings**, **Integrations**, **Apple Pay**, enter the token's **Client ID** and **Client secret** so the shortcut sends them as `CF-Access-Client-Id` and `CF-Access-Client-Secret`.
+- **Cloudflare Access:** create a service token, then a second Access application for the path `/api/v1/ingest/` with one **Service Auth** policy that includes that token. The more specific path takes precedence over the site-wide application. Never add a bypass policy. In **Accounts**, **iOS Automation**, enter the token's **Client ID** and **Client secret** so the shortcut sends them as `CF-Access-Client-Id` and `CF-Access-Client-Secret`.
 - **Other gateways:** allow requests to `/api/v1/ingest/` through the gateway's own check only when they carry a header you set, and keep MoneyMatter's token as the real credential.
 
 MoneyMatter still requires its own ingest token on every request to that path, so opening it at the gateway doesn't open the app.
 
-### Apple Pay shortcut link
+### iOS Automation settings
 
-The Apple Pay page (Accounts → Apple Pay) can offer an **Add Shortcut** button that points to an iCloud link for the "MoneyMatter - Log card payment" shortcut. Set the link with `CARD_PAYMENT_SHORTCUT_ICLOUD_URL` in `.env`, then run `docker compose up -d`. It is read when the frontend container starts, so no rebuild is needed. Leave it empty if you have no link. The page then falls back to the [manual guide](/integrations/apple-pay/#build-the-shortcut-by-hand).
+The iOS Automation page (Accounts → iOS Automation) can offer two **Add shortcut** buttons, one for each ready-made shortcut. Each points to an iCloud link that you set in `.env`:
 
-An iCloud link can only be created on an iPhone: import the shortcut, then share it and copy the link.
+| Variable | Shortcut | Button |
+|---|---|---|
+| `PAYMENTS_SHORTCUT_ICLOUD_URL` | "MoneyMatter - Log payments" | **Add shortcut — iOS 27 or later** |
+| `CARD_PAYMENT_SHORTCUT_ICLOUD_URL` | "MoneyMatter - Log card payment" | **Add shortcut — iOS 26 or earlier** |
+
+Run `docker compose up -d` after you change them. They are read when the frontend container starts, so no rebuild is needed. Leave a variable empty if you have no link for that shortcut: the page then falls back to the shortcut file shipped with the image when there is one, and otherwise says that the instance doesn't ship it and points to the [manual guide](/integrations/ios-automation/#build-the-shortcut-by-hand). Set the links if your users run MoneyMatter from the Home Screen: an iCloud link opens in a sheet with a **Get Shortcut** button, while a file can't be handed to Shortcuts from a Home Screen app as directly.
+
+An iCloud link can only be created on an iPhone: import the shortcut, then share it and copy the link. For the iOS 27 shortcut, share it from an iPhone with iOS 27 or later, so the link keeps its triggers.
+
+Reading bank notifications with AI is limited per user to 300 AI calls a day. To change that figure, set `INGEST_AI_DAILY_LIMIT` in `.env` (`0` turns notification reading off). It is a backend variable, so restart the backend. See the [environment reference](https://github.com/letehaha/moneymatter/blob/main/self-hosting/docs/environment-reference.md).
 
 ## Update
 

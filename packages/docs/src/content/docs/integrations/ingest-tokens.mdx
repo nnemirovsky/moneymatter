@@ -1,6 +1,6 @@
 ---
 title: Ingest tokens
-description: Create, name, revoke and understand the personal tokens that let an iOS Shortcut or a script add card payments to MoneyMatter without signing in as you.
+description: Create, name, revoke and understand the personal tokens that let an iOS Shortcut or a script add card payments and payment notifications to MoneyMatter without signing in as you.
 sidebar:
   order: 2
   label: Ingest tokens
@@ -9,27 +9,27 @@ sidebar:
 import { Aside, Steps } from '@astrojs/starlight/components';
 import Screenshot from '~/components/screenshot.astro';
 
-An ingest token lets one shortcut or script send card payments to your MoneyMatter account. It is a long secret that the shortcut sends with each payment, so the shortcut never needs your password and never signs in as you.
+An ingest token lets one shortcut or script send card payments and payment notifications to your MoneyMatter account. It is a long secret that the shortcut sends with each payment, so the shortcut never needs your password and never signs in as you.
 
-The [Apple Pay guide](/integrations/apple-pay/) uses a token. Any script that calls the [card-payment API](https://github.com/letehaha/moneymatter/blob/main/packages/backend/docs/card-payment-ingest.md) uses one too.
+The [iOS Automation guide](/integrations/ios-automation/) uses a token. Any script that calls the [card-payment API](https://github.com/letehaha/moneymatter/blob/main/packages/backend/docs/card-payment-ingest.md) uses one too.
 
 ## What a token can do
 
-A token can do exactly one thing: add card payments (the scope is shown as **Log card payments**). It cannot read your accounts or transactions, change anything else, or open the app as you. If a token leaks, the worst an attacker can do is add fake payments to your account, and you stop that by revoking the token.
+A token can do exactly one thing: add payments (the scope is shown as **Log card payments**). That covers a Wallet payment and a bank notification alike. It cannot read your accounts or transactions, change anything else, or open the app as you. If a token leaks, the worst an attacker can do is add fake payments to your account, and you stop that by revoking the token.
 
 ## Open the device list
 
 <Steps>
 
-1. Open **Accounts**. In **Bank connections**, click **Connect** and choose **Apple Pay**, or open the **Apple Pay** row if it is already there.
+1. Open **Accounts**. In **Bank connections**, click **Connect** and choose **iOS Automation**, or open the **iOS Automation** row if it is already there.
 2. Scroll to **Devices**.
 
 </Steps>
 
 <Screenshot
   src="/screenshots/integrations/ingest-tokens.png"
-  alt="The Devices section of the Apple Pay page with two tokens listed, each with its scope, when it was created, when it was last used and when it expires, and a Revoke button."
-  hint="Open /accounts/integrations/apple-pay as the docs test user with two tokens created (one used by a dryRun request). Crop to the Devices section."
+  alt="The Devices section of the iOS Automation page with two tokens listed, each with its scope, when it was created, when it was last used and when it expires, and a Revoke button."
+  hint="Open /accounts/integrations/ios-automation as the docs test user with two tokens created (one used by a dryRun request). Crop to the Devices section."
 />
 
 Each token shows its name, the start of its secret, its scope, when it was created, when it was **Last used** and when it expires. A token that was never used says **Never**.
@@ -72,7 +72,7 @@ The token stops working at once. Whatever uses it gets an authorization error un
 
 - **A password reset** revokes every ingest token you have. After you reset your password, create a new token and put it into your shortcut again.
 - **An expired token** stops working on its expiry date. It stays in the list until you revoke it.
-- **Generating a setup code** for the Apple Pay shortcut creates a new token and, unless you turn it off, revokes the previous Apple Pay token. See [Apple Pay](/integrations/apple-pay/).
+- **Generating a setup code** for the iOS shortcut creates a new token and, unless you turn it off, revokes the previous setup token. See [iOS Automation](/integrations/ios-automation/).
 
 ## Keep tokens safe
 

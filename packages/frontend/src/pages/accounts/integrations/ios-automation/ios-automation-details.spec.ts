@@ -241,7 +241,7 @@ describe('iOS Automation page', () => {
     const { wrapper } = mountPage();
 
     const link = wrapper.get('[data-testid="manual-guide"] a');
-    expect(link.attributes('href')).toBe('https://docs.example.com/integrations/apple-pay/');
+    expect(link.attributes('href')).toBe('https://docs.example.com/integrations/ios-automation/');
     expect(link.text()).toContain('manual setup guide');
   });
 

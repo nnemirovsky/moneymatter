@@ -870,7 +870,7 @@ Owner-decision audit (each checked against code and a test): no AI auto-merge (j
 
 ### Task 17: [Final] Update documentation
 
-- [ ] `packages/docs/src/content/docs/integrations/ios-automation.mdx` (it replaces `apple-pay.mdx`; redirect in `astro.config.mjs`), per the `user-docs` skill. Cover:
+- [x] `packages/docs/src/content/docs/integrations/ios-automation.mdx` (it replaces `apple-pay.mdx`; redirect in `astro.config.mjs`), per the `user-docs` skill. Cover:
   - the two shortcut buttons (iOS 27 or later, iOS 26 or earlier) and using them from the home-screen app;
   - the triggers and the apps to add;
   - the gate (Match Text, no Apple Intelligence) and its strictness;
@@ -882,11 +882,13 @@ Owner-decision audit (each checked against code and a test): no AI auto-merge (j
   - limits;
   - the manual guide for older iOS;
   - troubleshooting
-- [ ] `transactions/reconciliation.mdx`: Suggestions and manual-account rows; an Automation inbox section (what lands there, the pin, clear resolved, archive, rollover); the notification settings docs: the Assistant push group
-- [ ] `packages/backend/docs/card-payment-ingest.md`: the event endpoint, `pipeline`, the banner and error outcomes, the prefilter, text at rest, limits, slots, the twin and settlement rules, the judge, the inbox sync; `services/bank-data-providers/docs/architecture.md`: the reconciliation changes
-- [ ] `self-hosting/docs/environment-reference.md`: `INGEST_AI_DAILY_LIMIT`, `PAYMENTS_SHORTCUT_ICLOUD_URL`
-- [ ] `cd packages/docs && npm run build` with the link validator passing
-- [ ] move this plan to `docs/plans/completed/` after Task 16 passes (Task 15 may stay open under ⚠️)
+- [x] `transactions/reconciliation.mdx`: Suggestions and manual-account rows; an Automation inbox section (what lands there, the pin, clear resolved, archive, rollover); the notification settings docs: the Assistant push group
+- [x] `packages/backend/docs/card-payment-ingest.md`: the event endpoint, `pipeline`, the banner and error outcomes, the prefilter, text at rest, limits, slots, the twin and settlement rules, the judge, the inbox sync; `services/bank-data-providers/docs/architecture.md`: the reconciliation changes
+- [x] `self-hosting/docs/environment-reference.md`: `INGEST_AI_DAILY_LIMIT`, `PAYMENTS_SHORTCUT_ICLOUD_URL`
+- [x] `cd packages/docs && npm run build` with the link validator passing
+- [x] (deferred - orchestrator moves the plan after Task 15) move this plan to `docs/plans/completed/` after Task 16 passes (Task 15 may stay open under ⚠️)
+
+Results: docs build passes with the link validator (46 pages, anchors included). `/integrations/apple-pay/` redirects to `/integrations/ios-automation/` (`redirects` in `astro.config.mjs`); the page's manual-guide link (`MANUAL_GUIDE_DOCS_PATH`) and its spec follow. Also updated: `ai/ai-features.mdx` (Payment notifications, Duplicate matching), `ai/chat.mdx` (inbox card lifetime and thread), `settings/notifications.mdx` (Assistant group), `getting-started/self-hosting.mdx` and `self-hosting/docs/*` (both shortcut links, `INGEST_AI_DAILY_LIMIT`, `.env.example`), `integrations/ingest-tokens.mdx`, `.claude/docs/backend-conventions.md` (ingest rules). ⚠️ Screenshots not captured (the seed needs the dev stack and SimpleFIN's demo; skipped): `npm run screenshots:missing` lists `ios-automation-{setup,card-links,sources,waiting}`, `transactions/reconciliation-suggestions`, `transactions/automation-inbox` and the earlier gaps. ⚠️ The iOS 27 shortcut steps follow the page's own instructions; re-check them against the shipped file after Task 15.
 
 ## Post-Completion
 

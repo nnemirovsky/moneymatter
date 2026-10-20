@@ -1,6 +1,6 @@
 ---
 title: Reconciliation
-description: Merge duplicate bank transactions, remove ones that shouldn't be there, resolve pending payments your bank never booked, and restore anything you removed by mistake.
+description: Merge duplicate transactions, review the pairs MoneyMatter suggests, remove ones that shouldn't be there, resolve pending payments your bank never booked, work through the Automation inbox, and restore anything you removed by mistake.
 sidebar:
   order: 8
 ---
@@ -8,16 +8,16 @@ sidebar:
 import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 import Screenshot from '~/components/screenshot.astro';
 
-Transactions from a [bank connection](/import/bank-connections/) belong to your bank, so you can't delete them from **Edit Transaction**. Most of the time that's what you want. But now and then a bank sends something wrong: the same payment twice, a card hold that was never charged, or a pending payment that sits there for weeks. **Reconciliation** is where you clean those up, without losing the ability to undo it.
+Transactions from a [bank connection](/import/bank-connections/) belong to your bank, so you can't delete them from **Edit Transaction**. Most of the time that's what you want. But now and then a bank sends something wrong: the same payment twice, a card hold that was never charged, or a pending payment that sits there for weeks. And when [iOS Automation](/integrations/ios-automation/) logs payments for you, one payment can arrive from your tap, Wallet, your bank's push and your bank's sync. **Reconciliation** is where you clean those up, without losing the ability to undo it.
 
 ## When to use it
 
-- **The same payment shows up twice.** For example, a card payment arrived once while it was pending and again when the bank booked it under a different ID. [Merge](#merge-duplicates) the two into one.
+- **The same payment shows up twice.** For example, a card payment arrived once while it was pending and again when the bank booked it under a different ID, or iOS Automation logged a payment that your bank's sync brought in later. [Merge](#merge-duplicates) the two into one. MoneyMatter often spots these for you: check [Suggestions](#suggestions).
 - **A transaction shouldn't be there at all.** A hold that the bank released, a test charge, or a row from a file you imported into a connected account by mistake. [Remove](#remove-transactions) it.
 - **A pending payment never cleared.** If you import pending payments from Enable Banking, some can stay pending long after the bank has booked or dropped them. The [Stuck pending](#resolve-stuck-pending-transactions) tab helps you sort them out.
 - **You removed or merged the wrong thing.** [Restore](#restore-from-history) it from **History**.
 
-Reconciliation only works on bank-connected transactions. Transactions in accounts you track by hand can be edited and deleted as usual.
+Reconciliation works on transactions from a bank connection and on payments in accounts you track by hand, including payments that iOS Automation logged. You can still edit and delete a hand-tracked transaction as usual. Transactions that you planned yourself, linked transfers and refund-linked transactions are left out.
 
 ## Open Reconciliation
 
@@ -28,13 +28,13 @@ Reconciliation only works on bank-connected transactions. Transactions in accoun
 
 </Steps>
 
-The **Transactions reconciliation** page has three tabs: **Transactions**, **Stuck pending** and **History**. When you have stuck pending transactions, the **Stuck pending** tab shows how many.
+The **Transactions reconciliation** page has four tabs: **Transactions**, **Suggestions**, **Stuck pending** and **History**. When MoneyMatter has suggestions or you have stuck pending transactions, the tab shows how many. The Suggestions tab also opens straight from a link ending in `?tab=suggestions`.
 
 ## Merge duplicates
 
 <Steps>
 
-1. On the **Transactions** tab, find the duplicates. The filters panel on the left works like the one in [Search and filter](/transactions/search-and-filter/). Planned transactions aren't listed.
+1. On the **Transactions** tab, find the duplicates. The filters panel on the left works like the one in [Search and filter](/transactions/search-and-filter/). Planned transactions aren't listed. A planned payment from iOS Automation reaches the Merge dialog through a [suggestion](#suggestions).
 2. Click each duplicate to select it. On this page, clicking a row selects it instead of opening it.
 3. Click **Merge**.
 4. In **Merge transactions**, click the transaction you want to keep. It's marked **Keep**, and the others are marked **Remove**. Details that are the same for all of them, like the time or status, are listed once at the top.
@@ -50,21 +50,21 @@ The **Transactions reconciliation** page has three tabs: **Transactions**, **Stu
 
 When you merge:
 
-- **One transaction stays, the rest are removed.** Removed transactions disappear from your lists and stop counting in your stats. The account's balance still comes from your bank.
+- **One transaction stays, the rest are removed.** Removed transactions disappear from your lists and stop counting in your stats. On a bank account the balance still comes from your bank. On an account you track by hand, the removed amount leaves the balance, and [restoring](#restore-from-history) it puts the amount back.
 - **Links move to the one you keep.** If a removed transaction was in a tracker or a [transaction group](/transactions/groups/), or linked to a subscription, the kept transaction takes that link over. If the kept transaction already belongs to a different tracker, group or subscription than a removed one, the merge is refused. Put them in the same one first.
-- **Category, payee, note and tags aren't copied.** The kept transaction keeps its own. If the removed one had the better category or note, pick it as the one to keep, or copy the details over before merging.
+- **Your own edits move too.** A note, category, payee or payment type that you set on the removed transaction moves onto the one you keep, as long as you didn't set a different value there. If you edited both and they disagree, the merge is refused and the dialog says which field. Make the two match, then merge again. Values that MoneyMatter filled in by itself, such as a category from the payment history or the note written by iOS Automation, never count as your edits, so two logged payments merge without a conflict.
+- **Tags aren't copied.** The kept transaction keeps its own.
 
 <Aside type="note" title="Keep the booked one">
-If you merge a pending transaction with a booked one, pick the booked one to keep. MoneyMatter refuses to keep the pending copy, because it would stay pending forever.
+If you merge a pending transaction with a booked one, pick the booked one to keep. MoneyMatter refuses to keep the pending copy, because it would stay pending forever. The same goes for a planned payment from iOS Automation: it describes a payment the booked row already records, so it can't be the one you keep.
 </Aside>
 
 ### What you can merge
 
 You can merge 2 to 4 transactions at a time. They must all be:
 
-- **bank-connected**;
 - **on the same account**;
-- **not planned**;
+- **not planned**, unless iOS Automation logged them as a plan;
 - **not part of a linked transfer**. [Unlink the transfer](/transfers-and-refunds/how-transfers-work/#unlink-a-transfer) first;
 - **not linked as a refund**. [Unlink the refund](/transfers-and-refunds/refunds/) first.
 
@@ -80,13 +80,75 @@ If your selection doesn't qualify, the **Merge** button is disabled. Hover it to
 
 </Steps>
 
-Removed transactions disappear from your lists and stop counting in your stats. The account's balance still comes from your bank. The same rules as for merging apply, except that the transactions can come from different accounts.
+Removed transactions disappear from your lists and stop counting in your stats. On a bank account the balance still comes from your bank. On an account you track by hand, the removed amount leaves the balance. The same rules as for merging apply, except that the transactions can come from different accounts.
 
 Removing also takes a transaction out of any tracker, transaction group or subscription it was linked to.
 
 <Aside type="note" title="Removed transactions don't come back on the next sync">
 MoneyMatter remembers what you removed, so your bank syncing the same transaction again doesn't bring it back. Only [restoring it](#restore-from-history) does. The one exception is a pending transaction you removed that your bank later books: it comes back as a booked transaction, because the charge turned out to be real.
 </Aside>
+
+## Suggestions
+
+A single payment can reach MoneyMatter several times: your Apple Pay tap, Wallet's notification, your bank's push or SMS, and later your bank's sync or a statement import. MoneyMatter joins the ones that are certainly the same payment by itself. For the rest, it asks an AI model to compare a new payment with similar transactions, and when the model thinks two are the same payment, the pair appears on the **Suggestions** tab. This runs for payments logged by iOS Automation, and after a bank sync or a statement import.
+
+<Screenshot
+  src="/screenshots/transactions/reconciliation-suggestions.png"
+  alt="The Suggestions tab with one suggestion: a percent match badge, a one-line reason, a Not duplicates button and a Merge button above the two transactions, each marked with the channels that reported it, such as Apple Pay tap and Bank notification."
+  hint="Open /transactions/optimizations/reconciliation?tab=suggestions as the docs test user. Mock GET /transactions/reconciliation/suggestions with one item built from two real transactions (confidence 0.9, slots tap and bank:tbc-bank:payment, a reason sentence). Crop to the tab bar and the card."
+/>
+
+Each suggestion shows both transactions, how sure the model is (**88% match**, for example), a one-line reason, and which channel reported each one: **Apple Pay tap**, **Wallet notification**, **Bank notification** or **Automation**.
+
+- **Merge** opens the same Merge dialog as above, with the likely survivor already selected. A booked bank or imported row is preselected over a plan, and otherwise the earliest logged row. You can pick the other one before you confirm.
+- **Not duplicates** dismisses the pair for good. MoneyMatter doesn't suggest it again.
+
+**Nothing is merged until you choose.** The AI only proposes. A suggestion disappears by itself when you merge, remove or delete one of its transactions elsewhere.
+
+Two payments that the same channel reported separately, such as two coffees paid by tap, are two payments, so they aren't suggested. Only when they are seconds apart, as with an automation that fired twice, is the pair raised.
+
+## The Automation inbox
+
+The Automation inbox is where everything that needs you lands when you use [iOS Automation](/integrations/ios-automation/). It is a pinned thread in the **Chat** page's thread list. Unlike an ordinary chat thread, it has no message box and never runs AI: it is a list of cards.
+
+<Screenshot
+  src="/screenshots/transactions/automation-inbox.png"
+  alt="The Automation inbox thread on the Chat page with the Clear resolved and Archive buttons above a list of cards: a logged payment waiting for confirmation, a source waiting for approval and a duplicate suggestion."
+  hint="Open /chat as the docs test user with the Automation inbox thread open. Send two notification events from an unapproved sender and a Wallet notification so the inbox holds a confirm card and a source card, and mock one duplicate suggestion. Crop to the thread."
+/>
+
+### What lands there
+
+| Card | Approve | Edit | Reject |
+|---|---|---|---|
+| **A payment logged by iOS Automation** (one for every tap and notification) | Confirm it | Account, amount, payee, category | Delete the payment |
+| **A payment that needs your OK:** an unknown account, a transfer between your own accounts, or a text MoneyMatter isn't sure about | Log it | Account, direction | Dismiss it |
+| **A source waiting for approval** | Approve it | Default account | Mute it |
+| **A duplicate suggestion** | Merge | Which transaction to keep | Dismiss it |
+| **A possible currency conversion**, two payments that look like one transfer between your accounts | Link as a transfer | | Dismiss it |
+
+A payment is logged the moment it arrives, so your balances are current before you look at the card. The card is your chance to check it. When a card's balance was short and the bank probably paid from another currency, the payment's card carries the suggestion to move it: see [When the card's balance was short](/integrations/ios-automation/#when-the-cards-balance-was-short). A merge card is a red card: you type the confirmation phrase, as for any destructive change in [Chat](/ai/chat/#red-cards-and-confirmation).
+
+When you settle something somewhere else, for example you merge the pair in Reconciliation, approve a source on the iOS Automation page or edit the transaction, its card closes with the note "Settled somewhere else, so this item is closed."
+
+### Pinned, full and archived
+
+MoneyMatter keeps one live inbox at a time and keeps it pinned: you can't unpin or delete it while it is collecting items.
+
+- **Collecting:** the live inbox. New items go here.
+- **Full:** the inbox reached 200 cards while some are still waiting. It takes no new items, so the next one opens a new inbox, but it stays pinned until you resolve the last waiting card.
+- **Closed:** when nothing is waiting, an inbox closes 7 days after it started or when it has 200 cards. A closed inbox is unpinned and expires like an ordinary thread, after your chat retention time.
+
+Two buttons above the cards keep it tidy:
+
+- **Clear resolved** removes the cards you have already handled. Cards that still wait stay.
+- **Archive** closes the inbox early, and the next item starts a new one. It's disabled while any card is waiting.
+
+A card nobody acts on expires after 30 days. Expiring doesn't decide anything: the payment stays on the iOS Automation page under **Waiting payments**, and the pair stays in **Suggestions**.
+
+### Push notifications
+
+New inbox items send a push in the **Assistant** group, at most one every 10 minutes with the number of new items. See [Browser notifications](/settings/notifications/#the-assistant-group).
 
 ## Resolve stuck pending transactions
 
@@ -161,6 +223,7 @@ Restoring brings back every transaction removed in that entry. They count in you
 
 ## Related
 
+- [iOS Automation](/integrations/ios-automation/)
 - [Bank connections](/import/bank-connections/)
 - [Import pending bank transactions](/settings/general-settings/#import-pending-bank-transactions)
 - [Link existing transactions](/transfers-and-refunds/link-existing-transactions/)

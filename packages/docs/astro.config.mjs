@@ -8,6 +8,8 @@ const OG_IMAGE = 'https://docs.moneymatter.app/og-image.jpg';
 
 export default defineConfig({
   site: 'https://docs.moneymatter.app',
+  // The Apple Pay page became iOS Automation; old links and bookmarks keep working.
+  redirects: { '/integrations/apple-pay': '/integrations/ios-automation/' },
   // The default Sätteri processor's linux-x64 binary panics or mangles MDX output, which breaks CI and Docker builds.
   markdown: { processor: unified() },
   integrations: [

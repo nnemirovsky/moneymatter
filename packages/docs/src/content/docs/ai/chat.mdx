@@ -127,7 +127,7 @@ A card is a plan made at one moment. If your data changes before you approve it,
 
 ### Card lifetime
 
-A card you haven't approved or rejected **expires after 24 hours**, even in a pinned conversation. An expired card says so. Ask again if you still want the change.
+A card you haven't approved or rejected **expires after 24 hours**, even in a pinned conversation. An expired card says so. Ask again if you still want the change. Cards in the [Automation inbox](/transactions/reconciliation/#the-automation-inbox) are the exception: they expire after 30 days.
 
 ### Approve all safe
 
@@ -180,7 +180,8 @@ Every conversation is saved. In the list:
 - a new conversation shows your first words as its title until the assistant names it, in your language, after its first answer. A name you type yourself is never replaced, and a conversation that starts with only an image shows "New conversation" until it is named;
 - the search box finds words in conversation titles and in the messages;
 - the menu on a conversation lets you **Rename**, **Pin** or **Delete** it;
-- a pinned conversation moves to the top and is never deleted automatically.
+- a pinned conversation moves to the top and is never deleted automatically;
+- the **Automation inbox** is a thread MoneyMatter pins for you while it collects items from [iOS Automation](/integrations/ios-automation/). It has no message box, never runs AI, and can't be unpinned or deleted until it closes. See [Reconciliation](/transactions/reconciliation/#the-automation-inbox).
 
 Conversations are deleted automatically a set time after their **last message**. The default is **30 days**. Change it in **Settings**, **AI**, in the **AI chat** block under the features: **Keep conversations for** 7 days, 30 days, 90 days, 1 year or **Never delete automatically**. Each conversation shows the date it will be deleted.
 

@@ -18,7 +18,7 @@ Clicking a notification opens MoneyMatter on the page it is about and marks it a
 
 ## What you get
 
-Notifications are sorted into five groups. You turn each group on or off in **What to send**:
+Notifications are sorted into six groups. You turn each group on or off in **What to send**:
 
 | Group                     | What it covers                                                | Default |
 | ------------------------- | ------------------------------------------------------------- | ------- |
@@ -26,11 +26,30 @@ Notifications are sorted into five groups. You turn each group on or off in **Wh
 | **Bank sync**             | Confirmed planned payments and transactions stuck as pending. | On      |
 | **Sharing and household** | Invitations, accepted or declined shares and household changes. | On    |
 | **System**                | Important messages about your account and this instance.      | On      |
+| **Assistant**             | Finished chat replies, cards waiting for your OK, new items in the Automation inbox, and payments that need attention. | On |
 | **New releases**          | A message for every new MoneyMatter version.                  | Off     |
 
 These choices apply to all your devices and only change what is pushed. The bell still lists every notification.
 
 The pop-up shows the same title as the bell entry.
+
+### The Assistant group
+
+The **Assistant** group covers four things:
+
+- **Your reply is ready.** A chat reply finished, or failed, while you weren't looking at that thread. If it left cards waiting for your OK, the same push says how many.
+- **Cards waiting for your OK.** Part of the push above.
+- **Automation inbox.** New items arrived in the [Automation inbox](/transactions/reconciliation/#the-automation-inbox): a payment to confirm, a source to approve or a duplicate to review.
+- **A payment needs attention.** A payment from [iOS Automation](/integrations/ios-automation/) waits for something you can only fix outside the inbox: an unlinked card, a missing exchange rate, a processing error, or no AI model to read a bank notification.
+
+These pushes stay quiet by design:
+
+- **They wait a minute** after the first event, so a burst becomes one push, and nothing is sent if you open the thread in the meantime.
+- **None while you're looking at it.** If the thread is open and visible on any of your devices, you get no push for it.
+- **One push per thread every 5 minutes** for chat replies, **one every 10 minutes** for the inbox (items that arrive in between wait there without another push), and **one a day** for each kind of payment that needs attention.
+- **They show counts, not content.** A push names the thread or says how many items are new. The text of your messages, of a card or of a bank notification never appears in a push.
+
+Clicking a push opens the thread, or the iOS Automation page for a payment that needs attention, and marks it as read. Turn the whole group off with its switch under **What to send**.
 
 ## Turn them on for a device
 
@@ -38,8 +57,8 @@ Each browser or phone is turned on separately. Open **Settings**, then **Notific
 
 <Screenshot
   src="/screenshots/settings/notifications-this-device.png"
-  alt="The Notifications settings page with the This device card showing the Browser notifications on this device switch turned on, and the What to send card with the five groups."
-  hint="Open /settings/notifications on an instance with push keys, in Safari or Chrome with notifications allowed. Turn the device switch on. Leave New releases off. Crop to the This device and What to send cards."
+  alt="The Notifications settings page with the This device card showing the Browser notifications on this device switch turned on, and the What to send card with the six groups, Assistant among them."
+  hint="Open /settings/notifications on an instance with push keys, in Safari or Chrome with notifications allowed. Turn the device switch on. Leave New releases off and Assistant on. Crop to the This device and What to send cards."
 />
 
 The steps are slightly different on each browser.

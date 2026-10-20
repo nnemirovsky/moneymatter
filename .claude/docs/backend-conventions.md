@@ -164,3 +164,14 @@ export async function createInvestmentTransaction<R extends boolean | undefined 
 - Use Sequelize for all DB operations
 - Always use transactions for multi-step operations (`withTransaction`)
 - Define proper indexes
+
+## Payment ingest and the Automation inbox
+
+The ingest pipeline (`services/ingest/`, user guide `packages/docs/.../integrations/ios-automation.mdx`, API `packages/backend/docs/card-payment-ingest.md`) has rules that are easy to break:
+
+- **Every pipeline logs through `logIngestedPayment`.** A tap, a Wallet notification and a bank notification share it, so slots, the unconfirmed flag and `INGEST_PAYMENT_LOGGED` stay in one place. `IngestRequests.pipeline` (server-set) is the discriminator; `source` is the client's label and is never branched on.
+- **Dedup is two tiers.** Deterministic rules (exact twin, settlement) run under the `ingest-dedup:<userId>` advisory lock and attach automatically. Anything AI-judged only writes a `DuplicateSuggestions` row. No AI path merges, attaches or moves a payment by itself.
+- **Notification text is encrypted at rest.** It lives only in `IngestRequests.textEnc` (`encryptToken`), never in plain JSON, and is wiped or expired on the schedule in the API doc.
+- **Inbox items are system proposals.** The Automation inbox is a `ChatThreads.kind = automationInbox` thread that never runs AI (`startChatRun` refuses it). Post items with `createSystemProposal` (run-free `storeProposal`), never `createProposal`, and close them through `inbox-resolution` (`resolvedElsewhere`) when the record settles elsewhere. A new record kind needs a `proposalId` column, an `onInboxCardRejected` branch and a `nullOnRestore` backup entry.
+- **BullMQ job ids join their parts with `-`**, never `:` (`${requestId}-${attempt}`).
+- **Each new job-backed or mutating route is classified** in `base-currency-guard-coverage.e2e.ts`; a job checks `isBaseCurrencyChangeLocked` itself and re-delays without using an attempt.

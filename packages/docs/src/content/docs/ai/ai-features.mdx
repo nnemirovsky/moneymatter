@@ -66,6 +66,16 @@ To turn it on, open **Planned** → **Trackers** in the sidebar, create or edit 
 
 When you [start budgeting](/budgeting/start-budgeting/#suggested-lines), AI arranges your recent spending categories into named groups and lines, and reads your answers to the setup questions. The amounts never come from the AI. This always uses MoneyMatter's included AI, not your own model.
 
+## Payment notifications
+
+With [iOS Automation](/integrations/ios-automation/) on iOS 27 or later, MoneyMatter reads the notifications your banks send, in any language, to find the payment in them: the amount, the merchant, the card and whether money went out or came in. The model also tells a payment from a one-time code, a promotion or a statement, and picks a matching payee from your own payees. Wallet's notifications are read in code and need no AI. A notification is sent to the model only after you approve its app or sender.
+
+The feature is **Payment notifications** on the **AI Features** tab. Without a model, bank notifications wait and say so. A limit of 300 AI reads a day per user applies, and a spent monthly allowance pauses it until the allowance resets.
+
+## Duplicate matching
+
+When iOS Automation logs a payment, or a bank sync or statement import brings new ones, **Duplicate matching** compares them with similar transactions and suggests the pairs that look like the same payment. It also proposes which balance of a multi-currency card most likely paid when the one you used was short. It only suggests: you decide in [Reconciliation](/transactions/reconciliation/#suggestions).
+
 ## Claude, ChatGPT and other AI assistants
 
 You can also connect your own AI assistant, such as Claude or ChatGPT, to your MoneyMatter data over MCP. Then you can ask it about your money in plain language, and let it add or fix records if you allow that. This runs on your assistant's account, not on MoneyMatter's AI, and it's included in every plan.
@@ -78,7 +88,7 @@ Every AI feature runs either on **MoneyMatter's included AI**, which needs no se
 
 | Feature | Plus and the 40-day trial | Essential and Early Adopter |
 |---|---|---|
-| Transaction categorization, Statement Parser, investment import | Included AI | Your own model (Early Adopter: included AI too) |
+| Transaction categorization, Statement Parser, investment import, Payment notifications, Duplicate matching | Included AI | Your own model (Early Adopter: included AI too) |
 | Attach invoice | Included AI | 5 free tries on the included AI |
 | Smart tracking | Included AI | 14-day free trial, then your own model |
 | Budget suggestions | Included AI | Included AI |
@@ -88,7 +98,7 @@ Every AI feature runs either on **MoneyMatter's included AI**, which needs no se
 
 Plus includes MoneyMatter's AI for every feature, and so does the 40-day trial every new account starts with. The Early Adopter plan includes it too, with two exceptions: **Attach invoice** gives 5 free tries, and Smart tracking gives a 14-day free trial.
 
-The included AI comes with a monthly allowance. **Included AI usage** on the **AI Features** tab shows how much you've used. The allowance resets on the 1st of every month, and Plus gets more each month than the trial and the Early Adopter plan. Statement parsing, categorization, invoices, Smart tracking and budget suggestions all share it.
+The included AI comes with a monthly allowance. **Included AI usage** on the **AI Features** tab shows how much you've used. The allowance resets on the 1st of every month, and Plus gets more each month than the trial and the Early Adopter plan. Statement parsing, categorization, invoices, Smart tracking, payment notifications, duplicate matching and budget suggestions all share it.
 
 When the allowance runs out, features that use the included AI pause until it resets. To keep going before then, connect your own model, or subscribe to Plus if you're on the trial.
 
