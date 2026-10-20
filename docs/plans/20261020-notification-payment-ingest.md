@@ -30,10 +30,18 @@ The plan delivers:
 6. **Dedup.** One payment can arrive four or more times (tap, Wallet notification, bank push, bank SMS), minutes to hours apart, and again later from bank sync or a statement import.
    - Only the deterministic **exact twin** acts automatically: it attaches a later source to the existing row and enriches it.
    - Every **AI-judged** match (new AI feature `duplicateMatching`) becomes a **suggestion**. Accepting it uses the existing **Reconciliation** merge, history and restore. There is no AI auto-merge.
-7. **Automation inbox:** a MoneyMatter-owned chat thread where everything that needs the user arrives as a **proposal card**: own-account transfers, unknown accounts, low-confidence parses, new senders and duplicate suggestions. Cards use the existing approve/edit/reject flow. A **web push** deep-links to the thread.
-8. **Bank balances** in notifications are stored with an `authoritative` flag. When the same bank holds several non-zero currency balances, the stated balance is probably a total and stays informational.
-9. **Setup UI** on the page renamed from "Apple Pay" to **"iOS Automation"** (Accounts → iOS Automation). It shows the shortcut and instructions for the user's iOS version, detected from the user agent where possible, otherwise picked by the user.
-10. **Docs.**
+7. **Automation inbox:** a MoneyMatter-owned chat thread where everything that needs the user arrives as a **proposal card**: own-account transfers, unknown accounts, low-confidence parses, new senders and duplicate suggestions.
+   - The thread is **pinned**, and it cannot be deleted while it is live.
+   - Cards use the existing approve/edit/reject flow.
+8. **Web push for the assistant:** a new push group, `assistant` (on by default), covering:
+   - finished AI chat replies and waiting chat cards, sent only when the user is not viewing that thread;
+   - new inbox items, collapsed into one push with a count;
+   - parked ingests that have no card.
+
+   Pushes are debounced per thread, deep-link to the thread or page, and can be turned off with the group's toggle in notification settings.
+9. **Bank balances** in notifications are stored with an `authoritative` flag. When the same bank holds several non-zero currency balances, the stated balance is probably a total and stays informational.
+10. **Setup UI** on the page renamed from "Apple Pay" to **"iOS Automation"** (Accounts → iOS Automation). It shows the shortcut and instructions for the user's iOS version, detected from the user agent where possible, otherwise picked by the user.
+11. **Docs.**
 
 Out of scope: Android, own-account transfer pairing, balance-drift alerts (the balance is stored only), and changes to the planned-row settlement rules of the Apple Pay plan.
 
@@ -75,6 +83,19 @@ Work happens in the fork on `feat/notification-ingest` (from `dev`). Names stay 
   - `services/notifications` creates a row and calls `enqueueWebPushAfterCommit`.
   - `NOTIFICATION_TYPES` and `NOTIFICATION_PUSH_GROUP` / `PUSH_GROUPS` live in `packages/shared/src/types/{notifications,web-push}.ts`; `isPushGroupEnabled` holds the per-group preference.
   - The frontend deep link is built by `components/notifications-popover/build-notification-route.ts`.
+  - **Push groups today:** `reminders`, `bankSync`, `sharing`, `system`, `releases`.
+    - `NOTIFICATION_PUSH_GROUP` is total, so a new type does not compile until it has a group.
+    - `render-push-body.ts` renders per type, `build-push-payload.ts` sets `tag: notification.id`, and `push-queue.ts` runs a fan-out job and then a delivery job.
+    - The settings toggles are `pages/settings/subpages/notifications/components/push-groups-card.vue`.
+    - There is no chat or ingest type yet.
+  - **No presence signal for a thread:**
+    - `services/common/sse/sse-manager.ts` keeps one SSE connection per user (`/events`), not per thread;
+    - chat runs stream on their own endpoint, `GET /chat/runs/:runId/events` (`runs/tail-hub.ts`);
+    - `pageContext` is stored per user message, for the prompt only.
+- **Chat threads:**
+  - `ChatThreads.pinned` exists: pinned threads list first (`threads/list.service.ts`) and never expire (`computeThreadExpiry`).
+  - `PATCH /chat/threads/:id` updates the title and the pin, and `DELETE` removes a thread.
+  - There is no archive.
 - **AI:**
   - `createAIClient`, `generateText` + `Output.object`, `aiCallGuards`, `trackAiUsage` → `recordAiSpend`.
   - Monthly usage cap (upstream `008b2cfef`, `ai-allowance.ts`): the resolver offers server keys only while `isWithinAiAllowance`, and `connection-failure.ts` tells an exhausted cap apart from a missing connection.
@@ -206,7 +227,13 @@ Work happens in the fork on `feat/notification-ingest` (from `dev`). Names stay 
   - The chat preview `reconciliation.ts` follows the same rules.
 - **Automation inbox (a MoneyMatter-owned chat thread):**
   - **The thread.** `ChatThreads.kind` is `chat` (the default) or `automationInbox`. An inbox thread has a fixed title ("Automation inbox"), `connectionId` null and **no AI runs**: it only shows cards, so it needs no AI connection. The composer is hidden and replaced by a link to start a normal chat. Each item is one `assistant` message (`provider` null, a short text from a template) plus one card.
-  - **Alive and rollover.** A thread is **alive** while it has at least one pending card, or for 7 days after its first message. A new item goes into the newest alive inbox thread, or into a new one when none is alive (also after 200 cards). Old inbox threads follow normal chat retention.
+  - **Live thread and rollover.** At most one inbox thread per user is **live**: the newest one, while it has at least one pending card or is less than 7 days old, and holds fewer than 200 cards. A new item goes into the live thread. When there is none, a new inbox thread is created and becomes live.
+  - **Pinned.** The live thread uses the existing `pinned` flag, so it lists first and never expires. On rollover, one transaction unpins the old thread (its `expiresAt` is then computed by `computeThreadExpiry` as for any chat) and pins the new one.
+  - **What the user can do:**
+    - The live thread **cannot be deleted or unpinned**: `DELETE` and `PATCH { pinned: false }` answer 409 with a reason.
+    - **Clear resolved** (`POST /chat/threads/:id/clear-resolved`) deletes the messages whose cards are no longer pending. The records behind those cards are untouched; they live in Reconciliation and the waiting list.
+    - **Archive** (`POST /chat/threads/:id/archive`) ends the live thread early. It unpins the thread, and the next item opens a new one. It is refused with 409 while a card is still pending, so a pending card is never hidden.
+    - A non-live inbox thread behaves like any chat thread: it can be deleted or pinned by hand.
   - **Cards** are created by a new `createSystemProposal({ userId, threadId, toolName, args })`. It resolves the policy and runs `computeCardState` (preview with `before`/`after`, snapshot) like `createProposal`, without a toolkit run. Inbox cards expire after 30 days; the underlying record stays open in Reconciliation or in the waiting list.
 
     | Item | Tool | Approve | Edit | Reject |
@@ -215,7 +242,27 @@ Work happens in the fork on `feat/notification-ingest` (from `dev`). Names stay 
     | unknown account, own transfer, low confidence | new `log_ingest_request` (`requestId`, `accountId`, `direction`) | log it | account, direction | dismiss the request |
     | new conversational sender | new `set_notification_source` (`sourceId`, `mode`, `defaultAccountId`) | approve | default account | mute |
   - **Two-way sync.** One service (`inbox-items.ts`) links each card to its record: `DuplicateSuggestions.proposalId`, `IngestRequests.proposalId`, `NotificationSources.proposalId`. Resolving the record elsewhere (Reconciliation tab, waiting list, sources list) marks the card `rejected` with `statusReason: 'resolvedElsewhere'`.
-  - **Push.** A new notification type `automationInbox`, with a new push group `automation` (default on), payload `{ threadId, count }`. It deep-links to `chatThread`. At most one push per user per 10 minutes; later items in that window update the count ("3 items need your OK").
+  - **Push:** see the next decision; inbox items use the `automationInbox` type.
+- **Web push for the assistant.** A new push group `assistant` (default **on**; `PUSH_GROUP_DEFAULTS`). Its notification types reuse the in-app `Notifications` → `enqueueWebPushAfterCommit` → `push-queue.ts` path, so each push is also an entry in the bell.
+
+  | Type | When | Deep link | Collapse |
+  |---|---|---|---|
+  | `chatReplyReady` | an AI run in a `chat` thread finished, or failed, while the user was not viewing that thread | `chatThread` | one push per thread per 5 min |
+  | `chatCardsWaiting` | a run in a `chat` thread left pending cards and the user was not viewing that thread | `chatThread` | merged with `chatReplyReady` for that run: one push that says "reply ready, 2 cards to approve" |
+  | `automationInbox` | new inbox items | `chatThread` (the live inbox) | one push per 10 min with a count ("3 items need your OK") |
+  | `ingestAttention` | a parked ingest **without a card**: `aiCapReached`, `aiLimitReached`, `aiUnavailable`, `rateUnavailable`, `processingFailed`, and the tap path's `unknownCard` | `accountIosAutomation`, waiting list | one push per reason per day |
+
+  - **No double push.** An item that has an inbox card (unknown account, own transfer, low confidence, a sender pending, a duplicate suggestion) pushes only as `automationInbox`.
+  - **Presence.** Neither existing signal tells which thread the user is looking at, so the frontend sends a heartbeat: `PUT /chat/presence { threadId }` every 20 s while a thread page is visible and focused (`document.visibilityState` + `focus`), and `DELETE` when it leaves.
+    - The heartbeat sets a Redis key `chat:presence:<userId>:<threadId>` with a 45 s TTL.
+    - A push for a thread is skipped while its key exists. A run whose events stream is being read through the run endpoint counts as viewed too.
+  - **Debounce.**
+    - The first event for `(type, userId, threadId or reason)` schedules one delayed BullMQ job (`assistant-push`, delay 60 s, `jobId` = the collapse key plus the window start). Later events in the window only increment a Redis counter.
+    - The job re-checks presence and whether the items are still pending, then creates one notification carrying the count.
+    - A cooldown key enforces the per-row interval.
+    - The web-push `tag` is `assistant:<threadId>` (or `assistant:ingest:<reason>`), so the OS replaces an older banner instead of stacking a new one. `build-push-payload.ts` takes a per-type tag.
+  - **Read state.** Opening a thread marks its `chatReplyReady`, `chatCardsWaiting` and `automationInbox` notifications read (by `payload.threadId`). Opening the iOS Automation page marks `ingestAttention` read.
+  - **Bodies** are rendered in the user's locale by `render-push-body.ts`. They never contain the AI's reply text or notification text, only counts, the thread title and the reason.
 - **The page is renamed "iOS Automation":**
   - Route `/accounts/integrations/ios-automation` (`ROUTES_NAMES.accountIosAutomation`). `/accounts/integrations/apple-pay` and the settings `integrations/*` redirect there.
   - The folder moves `pages/accounts/integrations/apple-pay/` → `ios-automation/`, and i18n moves `settings.integrations.applePay.*` → `settings.integrations.iosAutomation.*` (`en` + `uk`; other locales fall back to English until Crowdin syncs).
@@ -254,7 +301,9 @@ Work happens in the fork on `feat/notification-ingest` (from `dev`). Names stay 
   - the judge mapping (suggestions only);
   - survivor choice;
   - the inbox rollover rule;
-  - the push throttle.
+  - the push debounce and collapse keys;
+  - presence key handling;
+  - the push bodies for the new types (`render-push-body.unit.ts`).
 - **E2E:**
   - **Endpoint:**
     - each banner outcome within the budget, and "Queued" when the job is slower;
@@ -288,11 +337,18 @@ Work happens in the fork on `feat/notification-ingest` (from `dev`). Names stay 
     - cards are created per item type;
     - approve, edit and reject run the tool and resolve the record;
     - resolving in Reconciliation or the waiting list closes the card;
-    - rollover after all cards are resolved and 7 days have passed;
-    - push throttle and deep link;
+    - rollover after all cards are resolved and 7 days have passed, with the pin moving to the new thread;
+    - the live thread refuses delete, unpin and archive while a card is pending; clear-resolved keeps pending cards;
     - no AI connection needed.
+  - **Assistant push:**
+    - a chat run finishing with no viewer → one `chatReplyReady` (merged with `chatCardsWaiting` when cards are pending); a fresh presence key → no push;
+    - a burst of inbox items → one push with the count, and the cooldown holds;
+    - an item with a card never also pushes `ingestAttention`;
+    - the group toggle off → no delivery;
+    - opening the thread marks its notifications read;
+    - the bodies contain no reply or notification text.
   - **Settings:** sources, `lastDigits`, gate strictness and the setup code's `gate`.
-- **Frontend vitest:** iOS version detection and picker; per-version setup; renamed route and redirects; sources; the Suggestions tab; the inbox thread view (no composer, cards only); block reasons.
+- **Frontend vitest:** the `assistant` push toggle; the presence heartbeat (sent only while visible and focused, stopped on leave); deep links for the new types; the inbox pin, clear-resolved and archive actions; iOS version detection and picker; per-version setup; renamed route and redirects; sources; the Suggestions tab; the inbox thread view (no composer, cards only); block reasons.
 - **Playwright:** approve an inbox card for an unknown account; merge a suggestion from Reconciliation and see the inbox card resolved.
 - **Manual on the device** (Post-Completion).
 
@@ -333,20 +389,21 @@ Inbox thread (kind automationInbox, no AI) ⇄ Reconciliation Suggestions tab �
   - `IngestRequests`: add `parsed` (JSONB), `sourceId` (FK `NotificationSources`, set null) and `proposalId` (FK `ChatProposals`, set null); `status` gains `ignored`.
   - `IngestSettings`: add `gateStrictness` (varchar 16, default `standard`).
   - `CardAccountMappings`: add `lastDigits` (varchar 4), with a partial unique index on `(userId, lastDigits)`.
-  - `ChatThreads`: add `kind` (varchar 24, default `chat`), and an index on `(userId, kind, createdAt)`.
+  - `ChatThreads`: add `kind` (varchar 24, default `chat`), and an index on `(userId, kind, createdAt)`. The live inbox uses the existing `pinned` column.
   - `NotificationSources`: `id`, `userId`, `sourceKey`, `appName`, `bundleId`, `sender`, `conversational`, `mode`, `defaultAccountId` (FK, set null), `counters` (JSONB), `proposalId` (FK, set null), `lastSeenAt`, timestamps. Unique on `(userId, sourceKey)`. Backed up.
   - `DuplicateSuggestions`: `id`, `userId`, `accountId`, `transactionId`, `candidateId` (FKs, cascade), `confidence`, `reason`, `trigger` (`ingest` | `sync` | `import`), `status` (`open` | `merged` | `dismissed` | `stale`), `proposalId` (FK, set null), `resolvedAt`, timestamps. Unique on the ordered pair. Backed up, and wiped with the user's data.
 - **Shared** (`packages/shared/src/types/`):
   - `ingest/amount-gate.ts`: `AMOUNT_GATE_PATTERNS` per strictness, plus samples;
   - `ingest/notification-sources.ts`: the conversational app list and `buildSourceKey`;
   - the new statuses, reasons and DTOs;
-  - `notifications.ts` and `web-push.ts`: `automationInbox` and the `automation` group;
+  - `notifications.ts` and `web-push.ts`: `chatReplyReady`, `chatCardsWaiting`, `automationInbox` and `ingestAttention` in the new `assistant` group;
   - chat: the thread `kind`.
 - **Backend services:**
   - `ingest/event/`: `ingest-event.ts`, `wait-for-outcome.ts`, `parse-notification-payload.ts`, `prefilter-notification.ts` + `prefilter-markers.ts`, `notification-fingerprint.ts`, `notification-queue.ts`, `process-notification.ts`, `parse-wallet-notification.ts`, `parse-notification-with-ai.ts` + `notification-prompt.ts`, `payee-candidates.ts`, `apply-payee-choice.ts`, `balance-authority.ts`, `ai-daily-limit.ts`, `resolve-notification-account.ts`, `notification-sources.service.ts`;
   - `ingest/log-ingested-payment.ts`, extracted from `process-card-payment.ts`;
   - `ingest/dedup/`: `constants.ts`, `source-slots.ts`, `find-twin.ts`, `enrich-twin.ts`, `judge-duplicates.ts` + prompt + candidates, `choose-survivor.ts`, `duplicate-scan-queue.ts`, `event-listeners.ts`;
-  - `chat/inbox/`: `inbox-thread.ts` (alive rule, rollover), `create-system-proposal.ts`, `inbox-items.ts` (create, sync, resolve), `inbox-push.ts` (throttle);
+  - `chat/inbox/`: `inbox-thread.ts` (alive rule, rollover), `create-system-proposal.ts`, `inbox-items.ts` (create, sync, resolve);
+  - `assistant-push/`: `presence.ts` (heartbeat keys), `assistant-push-queue.ts` (debounce, cooldown, count), `emit-assistant-push.ts` (the entry point the run recorder, inbox and ingest call);
   - `transactions/reconciliation/`: the widened helpers, merge and restore, plus `duplicate-suggestions.ts`.
 
 ## Technical Details
@@ -385,7 +442,8 @@ Inbox thread (kind automationInbox, no AI) ⇄ Reconciliation Suggestions tab �
 - **Constants** (objects, so tests can shorten them):
   - `notificationTimings`: `waitBudgetMs` 10 s, `pollMs` 250, `repeatWindowMs` 10 min, `interruptedAfterMs` 30 min;
   - `dedupConfig`: `twinWindowMs` 30 min, `judgeWindowMs` 72 h, tolerance `CARD_PAYMENT_AMOUNT_TOLERANCE`, `suggestConfidence` 0.6, `maxJudgeCandidates` 5;
-  - `inboxConfig`: `aliveDays` 7, `maxCards` 200, `cardTtlDays` 30, `pushThrottleMs` 10 min.
+  - `inboxConfig`: `aliveDays` 7, `maxCards` 200, `cardTtlDays` 30;
+  - `assistantPushConfig`: `debounceMs` 60 s, `threadCooldownMs` 5 min, `inboxCooldownMs` 10 min, `ingestCooldownMs` 24 h, `presenceTtlMs` 45 s, `heartbeatMs` 20 s.
 - **Lock:** `pg_advisory_xact_lock(hashtextextended('ingest-dedup:<userId>', 0))`.
 - **Settings API** (`/user/settings/...`):
   - `GET|PATCH|DELETE /notification-sources[/:id]` (`mode`, `defaultAccountId`);
@@ -401,7 +459,7 @@ Inbox thread (kind automationInbox, no AI) ⇄ Reconciliation Suggestions tab �
 
 ## What Goes Where
 
-- **Implementation Steps:** backend (schema, endpoint, prefilter, parsing, payees, balances, limits, dedup, reconciliation, inbox, push, settings, tests); frontend (rename, setup UI, Reconciliation tab, inbox thread view); the triggered-shortcut generator after the device capture; docs.
+- **Implementation Steps:** backend (schema, endpoint, prefilter, parsing, payees, balances, limits, dedup, reconciliation, inbox, assistant push, settings, tests); frontend (push settings and presence, rename, setup UI, Reconciliation tab, inbox thread view); the triggered-shortcut generator after the device capture; docs.
 - **Post-Completion:** device capture and samples, signing, the Cloudflare Access path, deployment, upstream.
 
 ## Implementation Steps
@@ -419,7 +477,6 @@ Inbox thread (kind automationInbox, no AI) ⇄ Reconciliation Suggestions tab �
   - `registry.unit.ts` lists the new models;
   - a restore round-trip keeps a source and a dismissed suggestion;
   - `amount-gate.unit.ts` runs the samples per strictness: GEL/₾/$/€/грн/zł on both sides of the number with locale separators. Negatives for `strict`/`standard`: plain codes, phone numbers, dates, chat text without a currency;
-  - `NOTIFICATION_PUSH_GROUP` covers the new type
 - [ ] migration with `down`; models; shared constants and types
 - [ ] backup entries with reasons; the wipe covers both new tables
 - [ ] gate: unit `--testPathPattern='(backup/registry|amount-gate|web-push)'`; e2e `--testPathPattern='backup/restore/restore-backup.e2e'`; typecheck
@@ -595,15 +652,15 @@ Inbox thread (kind automationInbox, no AI) ⇄ Reconciliation Suggestions tab �
 - [ ] implement the scan: only accounts with ingest rows in the window; AI only when SQL finds candidates; the daily limit applies
 - [ ] gate: e2e `--testPathPattern='(transactions/reconciliation/(duplicate-suggestions|reconciliation)|ingest/dedup/(judge|twin)).e2e'`; unit `--testPathPattern='(reconciliation-tools|mcp)'`
 
-### Task 11: Automation inbox thread, cards and push
+### Task 11: Automation inbox thread and cards
 
 **Files:**
 
-- Create: `packages/backend/src/services/chat/inbox/{inbox-thread,create-system-proposal,inbox-items,inbox-push}.ts` + unit specs, `inbox.e2e.ts`
+- Create: `packages/backend/src/services/chat/inbox/{inbox-thread,create-system-proposal,inbox-items}.ts` + unit specs, `inbox.e2e.ts`
 - Create: chat policies and preview resolvers for `log_ingest_request` and `set_notification_source` (`services/chat/policies/explicit.ts`, `services/chat/proposals/previews/ingest-requests.ts`); MCP tools `log-ingest-request` and `set-notification-source` (`add-mcp-tool`)
-- Modify: `packages/backend/src/services/chat/threads/{list.service,to-chat-thread}.ts` (kind, pinned while alive), the message-post path (409 for inbox threads), `packages/backend/src/services/notifications/index.ts`, `packages/backend/src/services/web-push/render-push-body.ts`, `packages/backend/src/services/ingest/event/process-notification.ts`, `packages/backend/src/services/transactions/reconciliation/duplicate-suggestions.ts`, `packages/backend/src/services/ingest/event/notification-sources.service.ts`, `packages/backend/src/services/ingest/card-payment/{retry-request,dismiss-request}.ts`
+- Modify: `packages/backend/src/services/chat/threads/{list.service,to-chat-thread,update.service,delete.service}.ts` (kind; the live inbox refuses delete and unpin), `packages/backend/src/routes/chat.route.ts` + controllers (`clear-resolved`, `archive`), the message-post path (409 for inbox threads), `packages/backend/src/services/ingest/event/process-notification.ts`, `packages/backend/src/services/transactions/reconciliation/duplicate-suggestions.ts`, `packages/backend/src/services/ingest/event/notification-sources.service.ts`, `packages/backend/src/services/ingest/card-payment/{retry-request,dismiss-request}.ts`
 
-- [ ] write failing unit tests: the alive rule (a pending card keeps a thread alive past 7 days; a fully resolved thread older than 7 days rolls over; 200 cards roll over); the push throttle (one per 10 minutes, with a count)
+- [ ] write failing unit tests: the live rule (a pending card keeps a thread live past 7 days; a fully resolved thread older than 7 days rolls over; 200 cards roll over)
 - [ ] write failing e2e:
   - each item type creates one assistant message and a card with `preview.before` showing the request, the sender or both transactions;
   - approve runs the tool (logs the request, approves the sender, merges the pair) and resolves the record;
@@ -612,11 +669,58 @@ Inbox thread (kind automationInbox, no AI) ⇄ Reconciliation Suggestions tab �
   - resolving in the Reconciliation tab or the waiting list marks the card `rejected`/`resolvedElsewhere`;
   - a user with no AI connection still gets cards and can approve them;
   - posting a message to the inbox thread → 409;
-  - a push notification of type `automationInbox` links to the thread
+  - the live inbox is pinned; a rollover unpins the old thread (it gets an `expiresAt`) and pins the new one in one transaction;
+  - `DELETE` and `PATCH { pinned: false }` on the live inbox → 409; on a non-live inbox they work;
+  - `clear-resolved` deletes only messages whose cards are not pending; `archive` → 409 with a pending card, otherwise unpins and the next item opens a new thread
 - [ ] implement `createSystemProposal` on top of `computeCardState`/`storeProposal`; wire the inbox hooks in processing, the judge, the scan and the sources
-- [ ] gate: unit `--testPathPattern='chat/(inbox|policies)'`; e2e `--testPathPattern='(chat/inbox/inbox|chat/proposals/(approve|card-actions)|ingest/event/process-notification|transactions/reconciliation/duplicate-suggestions|web-push/push-delivery).e2e'`
+- [ ] gate: unit `--testPathPattern='chat/(inbox|policies)'`; e2e `--testPathPattern='(chat/inbox/inbox|chat/threads/threads|chat/proposals/(approve|card-actions)|ingest/event/process-notification|transactions/reconciliation/duplicate-suggestions).e2e'`
 
-### Task 12: Frontend: rename to "iOS Automation" and version-aware setup
+### Task 12: Assistant push group (backend)
+
+**Files:**
+
+- Modify: `packages/shared/src/types/{notifications,web-push}.ts` (`assistant` group, `PUSH_GROUP_DEFAULTS.assistant = true`, the four types and their payloads)
+- Create: `packages/backend/src/services/assistant-push/{presence,assistant-push-queue,emit-assistant-push}.ts` + unit specs, `assistant-push.e2e.ts`
+- Create: `packages/backend/src/controllers/chat/presence.controller.ts`; Modify: `packages/backend/src/routes/chat.route.ts` (`PUT|DELETE /chat/presence`)
+- Modify: `packages/backend/src/services/web-push/{render-push-body,build-push-payload}.ts` + unit specs (bodies, per-type tag), `packages/backend/src/background-jobs.ts` (worker), the backend i18n `notifications.push.*` (`en` + `uk`)
+- Modify (callers): `packages/backend/src/services/chat/runs/run-recorder.ts` (run finished or failed in a `chat` thread), `packages/backend/src/services/chat/inbox/inbox-items.ts`, `packages/backend/src/services/ingest/event/process-notification.ts` and `packages/backend/src/services/ingest/card-payment/process-ingest-request.ts` (parks without a card), the thread `get` service and the in-app notifications service (mark read by `payload.threadId`)
+
+- [ ] write failing unit tests:
+  - collapse keys and windows per type;
+  - the count is carried into the notification;
+  - the cooldown;
+  - presence get/set/expiry;
+  - the bodies for each type in `en` and `uk`, with no message or notification text in them;
+  - the tag per type;
+  - `NOTIFICATION_PUSH_GROUP` places every new type in `assistant`
+- [ ] write failing e2e (push delivery mocked as in `web-push/push-delivery.e2e.ts`):
+  - a chat run finishing with no presence → one `chatReplyReady` delivered, deep-linking to its thread; with pending cards, one push that mentions them;
+  - a presence heartbeat for that thread → no notification;
+  - three inbox items within the window → one `automationInbox` with count 3; a fourth inside the cooldown → none until the cooldown ends;
+  - an unknown-account park (it has a card) → only `automationInbox`; `aiCapReached` → one `ingestAttention`, and a second the same day → none;
+  - the `assistant` group switched off → the in-app entry exists but nothing is delivered;
+  - `GET` on the thread marks its assistant notifications read;
+  - `PUT /chat/presence` for another user's thread → 404
+- [ ] implement on the existing `createNotification` → `enqueueWebPushAfterCommit` → `push-queue.ts` path; the debounce queue only decides when to create the notification
+- [ ] gate: unit `--testPathPattern='(assistant-push|web-push)'`; e2e `--testPathPattern='(assistant-push/assistant-push|web-push/push-delivery|notifications/notifications|chat/runs/run-stream).e2e'`
+
+### Task 13: Frontend: assistant push settings, presence and deep links
+
+**Files:**
+
+- Modify: `packages/frontend/src/pages/settings/subpages/notifications/components/push-groups-card.vue` + spec (the `assistant` toggle with its description)
+- Create: `packages/frontend/src/composable/use-chat-presence.ts` + test; use it in the chat thread page
+- Modify: `packages/frontend/src/components/notifications-popover/build-notification-route.ts` + test, the notification item rendering for the new types, `packages/frontend/src/api/chat.ts`
+- i18n: `settings.notifications.push.groups.assistant.*`, `notifications.types.{chatReplyReady,chatCardsWaiting,automationInbox,ingestAttention}.*` (`en` + `uk`)
+
+- [ ] failing vitest:
+  - the toggle renders and saves the `assistant` group;
+  - the heartbeat is sent every 20 s only while the thread page is visible and focused; it stops on blur, hide and route leave, and `DELETE` is sent on leave;
+  - the three thread types route to `chatThread` with their `threadId`; `ingestAttention` routes to the iOS Automation page's waiting list;
+  - the bell items show the counts
+- [ ] gate: `npm run test:unit -- --run src/pages/settings/subpages/notifications src/composable/use-chat-presence.test.ts src/components/notifications-popover`; typecheck, lint
+
+### Task 14: Frontend: rename to "iOS Automation" and version-aware setup
 
 **Files:**
 
@@ -638,24 +742,23 @@ Inbox thread (kind automationInbox, no AI) ⇄ Reconciliation Suggestions tab �
 - [ ] Playwright: the old URL redirects; an unknown-account notification is resolved from the waiting list
 - [ ] gate: `npm run test:unit -- --run src/pages/accounts src/routes`; typecheck, lint
 
-### Task 13: Frontend: Reconciliation Suggestions tab and the inbox thread view
+### Task 15: Frontend: Reconciliation Suggestions tab and the inbox thread view
 
 **Files:**
 
 - Create: `packages/frontend/src/pages/optimizations/reconciliation/components/{suggestions-tab,suggestion-card}.vue` + specs; `packages/frontend/e2e/tests/reconciliation/suggestions.spec.ts`
 - Modify: `reconciliation/{index.vue,use-reconciliation.ts}`, `components/{merge-dialog,history-tab}.vue`, `packages/frontend/src/api/transactions.ts`, `packages/frontend/src/common/const/vue-query.ts`
-- Modify: the chat thread page and thread list (an inbox badge, no composer, pinned while alive), `components/notifications-popover/build-notification-route.ts` + test, the push settings group list (`automation`)
+- Modify: the chat thread page and thread list (an inbox badge, no composer, the pin shown as locked while live, **Clear resolved** and **Archive** actions with their disabled reasons)
 
 - [ ] failing vitest:
   - Suggestions tab: badge; pairs side by side with sources, confidence and reason; **Merge** opens the existing dialog with the suggested survivor; **Not duplicates**; empty state;
   - the inbox thread has no composer and offers "Ask the assistant in a new chat";
-  - the `automationInbox` notification routes to `chatThread`;
-  - the push settings show the new group
-- [ ] i18n `optimizations.reconciliation.suggestions.*`, `chat.inbox.*`, `notifications.automationInbox.*` (`en` + `uk`)
+  - the live inbox shows a locked pin, hides delete, offers **Clear resolved**, and disables **Archive** while a card is pending
+- [ ] i18n `optimizations.reconciliation.suggestions.*`, `chat.inbox.*` (`en` + `uk`)
 - [ ] Playwright: merge a suggestion in Reconciliation, then the inbox card shows as resolved
-- [ ] gate: `npm run test:unit -- --run src/pages/optimizations/reconciliation src/pages/chat src/components/notifications-popover`; typecheck, lint
+- [ ] gate: `npm run test:unit -- --run src/pages/optimizations/reconciliation src/pages/chat`; typecheck, lint
 
-### Task 14: iOS 27 shortcut with built-in triggers
+### Task 16: iOS 27 shortcut with built-in triggers
 
 ⚠️ Blocked on a fuller XML sample from the device. It must show:
 
@@ -682,7 +785,7 @@ Inbox thread (kind automationInbox, no AI) ⇄ Reconciliation Suggestions tab �
 - [ ] add the real samples to the parser fixtures and re-run Task 4
 - [ ] gate: `npm run test:unit -- --run scripts/shortcuts`; backend unit `--testPathPattern='(ingest/event|amount-gate)'`
 
-### Task 15: Verify acceptance criteria
+### Task 17: Verify acceptance criteria
 
 - [ ] a payment seen through tap, Wallet notification, push and SMS, in any order, gives one row with every source, the bank's amount, the resolved payee and a new alias; each run shows the right banner
 - [ ] an online Apple Pay payment is logged from the Wallet notification alone; a chat, an OTP and a promo never create a stored request with text
@@ -690,11 +793,13 @@ Inbox thread (kind automationInbox, no AI) ⇄ Reconciliation Suggestions tab �
 - [ ] every AI-judged match is a suggestion; approving it in the inbox or in Reconciliation resolves both; the manual account's balance stays right
 - [ ] a bank sync and a statement import next to ingest rows create no duplicate rows (the plan is settled) or a suggestion
 - [ ] a multi-currency bank's stated balance is informational
+- [ ] assistant pushes: a finished chat reply in a thread the user is not viewing, and a burst of inbox items as one push with a count; nothing while the thread is open; the toggle silences them
+- [ ] the live inbox is pinned, survives delete and unpin attempts, and the pin moves on rollover
 - [ ] backend: `npm run test:unit` (full); e2e `--testPathPattern='(ingest|transactions/reconciliation|planned-matching|duplicates-detection|ai-categorization|user-settings/ai-feature-settings|payees|chat|web-push|notifications|backup|mcp|crons/ingest-requests-cleanup|routes/base-currency-guard-coverage)'`
 - [ ] frontend: typecheck, lint, `npm run test:unit -- --run`; Playwright `integrations/`, `reconciliation/` and the chat specs when the dev stack is up
 - [ ] root: `npm run format:check`, `npm run knip`
 
-### Task 16: [Final] Update documentation
+### Task 18: [Final] Update documentation
 
 - [ ] `packages/docs/src/content/docs/integrations/ios-automation.mdx`, which replaces `apple-pay.mdx` (redirect in `astro.config.mjs`), per the `user-docs` skill. It covers:
   - the two shortcuts and which iOS each is for;
@@ -708,17 +813,17 @@ Inbox thread (kind automationInbox, no AI) ⇄ Reconciliation Suggestions tab �
   - limits;
   - the manual guide for older iOS;
   - troubleshooting
-- [ ] `integrations/ingest-tokens.mdx` links; `transactions/reconciliation.mdx`: Suggestions and manual-account rows; a short page or section on the **Automation inbox** (what lands there, push, the alive rule)
+- [ ] `integrations/ingest-tokens.mdx` links; `transactions/reconciliation.mdx`: Suggestions and manual-account rows; a short page or section on the **Automation inbox** (what lands there, the pin, clear resolved, archive, rollover); `settings` notifications docs: the **Assistant** push group and what each push means
 - [ ] `packages/backend/docs/card-payment-ingest.md`: the event endpoint, kinds, banner outcomes, prefilter, limits, slots, the twin rule, the judge, the inbox sync; `services/bank-data-providers/docs/architecture.md`: reconciliation now covers manual rows and ingest plans
 - [ ] `self-hosting/docs/environment-reference.md`: `INGEST_AI_DAILY_LIMIT` and the event limits
 - [ ] `cd packages/docs && npm run build` with the link validator passing
-- [ ] move this plan to `docs/plans/completed/` after Task 15 passes (Task 14 may stay open under ⚠️)
+- [ ] move this plan to `docs/plans/completed/` after Task 17 passes (Task 16 may stay open under ⚠️)
 
 ## Post-Completion
 
 _Items requiring manual work or external systems; no checkboxes._
 
-**Device capture (owner, with the orchestrator), before Task 14:**
+**Device capture (owner, with the orchestrator), before Task 16:**
 
 - From the Mac, export as XML a shortcut that has:
   - the Wallet Transaction trigger;
@@ -742,7 +847,7 @@ _Items requiring manual work or external systems; no checkboxes._
 
 - Build images from this branch, back up the database, and migrate.
 - Set AI connections for `notificationParsing` and `duplicateMatching`, or rely on the defaults. Set `INGEST_AI_DAILY_LIMIT` if 300 does not fit.
-- Enable push for the `automation` group on the phone.
+- Enable push for the `assistant` group on the phone (installed web app).
 - Generate a new setup code, which now carries `gate`.
 
-**Upstream:** offer the work after the Apple Pay ingest lands, in four parts: endpoint, parsing and dedup (Tasks 1–10); the inbox (Task 11); the UI and the shortcut (Tasks 12–14); the docs.
+**Upstream:** offer the work after the Apple Pay ingest lands, in four parts: endpoint, parsing and dedup (Tasks 1–10); the inbox and assistant push (Tasks 11–13); the UI and the shortcut (Tasks 14–16); the docs.
