@@ -70,3 +70,20 @@ export const postCardPayment = ({
     headers: { ...bearer({ secret }), ...headers },
     body,
   });
+
+/** `POST /ingest/event` the way the iOS 27 shortcut sends it: a bearer token and no session cookie. */
+export const postIngestEvent = ({
+  secret,
+  body,
+  headers = {},
+}: {
+  secret: string;
+  body: object;
+  headers?: Record<string, string>;
+}) =>
+  requestWithoutSession({
+    method: 'post',
+    url: '/ingest/event',
+    headers: { ...bearer({ secret }), ...headers },
+    body,
+  });

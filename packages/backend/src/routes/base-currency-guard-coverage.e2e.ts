@@ -76,6 +76,10 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   'DELETE /api/v1/user/settings/card-mappings/:id',
   // Dismissing a waiting payment only changes the request log; the payment was never booked.
   'DELETE /api/v1/user/settings/card-payments/requests/:id',
+  // A notification source's mode and default account only decide what happens to later
+  // notifications. Approving one enqueues its held requests, and the processing job applies the lock.
+  'DELETE /api/v1/user/settings/notification-sources/:id',
+  'PATCH /api/v1/user/settings/notification-sources/:id',
   'DELETE /api/v1/user/settings/mcp/connected-apps/:clientId',
   'PATCH /api/v1/user/settings',
   'PATCH /api/v1/user/settings/card-mappings/:id',
@@ -100,6 +104,8 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   'PUT /api/v1/user/settings/ai/features/:feature',
   // Cloudflare Access headers are credentials for the setup code, no monetary data.
   'PUT /api/v1/user/settings/card-payments/access-headers',
+  // The amount-gate level is a setting of the shortcut and the prefilter, no monetary data.
+  'PUT /api/v1/user/settings/card-payments/gate-strictness',
   'PUT /api/v1/user/settings/onboarding',
   'PUT /api/v1/user/update',
 
@@ -234,16 +240,19 @@ describe('Base-currency guard coverage', () => {
     expect(createTransaction!.middlewares).toContain(GUARD_MIDDLEWARE);
   });
 
-  it('discovers the ingest route behind authenticateIngestToken and guards it without an exemption', () => {
-    const ingest = collectRoutes().find(
-      (route) => route.method === 'POST' && route.path === '/api/v1/ingest/card-payment',
-    );
+  it.each(['card-payment', 'event'])(
+    'discovers the ingest route %s behind authenticateIngestToken and guards it without an exemption',
+    (name) => {
+      const ingest = collectRoutes().find(
+        (route) => route.method === 'POST' && route.path === `/api/v1/ingest/${name}`,
+      );
 
-    expect(ingest).toBeDefined();
-    expect(ingest!.middlewares).toContain('authenticateIngestToken');
-    expect(ingest!.middlewares).toContain(GUARD_MIDDLEWARE);
-    expect(GUARD_EXEMPT_ROUTES.has('POST /api/v1/ingest/card-payment')).toBe(false);
-  });
+      expect(ingest).toBeDefined();
+      expect(ingest!.middlewares).toContain('authenticateIngestToken');
+      expect(ingest!.middlewares).toContain(GUARD_MIDDLEWARE);
+      expect(GUARD_EXEMPT_ROUTES.has(`POST /api/v1/ingest/${name}`)).toBe(false);
+    },
+  );
 
   it('guards every authenticated mutating route (or allowlists it)', () => {
     const offenders = collectRoutes()

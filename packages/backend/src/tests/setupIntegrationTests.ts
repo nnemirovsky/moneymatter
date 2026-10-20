@@ -32,6 +32,7 @@ import {
   statementImportWorker,
 } from '@services/import-export/statement-parser/statement-import-queue';
 import { ynabImportQueue, ynabImportWorker } from '@services/import-export/ynab-import';
+import { notificationIngestQueue, notificationIngestWorker } from '@services/ingest/event/notification-queue';
 import {
   subscriptionReminderEmailQueue,
   subscriptionReminderEmailWorker,
@@ -526,6 +527,8 @@ async function closeAllE2eResources() {
     await backupRestoreQueue.close();
     await importBatchDeleteWorker.close();
     await importBatchDeleteQueue.close();
+    await notificationIngestWorker.close();
+    await notificationIngestQueue.close();
     await logoResolutionWorker.close();
     await logoResolutionQueue.close();
     await subscriptionReminderEmailWorker.close();

@@ -1,4 +1,9 @@
-import { API_ERROR_CODES, decodeSetupCode, type CardPaymentSetupCodePayload } from '@bt/shared/types';
+import {
+  AMOUNT_GATE_PATTERNS,
+  API_ERROR_CODES,
+  decodeSetupCode,
+  type CardPaymentSetupCodePayload,
+} from '@bt/shared/types';
 import { beforeEach, describe, expect, it } from '@jest/globals';
 import Users from '@models/users.model';
 import { RateLimitService } from '@services/common/rate-limit.service';
@@ -263,5 +268,88 @@ describe('POST /user/settings/card-payments/setup-code', () => {
       expect(blocked.statusCode).toBe(429);
       expect(errorCode({ response: blocked })).toBe(API_ERROR_CODES.tooManyRequests);
     });
+  });
+});
+
+describe('amount gate strictness', () => {
+  it('is standard for a fresh user, and a code then leaves the gate out for the shortcut to default', async () => {
+    expect(await helpers.getGateStrictness({ raw: true })).toEqual({ strictness: 'standard' });
+
+    const { decoded } = await mintSetupCode();
+
+    expect(decoded.gate).toBeUndefined();
+  });
+
+  it.each(['strict', 'loose'] as const)('puts the %s pattern in the next setup code', async (strictness) => {
+    const put = await helpers.setGateStrictness({ payload: { strictness } });
+
+    expect(put.statusCode).toBe(200);
+    expect(put.body.response).toEqual({ strictness });
+    expect(await helpers.getGateStrictness({ raw: true })).toEqual({ strictness });
+
+    const { decoded } = await mintSetupCode();
+
+    expect(decoded.gate).toBe(AMOUNT_GATE_PATTERNS[strictness]);
+  });
+
+  it('drops the gate from the code again when the level goes back to standard', async () => {
+    await helpers.setGateStrictness({ payload: { strictness: 'strict' }, raw: true });
+    await helpers.setGateStrictness({ payload: { strictness: 'standard' }, raw: true });
+
+    const { decoded } = await mintSetupCode();
+
+    expect(decoded.gate).toBeUndefined();
+  });
+
+  it('keeps a gate and the Cloudflare pair together in one code', async () => {
+    await helpers.setGateStrictness({ payload: { strictness: 'loose' }, raw: true });
+    await helpers.setAccessHeaders({ payload: { clientId: CF_ID, clientSecret: CF_SECRET }, raw: true });
+
+    const { decoded } = await mintSetupCode();
+
+    expect(decoded).toMatchObject({ cfAccessId: CF_ID, cfAccessSecret: CF_SECRET, gate: AMOUNT_GATE_PATTERNS.loose });
+  });
+
+  it('survives storing and clearing the Cloudflare pair', async () => {
+    await helpers.setGateStrictness({ payload: { strictness: 'strict' }, raw: true });
+
+    await helpers.setAccessHeaders({ payload: { clientId: CF_ID, clientSecret: CF_SECRET }, raw: true });
+    expect(await helpers.getGateStrictness({ raw: true })).toEqual({ strictness: 'strict' });
+
+    await helpers.setAccessHeaders({ payload: { clientId: null, clientSecret: null }, raw: true });
+    expect(await helpers.getGateStrictness({ raw: true })).toEqual({ strictness: 'strict' });
+  });
+
+  it('keeps the Cloudflare pair when the level changes', async () => {
+    await helpers.setAccessHeaders({ payload: { clientId: CF_ID, clientSecret: CF_SECRET }, raw: true });
+
+    await helpers.setGateStrictness({ payload: { strictness: 'strict' }, raw: true });
+
+    expect(await helpers.getAccessHeaders({ raw: true })).toMatchObject({ configured: true });
+  });
+
+  it.each([
+    ['an unknown level', { strictness: 'paranoid' }],
+    ['a level in another case', { strictness: 'Strict' }],
+    ['no level', {}],
+  ])('answers 422 for %s and keeps the level', async (_name, payload) => {
+    await helpers.setGateStrictness({ payload: { strictness: 'strict' }, raw: true });
+
+    const response = await helpers.setGateStrictness({ payload });
+
+    expect(response.statusCode).toBe(422);
+    expect(await helpers.getGateStrictness({ raw: true })).toEqual({ strictness: 'strict' });
+  });
+
+  it("does not show one user's level to another", async () => {
+    await helpers.setGateStrictness({ payload: { strictness: 'strict' }, raw: true });
+    const other = await helpers.signUpSecondUser();
+
+    const otherLevel = await helpers.asUser({
+      cookies: other.cookies,
+      fn: () => helpers.getGateStrictness({ raw: true }),
+    });
+
+    expect(otherLevel).toEqual({ strictness: 'standard' });
   });
 });

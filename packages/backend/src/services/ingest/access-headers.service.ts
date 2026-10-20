@@ -50,11 +50,15 @@ const setAccessHeadersImpl = async ({
   clientId: string;
   clientSecret: string;
 }): Promise<AccessHeadersStatusDto> => {
-  await IngestSettings.upsert({
-    userId,
-    accessClientIdEnc: encryptToken(clientId),
-    accessClientSecretEnc: encryptToken(clientSecret),
-  });
+  // `fields` keeps the upsert from rewriting the row's other settings with their defaults.
+  await IngestSettings.upsert(
+    {
+      userId,
+      accessClientIdEnc: encryptToken(clientId),
+      accessClientSecretEnc: encryptToken(clientSecret),
+    },
+    { fields: ['userId', 'accessClientIdEnc', 'accessClientSecretEnc'] },
+  );
 
   return { configured: true, clientIdHint: buildHint({ clientId }) };
 };
@@ -62,7 +66,8 @@ const setAccessHeadersImpl = async ({
 export const setAccessHeaders = withTransaction(setAccessHeadersImpl);
 
 const clearAccessHeadersImpl = async ({ userId }: { userId: number }): Promise<AccessHeadersStatusDto> => {
-  await IngestSettings.destroy({ where: { userId } });
+  // The row also holds the gate level, so only the headers are cleared.
+  await IngestSettings.update({ accessClientIdEnc: null, accessClientSecretEnc: null }, { where: { userId } });
 
   return NOT_CONFIGURED;
 };

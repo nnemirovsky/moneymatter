@@ -99,6 +99,39 @@ const parseTime = ({ value }: { value: string }): Date | null => {
   return isRealDate ? new Date(wallClock.getTime() - offsetMinutes * 60_000) : null;
 };
 
+type ResolvePayloadTimeResult =
+  | {
+      ok: true;
+      time: Date;
+      /** The request sent its own time, rather than leaving it to the receive time. */ provided: boolean;
+    }
+  | { ok: false; reason: Extract<CardPaymentRejectionReason, 'invalidTime' | 'timeInFuture' | 'timeTooOld'> };
+
+/**
+ * The time a request's `time` field stands for: the receive time for a blank one, else the parsed
+ * ISO 8601 time when it lies within the window around `receivedAt`. Shared by every ingest body.
+ */
+export const resolvePayloadTime = ({
+  value,
+  receivedAt,
+}: {
+  value: unknown;
+  receivedAt: Date;
+}): ResolvePayloadTimeResult => {
+  if (isBlank({ value })) return { ok: true, time: receivedAt, provided: false };
+
+  const parsedTime = typeof value === 'string' ? parseTime({ value }) : null;
+  if (!parsedTime) return { ok: false, reason: 'invalidTime' };
+  if (parsedTime.getTime() - receivedAt.getTime() > CARD_PAYMENT_TIME_AHEAD_MS) {
+    return { ok: false, reason: 'timeInFuture' };
+  }
+  if (receivedAt.getTime() - parsedTime.getTime() > CARD_PAYMENT_TIME_BEHIND_MS) {
+    return { ok: false, reason: 'timeTooOld' };
+  }
+
+  return { ok: true, time: parsedTime, provided: true };
+};
+
 /**
  * A payload's `time` as a displayable ISO timestamp: the request's own when it is a valid one, else
  * the fallback. A blank time is how a client says "now", and a rejected request keeps whatever
@@ -172,19 +205,9 @@ export const parsePayload = ({ body, receivedAt }: { body: unknown; receivedAt: 
   const name = typeof fields.name === 'string' ? cleanText({ value: fields.name }) : '';
   if (name.length > CARD_PAYMENT_NAME_MAX_LENGTH) return reject({ reason: 'nameTooLong', field: 'name' });
 
-  let time = receivedAt;
-  const timeProvided = !isBlank({ value: fields.time });
-  if (timeProvided) {
-    const parsedTime = typeof fields.time === 'string' ? parseTime({ value: fields.time }) : null;
-    if (!parsedTime) return reject({ reason: 'invalidTime', field: 'time' });
-    if (parsedTime.getTime() - receivedAt.getTime() > CARD_PAYMENT_TIME_AHEAD_MS) {
-      return reject({ reason: 'timeInFuture', field: 'time' });
-    }
-    if (receivedAt.getTime() - parsedTime.getTime() > CARD_PAYMENT_TIME_BEHIND_MS) {
-      return reject({ reason: 'timeTooOld', field: 'time' });
-    }
-    time = parsedTime;
-  }
+  const resolvedTime = resolvePayloadTime({ value: fields.time, receivedAt });
+  if (!resolvedTime.ok) return reject({ reason: resolvedTime.reason, field: 'time' });
+  const { time, provided: timeProvided } = resolvedTime;
 
   return {
     ok: true,

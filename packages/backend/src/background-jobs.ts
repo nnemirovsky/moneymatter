@@ -32,6 +32,7 @@ import { closeBridgeListener } from './services/chat/bridge/bridge-listener';
 import { shutdownChatRuns } from './services/chat/runs/run-manager';
 import { chatTailHub } from './services/chat/runs/tail-hub';
 import { initializeHistoricalRates } from './services/exchange-rates/initialize-historical-rates.service';
+import { notificationIngestWorker } from './services/ingest/event/notification-queue';
 
 const allEnvCrons = [demoCleanupCron, demoTemplateRefreshCron];
 
@@ -101,6 +102,7 @@ export async function shutdownBackgroundJobs() {
   await closeBridgeListener();
   await chatTailHub.close();
   await accountSyncWorker.close();
+  await notificationIngestWorker.close();
   // Flush remaining PostHog events before exit
   await shutdownPostHog();
 }

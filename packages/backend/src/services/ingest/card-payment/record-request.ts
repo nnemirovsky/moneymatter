@@ -33,6 +33,7 @@ const recordIngestRequestImpl = async ({
       {
         userId,
         tokenId,
+        pipeline: 'cardPayment',
         source,
         idempotencyKey,
         fingerprint,

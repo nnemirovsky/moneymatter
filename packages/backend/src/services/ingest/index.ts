@@ -11,3 +11,10 @@ export { ingestCardPayment } from './card-payment/ingest-card-payment';
 export { dismissIngestRequest } from './card-payment/dismiss-request';
 export { listCardPaymentRequests, listUnconfirmedCardPayments, listUnlinkedCards } from './card-payment/list-requests';
 export { retryIngestRequest } from './card-payment/retry-request';
+export { getGateStrictness, setGateStrictness } from './gate-strictness.service';
+export { ingestEvent } from './event/ingest-event';
+export {
+  deleteNotificationSource,
+  listNotificationSources,
+  updateNotificationSource,
+} from './event/notification-sources.service';

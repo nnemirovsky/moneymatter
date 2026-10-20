@@ -9,11 +9,14 @@ import type {
   CreateCardPaymentSetupCodeResponse,
   CreateIngestTokenPayload,
   CreateIngestTokenResponse,
+  GateStrictnessDto,
   IngestTokenDto,
+  NotificationSourceDto,
   SetAccessHeadersPayload,
   UnconfirmedCardPaymentDto,
   UnlinkedCardDto,
   UpdateCardMappingPayload,
+  UpdateNotificationSourcePayload,
 } from '@bt/shared/types';
 
 import { makeRequest } from './common';
@@ -189,6 +192,68 @@ export async function createCardPaymentSetupCode<R extends boolean | undefined =
   return makeRequest<CreateCardPaymentSetupCodeResponse, R>({
     method: 'post',
     url: '/user/settings/card-payments/setup-code',
+    payload,
+    raw,
+  });
+}
+
+export async function listNotificationSources<R extends boolean | undefined = false>({ raw }: { raw?: R } = {}) {
+  return makeRequest<NotificationSourceDto[], R>({
+    method: 'get',
+    url: '/user/settings/notification-sources',
+    raw,
+  });
+}
+
+export async function updateNotificationSource<R extends boolean | undefined = false>({
+  id,
+  payload,
+  raw,
+}: {
+  id: string;
+  payload: UpdateNotificationSourcePayload | Record<string, unknown>;
+  raw?: R;
+}) {
+  return makeRequest<NotificationSourceDto, R>({
+    method: 'patch',
+    url: `/user/settings/notification-sources/${id}`,
+    payload,
+    raw,
+  });
+}
+
+export async function deleteNotificationSource<R extends boolean | undefined = false>({
+  id,
+  raw,
+}: {
+  id: string;
+  raw?: R;
+}) {
+  return makeRequest<{ success: boolean }, R>({
+    method: 'delete',
+    url: `/user/settings/notification-sources/${id}`,
+    raw,
+  });
+}
+
+export async function getGateStrictness<R extends boolean | undefined = false>({ raw }: { raw?: R } = {}) {
+  return makeRequest<GateStrictnessDto, R>({
+    method: 'get',
+    url: '/user/settings/card-payments/gate-strictness',
+    raw,
+  });
+}
+
+export async function setGateStrictness<R extends boolean | undefined = false>({
+  payload,
+  raw,
+}: {
+  payload: Partial<GateStrictnessDto> | Record<string, unknown>;
+  raw?: R;
+}) {
+  return makeRequest<GateStrictnessDto, R>({
+    method: 'put',
+    url: '/user/settings/card-payments/gate-strictness',
     payload,
     raw,
   });

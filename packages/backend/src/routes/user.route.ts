@@ -41,10 +41,19 @@ import {
 } from '@controllers/ingest/card-payment-requests.controller';
 import { createCardPaymentSetupCodeController } from '@controllers/ingest/card-payment-setup-code.controller';
 import {
+  getGateStrictnessController,
+  setGateStrictnessController,
+} from '@controllers/ingest/gate-strictness.controller';
+import {
   createIngestTokenController,
   listIngestTokensController,
   revokeIngestTokenController,
 } from '@controllers/ingest/ingest-tokens.controller';
+import {
+  deleteNotificationSourceController,
+  listNotificationSourcesController,
+  updateNotificationSourceController,
+} from '@controllers/ingest/notification-sources.controller';
 import { getConnectedAppsController, revokeConnectedAppController } from '@controllers/mcp/connected-apps.controller';
 import {
   cancelCliAuthSessionController,
@@ -235,7 +244,7 @@ router.get('/settings/ingest-tokens', listIngestTokensController);
 router.post('/settings/ingest-tokens', blockDemoUsers, ingestSettingsWriteRateLimit, createIngestTokenController);
 router.delete('/settings/ingest-tokens/:id', revokeIngestTokenController);
 
-// Card links: which account a Wallet card's payments are logged on.
+// Card links: which account a card's payments are logged on, per currency with a default row.
 router.get('/settings/card-mappings', listCardMappingsController);
 router.get('/settings/card-mappings/unlinked', listUnlinkedCardsController);
 router.post('/settings/card-mappings', createCardMappingController);
@@ -258,6 +267,16 @@ router.put(
   ingestSettingsWriteRateLimit,
   setAccessHeadersController,
 );
+
+// How strict the amount gate is, on the device and on the server. A change needs a new setup code.
+router.get('/settings/card-payments/gate-strictness', getGateStrictnessController);
+router.put('/settings/card-payments/gate-strictness', setGateStrictnessController);
+
+// Apps and senders that send notifications: the user approves, mutes or forgets each, and picks the
+// account its payments land on when the text names no card.
+router.get('/settings/notification-sources', listNotificationSourcesController);
+router.patch('/settings/notification-sources/:id', updateNotificationSourceController);
+router.delete('/settings/notification-sources/:id', deleteNotificationSourceController);
 
 // The setup code bundles the ingest URL, a freshly minted token and the stored Cloudflare Access
 // pair. It is shown once and never stored, so there is no GET. Demo users cannot mint credentials.

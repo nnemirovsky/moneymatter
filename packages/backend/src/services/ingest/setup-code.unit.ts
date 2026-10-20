@@ -1,8 +1,11 @@
 import {
+  AMOUNT_GATE_PATTERNS,
   decodeSetupCode,
   encodeSetupCode,
+  GATE_STRICTNESS_LEVELS,
   SETUP_CODE_MAX_LENGTH,
   SETUP_CODE_PREFIX,
+  SETUP_CODE_QR_MAX_LENGTH,
   SetupCodeError,
 } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
@@ -21,6 +24,9 @@ const decodeFailure = ({ code }: { code: string }): SetupCodeError | undefined =
   }
   return undefined;
 };
+
+const readJson = ({ code }: { code: string }) =>
+  JSON.parse(Buffer.from(code.slice(SETUP_CODE_PREFIX.length), 'base64').toString('utf8'));
 
 describe('card-payment setup code', () => {
   describe('encodeSetupCode', () => {
@@ -84,9 +90,69 @@ describe('card-payment setup code', () => {
     });
 
     it('rejects a code that would exceed the size limit', () => {
-      expect(() => encodeSetupCode({ url: `https://money.example.com/${'a'.repeat(2000)}`, token: TOKEN })).toThrow(
-        SetupCodeError,
-      );
+      expect(() =>
+        encodeSetupCode({ url: `https://money.example.com/${'a'.repeat(SETUP_CODE_MAX_LENGTH)}`, token: TOKEN }),
+      ).toThrow(SetupCodeError);
+    });
+
+    it('keeps a code without a gate small enough for a QR code', () => {
+      const code = encodeSetupCode({
+        url: URL_VALUE,
+        token: TOKEN,
+        cfAccessId: 'abc123.access',
+        cfAccessSecret: 'secret-value',
+      });
+
+      expect(code.length).toBeLessThan(SETUP_CODE_QR_MAX_LENGTH);
+    });
+  });
+
+  describe('the gate', () => {
+    it('round-trips a gate regex', () => {
+      const code = encodeSetupCode({ url: URL_VALUE, token: TOKEN, gate: AMOUNT_GATE_PATTERNS.strict });
+
+      expect(decodeSetupCode({ code })).toEqual({ url: URL_VALUE, token: TOKEN, gate: AMOUNT_GATE_PATTERNS.strict });
+    });
+
+    it('writes the gate next to the other fields and leaves it out when there is none', () => {
+      const withGate = encodeSetupCode({ url: URL_VALUE, token: TOKEN, gate: '\\d+' });
+      const without = encodeSetupCode({ url: URL_VALUE, token: TOKEN });
+
+      expect(readJson({ code: withGate })).toEqual({ v: 1, url: URL_VALUE, token: TOKEN, gate: '\\d+' });
+      expect(readJson({ code: without })).not.toHaveProperty('gate');
+    });
+
+    it('still decodes a code that was made before the gate existed', () => {
+      const code = encodeRaw({ value: { v: 1, url: URL_VALUE, token: TOKEN, cfAccessId: 'id', cfAccessSecret: 's' } });
+
+      expect(decodeSetupCode({ code })).toEqual({
+        url: URL_VALUE,
+        token: TOKEN,
+        cfAccessId: 'id',
+        cfAccessSecret: 's',
+      });
+    });
+
+    it.each(GATE_STRICTNESS_LEVELS)('fits the %s pattern together with the Cloudflare pair', (level) => {
+      const code = encodeSetupCode({
+        url: URL_VALUE,
+        token: TOKEN,
+        cfAccessId: 'abc123.access',
+        cfAccessSecret: 'secret-value',
+        gate: AMOUNT_GATE_PATTERNS[level],
+      });
+
+      expect(code.length).toBeLessThanOrEqual(SETUP_CODE_MAX_LENGTH);
+      expect(decodeSetupCode({ code }).gate).toBe(AMOUNT_GATE_PATTERNS[level]);
+    });
+
+    it('rejects a gate that is empty, not text or longer than the limit', () => {
+      for (const gate of ['', 7, 'x'.repeat(4097)]) {
+        expect(() => encodeSetupCode({ url: URL_VALUE, token: TOKEN, gate: gate as string })).toThrow(SetupCodeError);
+      }
+      expect(
+        decodeFailure({ code: encodeRaw({ value: { v: 1, url: URL_VALUE, token: TOKEN, gate: 3 } }) })?.reason,
+      ).toBe('invalidGate');
     });
   });
 
@@ -157,7 +223,7 @@ describe('card-payment setup code', () => {
       ).toBe('invalidAccessHeaders');
     });
 
-    it('rejects input over 2 KB before decoding it', () => {
+    it('rejects input over the size limit before decoding it', () => {
       const oversize = `${SETUP_CODE_PREFIX}${'A'.repeat(SETUP_CODE_MAX_LENGTH)}`;
 
       expect(oversize.length).toBeGreaterThan(SETUP_CODE_MAX_LENGTH);
