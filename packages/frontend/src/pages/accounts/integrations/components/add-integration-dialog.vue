@@ -134,7 +134,7 @@
         data-testid="add-apple-pay"
         @click="handleSelectApplePay"
       >
-        <CreditCardIcon class="text-muted-foreground size-9 shrink-0 p-1.5" aria-hidden="true" />
+        <WalletIcon class="size-9 shrink-0" />
 
         <span class="min-w-0 flex-1 text-left">
           <span class="block truncate text-sm font-medium">{{ t('pages.integrations.addDialog.applePay.name') }}</span>
@@ -162,6 +162,7 @@ import {
 } from '@/common/const/bank-providers';
 import PlanRestricted from '@/components/billing/plan-restricted.vue';
 import BankProviderLogo from '@/components/common/bank-providers/bank-provider-logo.vue';
+import WalletIcon from '@/components/common/icons/wallet-icon.vue';
 import ResponsiveDialog from '@/components/common/responsive-dialog.vue';
 import ResponsiveTooltip from '@/components/common/responsive-tooltip.vue';
 import UiButton from '@/components/lib/ui/button/Button.vue';
@@ -169,7 +170,7 @@ import { trackAnalyticsEvent } from '@/lib/posthog';
 import { cn } from '@/lib/utils';
 import { BANK_PROVIDER_TYPE, FEATURES } from '@bt/shared/types';
 import { ROUTES_NAMES } from '@/routes';
-import { ChevronRightIcon, CreditCardIcon, InfoIcon } from '@lucide/vue';
+import { ChevronRightIcon, InfoIcon } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';

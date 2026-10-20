@@ -82,7 +82,7 @@
       class="border-border mb-3 flex items-center gap-2 rounded border p-2 text-xs"
       data-testid="sync-apple-pay"
     >
-      <CreditCardIcon class="text-muted-foreground size-5 shrink-0" />
+      <WalletIcon class="size-5 shrink-0" />
       <div class="min-w-0 flex-1">
         <div class="truncate font-medium">{{ $t('syncStatusTooltip.applePay.title') }}</div>
         <div class="text-muted-foreground text-[10px]" data-testid="sync-apple-pay-last">
@@ -243,6 +243,7 @@ import { METAINFO_FROM_TYPE } from '@/common/const/bank-providers';
 import AiUsageBadge from '@/components/common/ai-usage/ai-usage-badge.vue';
 import Button from '@/components/lib/ui/button/Button.vue';
 import { Callout } from '@/components/lib/ui/callout';
+import WalletIcon from '@/components/common/icons/wallet-icon.vue';
 import { ScrollArea } from '@/components/lib/ui/scroll-area';
 import { useAiAllowance } from '@/composable/use-ai-allowance';
 import { ROUTES_NAMES } from '@/routes/constants';
@@ -250,7 +251,6 @@ import { AI_FEATURE, type AiCategorizationProgressPayload } from '@bt/shared/typ
 import {
   AlertTriangleIcon,
   Building2,
-  CreditCardIcon,
   CheckCircle2,
   Circle,
   Clock,
