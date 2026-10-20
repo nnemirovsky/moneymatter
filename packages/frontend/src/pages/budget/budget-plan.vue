@@ -152,11 +152,8 @@ const selectedPeriodId = computed(() => {
 
 const selectedPeriod = computed(() => periods.value?.find((period) => period.id === selectedPeriodId.value));
 
-// The chat answers about this plan and the period on screen.
-provideChatPageContext(() => ({
-  entity: { kind: 'budgetPlan', id: planId.value },
-  ...(selectedPeriod.value ? { period: budgetPeriodToChatPeriod(selectedPeriod.value) } : {}),
-}));
+// The plan is the route's entity; the chat also sees the period on screen.
+provideChatPageContext(() => (selectedPeriod.value ? { period: budgetPeriodToChatPeriod(selectedPeriod.value) } : {}));
 
 const previousPeriod = computed(() => {
   const list = periods.value ?? [];
