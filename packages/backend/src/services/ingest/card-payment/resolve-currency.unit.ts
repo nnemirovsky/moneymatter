@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { resolveCurrency } from './resolve-currency';
+import { resolveCurrency, resolveStatedCurrency } from './resolve-currency';
 
 const base = {
   explicitCurrency: null,
@@ -137,6 +137,49 @@ describe('resolveCurrency', () => {
       ok: true,
       currencyCode: 'GEL',
       source: 'account',
+    });
+  });
+});
+
+describe('resolveStatedCurrency', () => {
+  const stated = { explicitCurrency: null, textCode: null, textSymbol: null, userCurrencyCodes: ['GEL', 'USD'] };
+
+  it('reads what the payment states without an account', () => {
+    expect(resolveStatedCurrency({ ...stated, explicitCurrency: 'eur' })).toEqual({
+      ok: true,
+      currencyCode: 'EUR',
+      source: 'explicit',
+    });
+    expect(resolveStatedCurrency({ ...stated, textCode: 'usd' })).toEqual({
+      ok: true,
+      currencyCode: 'USD',
+      source: 'text-code',
+    });
+    expect(resolveStatedCurrency({ ...stated, textSymbol: '₾' })).toEqual({
+      ok: true,
+      currencyCode: 'GEL',
+      source: 'symbol',
+    });
+  });
+
+  it('states nothing when only the account can settle it', () => {
+    expect(resolveStatedCurrency(stated)).toEqual({ ok: true, currencyCode: null, source: 'account' });
+    // `$` stands for several currencies and the user holds two of them.
+    expect(resolveStatedCurrency({ ...stated, textSymbol: '$', userCurrencyCodes: ['USD', 'CAD'] })).toEqual({
+      ok: true,
+      currencyCode: null,
+      source: 'account',
+    });
+  });
+
+  it('keeps the errors of resolveCurrency', () => {
+    expect(resolveStatedCurrency({ ...stated, explicitCurrency: 'dollars!' })).toEqual({
+      ok: false,
+      reason: 'invalidCurrency',
+    });
+    expect(resolveStatedCurrency({ ...stated, textCode: 'USD', textSymbol: '€' })).toEqual({
+      ok: false,
+      reason: 'currencyConflict',
     });
   });
 });

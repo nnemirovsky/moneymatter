@@ -686,7 +686,12 @@
     "labelEmpty": "The card name cannot be empty.",
     "accountNotFound": "Account not found.",
     "accountArchived": "An archived account cannot be linked to a card.",
-    "accountNotSupported": "Loan and vehicle accounts cannot be linked to a card."
+    "accountNotSupported": "Loan and vehicle accounts cannot be linked to a card.",
+    "currencyInvalid": "The currency code is not valid.",
+    "currencyMismatch": "A link for {{currencyCode}} needs an account in {{currencyCode}}.",
+    "currencyTaken": "This card already has an account for that currency.",
+    "digitsInvalid": "The last digits must be 4 to 8 digits.",
+    "digitsTaken": "These last digits belong to another card."
   },
   "ingest": {
     "summary": {
@@ -701,7 +706,10 @@
       "dryRunCard": "Connected as {{username}}. Card \"{{card}}\" → {{account}}",
       "dryRunCardNotLinked": "Connected as {{username}}. Card \"{{card}}\" is not linked yet",
       "dryRunCards_one": "Connected as {{username}}. {{count}} card linked.",
-      "dryRunCards_other": "Connected as {{username}}. {{count}} cards linked."
+      "dryRunCards_other": "Connected as {{username}}. {{count}} cards linked.",
+      "queued": "Queued, will appear shortly",
+      "notificationLogged": "Notification logged",
+      "parkedNotification": "Needs your OK in MoneyMatter: {{summary}}"
     },
     "rejection": {
       "invalidBody": "The request body must be a JSON object.",
@@ -719,13 +727,16 @@
       "nameTooLong": "The payment name is longer than 200 characters.",
       "invalidTime": "The time must be an ISO 8601 date and time with an offset.",
       "timeInFuture": "The payment time is in the future.",
-      "timeTooOld": "The payment time is more than 30 days in the past."
+      "timeTooOld": "The payment time is more than 30 days in the past.",
+      "invalidKind": "The kind must be \"walletTransaction\" or \"notification\".",
+      "rawTooLong": "The raw text is longer than 8 KB."
     },
     "idempotencyConflict": "This idempotency key was already used for a different payment.",
     "requestDismissed": "This payment was dismissed in MoneyMatter.",
     "requestNotFound": "Card payment request not found.",
     "requestNotWaiting": "This payment is not waiting to be logged.",
-    "setupCodeUnusable": "The setup code cannot be built from these values. Shorten the ingest URL or the Cloudflare Access values."
+    "setupCodeUnusable": "The setup code cannot be built from these values. Shorten the ingest URL or the Cloudflare Access values.",
+    "rateLimited": "Too many notifications. Try again later."
   },
   "defaultCategories": {
     "main": {
@@ -978,5 +989,9 @@
   },
   "dataExport": {
     "tooManyRows": "Export would contain {{rowCount, number}} rows, which exceeds the limit of {{limit, number}}."
+  },
+  "notificationSources": {
+    "sourceNotFound": "Notification source not found.",
+    "accountNotFound": "Account not found."
   }
 }

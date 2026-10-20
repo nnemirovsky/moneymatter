@@ -88,7 +88,8 @@ export const listCardPaymentRequests = async ({
 /**
  * Card labels payments are waiting on, with how many. Labels that differ only in case or spacing
  * count as one card, and a card that has been linked since is left out: its payments need a retry,
- * not a link.
+ * not a link. A card counts as linked once it has a default row; one with only currency rows still
+ * needs a default for the payments in its other currencies.
  */
 export const listUnlinkedCards = async ({ userId }: { userId: number }): Promise<UnlinkedCardDto[]> => {
   const [waiting, mappings] = await Promise.all([
@@ -97,7 +98,7 @@ export const listUnlinkedCards = async ({ userId }: { userId: number }): Promise
       attributes: ['cardLabel'],
       order: [['createdAt', 'DESC']],
     }),
-    CardAccountMappings.findAll({ where: { userId }, attributes: ['normalizedLabel'] }),
+    CardAccountMappings.findAll({ where: { userId, currencyCode: null }, attributes: ['normalizedLabel'] }),
   ]);
   const linked = new Set(mappings.map((mapping) => mapping.normalizedLabel));
 

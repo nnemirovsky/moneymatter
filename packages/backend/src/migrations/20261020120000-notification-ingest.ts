@@ -2,11 +2,16 @@ import { DataTypes, QueryInterface } from 'sequelize';
 
 /**
  * Notification ingest: the pipeline discriminator and the encrypted text of ingest requests, the
- * notification source list, the duplicate suggestions, the amount-gate level, card last digits and
- * the automation inbox columns of chat threads.
+ * notification source list, the duplicate suggestions, the amount-gate level, card last digits, the
+ * per-currency card links and the automation inbox columns of chat threads.
  *
- * `down` drops the new columns and tables with every row in them, and deletes the automation inbox
- * threads first (they would otherwise turn into ordinary chats).
+ * A card link now serves one currency (`currencyCode`) or, with a null currency, is the card's
+ * default. The unique indexes treat a null currency as the empty string, so a card holds at most one
+ * default row and one row per currency. Existing links become defaults.
+ *
+ * `down` drops the new columns and tables with every row in them, deletes the automation inbox
+ * threads first (they would otherwise turn into ordinary chats) and keeps one link per card label:
+ * the currency-specific links are deleted.
  */
 
 const timestamps = {
@@ -294,9 +299,29 @@ module.exports = {
         },
         { transaction },
       );
+      await queryInterface.addColumn(
+        'CardAccountMappings',
+        'currencyCode',
+        {
+          // Wide enough for a custom currency code (CURRENCY_CODE_MAX_LENGTH).
+          type: DataTypes.STRING(16),
+          allowNull: true,
+          comment: 'The currency this link serves; null is the default link of the card',
+        },
+        { transaction },
+      );
+      await queryInterface.removeIndex('CardAccountMappings', 'CardAccountMappings_userId_normalizedLabel_unique', {
+        transaction,
+      });
       await queryInterface.sequelize.query(
-        `CREATE UNIQUE INDEX "CardAccountMappings_userId_lastDigits_unique"
-         ON "CardAccountMappings" ("userId", "lastDigits") WHERE "lastDigits" IS NOT NULL;`,
+        `CREATE UNIQUE INDEX "CardAccountMappings_card_currency_unique"
+         ON "CardAccountMappings" ("userId", "normalizedLabel", COALESCE("currencyCode", ''));`,
+        { transaction },
+      );
+      await queryInterface.sequelize.query(
+        `CREATE UNIQUE INDEX "CardAccountMappings_lastDigits_currency_unique"
+         ON "CardAccountMappings" ("userId", "lastDigits", COALESCE("currencyCode", ''))
+         WHERE "lastDigits" IS NOT NULL;`,
         { transaction },
       );
 
@@ -338,7 +363,17 @@ module.exports = {
       await queryInterface.removeColumn('ChatThreads', 'inboxState', { transaction });
       await queryInterface.removeColumn('ChatThreads', 'kind', { transaction });
 
-      await queryInterface.sequelize.query(`DROP INDEX "CardAccountMappings_userId_lastDigits_unique";`, {
+      await queryInterface.sequelize.query(`DELETE FROM "CardAccountMappings" WHERE "currencyCode" IS NOT NULL`, {
+        transaction,
+      });
+      await queryInterface.sequelize.query(`DROP INDEX "CardAccountMappings_lastDigits_currency_unique";`, {
+        transaction,
+      });
+      await queryInterface.sequelize.query(`DROP INDEX "CardAccountMappings_card_currency_unique";`, { transaction });
+      await queryInterface.removeColumn('CardAccountMappings', 'currencyCode', { transaction });
+      await queryInterface.addIndex('CardAccountMappings', ['userId', 'normalizedLabel'], {
+        unique: true,
+        name: 'CardAccountMappings_userId_normalizedLabel_unique',
         transaction,
       });
       await queryInterface.removeColumn('CardAccountMappings', 'lastDigits', { transaction });

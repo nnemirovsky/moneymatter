@@ -3,20 +3,21 @@ import {
   type CardPaymentRejectionReason,
   type IngestRequestStatus,
   type RecordId,
-  normalizeCardLabel,
 } from '@bt/shared/types';
 import { t } from '@i18n/index';
-import CardAccountMappings from '@models/card-account-mappings.model';
 import { connection } from '@models/connection';
 import IngestRequests from '@models/ingest-requests.model';
+import UsersCurrencies from '@models/users-currencies.model';
 import { withTransaction } from '@services/common/with-transaction';
 import { Op } from 'sequelize';
 
+import { resolveCardAccount } from '../resolve-card-account';
 import { buildLoggedSummary } from './build-logged-summary';
 import { cardPaymentTimings } from './constants';
 import { formatSummary } from './format-summary';
 import { parsePayload } from './parse-payload';
 import { processCardPayment } from './process-card-payment';
+import { resolveStatedCurrency } from './resolve-currency';
 
 interface LoggedResult {
   outcome: 'logged';
@@ -204,9 +205,28 @@ const processIngestRequestImpl = async ({
   if (!parsed.ok) return markRejected({ row, reason: parsed.reason, locale });
   if (parsed.kind !== 'payment') return markRejected({ row, reason: 'invalidBody', locale });
 
-  const mapping = await CardAccountMappings.findOne({
-    where: { userId: row.userId, normalizedLabel: normalizeCardLabel({ label: parsed.card }) },
+  const heldCurrencies = await UsersCurrencies.findAll({
+    where: { userId: row.userId },
+    attributes: ['currencyCode'],
+    raw: true,
   });
+  const userCurrencyCodes = heldCurrencies.map((held) => held.currencyCode);
+
+  // The card's account depends on the payment's currency, so the currency the payment states is
+  // read first. One that is invalid or contradicts itself picks no currency row here (the default
+  // row is used) and is rejected by `processCardPayment` once the account is known.
+  const stated = resolveStatedCurrency({
+    explicitCurrency: parsed.explicitCurrency,
+    textCode: parsed.amountCurrencyCode,
+    textSymbol: parsed.amountSymbol,
+    userCurrencyCodes,
+  });
+  const resolvedCard = await resolveCardAccount({
+    userId: row.userId,
+    cardLabel: parsed.card,
+    currencyCode: stated.ok ? stated.currencyCode : null,
+  });
+  const mapping = resolvedCard?.mapping;
   const unknownCard = () =>
     markParked({
       row,
@@ -215,7 +235,13 @@ const processIngestRequestImpl = async ({
     });
   if (!mapping) return unknownCard();
 
-  const processed = await processCardPayment({ requestId: row.id, userId: row.userId, payment: parsed, mapping });
+  const processed = await processCardPayment({
+    requestId: row.id,
+    userId: row.userId,
+    payment: parsed,
+    mapping,
+    userCurrencyCodes,
+  });
   if (processed.kind === 'rejected') return markRejected({ row, reason: processed.reason, locale });
   if (processed.kind === 'unlinked') return unknownCard();
   if (processed.kind === 'parked') {

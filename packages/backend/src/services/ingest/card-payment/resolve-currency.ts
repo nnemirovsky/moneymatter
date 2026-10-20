@@ -47,38 +47,41 @@ export const getSymbolCandidates = ({ symbol }: { symbol: string }): readonly st
 
 type CurrencySource = 'explicit' | 'text-code' | 'symbol' | 'account';
 
+type ResolveStatedCurrencyResult =
+  | { ok: true; currencyCode: string; source: Exclude<CurrencySource, 'account'> }
+  | { ok: true; currencyCode: null; source: 'account' }
+  | { ok: false; reason: Extract<CardPaymentRejectionReason, 'invalidCurrency' | 'currencyConflict'> };
+
 type ResolveCurrencyResult =
   | { ok: true; currencyCode: string; source: CurrencySource }
   | { ok: false; reason: Extract<CardPaymentRejectionReason, 'invalidCurrency' | 'currencyConflict'> };
 
 /**
- * The currency of a card payment, in this order:
+ * The currency the payment itself states, in this order:
  *
  * 1. the request's explicit `currency`;
  * 2. a code in the amount text (`47.00 GEL`);
  * 3. the symbol in the amount text (`₾47`), when it names one currency: either it has a single
- *    candidate, or exactly one candidate is a currency the user holds (`$` with USD only);
- * 4. the mapped account's currency, which also settles a shared symbol the user's currencies do not
- *    narrow down (`$` with two dollar currencies).
+ *    candidate, or exactly one candidate is a currency the user holds (`$` with USD only).
+ *
+ * `currencyCode: null` means the payment states none that settles it; only the account's currency
+ * can (`resolveCurrency`). Callers pick the card's account by this currency, so it is read before
+ * the account is known.
  *
  * A code in the text that the symbol in the same text cannot stand for (`€47 USD`) is an error:
  * guessing either would file the payment in the wrong currency.
- *
- * The result is only checked for shape. Whether the code exists is up to the caller's lookup.
  */
-export const resolveCurrency = ({
+export const resolveStatedCurrency = ({
   explicitCurrency,
   textCode,
   textSymbol,
   userCurrencyCodes,
-  accountCurrencyCode,
 }: {
   explicitCurrency: string | null;
   textCode: string | null;
   textSymbol: string | null;
   userCurrencyCodes: readonly string[];
-  accountCurrencyCode: string;
-}): ResolveCurrencyResult => {
+}): ResolveStatedCurrencyResult => {
   const symbolCandidates = textSymbol === null ? null : (getSymbolCandidates({ symbol: textSymbol }) ?? null);
 
   if (explicitCurrency !== null) {
@@ -106,5 +109,31 @@ export const resolveCurrency = ({
     if (symbolCandidates.length === 1) return { ok: true, currencyCode: symbolCandidates[0]!, source: 'symbol' };
   }
 
-  return { ok: true, currencyCode: accountCurrencyCode, source: 'account' };
+  return { ok: true, currencyCode: null, source: 'account' };
+};
+
+/**
+ * The currency of a card payment: what the payment states (`resolveStatedCurrency`), else the
+ * mapped account's currency, which also settles a shared symbol the user's currencies do not
+ * narrow down (`$` with two dollar currencies).
+ *
+ * The result is only checked for shape. Whether the code exists is up to the caller's lookup.
+ */
+export const resolveCurrency = ({
+  accountCurrencyCode,
+  ...stated
+}: {
+  explicitCurrency: string | null;
+  textCode: string | null;
+  textSymbol: string | null;
+  userCurrencyCodes: readonly string[];
+  accountCurrencyCode: string;
+}): ResolveCurrencyResult => {
+  const result = resolveStatedCurrency(stated);
+
+  if (!result.ok) return result;
+
+  return result.currencyCode === null
+    ? { ok: true, currencyCode: accountCurrencyCode, source: 'account' }
+    : { ok: true, currencyCode: result.currencyCode, source: result.source };
 };

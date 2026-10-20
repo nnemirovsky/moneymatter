@@ -320,7 +320,7 @@ describe('waiting card payments', () => {
     it('lists a request that failed while processing as parked and logs it on retry', async () => {
       const { account, secret } = await setUp();
       await linkCard({ accountId: account.id });
-      jest.spyOn(CardAccountMappings, 'findOne').mockRejectedValueOnce(new Error('the database blinked'));
+      jest.spyOn(CardAccountMappings, 'findAll').mockRejectedValueOnce(new Error('the database blinked'));
 
       const failed = await send({ secret, body: payment() });
 
@@ -374,7 +374,7 @@ describe('waiting card payments', () => {
       await linkCard({ accountId: account.id });
       const realFindOne = IngestRequests.findOne.bind(IngestRequests);
       let lockedReads = 0;
-      jest.spyOn(CardAccountMappings, 'findOne').mockRejectedValueOnce(new Error('processing died'));
+      jest.spyOn(CardAccountMappings, 'findAll').mockRejectedValueOnce(new Error('processing died'));
       jest.spyOn(IngestRequests, 'findOne').mockImplementation(((options?: { lock?: unknown }) => {
         if (options?.lock) {
           lockedReads += 1;
@@ -424,7 +424,7 @@ describe('waiting card payments', () => {
       const parkingResumed = new Promise<void>((resolve) => {
         resumeParking = resolve;
       });
-      jest.spyOn(CardAccountMappings, 'findOne').mockRejectedValueOnce(new Error('processing died'));
+      jest.spyOn(CardAccountMappings, 'findAll').mockRejectedValueOnce(new Error('processing died'));
       jest.spyOn(IngestRequests, 'findOne').mockImplementation((async (options?: { lock?: unknown }) => {
         if (options?.lock) {
           lockedReads += 1;

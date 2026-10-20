@@ -11,7 +11,7 @@ import { Money } from '@common/types/money';
 import { ExchangeRateUnavailableError } from '@js/errors';
 import Accounts from '@models/accounts.model';
 import type CardAccountMappings from '@models/card-account-mappings.model';
-import UsersCurrencies, { getBaseCurrency } from '@models/users-currencies.model';
+import { getBaseCurrency } from '@models/users-currencies.model';
 import { getUserDefaultCategory } from '@models/users.model';
 import { resolveVisibleCurrencies } from '@services/currencies/assert-currency-codes-visible';
 import { resolvePayeeForIncomingRow } from '@services/payees/resolve-payee-for-incoming-row';
@@ -40,7 +40,8 @@ type ProcessCardPaymentResult =
  * Logs one parsed payment on the account its card is linked to, inside the caller's transaction.
  *
  * - A linked account that is gone or archived is treated like an unlinked card: the payment waits
- *   until the card is linked again.
+ *   until the card is linked again. The caller picks `mapping` by the payment's currency (the row of
+ *   that currency, else the card's default), so the account is already the right one for it.
  * - The payment's currency is resolved only now that the account's currency is known, and must be
  *   one the user can use. A payment in another currency than the account's is converted at the
  *   rate of its day; the amount as the card charged it stays on the row as the original amount.
@@ -60,11 +61,14 @@ export const processCardPayment = async ({
   userId,
   payment,
   mapping,
+  userCurrencyCodes,
 }: {
   requestId: RecordId;
   userId: number;
   payment: ParsedCardPayment;
   mapping: Pick<CardAccountMappings, 'accountId'>;
+  /** The currencies the user holds, which narrow down a shared symbol such as `$`. */
+  userCurrencyCodes: readonly string[];
 }): Promise<ProcessCardPaymentResult> => {
   const account = await Accounts.findOne({
     where: { id: mapping.accountId, userId },
@@ -72,12 +76,11 @@ export const processCardPayment = async ({
   });
   if (!account || account.status === ACCOUNT_STATUSES.archived) return { kind: 'unlinked' };
 
-  const heldCurrencies = await UsersCurrencies.findAll({ where: { userId }, attributes: ['currencyCode'], raw: true });
   const resolved = resolveCurrency({
     explicitCurrency: payment.explicitCurrency,
     textCode: payment.amountCurrencyCode,
     textSymbol: payment.amountSymbol,
-    userCurrencyCodes: heldCurrencies.map((row) => row.currencyCode),
+    userCurrencyCodes,
     accountCurrencyCode: account.currencyCode,
   });
   if (!resolved.ok) return { kind: 'rejected', reason: resolved.reason };

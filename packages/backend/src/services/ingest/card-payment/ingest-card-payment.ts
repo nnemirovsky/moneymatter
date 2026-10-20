@@ -1,14 +1,10 @@
-import {
-  type CardPaymentDryRunResponse,
-  type CardPaymentRejectionReason,
-  type RecordId,
-  normalizeCardLabel,
-} from '@bt/shared/types';
+import { type CardPaymentDryRunResponse, type CardPaymentRejectionReason, type RecordId } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import Accounts from '@models/accounts.model';
 import CardAccountMappings from '@models/card-account-mappings.model';
 import { getUsernameById } from '@models/users.model';
 
+import { findCardRows } from '../resolve-card-account';
 import { cleanText } from './clean-text';
 import { computeFingerprint } from './fingerprint';
 import { formatSummary } from './format-summary';
@@ -36,15 +32,15 @@ const answerDryRun = async ({
 }): Promise<CardPaymentDryRunResponse> => {
   const [username, linkedCardCount] = await Promise.all([
     getUsernameById({ id: userId }),
-    CardAccountMappings.count({ where: { userId } }),
+    // A card is counted once however many currencies it links.
+    CardAccountMappings.count({ where: { userId }, distinct: true, col: 'normalizedLabel' }),
   ]);
 
   let accountName: string | null = null;
   if (card !== null) {
-    const mapping = await CardAccountMappings.findOne({
-      where: { userId, normalizedLabel: normalizeCardLabel({ label: card }) },
-      attributes: ['accountId'],
-    });
+    // A dry run names no currency, so it reports the card's default account, else any account of it.
+    const rows = await findCardRows({ userId, cardLabel: card });
+    const mapping = rows.find((row) => row.currencyCode === null) ?? rows[0];
     const account = mapping ? await Accounts.findOne({ where: { id: mapping.accountId, userId } }) : null;
     accountName = account?.name ?? null;
   }

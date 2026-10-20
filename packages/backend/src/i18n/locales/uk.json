@@ -690,7 +690,12 @@
     "labelEmpty": "Назва картки не може бути порожньою.",
     "accountNotFound": "Рахунок не знайдено.",
     "accountArchived": "Заархівований рахунок не можна прив'язати до картки.",
-    "accountNotSupported": "Кредитні рахунки та рахунки транспортних засобів не можна прив'язати до картки."
+    "accountNotSupported": "Кредитні рахунки та рахунки транспортних засобів не можна прив'язати до картки.",
+    "currencyInvalid": "Код валюти недійсний.",
+    "currencyMismatch": "Прив'язка для {{currencyCode}} потребує рахунку в {{currencyCode}}.",
+    "currencyTaken": "Для цієї картки вже є рахунок у цій валюті.",
+    "digitsInvalid": "Останні цифри мають бути від 4 до 8 цифр.",
+    "digitsTaken": "Ці останні цифри належать іншій картці."
   },
   "ingest": {
     "summary": {
@@ -707,7 +712,10 @@
       "dryRunCards_one": "Підключено як {{username}}. Прив'язано {{count}} картку.",
       "dryRunCards_few": "Підключено як {{username}}. Прив'язано {{count}} картки.",
       "dryRunCards_many": "Підключено як {{username}}. Прив'язано {{count}} карток.",
-      "dryRunCards_other": "Підключено як {{username}}. Прив'язано {{count}} карток."
+      "dryRunCards_other": "Підключено як {{username}}. Прив'язано {{count}} карток.",
+      "queued": "У черзі, незабаром з'явиться",
+      "notificationLogged": "Сповіщення записано",
+      "parkedNotification": "Потрібне ваше підтвердження в MoneyMatter: {{summary}}"
     },
     "rejection": {
       "invalidBody": "Тіло запиту має бути JSON-об’єктом.",
@@ -725,13 +733,16 @@
       "nameTooLong": "Назва платежу довша за 200 символів.",
       "invalidTime": "Час має бути датою й часом у форматі ISO 8601 зі зсувом.",
       "timeInFuture": "Час платежу в майбутньому.",
-      "timeTooOld": "Час платежу більш ніж на 30 днів у минулому."
+      "timeTooOld": "Час платежу більш ніж на 30 днів у минулому.",
+      "invalidKind": "Тип має бути «walletTransaction» або «notification».",
+      "rawTooLong": "Сирий текст довший за 8 КБ."
     },
     "idempotencyConflict": "Цей ключ ідемпотентності вже використано для іншого платежу.",
     "requestDismissed": "Цей платіж відхилено в MoneyMatter.",
     "requestNotFound": "Запит на оплату карткою не знайдено.",
     "requestNotWaiting": "Цей платіж не очікує на запис.",
-    "setupCodeUnusable": "З цих значень не вдається побудувати код налаштування. Скоротіть адресу прийому або значення Cloudflare Access."
+    "setupCodeUnusable": "З цих значень не вдається побудувати код налаштування. Скоротіть адресу прийому або значення Cloudflare Access.",
+    "rateLimited": "Забагато сповіщень. Спробуйте пізніше."
   },
   "defaultCategories": {
     "main": {
@@ -988,5 +999,9 @@
   },
   "dataExport": {
     "tooManyRows": "Експорт міститиме рядків: {{rowCount, number}}, що перевищує ліміт ({{limit, number}})."
+  },
+  "notificationSources": {
+    "sourceNotFound": "Джерело сповіщень не знайдено.",
+    "accountNotFound": "Рахунок не знайдено."
   }
 }

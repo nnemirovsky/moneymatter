@@ -125,10 +125,18 @@ const connectedAccount = async () => {
 const SEEDED_DATES: Date[] = [];
 
 /** A day with a pinned USD→AED market rate, so a conversion has an exact, known figure. */
-const seedRateDay = async ({ daysAgo, aedPerUsd = 3.5 }: { daysAgo: number; aedPerUsd?: number }) => {
+const seedRateDay = async ({
+  daysAgo,
+  aedPerUsd = 3.5,
+  otherRatesPerUsd = {},
+}: {
+  daysAgo: number;
+  aedPerUsd?: number;
+  otherRatesPerUsd?: Record<string, number>;
+}) => {
   const day = subDays(startOfDay(new Date()), daysAgo);
   SEEDED_DATES.push(day);
-  await helpers.seedUsdExchangeRates({ date: day, ratesPerUsd: { AED: aedPerUsd } });
+  await helpers.seedUsdExchangeRates({ date: day, ratesPerUsd: { AED: aedPerUsd, ...otherRatesPerUsd } });
 
   return { day, time: addHours(day, 12).toISOString() };
 };
@@ -321,6 +329,125 @@ describe('card payment processing', () => {
       expect(tx.categoryId).toBe(ruled.id);
       expect(tx.categorizationMeta?.source).toBe(CATEGORIZATION_SOURCE.userRule);
       expect(logged.summary).toMatch(/ → Treats$/);
+    });
+  });
+
+  describe('a card with an account per currency', () => {
+    /**
+     * The owner's TBC card: a GEL and a USD account of its own, and the base-currency account as the
+     * default for every other currency. Rates per USD make the cross rates exact: 1 GEL = 2 AED and
+     * 1 EUR = 8 AED.
+     */
+    const setUpMultiCurrencyCard = async () => {
+      await helpers.addUserCurrencies({ currencyCodes: ['GEL', 'USD', 'EUR'] });
+      const { time } = await seedRateDay({ daysAgo: 6, aedPerUsd: 4, otherRatesPerUsd: { GEL: 2, EUR: 0.5 } });
+      const fallback = await helpers.createAccount({
+        payload: helpers.buildAccountPayload({ name: 'Default' }),
+        raw: true,
+      });
+      const gel = await helpers.createAccount({
+        payload: helpers.buildAccountPayload({ name: 'GEL', currencyCode: 'GEL' }),
+        raw: true,
+      });
+      const usd = await helpers.createAccount({
+        payload: helpers.buildAccountPayload({ name: 'USD', currencyCode: 'USD' }),
+        raw: true,
+      });
+
+      const link = ({ accountId, currencyCode }: { accountId: RecordId; currencyCode?: string }) =>
+        helpers.createCardMapping({ payload: { cardLabel: CARD, accountId, currencyCode }, raw: true });
+      const fallbackLink = await link({ accountId: fallback.id });
+      await link({ accountId: gel.id, currencyCode: 'GEL' });
+      await link({ accountId: usd.id, currencyCode: 'USD' });
+      const { secret } = await ingestHelpers.createTestIngestToken();
+
+      return { secret, time, fallback, fallbackLink, gel, usd };
+    };
+
+    it('books a GEL payment on the GEL account without a conversion', async () => {
+      const { secret, time, gel } = await setUpMultiCurrencyCard();
+
+      const logged = await ingest({ secret, overrides: { amount: '10.00', currency: 'GEL', time } });
+
+      expect(await storedTransaction(logged)).toMatchObject({ accountId: gel.id, amount: 10, currencyCode: 'GEL' });
+      expect(logged.summary).toBe(`Logged 10.00 GEL at ${MERCHANT} → Uncategorized`);
+    });
+
+    it('books a USD payment on the USD account without a conversion', async () => {
+      const { secret, time, usd } = await setUpMultiCurrencyCard();
+
+      const logged = await ingest({ secret, overrides: { amount: '10.00', currency: 'USD', time } });
+
+      expect(await storedTransaction(logged)).toMatchObject({ accountId: usd.id, amount: 10, currencyCode: 'USD' });
+    });
+
+    it('books a payment in a currency with no account of its own on the default, converted', async () => {
+      const { secret, time, fallback } = await setUpMultiCurrencyCard();
+
+      const logged = await ingest({ secret, overrides: { amount: '10.00', currency: 'EUR', time } });
+
+      expect(await storedTransaction(logged)).toMatchObject({
+        accountId: fallback.id,
+        amount: 80,
+        originalAmount: 10,
+        originalCurrencyCode: 'EUR',
+      });
+    });
+
+    it('reads the currency from the amount text: a code, then a symbol', async () => {
+      const { secret, time, gel, usd } = await setUpMultiCurrencyCard();
+
+      const byCode = await ingest({ secret, overrides: { amount: '10.00 USD', time } });
+      const bySymbol = await ingest({ secret, overrides: { amount: '₾10.00', time } });
+
+      expect((await storedTransaction(byCode)).accountId).toBe(usd.id);
+      expect((await storedTransaction(bySymbol)).accountId).toBe(gel.id);
+    });
+
+    it('books a payment that states no currency on the default account', async () => {
+      const { secret, time, fallback } = await setUpMultiCurrencyCard();
+
+      const logged = await ingest({ secret, overrides: { amount: '10.00', time } });
+
+      expect(await storedTransaction(logged)).toMatchObject({
+        accountId: fallback.id,
+        currencyCode: global.BASE_CURRENCY_CODE,
+      });
+    });
+
+    it('parks a payment in a currency the card has no account for when the card has no default', async () => {
+      const { secret, time, fallbackLink } = await setUpMultiCurrencyCard();
+      await helpers.deleteCardMapping({ id: fallbackLink.id });
+
+      const parked = await send({ secret, body: payment({ amount: '10.00', currency: 'EUR', time }) });
+      const stillLogged = await send({ secret, body: payment({ amount: '10.00', currency: 'GEL', time }) });
+
+      expect(parked.status).toBe(202);
+      expect(parked.body.response).toMatchObject({ outcome: 'parked', reason: 'unknownCard' });
+      expect(stillLogged.status).toBe(200);
+      // The card still needs a default for its other currencies, so it stays on the unlinked list.
+      expect(await helpers.listUnlinkedCards({ raw: true })).toEqual([{ cardLabel: CARD, count: 1 }]);
+    });
+
+    it('logs the parked payment on the default once the card has one', async () => {
+      const { secret, time, fallback, fallbackLink } = await setUpMultiCurrencyCard();
+      await helpers.deleteCardMapping({ id: fallbackLink.id });
+      const body = payment({ amount: '10.00', currency: 'EUR', time });
+      const parked = await send({ secret, body });
+      await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: fallback.id }, raw: true });
+
+      const retried = await helpers.retryCardPaymentRequest({ id: parked.body.response.requestId, raw: true });
+
+      expect(retried.outcome).toBe('logged');
+      expect(await helpers.listUnlinkedCards({ raw: true })).toEqual([]);
+    });
+
+    it('names the default account in a dry run', async () => {
+      const { secret } = await setUpMultiCurrencyCard();
+
+      const res = await send({ secret, body: { dryRun: true, card: CARD } });
+
+      expect(res.body.response.summary).toMatch(/Card "TBC Visa" → Default$/);
     });
   });
 

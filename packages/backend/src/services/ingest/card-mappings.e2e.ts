@@ -20,6 +20,22 @@ const createSecondUserAccount = async () => {
   return account;
 };
 
+/** The owner's TBC card: a GEL and a USD account, and the base-currency account as its default. */
+const createCurrencyAccounts = async () => {
+  await helpers.addUserCurrencies({ currencyCodes: ['GEL', 'USD'] });
+  const base = await helpers.createAccount({ payload: helpers.buildAccountPayload({ name: 'Base' }), raw: true });
+  const gel = await helpers.createAccount({
+    payload: helpers.buildAccountPayload({ name: 'GEL', currencyCode: 'GEL' }),
+    raw: true,
+  });
+  const usd = await helpers.createAccount({
+    payload: helpers.buildAccountPayload({ name: 'USD', currencyCode: 'USD' }),
+    raw: true,
+  });
+
+  return { base, gel, usd };
+};
+
 describe('Card links', () => {
   describe('GET /user/settings/card-mappings', () => {
     it('is empty for a fresh user', async () => {
@@ -62,6 +78,8 @@ describe('Card links', () => {
       expect(response.body.response).toEqual({
         id: expect.any(String),
         cardLabel: 'TBC Visa',
+        lastDigits: null,
+        currencyCode: null,
         accountId: account.id,
         createdAt: expect.any(String),
       });
@@ -151,6 +169,286 @@ describe('Card links', () => {
       const response = await helpers.createCardMapping({ payload: { accountId: account.id, ...overrides } });
 
       expect(response.statusCode).toBe(422);
+    });
+  });
+
+  describe('one card in several currencies', () => {
+    it('holds a default row and one row per currency under one label', async () => {
+      const { base, gel, usd } = await createCurrencyAccounts();
+
+      const fallback = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: base.id },
+        raw: true,
+      });
+      const gelRow = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: gel.id, currencyCode: 'GEL' },
+        raw: true,
+      });
+      const usdRow = await helpers.createCardMapping({
+        payload: { cardLabel: 'tbc visa', accountId: usd.id, currencyCode: 'usd' },
+        raw: true,
+      });
+
+      expect(fallback).toMatchObject({ currencyCode: null, accountId: base.id });
+      expect(gelRow).toMatchObject({ currencyCode: 'GEL', accountId: gel.id, cardLabel: 'TBC Visa' });
+      // A row joins the card as it is spelled: the case of the first label wins.
+      expect(usdRow).toMatchObject({ currencyCode: 'USD', accountId: usd.id, cardLabel: 'TBC Visa' });
+      expect((await helpers.listCardMappings({ raw: true })).map((row) => row.currencyCode)).toEqual([
+        null,
+        'GEL',
+        'USD',
+      ]);
+    });
+
+    it('answers 409 for a second row of the same card and currency, and for a second default', async () => {
+      const { base, gel } = await createCurrencyAccounts();
+      await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: base.id }, raw: true });
+      await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: gel.id, currencyCode: 'GEL' },
+        raw: true,
+      });
+
+      const secondGel = await helpers.createCardMapping({
+        payload: { cardLabel: ' TBC  visa •••• 1234', accountId: gel.id, currencyCode: 'GEL' },
+      });
+      const secondDefault = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: base.id },
+      });
+
+      expect(secondGel.statusCode).toBe(409);
+      expect(secondDefault.statusCode).toBe(409);
+      expect(await helpers.listCardMappings({ raw: true })).toHaveLength(2);
+    });
+
+    it('keeps the cards of two labels apart', async () => {
+      const { base, gel } = await createCurrencyAccounts();
+
+      const created = await Promise.all(
+        [
+          { cardLabel: 'TBC Visa', accountId: gel.id, currencyCode: 'GEL' },
+          { cardLabel: 'Revolut', accountId: gel.id, currencyCode: 'GEL' },
+          { cardLabel: 'Revolut', accountId: base.id },
+        ].map((payload) => helpers.createCardMapping({ payload })),
+      );
+
+      expect(created.map((response) => response.statusCode)).toEqual([201, 201, 201]);
+    });
+
+    it('answers 422 for a currency row whose account is in another currency', async () => {
+      const { gel } = await createCurrencyAccounts();
+
+      const response = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: gel.id, currencyCode: 'USD' },
+      });
+
+      expect(response.statusCode).toBe(422);
+      expect(await helpers.listCardMappings({ raw: true })).toEqual([]);
+    });
+
+    it('lets the default row point at an account in any currency', async () => {
+      const { usd } = await createCurrencyAccounts();
+
+      const response = await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: usd.id } });
+
+      expect(response.statusCode).toBe(201);
+    });
+
+    it.each([
+      ['a code that is not shaped like one', 'us dollars'],
+      ['an empty code', ''],
+    ])('answers 422 for %s', async (_name, currencyCode) => {
+      const { usd } = await createCurrencyAccounts();
+
+      const response = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: usd.id, currencyCode },
+      });
+
+      expect(response.statusCode).toBe(422);
+    });
+
+    it('removes one currency and leaves the rest of the card', async () => {
+      const { base, gel } = await createCurrencyAccounts();
+      await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: base.id }, raw: true });
+      const gelRow = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: gel.id, currencyCode: 'GEL' },
+        raw: true,
+      });
+
+      expect((await helpers.deleteCardMapping({ id: gelRow.id })).statusCode).toBe(200);
+
+      expect(await helpers.listCardMappings({ raw: true })).toEqual([
+        expect.objectContaining({ currencyCode: null, accountId: base.id }),
+      ]);
+    });
+
+    it('renames the whole card and keeps its currencies', async () => {
+      const { base, gel } = await createCurrencyAccounts();
+      const fallback = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: base.id },
+        raw: true,
+      });
+      await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: gel.id, currencyCode: 'GEL' },
+        raw: true,
+      });
+
+      const renamed = await helpers.updateCardMapping({ id: fallback.id, payload: { cardLabel: 'TBC Platinum' } });
+
+      expect(renamed.statusCode).toBe(200);
+      expect((await helpers.listCardMappings({ raw: true })).map((row) => row.cardLabel)).toEqual([
+        'TBC Platinum',
+        'TBC Platinum',
+      ]);
+    });
+
+    it('answers 409 when renaming a card to the label of another card', async () => {
+      const { base, gel } = await createCurrencyAccounts();
+      const visa = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: gel.id, currencyCode: 'GEL' },
+        raw: true,
+      });
+      await helpers.createCardMapping({ payload: { cardLabel: 'Revolut', accountId: base.id }, raw: true });
+
+      const response = await helpers.updateCardMapping({ id: visa.id, payload: { cardLabel: 'revolut' } });
+
+      expect(response.statusCode).toBe(409);
+    });
+
+    it('points a currency row only at an account in its currency', async () => {
+      const { base, gel, usd } = await createCurrencyAccounts();
+      const gelRow = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: gel.id, currencyCode: 'GEL' },
+        raw: true,
+      });
+
+      const wrong = await helpers.updateCardMapping({ id: gelRow.id, payload: { accountId: usd.id } });
+      const alsoWrong = await helpers.updateCardMapping({ id: gelRow.id, payload: { accountId: base.id } });
+
+      expect(wrong.statusCode).toBe(422);
+      expect(alsoWrong.statusCode).toBe(422);
+      expect((await helpers.listCardMappings({ raw: true }))[0]!.accountId).toBe(gel.id);
+    });
+
+    it('cannot change the currency of a row', async () => {
+      const { gel } = await createCurrencyAccounts();
+      const gelRow = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: gel.id, currencyCode: 'GEL' },
+        raw: true,
+      });
+
+      const response = await helpers.updateCardMapping({ id: gelRow.id, payload: { currencyCode: 'USD' } });
+
+      expect(response.statusCode).toBe(422);
+      expect((await helpers.listCardMappings({ raw: true }))[0]!.currencyCode).toBe('GEL');
+    });
+  });
+
+  describe('the last digits of a card', () => {
+    it('stores the digits on a new link and answers with them', async () => {
+      const account = await helpers.createAccount({ raw: true });
+
+      const created = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: account.id, lastDigits: ' 1234 ' },
+        raw: true,
+      });
+
+      expect(created.lastDigits).toBe('1234');
+      expect(await helpers.listCardMappings({ raw: true })).toEqual([created]);
+    });
+
+    it('sets and clears the digits of an existing link', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const mapping = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: account.id },
+        raw: true,
+      });
+
+      const set = await helpers.updateCardMapping({ id: mapping.id, payload: { lastDigits: '5678' }, raw: true });
+      const cleared = await helpers.updateCardMapping({ id: mapping.id, payload: { lastDigits: null }, raw: true });
+
+      expect(set.lastDigits).toBe('5678');
+      expect(cleared.lastDigits).toBeNull();
+    });
+
+    it('shares the digits between the rows of one card', async () => {
+      await helpers.addUserCurrencies({ currencyCodes: ['GEL'] });
+      const base = await helpers.createAccount({ payload: helpers.buildAccountPayload({ name: 'Base' }), raw: true });
+      const gel = await helpers.createAccount({
+        payload: helpers.buildAccountPayload({ name: 'GEL', currencyCode: 'GEL' }),
+        raw: true,
+      });
+      const fallback = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: base.id, lastDigits: '1234' },
+        raw: true,
+      });
+
+      // The new row inherits the card's digits; a change on one row reaches both.
+      const gelRow = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: gel.id, currencyCode: 'GEL' },
+        raw: true,
+      });
+      await helpers.updateCardMapping({ id: fallback.id, payload: { lastDigits: '9999' }, raw: true });
+
+      expect(gelRow.lastDigits).toBe('1234');
+      expect((await helpers.listCardMappings({ raw: true })).map((row) => row.lastDigits)).toEqual(['9999', '9999']);
+    });
+
+    it('answers 409 when the digits belong to another card', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: account.id, lastDigits: '1234' },
+        raw: true,
+      });
+      const other = await helpers.createCardMapping({
+        payload: { cardLabel: 'Revolut', accountId: account.id },
+        raw: true,
+      });
+
+      const onCreate = await helpers.createCardMapping({
+        payload: { cardLabel: 'Monobank', accountId: account.id, lastDigits: '1234' },
+      });
+      const onUpdate = await helpers.updateCardMapping({ id: other.id, payload: { lastDigits: '1234' } });
+
+      expect(onCreate.statusCode).toBe(409);
+      expect(onUpdate.statusCode).toBe(409);
+      expect(await helpers.listCardMappings({ raw: true })).toHaveLength(2);
+    });
+
+    it('lets two users hold the same digits', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: account.id, lastDigits: '1234' },
+        raw: true,
+      });
+      const other = await helpers.signUpSecondUser();
+
+      const created = await helpers.asUser({
+        cookies: other.cookies,
+        fn: async () => {
+          const otherAccount = await createSecondUserAccount();
+          return helpers.createCardMapping({
+            payload: { cardLabel: 'TBC Visa', accountId: otherAccount.id, lastDigits: '1234' },
+          });
+        },
+      });
+
+      expect(created.statusCode).toBe(201);
+    });
+
+    it.each([
+      ['letters', 'abcd'],
+      ['too few digits', '123'],
+      ['too many digits', '123456789'],
+      ['a masked number', '**** 1234'],
+    ])('answers 422 for %s', async (_name, lastDigits) => {
+      const account = await helpers.createAccount({ raw: true });
+
+      const response = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Visa', accountId: account.id, lastDigits },
+      });
+
+      expect(response.statusCode).toBe(422);
+      expect(await helpers.listCardMappings({ raw: true })).toEqual([]);
     });
   });
 
