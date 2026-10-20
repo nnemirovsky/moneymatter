@@ -2,6 +2,7 @@ import type { RecordId } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { NotFoundError } from '@js/errors';
 import IngestRequests from '@models/ingest-requests.model';
+import { resolveCardsElsewhere } from '@services/chat/inbox/inbox-resolution';
 import { withTransaction } from '@services/common/with-transaction';
 
 import { OPEN_REQUEST_STATUSES } from './process-ingest-request';
@@ -22,6 +23,7 @@ const dismissIngestRequestImpl = async ({ userId, requestId }: { userId: number;
   }
 
   await row.update({ status: 'dismissed' });
+  await resolveCardsElsewhere({ proposalIds: [row.proposalId] });
 };
 
 export const dismissIngestRequest = withTransaction(dismissIngestRequestImpl);

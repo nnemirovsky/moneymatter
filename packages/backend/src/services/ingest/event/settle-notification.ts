@@ -1,5 +1,6 @@
 import type { IngestRequestReason, RecordId } from '@bt/shared/types';
 import IngestRequests from '@models/ingest-requests.model';
+import { resolveCardsElsewhere } from '@services/chat/inbox/inbox-resolution';
 import { DOMAIN_EVENTS, eventBus, type IngestRequestParkedPayload } from '@services/common/event-bus';
 import { runAfterCommit } from '@services/common/run-after-commit';
 import { withTransaction } from '@services/common/with-transaction';
@@ -77,6 +78,7 @@ const ignoreNotificationImpl = async ({
     cardLabel: null,
     parsed: { parser: parsed.parser, kind: parsed.kind, confidence: parsed.confidence },
   });
+  await resolveCardsElsewhere({ proposalIds: [row.proposalId] });
 
   return true;
 };
@@ -114,6 +116,8 @@ const finishLoggedNotificationImpl = async ({
     '';
 
   await row.update({ status: 'logged', reason: null, summary: described });
+  // A card that asked about this request (an account, a transfer) has its answer now.
+  await resolveCardsElsewhere({ proposalIds: [row.proposalId] });
 };
 
 /**

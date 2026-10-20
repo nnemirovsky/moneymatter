@@ -10,6 +10,8 @@ jest.mock('@services/categories.service', () => ({ getCategories: jest.fn() }));
 jest.mock('@services/accounts.service', () => ({ getAccounts: jest.fn() }));
 jest.mock('../../mcp/auth', () => ({ buildMcpAuthInfo: jest.fn() }));
 jest.mock('../threads/thread-events', () => ({ notifyThreadUpdated: jest.fn() }));
+// Re-evaluating an inbox thread reads the database, which a unit test has none of.
+jest.mock('../inbox/inbox-thread', () => ({ reevaluateInboxThreads: jest.fn() }));
 // A transaction here is a marker in the event log: begin, then commit or rollback.
 jest.mock('@services/common/with-transaction', () => ({
   withTransaction:

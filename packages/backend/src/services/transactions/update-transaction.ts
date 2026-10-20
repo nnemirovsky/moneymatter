@@ -23,6 +23,7 @@ import * as Transactions from '@models/transactions.model';
 import * as UsersCurrencies from '@models/users-currencies.model';
 import { getUserDefaultCategory } from '@models/users.model';
 import { calculateRefAmountOrNull } from '@services/calculate-ref-amount.service';
+import { settleTransactionCards } from '@services/chat/inbox/inbox-resolution';
 import { DOMAIN_EVENTS, eventBus } from '@services/common/event-bus';
 import { assertCurrencyCodesVisible } from '@services/currencies/assert-currency-codes-visible';
 import { assertLoanEditAllowed } from '@services/loans/assert-loan-edit-allowed';
@@ -599,6 +600,9 @@ const unlinkOppositeTransaction = async (params: HelperFunctionsArgs) => {
   });
 };
 
+const isUnconfirmedIngestRow = ({ tx }: { tx: Transactions.default }): boolean =>
+  (tx.externalData?.ingest as { unconfirmed?: unknown } | undefined)?.unconfirmed === true;
+
 const isUpdatingTransferTx = (payload: UpdateTransactionParams, prevData: Transactions.default) => {
   // nature label only affects reporting; the bookkeeping path is identical for both transfer kinds.
   const stillTransfer = payload.transferNature === undefined && isTwoLegTransfer(prevData.transferNature);
@@ -921,6 +925,12 @@ export const updateTransaction = withTransaction(
             error: error as Error,
           });
         }
+      }
+
+      // An edit outside the ingest pipeline is the owner's word on a payment the automation logged:
+      // the row is confirmed and its inbox card closes.
+      if (!payload.keepIngestUnconfirmed && isUnconfirmedIngestRow({ tx: prevData })) {
+        await settleTransactionCards({ transactionIds: [prevData.id], markConfirmed: true });
       }
 
       return updatedTransactions;

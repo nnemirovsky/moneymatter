@@ -89,7 +89,8 @@ export const enrichTwin = async ({
   const sources = readSources({ transaction });
   const hasBankTime = sources.some((entry) => Boolean(entry.occurredAt));
 
-  const update: Parameters<typeof updateTransaction>[0] = { id: transaction.id, userId };
+  // The pipeline's own write: the row stays awaiting the owner, and its card is updated, not closed.
+  const update: Parameters<typeof updateTransaction>[0] = { id: transaction.id, userId, keepIngestUnconfirmed: true };
   let changed = false;
 
   const statesAccountMoney = fromBank && enrichment.statedCurrencyCode === transaction.currencyCode;

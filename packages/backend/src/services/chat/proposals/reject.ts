@@ -5,6 +5,8 @@ import ChatProposals from '@models/chat-proposals.model';
 import { withTransaction } from '@services/common/with-transaction';
 import { Op } from 'sequelize';
 
+import { onInboxCardRejected } from '../inbox/inbox-reject';
+import { reevaluateInboxThreads } from '../inbox/inbox-thread';
 import { notifyThreadUpdated } from '../threads/thread-events';
 import { cardConflict } from './card-conflict';
 import { expireDueCards, isExpiryDue } from './card-expiry';
@@ -79,6 +81,12 @@ const rejectTransaction = withTransaction(
         { where: { id: dependents.map((row) => row.id as string) } },
       );
     }
+
+    // The record behind an automation inbox card follows the card: a payment is deleted, a request
+    // dismissed, a source muted, a suggestion dismissed. Inside this transaction, so a refusal (a
+    // base-currency change, a lapsed plan) leaves the card as it was.
+    await onInboxCardRejected({ userId, proposalId });
+    await reevaluateInboxThreads({ threadIds: [target.threadId] });
 
     return {
       kind: 'rejected',

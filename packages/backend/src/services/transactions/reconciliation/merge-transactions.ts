@@ -13,6 +13,7 @@ import {
   hasSettledStatus,
   isPreBookingRow,
 } from '@services/bank-data-providers/enablebanking/utils/transaction-metadata';
+import { settleTransactionCards } from '@services/chat/inbox/inbox-resolution';
 import { withTransaction } from '@services/common/with-transaction';
 import { Op } from 'sequelize';
 
@@ -224,6 +225,10 @@ export const mergeTransactions = withTransaction(
     // row has lost its row and goes stale. The survivor's other suggestions stay open.
     await markSuggestionMerged({ userId, transactionIds });
     await markSuggestionsStale({ transactionIds: removedIds });
+
+    // The owner merged these payments: a confirm card about any of them is answered, and the survivor
+    // stops being unconfirmed. A removed row's card must not outlive the row.
+    await settleTransactionCards({ transactionIds, markConfirmed: true });
 
     return { removedIds };
   },

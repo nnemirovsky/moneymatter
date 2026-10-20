@@ -93,6 +93,13 @@ interface UpdateTransferParams {
    * cannot set it.
    */
   skipLoanOverpayAssert?: boolean;
+  /**
+   * Set only by the ingest pipeline (a second source enriching a payment, a correction the owner
+   * approved): the row stays awaiting the owner's confirmation. Any other edit is the owner's word on
+   * the row, so it confirms the row and closes its inbox card. No Zod schema accepts it, so an HTTP
+   * client cannot set it.
+   */
+  keepIngestUnconfirmed?: boolean;
 }
 
 export type UpdateTransactionParams = UpdateParams & UpdateTransferParams;

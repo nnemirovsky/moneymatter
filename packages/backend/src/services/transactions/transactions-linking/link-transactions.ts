@@ -12,6 +12,7 @@ import TransactionSplits from '@models/transaction-splits.model';
 import { findTransactions, updateTransactions } from '@models/transactions-query';
 import * as Transactions from '@models/transactions.model';
 import { withTransaction } from '@root/services/common/with-transaction';
+import { settleTransactionCards } from '@services/chat/inbox/inbox-resolution';
 import { assertTxWriteAccess } from '@services/sharing/auth/authorize-account-write.service';
 import { Op } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
@@ -157,6 +158,10 @@ export const linkTransactions = withTransaction(
           results.find((tx) => tx.id === baseTxId),
           results.find((tx) => tx.id === oppositeTxId),
         ] as ResultStruct);
+
+        // Linking is the owner's word on both legs: their confirm cards and any "link as transfer?"
+        // card about them are answered.
+        await settleTransactionCards({ transactionIds: [baseTxId, oppositeTxId], markConfirmed: true });
       }
 
       return result;

@@ -21,7 +21,11 @@ import { applyPayeeChoice } from './apply-payee-choice';
 import { resolveBalanceAuthority } from './balance-authority';
 import type { ParsedPayment } from './classify-notification';
 import { loadSiblingBalances } from './load-sibling-balances';
-import { guessNotificationAccount, resolveNotificationAccount } from './resolve-notification-account';
+import {
+  findUsableAccount,
+  guessNotificationAccount,
+  resolveNotificationAccount,
+} from './resolve-notification-account';
 import { describeSource } from './source-label';
 import { toStoredPayment, type StoredParse } from './stored-parse';
 
@@ -36,6 +40,12 @@ type LogNotificationResult =
       cardLabel: string | null;
     }
   | { kind: 'skipped' };
+
+/** What the owner chose on the inbox card of a parked payment. */
+export interface PaymentOverride {
+  accountId: RecordId | null;
+  direction: 'debit' | 'credit' | null;
+}
 
 const amountOf = async ({
   userId,
@@ -72,6 +82,7 @@ const logNotificationPaymentImpl = async ({
   confidence,
   source,
   locale,
+  override,
 }: {
   requestId: RecordId;
   payment: ParsedPayment;
@@ -81,6 +92,7 @@ const logNotificationPaymentImpl = async ({
   confidence: number;
   source: NotificationSources | null;
   locale: string;
+  override?: PaymentOverride;
 }): Promise<LogNotificationResult> => {
   const row = await IngestRequests.findOne({ where: { id: requestId }, lock: true });
   if (!row || row.status !== 'received' || row.transactionId) return { kind: 'skipped' };
@@ -128,13 +140,17 @@ const logNotificationPaymentImpl = async ({
     }),
   });
 
-  const found = await resolveNotificationAccount({
-    userId,
-    cardName: payment.cardName,
-    cardLastDigits: payment.cardLastDigits,
-    currencyCode: statedCurrencyCode,
-    source,
-  });
+  // The owner's choice on the inbox card wins over the usual resolution; the server still never guesses.
+  const chosen = override?.accountId ? await findUsableAccount({ userId, accountId: override.accountId }) : null;
+  const found =
+    chosen ??
+    (await resolveNotificationAccount({
+      userId,
+      cardName: payment.cardName,
+      cardLastDigits: payment.cardLastDigits,
+      currencyCode: statedCurrencyCode,
+      source,
+    }));
   if (!found) {
     return needsOk({
       reason: 'unknownAccount',
@@ -162,6 +178,7 @@ const logNotificationPaymentImpl = async ({
   });
   if (rejected.length) return needsOk({ reason: 'lowConfidence' });
 
+  const direction = override?.direction ?? payment.kind;
   const time = new Date(typeof row.payload.time === 'string' ? row.payload.time : row.createdAt);
   const paymentAmount = Money.fromDecimal(payment.amount);
   const inAccountCurrency = resolved.currencyCode === account.currencyCode;
@@ -237,7 +254,7 @@ const logNotificationPaymentImpl = async ({
       requestId,
       pipeline: 'notification',
       account,
-      direction: payment.kind,
+      direction,
       time,
       slot,
       stage: payment.stage,
@@ -270,7 +287,7 @@ const logNotificationPaymentImpl = async ({
     requestId,
     pipeline: 'notification',
     account,
-    direction: payment.kind,
+    direction,
     amount: accountAmount,
     originalAmount: kept?.amount,
     originalCurrencyCode: kept?.currencyCode,

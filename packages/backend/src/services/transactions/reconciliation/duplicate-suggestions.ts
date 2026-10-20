@@ -5,6 +5,7 @@ import { connection } from '@models/connection';
 import DuplicateSuggestions from '@models/duplicate-suggestions.model';
 import { findTransactions } from '@models/transactions-query';
 import { serializeTransaction } from '@root/serializers/transactions.serializer';
+import { resolveCardsElsewhere } from '@services/chat/inbox/inbox-resolution';
 import { withTransaction } from '@services/common/with-transaction';
 import { chooseSurvivor } from '@services/ingest/dedup/choose-survivor';
 import { dedupConfig } from '@services/ingest/dedup/constants';
@@ -121,6 +122,11 @@ interface ResolvedSuggestion {
 const toResolved = ({ rows }: { rows: DuplicateSuggestions[] }): ResolvedSuggestion[] =>
   rows.map((row) => ({ id: row.id, userId: row.userId, proposalId: row.proposalId }));
 
+/** A suggestion that is settled has no use for its inbox card: the card closes as resolved elsewhere. */
+const closeCards = async ({ resolved }: { resolved: readonly ResolvedSuggestion[] }): Promise<void> => {
+  await resolveCardsElsewhere({ proposalIds: resolved.map((entry) => entry.proposalId) });
+};
+
 /**
  * The owner says an open pair is not a duplicate. The pair stays stored as `dismissed`, so no later
  * judge or scan raises it again. Dismissing a dismissed suggestion is harmless; one that was merged
@@ -139,7 +145,10 @@ export const dismissDuplicateSuggestion = withTransaction(
       throw new ConflictError({ message: t({ key: 'transactions.reconciliation.suggestionResolved' }) });
     }
 
-    return { ...toResolved({ rows: [suggestion] })[0]!, status: 'dismissed' };
+    const resolved = toResolved({ rows: [suggestion] });
+    await closeCards({ resolved });
+
+    return { ...resolved[0]!, status: 'dismissed' };
   },
 );
 
@@ -170,7 +179,10 @@ export const markSuggestionMerged = async ({
     },
   );
 
-  return toResolved({ rows });
+  const resolved = toResolved({ rows });
+  await closeCards({ resolved });
+
+  return resolved;
 };
 
 /**
@@ -194,7 +206,10 @@ export const markSuggestionsStale = async ({
     },
   );
 
-  return toResolved({ rows });
+  const resolved = toResolved({ rows });
+  await closeCards({ resolved });
+
+  return resolved;
 };
 
 /**
@@ -220,6 +235,7 @@ export const sweepOrphanedSuggestions = async ({ userId }: { userId?: number } =
     RETURNING s."id", s."userId", s."proposalId"`,
     { replacements: { userId: userId ?? null }, type: QueryTypes.SELECT },
   )) as ResolvedSuggestion[];
+  await closeCards({ resolved: rows });
 
   return rows;
 };

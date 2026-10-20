@@ -122,6 +122,7 @@ const approveCorrectionImpl = async ({
     originalAmount: keepsOriginal ? original.amount : null,
     originalCurrencyCode: keepsOriginal ? original.currencyCode : null,
     isPlanned: target.type !== ACCOUNT_TYPES.system,
+    keepIngestUnconfirmed: true,
   });
 
   await settleCorrection({ transactionId, status: 'applied', accountId: target.id });

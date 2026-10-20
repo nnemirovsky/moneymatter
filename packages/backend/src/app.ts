@@ -13,6 +13,7 @@ import { API_PREFIX } from './config';
 import { registerAiCategorizationListeners } from './services/ai-categorization';
 import { initializeBankProviders } from './services/bank-data-providers/initialize-providers';
 import { seedBrandLogos } from './services/brand-logos';
+import { registerInboxListeners } from './services/chat/inbox/inbox-listeners';
 import { initializeExchangeRateProviders } from './services/exchange-rates/providers';
 import { registerDuplicateScanListeners } from './services/ingest/dedup/event-listeners';
 import { registerPayeeNoteBackfillListeners } from './services/payees';
@@ -38,6 +39,7 @@ registerTagReminderListeners();
 registerSubscriptionMatchingListeners();
 registerPayeeNoteBackfillListeners();
 registerDuplicateScanListeners();
+registerInboxListeners();
 
 // Populate the shared brand-logo cache from the bundled seed. Skipped under
 // test (suites seed explicitly). Fire-and-forget: a seed failure must not block

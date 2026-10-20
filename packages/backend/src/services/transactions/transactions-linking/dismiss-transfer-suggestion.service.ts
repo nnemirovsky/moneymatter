@@ -2,6 +2,7 @@ import type { RecordId } from '@bt/shared/types';
 import { ValidationError } from '@js/errors';
 import * as Transactions from '@models/transactions.model';
 import { createDismissal } from '@models/transfer-suggestion-dismissals.model';
+import { resolveTransferPairCard } from '@services/chat/inbox/inbox-resolution';
 
 /**
  * Remembers that a suggested expense/income pair is not a transfer, so scans stop offering it.
@@ -30,4 +31,5 @@ export async function dismissTransferSuggestion({
   }
 
   await createDismissal({ userId, expenseTransactionId, incomeTransactionId });
+  await resolveTransferPairCard({ baseTxId: expenseTransactionId, oppositeTxId: incomeTransactionId });
 }

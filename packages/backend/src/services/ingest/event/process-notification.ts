@@ -16,6 +16,7 @@ import type { ClassifiedNotification, ParsedPayment } from './classify-notificat
 import { notificationTimings } from './constants';
 import { loadSiblingBalances } from './load-sibling-balances';
 import { logNotificationPayment } from './log-notification-payment';
+import type { PaymentOverride } from './log-notification-payment';
 import { decryptNotificationText, type NotificationText } from './notification-text';
 import { parseNotificationWithAi } from './parse-notification-with-ai';
 import { parseWalletNotification } from './parse-wallet-notification';
@@ -36,6 +37,8 @@ type Reading =
       parser: 'wallet' | 'ai';
       confidence: number;
       paymentKind: string;
+      /** What the owner chose on the card of a parked payment, applied by the logging transaction. */
+      override?: PaymentOverride;
     }
   | { kind: 'done' };
 
@@ -119,6 +122,7 @@ const read = async ({
       parser: stored.parser,
       confidence: stored.confidence,
       paymentKind: stored.kind,
+      override: { accountId: stored.accountOverrideId ?? null, direction: stored.directionOverride ?? null },
     };
   }
 
@@ -292,6 +296,7 @@ export const processNotification = async ({
       confidence: reading.confidence,
       source,
       locale,
+      override: reading.override,
     });
   } catch (error) {
     if (!(error instanceof ExchangeRateUnavailableError)) throw error;

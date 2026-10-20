@@ -1,6 +1,7 @@
 import { TRANSACTION_TYPES, type RecordId } from '@bt/shared/types';
 import { logger } from '@js/utils/logger';
 import { findOneTransaction } from '@models/transactions-query';
+import { postDuplicateSuggestionCards, safely } from '@services/chat/inbox/inbox-items';
 import { insertDuplicateSuggestions } from '@services/transactions/reconciliation/duplicate-suggestions';
 
 import { readUserLocale } from '../card-payment/read-user-locale';
@@ -59,6 +60,12 @@ export const judgeAfterCommit = async ({
         confidence: match.confidence,
         reason: match.reason,
       })),
+    });
+
+    // Each new suggestion also becomes a merge card in the inbox; the owner decides there or in Reconciliation.
+    await safely({
+      what: 'post the duplicate suggestion cards',
+      fn: () => postDuplicateSuggestionCards({ userId, suggestions: created }),
     });
 
     return created.length;

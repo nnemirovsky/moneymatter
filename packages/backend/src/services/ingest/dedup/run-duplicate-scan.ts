@@ -1,6 +1,7 @@
 import { isIngestTransaction, isLinkedTransfer, TRANSACTION_TYPES } from '@bt/shared/types';
 import { logger } from '@js/utils/logger';
 import { findTransactions } from '@models/transactions-query';
+import { postDuplicateSuggestionCards, safely } from '@services/chat/inbox/inbox-items';
 import {
   insertDuplicateSuggestions,
   sweepOrphanedSuggestions,
@@ -81,6 +82,10 @@ export const runDuplicateScan = async ({
       })),
     });
     created += inserted.length;
+    await safely({
+      what: 'post the duplicate suggestion cards',
+      fn: () => postDuplicateSuggestionCards({ userId, suggestions: inserted }),
+    });
   }
 
   if (created > 0) logger.info(`[Duplicate scan] ${created} suggestion(s) raised for user ${userId}`);

@@ -11,8 +11,21 @@ const usableOrNull = ({ account }: { account: Accounts | null }): Accounts | nul
     ? account
     : null;
 
-/** How the account was found, in the order the lookup tries them. */
-type AccountMatch = 'card' | 'sourceDefault';
+/** How the account was found, in the order the lookup tries them; `owner` is the account chosen on an inbox card. */
+type AccountMatch = 'card' | 'sourceDefault' | 'owner';
+
+/** An account the owner picked by id, when it still takes a manual payment. */
+export const findUsableAccount = async ({
+  userId,
+  accountId,
+}: {
+  userId: number;
+  accountId: RecordId;
+}): Promise<{ account: Accounts; matchedBy: AccountMatch } | null> => {
+  const account = usableOrNull({ account: await Accounts.findOne({ where: { id: accountId, userId } }) });
+
+  return account ? { account, matchedBy: 'owner' } : null;
+};
 
 /**
  * The account a notification's payment is logged on, in this order:

@@ -27,6 +27,10 @@ export interface StoredParse {
   attached?: boolean;
   /** For a payment parked on `unknownAccount`: the only account in its currency, to pre-fill the inbox card. */
   accountGuessId?: RecordId | null;
+  /** The account the owner chose on the inbox card of a parked payment; the job logs the payment there. */
+  accountOverrideId?: RecordId;
+  /** The direction the owner chose on that card, when it differs from what the text said. */
+  directionOverride?: 'debit' | 'credit';
 }
 
 /** The reasons a park leaves the notification unread: nothing was parsed, so the text stays. */

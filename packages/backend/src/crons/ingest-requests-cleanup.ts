@@ -2,6 +2,7 @@ import { INGEST_REQUEST_RETENTION_DAYS } from '@bt/shared/types';
 import { connection } from '@models/connection';
 import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
+import { resolveCardsElsewhere, sweepOrphanedInboxCards } from '@services/chat/inbox/inbox-resolution';
 import { notificationTimings } from '@services/ingest/event/constants';
 import { UNCLASSIFIED_PARK_REASONS } from '@services/ingest/event/stored-parse';
 import {
@@ -26,6 +27,8 @@ interface IngestCleanupResult {
   suggestionsSwept: number;
   /** Merged and stale duplicate suggestions past their keep. */
   suggestionsDeleted: number;
+  /** Waiting inbox cards whose record was settled or deleted by a path that did not close them. */
+  inboxCardsSwept: number;
 }
 
 /**
@@ -100,11 +103,13 @@ const deleteStalePendingSources = async (): Promise<number> => {
   const cutoff = new Date(Date.now() - notificationTimings.pendingSourceTtlMs);
   const stale = await NotificationSources.findAll({
     where: { mode: 'pending', createdAt: { [Op.lt]: cutoff } },
-    attributes: ['id'],
+    attributes: ['id', 'proposalId'],
   });
   if (!stale.length) return 0;
 
   const sourceIds = stale.map((source) => source.id);
+  // The cards that asked about these sources have nothing left to ask.
+  await resolveCardsElsewhere({ proposalIds: stale.map((source) => source.proposalId) });
   await IngestRequests.destroy({
     where: {
       sourceId: { [Op.in]: sourceIds },
@@ -124,6 +129,7 @@ const runCleanup = async (): Promise<IngestCleanupResult> => ({
   pendingSourcesDeleted: await deleteStalePendingSources(),
   suggestionsSwept: (await sweepOrphanedSuggestions()).length,
   suggestionsDeleted: await purgeResolvedSuggestions(),
+  inboxCardsSwept: await sweepOrphanedInboxCards(),
 });
 
 /** Schedule: 04:30 UTC daily, after the other retention sweeps. */

@@ -16,6 +16,8 @@ import Accounts from '@models/accounts.model';
 import { connection } from '@models/connection';
 import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
+import { resolveCardsElsewhere } from '@services/chat/inbox/inbox-resolution';
+import { runAfterCommit } from '@services/common/run-after-commit';
 import { withTransaction } from '@services/common/with-transaction';
 import { Op, QueryTypes } from 'sequelize';
 
@@ -203,6 +205,8 @@ const updateNotificationSourceImpl = async ({
   let releasedRequestIds: RecordId[] = [];
   if (mode === 'approved') releasedRequestIds = await releaseHeldRequests({ userId, sourceId: source.id });
   if (mode === 'muted') await deleteHeldRequests({ userId, sourceId: source.id });
+  // The question "treat this as a payment source?" has its answer; a card still asking it closes.
+  if (mode === 'approved' || mode === 'muted') await resolveCardsElsewhere({ proposalIds: [source.proposalId] });
 
   return { source: toSourceDto({ source }), releasedRequestIds };
 };
@@ -223,7 +227,12 @@ export const updateNotificationSource = async (
 ): Promise<NotificationSourceDto> => {
   const { source, releasedRequestIds } = await updateNotificationSourceInTransaction(params);
 
-  for (const requestId of releasedRequestIds) await enqueueNotificationProcessing({ requestId });
+  // After the commit, also when an inbox card's approval is the caller: the job must see `received`.
+  await runAfterCommit({
+    fn: async () => {
+      for (const requestId of releasedRequestIds) await enqueueNotificationProcessing({ requestId });
+    },
+  });
 
   return source;
 };
@@ -234,6 +243,7 @@ const deleteNotificationSourceImpl = async ({ userId, id }: { userId: number; id
     message: t({ key: 'notificationSources.sourceNotFound' }),
   });
 
+  await resolveCardsElsewhere({ proposalIds: [source.proposalId] });
   await source.destroy();
 };
 

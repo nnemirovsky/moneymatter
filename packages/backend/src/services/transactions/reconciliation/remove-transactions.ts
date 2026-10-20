@@ -1,4 +1,5 @@
 import type { ReconciliationActionResponse, RecordId } from '@bt/shared/types';
+import { settleTransactionCards } from '@services/chat/inbox/inbox-resolution';
 import { withTransaction } from '@services/common/with-transaction';
 
 import { markSuggestionsStale } from './duplicate-suggestions';
@@ -18,6 +19,7 @@ export const removeTransactions = withTransaction(
     await detachLinks({ transactionIds: removedIds });
     await softDeleteTransactions({ userId, rows, mergedIntoId: null });
     await markSuggestionsStale({ transactionIds: removedIds });
+    await settleTransactionCards({ transactionIds: removedIds, markConfirmed: true });
 
     return { removedIds };
   },

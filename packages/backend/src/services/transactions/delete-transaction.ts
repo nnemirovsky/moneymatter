@@ -5,6 +5,7 @@ import { logger } from '@js/utils/logger';
 import PortfolioTransfers from '@models/investments/portfolio-transfers.model';
 import RefundTransactions from '@models/refund-transactions.model';
 import * as Transactions from '@models/transactions.model';
+import { settleTransactionCards } from '@services/chat/inbox/inbox-resolution';
 import { deletePortfolioTransfer } from '@services/investments/portfolios/transfers';
 import { assertSharedWritePhase1Guards } from '@services/sharing/auth/authorize-account-write.service';
 import { syncRefundLinkedFlags } from '@services/tx-refunds/sync-refund-linked-flags';
@@ -44,6 +45,8 @@ export const deleteTransaction = withTransaction(
       // The row is about to go for good; a duplicate suggestion naming it goes stale first, while its
       // foreign key still points at the row (the delete then nulls that side and keeps the suggestion).
       await markSuggestionsStale({ transactionIds: [id] });
+      // The cards that asked the owner about the payment (confirm it, link it) have nothing left to ask.
+      await settleTransactionCards({ transactionIds: [id] });
 
       // The model's deleteTransactionById filters by `(id, userId)` — pass the row's
       // actual creator userId rather than the caller's so a recipient with `'all'`
@@ -91,7 +94,9 @@ export const deleteTransaction = withTransaction(
 
         // Sequential: a leg on a bank-linked account rejects the delete, and the rollback
         // must not race the other leg's queries.
-        await markSuggestionsStale({ transactionIds: transferTransactions.map((transferTx) => transferTx.id) });
+        const legIds = transferTransactions.map((transferTx) => transferTx.id);
+        await markSuggestionsStale({ transactionIds: legIds });
+        await settleTransactionCards({ transactionIds: legIds });
         for (const transferTx of transferTransactions) {
           await Transactions.deleteTransactionById({ id: transferTx.id, userId: transferTx.userId });
         }
