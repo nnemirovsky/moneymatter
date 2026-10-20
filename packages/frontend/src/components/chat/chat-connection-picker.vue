@@ -74,10 +74,10 @@ const onSelect = (option: ChatConnectionOption | null) => {
     :aria-label="$t('chat.connection.label')"
     data-testid="chat-connection-picker"
   >
-    <!-- Stacked in a narrow conversation, so both labels stay readable; side by side from 420px. -->
-    <div v-if="options.length > 0" class="flex min-w-0 flex-col gap-2 @[420px]/chat-conversation:flex-row">
+    <!-- Always one row: each select takes half the width and truncates, to save vertical space on phones. -->
+    <div v-if="options.length > 0" class="flex min-w-0 flex-row gap-2">
       <SelectField
-        class="w-full min-w-0 @[420px]/chat-conversation:w-auto @[420px]/chat-conversation:flex-1 @md/chat-conversation:max-w-80"
+        class="min-w-0 flex-1 basis-0 @md/chat-conversation:max-w-80"
         :model-value="selected"
         :values="options"
         :label-key="formatOption"
@@ -92,7 +92,7 @@ const onSelect = (option: ChatConnectionOption | null) => {
       </SelectField>
       <ConnectionModelSelect
         v-if="selectedConnection"
-        class="w-full min-w-0 @[420px]/chat-conversation:w-auto @[420px]/chat-conversation:flex-1 @md/chat-conversation:max-w-64"
+        class="min-w-0 flex-1 basis-0 @md/chat-conversation:max-w-64"
         :connection="selectedConnection"
         :model-id="modelId"
         :disabled="disabled"
