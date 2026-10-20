@@ -556,9 +556,9 @@ Gate results (Task 2): backend unit (full) 359 suites pass; e2e `services/ingest
 - Modify: `packages/shared/src/types/ai/settings.ts`, `packages/backend/src/services/ai/resolution-ladder.ts`, `packages/frontend/src/common/const/ai-features.ts` + i18n `common.aiFeatures.*`, `settings.ai.modelGuide.*` (`en` + `uk`)
 - Modify: `packages/backend/src/services/user-settings/ai-feature-settings.e2e.ts`, `packages/backend/src/services/ai/ai-model-resolver.unit.ts`, `packages/frontend/src/composable/use-ai-feature-access.test.ts`
 
-- [ ] write failing tests: both features are listed, saved and resolved; ladder defaults; the registry covers every feature
-- [ ] implement the enum values, cheap and fast defaults, and the copy (the owner approves it)
-- [ ] gate: unit `--testPathPattern='ai-model-resolver'`; e2e `--testPathPattern='user-settings/ai-feature-settings.e2e'`; frontend `--run src/composable/use-ai-feature-access.test.ts`
+- [x] write failing tests: both features are listed, saved and resolved; ladder defaults; the registry covers every feature
+- [x] implement the enum values, cheap and fast defaults, and the copy (the owner approves it; copy drafted without owner review, flagged in the progress log)
+- [x] gate: unit `--testPathPattern='ai-model-resolver'`; e2e `--testPathPattern='user-settings/ai-feature-settings.e2e'`; frontend `--run src/composable/use-ai-feature-access.test.ts`
 
 ### Task 4: Parsers, payee candidates, balance authority, AI daily limit
 
