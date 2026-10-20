@@ -22,6 +22,22 @@ export const NOTIFICATION_SOURCE_KEY_MAX_LENGTH = 255;
 /** The bundle id iOS reports for Wallet notifications. */
 export const WALLET_BUNDLE_ID = 'com.apple.Passbook';
 
+/**
+ * The display names Wallet goes by, lower-cased and normalized. The iOS 27 shortcut can only read the
+ * notification's `App` property, which is the app's display name in the device language, so a Wallet
+ * notification usually arrives with a name and no bundle id.
+ */
+const WALLET_APP_NAMES: ReadonlySet<string> = new Set([
+  'wallet',
+  'apple wallet',
+  'кошелёк',
+  'кошелек',
+  'гаманець',
+  'საფულე',
+  'cartera',
+  'carteira',
+]);
+
 /** Counters a source keeps for the notifications dropped before anything was stored. */
 export const NOTIFICATION_DROP_REASONS = [
   'noAmount',
@@ -84,10 +100,20 @@ const CONVERSATIONAL_APP_NAMES: ReadonlySet<string> = new Set([
   'ფოსტა',
 ]);
 
-/** Bank apps that start `auto`, by lower-cased bundle id. */
-const KNOWN_BANK_BUNDLE_IDS: ReadonlySet<string> = new Set(['com.revolut.revolut']);
+/**
+ * Bank apps that start `auto`, by lower-cased bundle id. The iOS 27 shortcut sends no bundle id, so
+ * this list only matters for a client that does.
+ */
+const KNOWN_BANK_BUNDLE_IDS: ReadonlySet<string> = new Set([
+  'com.revolut.revolut',
+  'ge.tbconline.tbc-ipad',
+  'kz.bcc.starbanking',
+]);
 
-/** Bank apps that start `auto`, by normalized name. */
+/**
+ * Bank apps that start `auto`, by normalized display name: what the shortcut sends as the
+ * notification's app. Extend it with the banks the owners use.
+ */
 const KNOWN_BANK_APP_NAMES: ReadonlySet<string> = new Set([
   'tbc',
   'tbc bank',
@@ -98,6 +124,7 @@ const KNOWN_BANK_APP_NAMES: ReadonlySet<string> = new Set([
   'liberty bank',
   'revolut',
   'monzo',
+  'bcc.kz',
 ]);
 
 /** Lower-cased, whitespace-collapsed and trimmed, so two spellings of one name share a key. */
@@ -110,9 +137,19 @@ const nonEmpty = ({ value }: { value: string | null | undefined }): string | nul
   return normalized || null;
 };
 
-/** Whether the notification's app is Wallet. A named app without a bundle id never counts. */
-export const isWalletApp = ({ bundleId }: AppIdentity): boolean =>
-  nonEmpty({ value: bundleId }) === WALLET_BUNDLE_ID.toLowerCase();
+/**
+ * Whether the notification's app is Wallet. A bundle id decides when there is one, so another app
+ * that is merely called "Wallet" never passes; without one, the display name does (the shortcut
+ * sends names only).
+ */
+export const isWalletApp = ({ bundleId, appName }: AppIdentity): boolean => {
+  const bundle = nonEmpty({ value: bundleId });
+  if (bundle) return bundle === WALLET_BUNDLE_ID.toLowerCase();
+
+  const name = nonEmpty({ value: appName });
+
+  return name !== null && WALLET_APP_NAMES.has(name);
+};
 
 /** Whether the app is a messaging or mail app, whose sources are split per sender. */
 export const isConversationalApp = ({ bundleId, appName }: AppIdentity): boolean => {
@@ -124,7 +161,10 @@ export const isConversationalApp = ({ bundleId, appName }: AppIdentity): boolean
   return name !== null && CONVERSATIONAL_APP_NAMES.has(name);
 };
 
-/** Whether the app is on the seed list of known bank apps. */
+/**
+ * Whether the app is on the seed list of known bank apps: by bundle id when it is on the list, else
+ * by display name.
+ */
 export const isKnownBankApp = ({ bundleId, appName }: AppIdentity): boolean => {
   const bundle = nonEmpty({ value: bundleId });
   if (bundle && KNOWN_BANK_BUNDLE_IDS.has(bundle)) return true;
@@ -136,13 +176,15 @@ export const isKnownBankApp = ({ bundleId, appName }: AppIdentity): boolean => {
 
 /**
  * The key of a notification source: the bundle id, else `name:<normalized app name>`; for a messaging
- * or mail app the normalized sender (the title) is appended after `|`. A notification with neither a
- * bundle id nor an app name belongs to `unknown`.
+ * or mail app the normalized sender (the title) is appended after `|`. Wallet has one key whether it
+ * arrives by bundle id or by any of its localized names. A notification with neither a bundle id nor
+ * an app name belongs to `unknown`.
  */
 export const buildSourceKey = ({ bundleId, appName, sender }: AppIdentity & { sender?: string | null }): string => {
   const bundle = nonEmpty({ value: bundleId });
   const name = nonEmpty({ value: appName });
-  const base = bundle ?? (name ? `name:${name}` : 'unknown');
+  let base = bundle ?? (name ? `name:${name}` : 'unknown');
+  if (isWalletApp({ bundleId, appName })) base = WALLET_BUNDLE_ID.toLowerCase();
   const senderPart = isConversationalApp({ bundleId, appName }) ? nonEmpty({ value: sender }) : null;
   const key = senderPart ? `${base}|${senderPart}` : base;
 

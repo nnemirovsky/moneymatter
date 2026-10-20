@@ -184,4 +184,45 @@ describe('formatSummary', () => {
       );
     });
   });
+
+  describe('a parked notification', () => {
+    it('asks for the owner OK with the amount and the merchant', () => {
+      expect(
+        formatSummary({
+          summary: {
+            type: 'notificationParked',
+            reason: 'needsOk',
+            payment: { amount: 43.6, currencyCode: 'GEL', decimals: 2 },
+            merchant: 'Wolt',
+            source: 'TBC Bank',
+          },
+          locale: 'en',
+        }),
+      ).toBe('Needs your OK in MoneyMatter: 43.60 GEL at Wolt');
+    });
+
+    it('names the source when no payment could be read', () => {
+      expect(
+        formatSummary({
+          summary: { type: 'notificationParked', reason: 'needsOk', payment: null, merchant: null, source: 'TBC Bank' },
+          locale: 'en',
+        }),
+      ).toBe('Needs your OK in MoneyMatter: TBC Bank');
+    });
+
+    it('asks to approve a source by name', () => {
+      expect(
+        formatSummary({
+          summary: { type: 'notificationParked', reason: 'sourceNotApproved', source: 'Messages · TBC' },
+          locale: 'en',
+        }),
+      ).toBe('Not logged yet: approve "Messages · TBC" as a payment source in MoneyMatter');
+    });
+
+    it.each(['aiUnavailable', 'aiCapReached', 'aiLimitReached'] as const)('says why %s left it unread', (reason) => {
+      const text = formatSummary({ summary: { type: 'notificationParked', reason }, locale: 'en' });
+
+      expect(text).toMatch(/^Not logged yet: /);
+    });
+  });
 });

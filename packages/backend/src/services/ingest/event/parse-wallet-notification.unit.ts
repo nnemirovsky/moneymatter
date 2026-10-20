@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { WALLET_BUNDLE, walletFixtures } from './fixtures/notifications';
-import { isWalletNotificationApp, parseWalletNotification } from './parse-wallet-notification';
+import { parseWalletNotification } from './parse-wallet-notification';
 
 const parse = ({ fixture }: { fixture: (typeof walletFixtures)[keyof typeof walletFixtures] }) =>
   parseWalletNotification({
@@ -12,21 +12,29 @@ const parse = ({ fixture }: { fixture: (typeof walletFixtures)[keyof typeof wall
     body: fixture.body,
   });
 
-describe('isWalletNotificationApp', () => {
-  it('recognises the Wallet bundle id, whatever the name says', () => {
-    expect(isWalletNotificationApp({ bundleId: WALLET_BUNDLE, appName: 'Telegram' })).toBe(true);
-    expect(isWalletNotificationApp({ bundleId: 'com.apple.passbook', appName: null })).toBe(true);
+describe('app recognition', () => {
+  it('reads a Wallet notification that arrives by display name only', () => {
+    const result = parseWalletNotification({
+      bundleId: null,
+      appName: 'Wallet',
+      title: 'TBC Visa',
+      subtitle: 'Wolt',
+      body: 'GEL 43.60',
+    });
+
+    expect(result?.classified.payment.merchant).toBe('Wolt');
   });
 
-  it('recognises the display name only when there is no bundle id', () => {
-    expect(isWalletNotificationApp({ bundleId: null, appName: 'Wallet' })).toBe(true);
-    expect(isWalletNotificationApp({ bundleId: null, appName: '  Кошелёк ' })).toBe(true);
-    expect(isWalletNotificationApp({ bundleId: 'ph.telegra.Telegraph', appName: 'Wallet' })).toBe(false);
-  });
-
-  it('refuses every other app', () => {
-    expect(isWalletNotificationApp({ bundleId: null, appName: 'Telegram' })).toBe(false);
-    expect(isWalletNotificationApp({ bundleId: null, appName: null })).toBe(false);
+  it('refuses another app, even one that prints the same layout', () => {
+    expect(
+      parseWalletNotification({
+        bundleId: 'ph.telegra.Telegraph',
+        appName: 'Wallet',
+        title: 'TBC Visa',
+        subtitle: 'Wolt',
+        body: 'GEL 43.60',
+      }),
+    ).toBeNull();
   });
 });
 

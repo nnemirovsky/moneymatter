@@ -1,39 +1,7 @@
-import { WALLET_BUNDLE_ID, normalizeSourceName } from '@bt/shared/types';
+import { isWalletApp } from '@bt/shared/types';
 
 import { parseAmount } from '../card-payment/parse-amount';
 import type { ClassifiedNotification } from './classify-notification';
-
-/**
- * Names the Wallet app goes by on a device. The iOS 27 shortcut reads the notification's `App`
- * property, which is the app's display name, so a Wallet notification usually arrives with a name
- * and no bundle id. Lower-cased and normalized.
- */
-const WALLET_APP_NAMES: ReadonlySet<string> = new Set([
-  'wallet',
-  'apple wallet',
-  'кошелёк',
-  'кошелек',
-  'гаманець',
-  'საფულე',
-]);
-
-/**
- * Whether a notification is Wallet's. A bundle id decides when there is one; without it, the display
- * name does. The layout parser trusts a Wallet notification's fields, so another app that happens to
- * print a title, a subtitle and an amount never passes for one.
- */
-export const isWalletNotificationApp = ({
-  bundleId,
-  appName,
-}: {
-  bundleId: string | null;
-  appName: string | null;
-}): boolean => {
-  const bundle = bundleId?.trim().toLowerCase();
-  if (bundle) return bundle === WALLET_BUNDLE_ID.toLowerCase();
-
-  return appName !== null && WALLET_APP_NAMES.has(normalizeSourceName({ value: appName }));
-};
 
 /**
  * A Wallet payment as the layout gives it: the card, the merchant and the amount text.
@@ -71,7 +39,7 @@ export const parseWalletNotification = ({
   subtitle: string;
   body: string;
 }): WalletPayment | null => {
-  if (!isWalletNotificationApp({ bundleId, appName })) return null;
+  if (!isWalletApp({ bundleId, appName })) return null;
 
   const merchant = subtitle.trim();
   if (!merchant) return null;

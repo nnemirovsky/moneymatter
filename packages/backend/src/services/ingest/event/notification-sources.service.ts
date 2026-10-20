@@ -14,9 +14,13 @@ import { t } from '@i18n/index';
 import { NotFoundError } from '@js/errors';
 import Accounts from '@models/accounts.model';
 import { connection } from '@models/connection';
+import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
 import { withTransaction } from '@services/common/with-transaction';
-import { QueryTypes } from 'sequelize';
+import { Op, QueryTypes } from 'sequelize';
+
+import { enqueueNotificationProcessing } from './notification-queue';
+import { UNCLASSIFIED_PARK_REASONS } from './stored-parse';
 
 /** The app a notification came from, as the device reported it. */
 interface NotificationApp {
@@ -99,6 +103,41 @@ const touchNotificationSourceImpl = async ({
  */
 export const touchNotificationSource = withTransaction(touchNotificationSourceImpl);
 
+/** Puts the requests a source held for approval back to `received` and returns them for the job. */
+const releaseHeldRequests = async ({
+  userId,
+  sourceId,
+}: {
+  userId: number;
+  sourceId: RecordId;
+}): Promise<RecordId[]> => {
+  const held = await IngestRequests.findAll({
+    where: { userId, sourceId, pipeline: 'notification', status: 'parked', reason: 'sourceNotApproved' },
+    attributes: ['id'],
+    order: [['createdAt', 'ASC']],
+    lock: true,
+  });
+  if (!held.length) return [];
+
+  const ids = held.map((request) => request.id);
+  await IngestRequests.update({ status: 'received', reason: null, summary: null }, { where: { id: { [Op.in]: ids } } });
+
+  return ids;
+};
+
+/** Deletes the requests a source holds whose text was never classified. */
+const deleteHeldRequests = async ({ userId, sourceId }: { userId: number; sourceId: RecordId }): Promise<void> => {
+  await IngestRequests.destroy({
+    where: {
+      userId,
+      sourceId,
+      pipeline: 'notification',
+      status: 'parked',
+      reason: { [Op.in]: [...UNCLASSIFIED_PARK_REASONS, 'processingFailed'] },
+    },
+  });
+};
+
 const toSourceDto = ({ source }: { source: NotificationSources }): NotificationSourceDto => ({
   id: source.id,
   appName: source.appName,
@@ -145,7 +184,10 @@ const updateNotificationSourceImpl = async ({
   id,
   mode,
   defaultAccountId,
-}: { userId: number; id: RecordId } & UpdateNotificationSourcePayload): Promise<NotificationSourceDto> => {
+}: { userId: number; id: RecordId } & UpdateNotificationSourcePayload): Promise<{
+  source: NotificationSourceDto;
+  releasedRequestIds: RecordId[];
+}> => {
   const source = await findOrThrowNotFound({
     query: NotificationSources.findOne({ where: { id, userId } }),
     message: t({ key: 'notificationSources.sourceNotFound' }),
@@ -158,10 +200,33 @@ const updateNotificationSourceImpl = async ({
     ...(defaultAccountId !== undefined && { defaultAccountId }),
   });
 
-  return toSourceDto({ source });
+  let releasedRequestIds: RecordId[] = [];
+  if (mode === 'approved') releasedRequestIds = await releaseHeldRequests({ userId, sourceId: source.id });
+  if (mode === 'muted') await deleteHeldRequests({ userId, sourceId: source.id });
+
+  return { source: toSourceDto({ source }), releasedRequestIds };
 };
 
-export const updateNotificationSource = withTransaction(updateNotificationSourceImpl);
+const updateNotificationSourceInTransaction = withTransaction(updateNotificationSourceImpl);
+
+/**
+ * Sets a source's mode and default account.
+ *
+ * - Approving a source processes what it holds: its requests parked as `sourceNotApproved` go back to
+ *   `received` and are handed to the processing job once the change is committed. The job applies
+ *   the base-currency lock, so the route itself is exempt from it.
+ * - Muting a source deletes what it holds: the notifications that were never classified, with their
+ *   stored text.
+ */
+export const updateNotificationSource = async (
+  params: { userId: number; id: RecordId } & UpdateNotificationSourcePayload,
+): Promise<NotificationSourceDto> => {
+  const { source, releasedRequestIds } = await updateNotificationSourceInTransaction(params);
+
+  for (const requestId of releasedRequestIds) await enqueueNotificationProcessing({ requestId });
+
+  return source;
+};
 
 const deleteNotificationSourceImpl = async ({ userId, id }: { userId: number; id: RecordId }): Promise<void> => {
   const source = await findOrThrowNotFound({

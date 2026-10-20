@@ -4,6 +4,7 @@ import type {
   CardPaymentRequestDto,
   CardPaymentRequestView,
   CardPaymentRetryResponse,
+  RetryCardPaymentRequestPayload,
   CreateCardMappingPayload,
   CreateCardPaymentSetupCodePayload,
   CreateCardPaymentSetupCodeResponse,
@@ -140,14 +141,17 @@ export async function listCardPaymentRequests<R extends boolean | undefined = fa
 
 export async function retryCardPaymentRequest<R extends boolean | undefined = false>({
   id,
+  payload,
   raw,
 }: {
   id: string;
+  payload?: RetryCardPaymentRequestPayload;
   raw?: R;
 }) {
   return makeRequest<CardPaymentRetryResponse, R>({
     method: 'post',
     url: `/user/settings/card-payments/requests/${id}/retry`,
+    payload,
     raw,
   });
 }

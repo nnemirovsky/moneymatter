@@ -71,6 +71,13 @@ describe('POST /ingest/card-payment', () => {
         merchant: MERCHANT,
         rawAmount: '47.00',
       });
+      // Every automated payment is written at once and waits for the owner's confirmation.
+      expect(stored!.externalData.ingest).toMatchObject({
+        pipeline: 'cardPayment',
+        unconfirmed: true,
+        systemNote: MERCHANT,
+        systemCategoryId: expect.any(String),
+      });
     });
 
     it('strips NUL characters, which a JSONB column would refuse', async () => {
@@ -339,6 +346,9 @@ describe('POST /ingest/card-payment', () => {
 
         expect(res.status).toBe(423);
         expect(res.body.response.code).toBe(API_ERROR_CODES.baseCurrencyChangeInProgress);
+        expect(res.body.response.message).toBe(
+          "MoneyMatter is busy updating your currency. This payment wasn't saved, try again in a minute.",
+        );
       } finally {
         await redisClient.del(buildLockKey(user.id));
       }

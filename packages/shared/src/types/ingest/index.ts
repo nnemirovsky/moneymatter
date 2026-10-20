@@ -179,10 +179,10 @@ export interface CardPaymentLoggedResponse {
   duplicate?: boolean;
 }
 
-/** The payment is stored and waits for the user (an unlinked card, a missing rate). */
+/** The payment is stored and waits for the user (an unlinked card, a missing rate, an account to choose). */
 export interface CardPaymentParkedResponse {
   outcome: 'parked';
-  reason: CardPaymentParkReason;
+  reason: CardPaymentParkReason | NotificationParkReason;
   summary: string;
   requestId: RecordId;
 }
@@ -252,8 +252,37 @@ export interface CardPaymentRequestDto {
   createdAt: string;
 }
 
+/** A retried notification that is still being processed when the answer was due; it finishes in the background. */
+export interface CardPaymentQueuedResponse {
+  outcome: 'queued';
+  summary: string;
+  requestId: RecordId;
+}
+
+/** A retried notification that was read again and is not a payment; its text is wiped. */
+export interface CardPaymentIgnoredResponse {
+  outcome: 'ignored';
+  /** Never set: a notification that is not a payment shows no line. */
+  summary?: undefined;
+  requestId: RecordId;
+  reason?: NotificationIgnoreReason;
+}
+
 /** The answer of `POST /user/settings/card-payments/requests/:id/retry`. */
-export type CardPaymentRetryResponse = CardPaymentLoggedResponse | CardPaymentParkedResponse;
+export type CardPaymentRetryResponse =
+  | CardPaymentLoggedResponse
+  | CardPaymentParkedResponse
+  | CardPaymentQueuedResponse
+  | CardPaymentIgnoredResponse;
+
+/** Request body of `POST /user/settings/card-payments/requests/:id/retry`. */
+export interface RetryCardPaymentRequestPayload {
+  /**
+   * Log a notification payment the owner has to approve (`ownTransfer`, `lowConfidence`). Without it,
+   * retrying such a request answers 409 with the park reason.
+   */
+  force?: boolean;
+}
 
 /** A card label payments are waiting on, with how many. */
 export interface UnlinkedCardDto {
@@ -261,7 +290,12 @@ export interface UnlinkedCardDto {
   count: number;
 }
 
-/** A planned row the card-payment ingest wrote that the bank has not confirmed within the match window. */
+/**
+ * A row the ingest pipeline logged that the owner or the bank has not confirmed yet. Every automated
+ * payment, a tap or a notification, is written at once and waits for the owner's confirmation
+ * (`awaitingConfirmation`); a card-payment plan the bank did not settle within the match window is
+ * listed too (`bankUnconfirmed`). One row can be both.
+ */
 export interface UnconfirmedCardPaymentDto {
   transactionId: RecordId;
   accountId: RecordId;
@@ -270,6 +304,10 @@ export interface UnconfirmedCardPaymentDto {
   merchant: string | null;
   card: string | null;
   time: string;
+  /** The row was logged by the ingest and the owner has not confirmed it. */
+  awaitingConfirmation: boolean;
+  /** A plan the bank has not settled within the match window. */
+  bankUnconfirmed: boolean;
 }
 
 /** Request body of `POST /user/settings/card-payments/setup-code`. */

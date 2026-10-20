@@ -191,7 +191,8 @@ describe('notification sources', () => {
       expect(await helpers.listNotificationSources({ raw: true })).toEqual([]);
 
       const res = await ingestHelpers.postIngestEvent({ secret, body: notification() });
-      expect(res.body.response.outcome).toBe('logged');
+      // A seeded bank app is read again (no AI model here, so the text waits); it is not dropped as muted.
+      expect(res.body.response.outcome).toBe('parked');
       expect((await helpers.listNotificationSources({ raw: true }))[0]).toMatchObject({ mode: 'auto' });
     });
 

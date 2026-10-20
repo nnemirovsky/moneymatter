@@ -92,7 +92,9 @@ const { data, isError } = useQuery({
   queryFn: getUnconfirmedCardPayments,
 });
 
-const plans = computed(() => data.value ?? []);
+// The list also carries rows that wait for the owner's confirmation in the Automation inbox; this panel
+// is only about plans the bank has not settled.
+const plans = computed(() => (data.value ?? []).filter((payment) => payment.bankUnconfirmed));
 
 const merchantName = ({ plan }: { plan: UnconfirmedCardPaymentDto }) =>
   plan.merchant ?? t(`${LABEL_ROOT}.unknownMerchant`);

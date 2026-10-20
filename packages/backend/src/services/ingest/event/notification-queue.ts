@@ -2,7 +2,7 @@ import type { RecordId } from '@bt/shared/types';
 import { logger } from '@js/utils/logger';
 import { connection as database } from '@models/connection';
 import IngestRequests from '@models/ingest-requests.model';
-import { Job, Queue, Worker } from 'bullmq';
+import { DelayedError, Job, Queue, Worker } from 'bullmq';
 import { QueryTypes } from 'sequelize';
 
 import { parkFailedRequest } from '../card-payment/park-failed-request';
@@ -54,8 +54,15 @@ notificationIngestQueue.on('error', (err) => {
 /** Exported for the teardown of the test environment and for shutdown. */
 export const notificationIngestWorker = new Worker<NotificationJobData>(
   queueName,
-  async (job: Job<NotificationJobData>) =>
-    notificationProcessing.processNotification({ requestId: job.data.requestId }),
+  async (job: Job<NotificationJobData>, token?: string) => {
+    const result = await notificationProcessing.processNotification({ requestId: job.data.requestId });
+    if (result !== 'locked') return;
+
+    // A base-currency change holds the user's lock. The job goes back to the delayed set without
+    // using an attempt and the request stays `received`; the banner poll answers "queued".
+    await job.moveToDelayed(Date.now() + notificationTimings.lockRetryDelayMs, token);
+    throw new DelayedError();
+  },
   { connection, concurrency: 5 },
 );
 

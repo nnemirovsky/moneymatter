@@ -698,6 +698,7 @@
     "digitsTaken": "Ці останні цифри належать іншій картці."
   },
   "ingest": {
+    "busy": "MoneyMatter зараз оновлює вашу валюту. Платіж не збережено, спробуйте ще раз за хвилину.",
     "summary": {
       "logged": "Записано {{amount}}: {{merchant}} → {{category}}",
       "alreadyLogged": "Уже записано {{amount}}: {{merchant}} → {{category}}",
@@ -715,7 +716,12 @@
       "dryRunCards_other": "Підключено як {{username}}. Прив'язано {{count}} карток.",
       "queued": "У черзі, незабаром з'явиться",
       "notificationLogged": "Сповіщення записано",
-      "parkedNotification": "Потрібне ваше підтвердження в MoneyMatter: {{summary}}"
+      "parkedNotification": "Потрібне ваше підтвердження в MoneyMatter: {{summary}}",
+      "parkedNotificationAt": "— {{merchant}}",
+      "sourceNotApproved": "Ще не записано: підтвердьте «{{source}}» як джерело платежів у MoneyMatter",
+      "aiUnavailable": "Ще не записано: додайте AI-модель у MoneyMatter, щоб прочитати це сповіщення",
+      "aiCapReached": "Ще не записано: ліміт AI на цей місяць вичерпано; повторіть у MoneyMatter пізніше",
+      "aiLimitReached": "Ще не записано: денний ліміт сповіщень, прочитаних AI, вичерпано; повторіть у MoneyMatter пізніше"
     },
     "rejection": {
       "invalidBody": "Тіло запиту має бути JSON-об’єктом.",
@@ -740,6 +746,7 @@
     "idempotencyConflict": "Цей ключ ідемпотентності вже використано для іншого платежу.",
     "requestDismissed": "Цей платіж відхилено в MoneyMatter.",
     "requestNotFound": "Запит на оплату карткою не знайдено.",
+    "requestNeedsApproval": "Цей платіж потребує вашого підтвердження, перш ніж його буде записано. Підтвердіть його, щоб записати.",
     "requestNotWaiting": "Цей платіж не очікує на запис.",
     "setupCodeUnusable": "З цих значень не вдається побудувати код налаштування. Скоротіть адресу прийому або значення Cloudflare Access.",
     "rateLimited": "Забагато сповіщень. Спробуйте пізніше."

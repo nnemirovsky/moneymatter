@@ -33,6 +33,8 @@ const makePlan = (overrides: Partial<UnconfirmedCardPaymentDto> = {}): Unconfirm
   merchant: 'Cafe Heart of Batumi',
   card: 'TBC Visa',
   time: '2026-10-05T10:00:00.000Z',
+  awaitingConfirmation: false,
+  bankUnconfirmed: true,
   ...overrides,
 });
 
@@ -58,6 +60,15 @@ describe('UnconfirmedPayments', () => {
     expect(row.get('[data-testid="unconfirmed-payment-merchant"]').text()).toBe('Cafe Heart of Batumi');
     expect(row.get('[data-testid="unconfirmed-payment-amount"]').text()).toContain('47.00');
     expect(row.get('[data-testid="unconfirmed-payment-date"]').text()).toBe('Oct 5, 2026');
+  });
+
+  it('leaves out rows that only wait for the owner to confirm them in the inbox', async () => {
+    const { wrapper } = await mountUnconfirmed([
+      makePlan({ transactionId: 'tx-awaiting' as RecordId, awaitingConfirmation: true, bankUnconfirmed: false }),
+      makePlan({ transactionId: 'tx-plan' as RecordId, awaitingConfirmation: true, bankUnconfirmed: true }),
+    ]);
+
+    expect(wrapper.findAll('[data-testid="unconfirmed-payment-row"]')).toHaveLength(1);
   });
 
   it('is hidden when no plan is unconfirmed', async () => {

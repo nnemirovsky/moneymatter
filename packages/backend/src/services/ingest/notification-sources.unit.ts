@@ -16,6 +16,23 @@ describe('buildSourceKey', () => {
 
   it('falls back to the normalized app name', () => {
     expect(buildSourceKey({ appName: '  TBC   Bank ' })).toBe('name:tbc bank');
+    expect(buildSourceKey({ appName: 'bcc.kz' })).toBe('name:bcc.kz');
+  });
+
+  it('gives Wallet one key whether it arrives by bundle id or by a localized name', () => {
+    const keys = [
+      buildSourceKey({ bundleId: 'com.apple.Passbook', appName: 'Wallet' }),
+      buildSourceKey({ appName: 'Wallet' }),
+      buildSourceKey({ appName: 'Кошелёк' }),
+      buildSourceKey({ appName: 'Apple Wallet' }),
+    ];
+
+    expect(new Set(keys)).toEqual(new Set(['com.apple.passbook']));
+  });
+
+  it('keeps a messaging app named by its display name apart per sender', () => {
+    expect(buildSourceKey({ appName: 'Telegram', sender: 'Mum' })).toBe('name:telegram|mum');
+    expect(buildSourceKey({ appName: 'Messages', sender: 'TBC' })).toBe('name:messages|tbc');
   });
 
   it('is unknown when the notification names no app', () => {
@@ -51,10 +68,27 @@ describe('buildSourceKey', () => {
 });
 
 describe('app classification', () => {
-  it('recognizes Wallet by its bundle id only', () => {
+  it('recognizes Wallet by its bundle id', () => {
     expect(isWalletApp({ bundleId: WALLET_BUNDLE_ID })).toBe(true);
-    expect(isWalletApp({ bundleId: 'COM.APPLE.PASSBOOK' })).toBe(true);
-    expect(isWalletApp({ appName: 'Wallet' })).toBe(false);
+    expect(isWalletApp({ bundleId: 'COM.APPLE.PASSBOOK', appName: 'Telegram' })).toBe(true);
+  });
+
+  it.each(['Wallet', ' wallet ', 'Apple Wallet', 'Кошелёк', 'Кошелек', 'Гаманець', 'საფულე'])(
+    'recognizes Wallet by the display name %j when no bundle id is sent',
+    (appName) => {
+      expect(isWalletApp({ appName })).toBe(true);
+      expect(isWalletApp({ bundleId: '  ', appName })).toBe(true);
+    },
+  );
+
+  it('lets a bundle id that is not Wallet overrule a Wallet-like name', () => {
+    expect(isWalletApp({ bundleId: 'ph.telegra.Telegraph', appName: 'Wallet' })).toBe(false);
+  });
+
+  it('does not take other app names for Wallet', () => {
+    expect(isWalletApp({ appName: 'Telegram' })).toBe(false);
+    expect(isWalletApp({ appName: 'TBC Bank' })).toBe(false);
+    expect(isWalletApp({})).toBe(false);
   });
 
   it.each([
@@ -71,7 +105,11 @@ describe('app classification', () => {
   it.each([
     [{ appName: 'TBC Bank' }, true],
     [{ appName: ' tbc  bank ' }, true],
+    [{ appName: 'bcc.kz' }, true],
+    [{ appName: 'BCC.KZ' }, true],
     [{ bundleId: 'com.revolut.revolut' }, true],
+    [{ bundleId: 'ge.tbconline.TBC-ipad' }, true],
+    [{ bundleId: 'kz.bcc.starbanking' }, true],
     [{ appName: 'Candy Crush' }, false],
   ])('isKnownBankApp(%j) is %s', (app, expected) => {
     expect(isKnownBankApp(app)).toBe(expected);
@@ -79,13 +117,26 @@ describe('app classification', () => {
 });
 
 describe('getDefaultSourceMode', () => {
-  it('trusts Wallet from the start', () => {
+  it('trusts Wallet from the start, by bundle id or by display name', () => {
     expect(getDefaultSourceMode({ bundleId: WALLET_BUNDLE_ID })).toBe('auto');
+    expect(getDefaultSourceMode({ appName: 'Wallet' })).toBe('auto');
+    expect(getDefaultSourceMode({ appName: 'Кошелёк' })).toBe('auto');
+  });
+
+  it('does not trust an app that only calls itself Wallet', () => {
+    expect(getDefaultSourceMode({ bundleId: 'com.example.wallet', appName: 'Wallet' })).toBe('pending');
   });
 
   it('trusts the seeded bank apps from the start', () => {
     expect(getDefaultSourceMode({ appName: 'TBC Bank' })).toBe('auto');
+    expect(getDefaultSourceMode({ appName: 'bcc.kz' })).toBe('auto');
     expect(getDefaultSourceMode({ bundleId: 'com.revolut.revolut' })).toBe('auto');
+  });
+
+  it('starts the apps the shortcut names but the seed list does not know pending', () => {
+    expect(getDefaultSourceMode({ appName: 'Telegram' })).toBe('pending');
+    expect(getDefaultSourceMode({ appName: 'Ledger Wallet' })).toBe('pending');
+    expect(getDefaultSourceMode({ appName: 'Messages' })).toBe('pending');
   });
 
   it('starts every other app pending', () => {

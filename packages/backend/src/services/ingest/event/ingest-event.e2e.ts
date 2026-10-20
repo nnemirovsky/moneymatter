@@ -13,17 +13,18 @@ import { notificationLimits, notificationTimings } from './constants';
 import * as notificationProcessing from './process-notification';
 
 const CARD = 'TBC Visa';
-const BANK = { app: 'TBC Bank', bundleId: 'ge.tbc.app' };
+const BASE = global.BASE_CURRENCY_CODE;
 
 const DEFAULT_TIMINGS = { ...notificationTimings };
 const DEFAULT_LIMITS = { ...notificationLimits };
 
+/** A Wallet notification as the iOS 27 shortcut sends it: the app by display name, the card as the title. */
 const notification = (overrides: Record<string, unknown> = {}) => ({
   kind: 'notification',
-  ...BANK,
-  title: 'TBC Bank',
+  app: 'Wallet',
+  title: CARD,
   subtitle: 'Wolt',
-  body: 'GEL 43.60',
+  body: `${BASE} 43.60`,
   idempotencyKey: `key-${randomUUID()}`,
   ...overrides,
 });
@@ -41,6 +42,14 @@ const walletPayment = (overrides: Record<string, unknown> = {}) => ({
 const send = ({ secret, body }: { secret: string; body: object }) => ingestHelpers.postIngestEvent({ secret, body });
 
 const setUp = async () => (await ingestHelpers.createTestIngestToken()).secret;
+
+/** A token, and the card linked to a fresh account, so a Wallet notification can be logged. */
+const setUpWithCard = async () => {
+  const account = await helpers.createAccount({ raw: true });
+  await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: account.id }, raw: true });
+
+  return { account, secret: await setUp() };
+};
 
 const storedRequests = () => IngestRequests.findAll({ order: [['createdAt', 'ASC']] });
 
@@ -134,7 +143,7 @@ describe('POST /ingest/event', () => {
 
   describe('a notification that reaches the processing job', () => {
     it('is logged with the summary the job wrote', async () => {
-      const secret = await setUp();
+      const { secret } = await setUpWithCard();
       const body = notification();
 
       const res = await send({ secret, body });
@@ -142,7 +151,7 @@ describe('POST /ingest/event', () => {
       expect(res.status).toBe(200);
       expect(res.body.response).toEqual({
         outcome: 'logged',
-        summary: expect.any(String),
+        summary: expect.stringMatching(new RegExp(`^Logged 43\\.60 ${BASE} at Wolt → `)),
         requestId: expect.any(String),
         notify: true,
       });
@@ -164,6 +173,8 @@ describe('POST /ingest/event', () => {
       notificationTimings.pollIntervalMs = 50;
       jest.spyOn(notificationProcessing, 'processNotification').mockImplementation(async () => {
         await sleep({ ms: 1000 });
+
+        return 'done';
       });
       const secret = await setUp();
 
@@ -197,17 +208,18 @@ describe('POST /ingest/event', () => {
     it('keeps the text out of the plain payload and stores it encrypted', async () => {
       const secret = await setUp();
 
-      await send({ secret, body: notification({ raw: 'TBC Bank\nWolt\nGEL 43.60' }) });
+      await send({ secret, body: notification({ raw: `${CARD}\nWolt\nGEL 43.60` }) });
 
       const [stored] = await storedRequests();
       expect(stored!.payload).toEqual({
         kind: 'notification',
-        app: 'TBC Bank',
-        bundleId: 'ge.tbc.app',
+        app: 'Wallet',
+        bundleId: null,
         time: expect.any(String),
         timeProvided: false,
       });
-      expect(JSON.stringify(stored!.toJSON())).not.toMatch(/Wolt|43\.60/);
+      // The payload and the summary hold no text; a payment that was read keeps its reading in `parsed`.
+      expect(JSON.stringify(stored!.payload)).not.toMatch(/Wolt|43\.60/);
       expect(stored!.textEnc).toEqual(expect.any(String));
       expect(stored!.textEnc).not.toContain('Wolt');
     });
@@ -225,13 +237,15 @@ describe('POST /ingest/event', () => {
         },
       });
 
-      expect(res.status).toBe(200);
+      // Revolut is a seeded bank, so the text reaches the reader; with no AI model it waits.
+      expect(res.status).toBe(202);
+      expect(res.body.response).toMatchObject({ outcome: 'parked', reason: 'aiUnavailable' });
       const [source] = await helpers.listNotificationSources({ raw: true });
       expect(source).toMatchObject({ appName: 'Revolut' });
     });
 
-    it('keeps two identical notifications minutes apart as two requests', async () => {
-      const secret = await setUp();
+    it('keeps two identical notifications minutes apart as two requests and two transactions', async () => {
+      const { secret } = await setUpWithCard();
       const first = notification({ time: new Date(Date.now() - 120_000).toISOString() });
       const second = notification({ time: new Date().toISOString() });
 
@@ -239,6 +253,7 @@ describe('POST /ingest/event', () => {
       expect((await send({ secret, body: second })).body.response.outcome).toBe('logged');
 
       expect(await storedRequests()).toHaveLength(2);
+      expect(await helpers.getTransactions({ raw: true })).toHaveLength(2);
     });
   });
 
@@ -340,7 +355,8 @@ describe('POST /ingest/event', () => {
       const loose = await send({ secret, body: { ...body, idempotencyKey: `key-${randomUUID()}` } });
 
       expect(standard.body.response).toMatchObject({ outcome: 'dropped', reason: 'noAmount' });
-      expect(loose.body.response.outcome).toBe('logged');
+      // Loose lets the text through to the reader, which waits for an AI model here.
+      expect(loose.body.response).toMatchObject({ outcome: 'parked', reason: 'aiUnavailable' });
     });
 
     describe('our own output', () => {
@@ -383,7 +399,7 @@ describe('POST /ingest/event', () => {
   describe('limits', () => {
     it('answers 429 once the hourly cap is spent, and dropped notifications never count', async () => {
       notificationLimits.perHour = 2;
-      const secret = await setUp();
+      const { secret } = await setUpWithCard();
 
       expect((await send({ secret, body: notification() })).status).toBe(200);
       expect((await send({ secret, body: notification({ body: 'Nothing to see' }) })).status).toBe(200);
@@ -400,7 +416,7 @@ describe('POST /ingest/event', () => {
 
     it('answers 429 once the daily cap is spent', async () => {
       notificationLimits.perDay = 1;
-      const secret = await setUp();
+      const { secret } = await setUpWithCard();
 
       expect((await send({ secret, body: notification() })).status).toBe(200);
       expect((await send({ secret, body: notification() })).status).toBe(429);
@@ -408,7 +424,7 @@ describe('POST /ingest/event', () => {
 
     it('does not count a replay of a stored notification', async () => {
       notificationLimits.perHour = 1;
-      const secret = await setUp();
+      const { secret } = await setUpWithCard();
       const body = notification();
 
       expect((await send({ secret, body })).status).toBe(200);
@@ -416,7 +432,7 @@ describe('POST /ingest/event', () => {
     });
 
     it('answers 413 for a body over 16 KB', async () => {
-      const secret = await setUp();
+      const { secret } = await setUpWithCard();
 
       const res = await send({ secret, body: notification({ raw: 'x'.repeat(17 * 1024) }) });
 
@@ -424,7 +440,7 @@ describe('POST /ingest/event', () => {
     });
 
     it('answers 422 for raw text over 8 KB that fits the body limit', async () => {
-      const secret = await setUp();
+      const { secret } = await setUpWithCard();
 
       const res = await send({ secret, body: notification({ raw: 'x'.repeat(9 * 1024) }) });
 
@@ -454,7 +470,7 @@ describe('POST /ingest/event', () => {
     it('records the app on first sight in the mode its app starts in', async () => {
       const secret = await setUp();
 
-      await send({ secret, body: notification() });
+      await send({ secret, body: notification({ app: 'TBC Bank', bundleId: 'ge.tbconline.TBC-ipad' }) });
       await send({
         secret,
         body: notification({ app: 'Wallet', bundleId: 'com.apple.Passbook', title: 'TBC Bank', body: 'GEL 12.00' }),
@@ -463,7 +479,30 @@ describe('POST /ingest/event', () => {
 
       const sources = await helpers.listNotificationSources({ raw: true });
       const modes = Object.fromEntries(sources.map((source) => [source.bundleId, source.mode]));
-      expect(modes).toEqual({ 'ge.tbc.app': 'auto', 'com.apple.Passbook': 'auto', 'pl.unknown.pay': 'pending' });
+      expect(modes).toEqual({
+        'ge.tbconline.TBC-ipad': 'auto',
+        'com.apple.Passbook': 'auto',
+        'pl.unknown.pay': 'pending',
+      });
+    });
+
+    it('starts the apps the shortcut names by display name in the mode their name earns', async () => {
+      const secret = await setUp();
+
+      for (const app of ['Wallet', 'Кошелёк', 'TBC Bank', 'bcc.kz', 'Telegram', 'Ledger Wallet']) {
+        await send({ secret, body: notification({ app, title: app, subtitle: '', body: 'GEL 9.00' }) });
+      }
+
+      const sources = await helpers.listNotificationSources({ raw: true });
+      const modes = Object.fromEntries(sources.map((source) => [source.appName, source.mode]));
+      // Wallet under its English and its Russian name is one source.
+      expect(modes).toEqual({
+        Wallet: 'auto',
+        'TBC Bank': 'auto',
+        'bcc.kz': 'auto',
+        Telegram: 'pending',
+        'Ledger Wallet': 'pending',
+      });
     });
 
     it('splits a messaging app per sender', async () => {
@@ -509,6 +548,9 @@ describe('POST /ingest/event', () => {
 
         expect(res.status).toBe(423);
         expect(res.body.response.code).toBe(API_ERROR_CODES.baseCurrencyChangeInProgress);
+        expect(res.body.response.message).toBe(
+          "MoneyMatter is busy updating your currency. This payment wasn't saved, try again in a minute.",
+        );
         expect(await storedRequests()).toEqual([]);
       } finally {
         await redisClient.del(buildLockKey(user.id));

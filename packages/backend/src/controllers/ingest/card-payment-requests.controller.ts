@@ -26,11 +26,17 @@ export const listCardPaymentRequestsController = createController(
   },
 );
 
-/** Answers like the ingest endpoint: 200 logged, 202 still waiting, 422 rejected, 409 not retryable. */
+/**
+ * Answers like the ingest endpoint: 200 logged or ignored, 202 still waiting or still being processed,
+ * 422 rejected, 409 not retryable. `force` logs a notification payment parked for the owner's approval.
+ */
 export const retryCardPaymentRequestController = createController(
-  z.object({ params: z.object({ id: recordId() }) }),
-  async ({ user, params }) => {
-    const result = await retryIngestRequest({ userId: user.id, requestId: params.id });
+  z.object({
+    params: z.object({ id: recordId() }),
+    body: z.object({ force: z.boolean().optional() }).optional(),
+  }),
+  async ({ user, params, body }) => {
+    const result = await retryIngestRequest({ userId: user.id, requestId: params.id, force: body?.force === true });
 
     switch (result.outcome) {
       case 'rejected':
@@ -39,10 +45,17 @@ export const retryCardPaymentRequestController = createController(
       case 'conflict':
         throw new ConflictError({ message: result.message, details: { reason: result.reason } });
 
-      case 'parked': {
+      case 'parked':
+      case 'queued': {
         const data: CardPaymentRetryResponse = result;
 
         return { data, statusCode: 202 };
+      }
+
+      case 'ignored': {
+        const data: CardPaymentRetryResponse = result;
+
+        return { data };
       }
 
       case 'logged': {

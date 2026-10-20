@@ -20,6 +20,20 @@ export const DOMAIN_EVENTS = {
    * Payload: @type TransactionsTaggedPayload
    */
   TRANSACTIONS_TAGGED: 'transactions:tagged',
+  /**
+   * Emitted after the commit of a transaction the ingest pipeline logged from a tap or a notification.
+   * The row is written at once and marked unconfirmed (`externalData.ingest.unconfirmed`); a subscriber
+   * posts the one confirm card for it. It must be idempotent per `transactionId`: it runs again for
+   * every later source folded into the row.
+   * Payload: @type IngestPaymentLoggedPayload
+   */
+  INGEST_PAYMENT_LOGGED: 'ingest:payment-logged',
+  /**
+   * Emitted after the commit of a notification request that parked: it waits for the owner and the
+   * inbox posts its card (an unknown account, an own transfer, a doubtful read, a source to approve).
+   * Payload: @type IngestRequestParkedPayload
+   */
+  INGEST_REQUEST_PARKED: 'ingest:request-parked',
 } as const;
 
 /**
@@ -29,6 +43,24 @@ export interface TransactionsSyncedPayload {
   userId: number;
   accountId: string;
   transactionIds: string[];
+}
+
+export interface IngestPaymentLoggedPayload {
+  userId: number;
+  accountId: string;
+  transactionId: string;
+  /** The ingest request that produced the row. */
+  requestId: string;
+  pipeline: 'cardPayment' | 'notification';
+}
+
+export interface IngestRequestParkedPayload {
+  userId: number;
+  requestId: string;
+  /** The park reason, as stored on the request. */
+  reason: string;
+  /** The notification source the request came from. */
+  sourceId: string | null;
 }
 
 export interface TransactionsTaggedPayload {

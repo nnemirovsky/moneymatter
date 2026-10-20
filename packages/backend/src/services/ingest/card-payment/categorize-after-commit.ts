@@ -44,11 +44,14 @@ export const categorizeAfterCommit = async ({
   requestId,
   transactionId,
   locale,
+  waitBudgetMs = cardPaymentTimings.aiWaitBudgetMs,
 }: {
   userId: number;
   requestId: RecordId;
   transactionId: RecordId;
   locale: string;
+  /** How long to wait for the AI's answer; the tap's budget unless the caller shares its wait with other work. */
+  waitBudgetMs?: number;
 }): Promise<CategorizedAnswer | null> => {
   try {
     const transaction = await readCategorization({ userId, transactionId });
@@ -66,7 +69,7 @@ export const categorizeAfterCommit = async ({
 
     if (transaction.categoryId !== (await getUserDefaultCategory({ id: userId }))) return null;
 
-    const deadline = Date.now() + cardPaymentTimings.aiWaitBudgetMs;
+    const deadline = Date.now() + waitBudgetMs;
     while (Date.now() < deadline) {
       await sleep({ ms: Math.min(cardPaymentTimings.aiPollIntervalMs, Math.max(deadline - Date.now(), 0)) });
 

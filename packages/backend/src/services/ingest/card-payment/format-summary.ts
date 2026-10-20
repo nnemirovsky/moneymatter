@@ -27,6 +27,18 @@ export type CardPaymentSummary =
   | { type: 'parked'; reason: 'unknownCard'; card: string }
   | { type: 'parked'; reason: 'rateUnavailable'; fromCurrencyCode: string; toCurrencyCode: string; date: string }
   | { type: 'parked'; reason: 'processingFailed' }
+  | { type: 'notificationParked'; reason: 'sourceNotApproved'; source: string }
+  | { type: 'notificationParked'; reason: 'aiUnavailable' | 'aiCapReached' | 'aiLimitReached' }
+  | {
+      /** A payment that was read and waits for the owner: an unknown account, an own transfer, a doubtful read. */
+      type: 'notificationParked';
+      reason: 'needsOk';
+      /** The amount as the notification printed it; `null` when none could be read. */
+      payment: SummaryAmount | null;
+      merchant: string | null;
+      /** The app or sender, named when no payment could be read. */
+      source: string;
+    }
   | { type: 'dryRun'; username: string; card: string | null; accountName: string | null; linkedCardCount: number };
 
 const formatAmount = ({ value, locale }: { value: SummaryAmount; locale: string }): string => {
@@ -89,6 +101,28 @@ export const formatSummary = ({ summary, locale }: { summary: CardPaymentSummary
       }
 
       return t({ key: 'ingest.summary.processingFailed', locale });
+
+    case 'notificationParked':
+      if (summary.reason === 'sourceNotApproved') {
+        return t({ key: 'ingest.summary.sourceNotApproved', variables: { source: summary.source }, locale });
+      }
+      if (summary.reason !== 'needsOk') return t({ key: `ingest.summary.${summary.reason}`, locale });
+
+      return t({
+        key: 'ingest.summary.parkedNotification',
+        variables: {
+          summary: summary.payment
+            ? [
+                formatAmount({ value: summary.payment, locale }),
+                summary.merchant &&
+                  t({ key: 'ingest.summary.parkedNotificationAt', variables: { merchant: summary.merchant }, locale }),
+              ]
+                .filter(Boolean)
+                .join(' ')
+            : summary.source,
+        },
+        locale,
+      });
 
     case 'dryRun': {
       const variables = { username: summary.username, card: summary.card, account: summary.accountName };

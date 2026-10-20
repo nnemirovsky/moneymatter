@@ -694,6 +694,7 @@
     "digitsTaken": "These last digits belong to another card."
   },
   "ingest": {
+    "busy": "MoneyMatter is busy updating your currency. This payment wasn't saved, try again in a minute.",
     "summary": {
       "logged": "Logged {{amount}} at {{merchant}} → {{category}}",
       "alreadyLogged": "Already logged {{amount}} at {{merchant}} → {{category}}",
@@ -709,7 +710,12 @@
       "dryRunCards_other": "Connected as {{username}}. {{count}} cards linked.",
       "queued": "Queued, will appear shortly",
       "notificationLogged": "Notification logged",
-      "parkedNotification": "Needs your OK in MoneyMatter: {{summary}}"
+      "parkedNotification": "Needs your OK in MoneyMatter: {{summary}}",
+      "parkedNotificationAt": "at {{merchant}}",
+      "sourceNotApproved": "Not logged yet: approve \"{{source}}\" as a payment source in MoneyMatter",
+      "aiUnavailable": "Not logged yet: add an AI model in MoneyMatter so it can read this notification",
+      "aiCapReached": "Not logged yet: this month's AI allowance is used up; retry it in MoneyMatter later",
+      "aiLimitReached": "Not logged yet: today's limit of AI-read notifications is reached; retry it in MoneyMatter later"
     },
     "rejection": {
       "invalidBody": "The request body must be a JSON object.",
@@ -734,6 +740,7 @@
     "idempotencyConflict": "This idempotency key was already used for a different payment.",
     "requestDismissed": "This payment was dismissed in MoneyMatter.",
     "requestNotFound": "Card payment request not found.",
+    "requestNeedsApproval": "This payment needs your approval before it is logged. Confirm it to log it.",
     "requestNotWaiting": "This payment is not waiting to be logged.",
     "setupCodeUnusable": "The setup code cannot be built from these values. Shorten the ingest URL or the Cloudflare Access values.",
     "rateLimited": "Too many notifications. Try again later."

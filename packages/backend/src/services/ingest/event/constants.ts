@@ -9,12 +9,28 @@
  *   many milliseconds of each other (the same notification on two devices, or a double fire).
  * - `retryBackoffMs`: the delay before the second attempt of a failed processing job; it doubles with
  *   every further attempt.
+ * - `lockRetryDelayMs`: how long a job waits before it looks again while a base-currency change holds
+ *   the user's lock. The wait uses no attempt.
+ * - `categorizeWaitMs`: how long a logged payment waits for the AI to categorize it before the banner
+ *   says "categorizing…". Shorter than the tap's wait, because the notification's own wait is shared
+ *   with parsing.
+ * - `interruptedAfterMs`: a `received` notification older than this lost its processing job and is
+ *   offered for retry; a younger one is in flight.
+ * - `unclassifiedTextTtlMs`: how long the text of a notification that was never classified is kept.
+ * - `ignoredTtlMs`: how long a request that was read and is not a payment is kept.
+ * - `pendingSourceTtlMs`: a source nobody approved is deleted with what it holds after this long.
  */
 export const notificationTimings = {
   waitBudgetMs: 10_000,
   pollIntervalMs: 250,
   foldMs: 5_000,
   retryBackoffMs: 5_000,
+  lockRetryDelayMs: 60_000,
+  categorizeWaitMs: 3_000,
+  interruptedAfterMs: 30 * 60_000,
+  unclassifiedTextTtlMs: 7 * 24 * 60 * 60_000,
+  ignoredTtlMs: 7 * 24 * 60 * 60_000,
+  pendingSourceTtlMs: 30 * 24 * 60 * 60_000,
 };
 
 /** Per-user caps on stored notifications. Dropped notifications do not count. An object so a test can lower them. */

@@ -1,27 +1,17 @@
-import {
-  ACCOUNT_STATUSES,
-  ACCOUNT_TYPES,
-  PAYMENT_TYPES,
-  TRANSACTION_TRANSFER_NATURE,
-  TRANSACTION_TYPES,
-  type CardPaymentRejectionReason,
-  type RecordId,
-} from '@bt/shared/types';
+import { ACCOUNT_STATUSES, type CardPaymentRejectionReason, type RecordId } from '@bt/shared/types';
 import { Money } from '@common/types/money';
-import { ExchangeRateUnavailableError } from '@js/errors';
 import Accounts from '@models/accounts.model';
 import type CardAccountMappings from '@models/card-account-mappings.model';
-import { getBaseCurrency } from '@models/users-currencies.model';
 import { getUserDefaultCategory } from '@models/users.model';
 import { resolveVisibleCurrencies } from '@services/currencies/assert-currency-codes-visible';
 import { resolvePayeeForIncomingRow } from '@services/payees/resolve-payee-for-incoming-row';
-import { createTransaction } from '@services/transactions/create-transaction';
 
+import { logIngestedPayment } from '../log-ingested-payment';
 import { buildExternalReference } from './constants';
 import { convertToAccountCurrency } from './convert-to-account-currency';
 import type { ParsedCardPayment } from './parse-payload';
 import { pickHistoryCategory } from './pick-history-category';
-import { CardPaymentRateUnavailableError, formatRateDate } from './rate-unavailable-error';
+import { formatRateDate } from './rate-unavailable-error';
 import { resolveCurrency } from './resolve-currency';
 
 /**
@@ -124,49 +114,28 @@ export const processCardPayment = async ({
     ? await pickHistoryCategory({ ownerUserId: userId, payeeId, asOf: payment.time })
     : null;
 
-  try {
-    const [transaction] = await createTransaction({
-      userId,
-      accountId: account.id,
-      amount: accountAmount,
-      originalAmount: inAccountCurrency ? undefined : paymentAmount,
-      originalCurrencyCode: inAccountCurrency ? undefined : resolved.currencyCode,
-      time: payment.time,
-      transactionType: TRANSACTION_TYPES.expense,
-      paymentType: PAYMENT_TYPES.mobilePayment,
-      transferNature: TRANSACTION_TRANSFER_NATURE.not_transfer,
-      categoryId: historyCategoryId ?? (await getUserDefaultCategory({ id: userId })),
-      payeeId: payeeId ?? undefined,
-      note: payment.merchant,
-      applyAutomations: true,
-      isPlanned: account.type !== ACCOUNT_TYPES.system,
-      externalReference: buildExternalReference({ source: payment.source, idempotencyKey: payment.idempotencyKey }),
-      externalData: {
-        cardPayment: {
-          source: payment.source,
-          card: payment.card,
-          name: payment.name,
-          merchant: payment.merchant,
-          rawAmount: payment.rawAmount,
-          requestId,
-        },
-      },
-    });
+  const { transactionId } = await logIngestedPayment({
+    userId,
+    requestId,
+    pipeline: 'cardPayment',
+    account,
+    direction: 'debit',
+    amount: accountAmount,
+    originalAmount: inAccountCurrency ? undefined : paymentAmount,
+    originalCurrencyCode: inAccountCurrency ? undefined : resolved.currencyCode,
+    time: payment.time,
+    merchant: payment.merchant,
+    payeeId,
+    categoryId: historyCategoryId ?? (await getUserDefaultCategory({ id: userId })),
+    externalReference: buildExternalReference({ source: payment.source, idempotencyKey: payment.idempotencyKey }),
+    cardPayment: {
+      source: payment.source,
+      card: payment.card,
+      name: payment.name,
+      merchant: payment.merchant,
+      rawAmount: payment.rawAmount,
+    },
+  });
 
-    return { kind: 'logged', transactionId: transaction.id };
-  } catch (error) {
-    if (!(error instanceof ExchangeRateUnavailableError)) throw error;
-
-    // The only rate `createTransaction` looks up for a payment is the account currency's to the
-    // base currency (the row's `refAmount`).
-    const { currency: baseCurrency } = await getBaseCurrency({ userId });
-    if (baseCurrency.code === account.currencyCode) throw error;
-
-    throw new CardPaymentRateUnavailableError({
-      cause: error,
-      fromCurrencyCode: account.currencyCode,
-      toCurrencyCode: baseCurrency.code,
-      date: payment.time,
-    });
-  }
+  return { kind: 'logged', transactionId };
 };

@@ -587,7 +587,7 @@ Gate results (Task 4): unit `ingest/event/(parse|classify|payee-candidates|balan
 - Modify: `packages/backend/src/services/ingest/card-payment/{process-ingest-request,list-requests,retry-request,run-ingest-pass,format-summary}.ts` (branch on `pipeline`; `retry-request.ts` enqueues `${requestId}-${attempts + 1}` for notifications and accepts `force`), `packages/backend/src/controllers/ingest/card-payment-requests.controller.ts` (`{ force?: boolean }` on retry), `packages/backend/src/services/ingest/event/notification-sources.service.ts` (approve → enqueue the held requests; mute → delete them), `packages/backend/src/crons/ingest-requests-cleanup.ts`, `packages/backend/src/middlewares/check-base-currency-lock.ts` (a `messageKey` option; `ingest.route.ts` passes `ingest.busy` for both ingest routes) + backend i18n `ingest.busy` (`en` + `uk`), `packages/backend/src/services/ingest/card-payment/ingest-card-payment.e2e.ts` (the 423 case now expects the `ingest.busy` message)
 - Create: `packages/backend/src/services/ingest/event/{process-notification,payee-resolution}.e2e.ts`
 
-- [ ] write failing e2e (AI over MSW):
+- [x] write failing e2e (AI over MSW):
   - a Wallet notification is logged without AI;
   - a push debit and credit are logged with payee and category;
   - non-payments → `ignored`, with `textEnc` and `summary` null and `parsed` exactly `{ parser, kind, confidence }`;
@@ -602,16 +602,20 @@ Gate results (Task 4): unit `ingest/event/(parse|classify|payee-candidates|balan
   - accounts: card name, `lastDigits`, source default, and `unknownAccount` with a guess;
   - GEL + USD non-zero at the same bank → `authoritative: false`;
   - retention: ignored after 7 days, unclassified text after 7 days (counter `expiredUnclassified`), a pending source after 30 days
-- [ ] write failing e2e for payees:
+- [x] write failing e2e for payees:
   - `WOLT.COM TBILISI` + an existing "Wolt" → alias added; the next one resolves by the alias even when the AI answers `newName: "Something"`;
   - `SP *COFFEE LAB` → a new "Coffee Lab" with the raw alias;
   - `newName: "Wolt"` with no candidate → adopts the existing Wolt (no 409, no `processingFailed`);
   - an ignored raw merchant → no payee created and no alias
-- [ ] implement:
+- [x] implement:
   - extract `logIngestedPayment` (the card-payment e2e stays green);
   - `applyPayeeChoice`;
   - `processNotification`, with pass-through hooks for dedup (Tasks 6–7) and inbox (Task 10)
-- [ ] gate: e2e `--testPathPattern='(ingest/event/(process-notification|payee-resolution|ingest-event)|ingest/card-payment/(ingest-card-payment|processing|requests|ai-categorization)|crons/ingest-requests-cleanup).e2e'`; unit `--testPathPattern='ingest'`
+- [x] gate: e2e `--testPathPattern='(ingest/event/(process-notification|payee-resolution|ingest-event)|ingest/card-payment/(ingest-card-payment|processing|requests|ai-categorization)|crons/ingest-requests-cleanup).e2e'`; unit `--testPathPattern='ingest'`
+- [x] ➕ the shortcut sends the source app's DISPLAY NAME (e.g. "Telegram", "Wallet", "TBC Bank"), not a bundle id. `isWalletApp`, `getDefaultSourceMode` and `buildSourceKey` work from names: Wallet's localized names, a seed list of bank app names that includes "TBC Bank" and "bcc.kz", the bundle id used only when present; Wallet has one source key by bundle id or any localized name. Unit tests (device fact)
+- [x] ➕ OWNER DECISION "logged now, confirm in inbox": every automated payment, tap or notification, is written at once and marked unconfirmed (`externalData.ingest.unconfirmed`) through the shared logging core; `GET /user/settings/card-payments/unconfirmed` lists such rows (`awaitingConfirmation`, next to the old `bankUnconfirmed`); `INGEST_PAYMENT_LOGGED` is emitted after commit, one per transaction, for the inbox card of Task 10. E2E: a logged notification and a logged tap are both unconfirmed and listed (owner decision 2026-10-20)
+
+Gate results (Task 5): e2e `ingest/event/(process-notification|payee-resolution|ingest-event|notification-sources)`, `ingest/card-payment/(ingest-card-payment|processing|requests|ai-categorization)`, `crons/ingest-requests-cleanup`, `ingest/(card-mappings|setup-code)`, `routes/base-currency-guard-coverage` 12 suites, 284 tests pass; backend unit full 368 suites pass; backend typecheck, oxlint, knip and oxfmt clean; frontend typecheck and `src/pages/accounts/integrations` vitest pass.
 
 ### Task 6: Tier-1 twin, settlement rule and enrichment
 

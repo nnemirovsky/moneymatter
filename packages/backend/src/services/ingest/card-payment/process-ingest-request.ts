@@ -2,6 +2,7 @@ import {
   type CardPaymentParkReason,
   type CardPaymentRejectionReason,
   type IngestRequestStatus,
+  type NotificationParkReason,
   type RecordId,
 } from '@bt/shared/types';
 import { t } from '@i18n/index';
@@ -11,6 +12,7 @@ import UsersCurrencies from '@models/users-currencies.model';
 import { withTransaction } from '@services/common/with-transaction';
 import { Op } from 'sequelize';
 
+import { notificationTimings } from '../event/constants';
 import { resolveCardAccount } from '../resolve-card-account';
 import { buildLoggedSummary } from './build-logged-summary';
 import { cardPaymentTimings } from './constants';
@@ -32,7 +34,12 @@ export type ProcessIngestResult =
   | LoggedResult
   | { outcome: 'parked'; reason: CardPaymentParkReason; summary: string; requestId: RecordId }
   | { outcome: 'rejected'; reason: CardPaymentRejectionReason; message: string }
-  | { outcome: 'conflict'; reason: 'keyReused' | 'dismissed' | 'notWaiting'; message: string };
+  | {
+      outcome: 'conflict';
+      /** `keyReused`, `dismissed` and `notWaiting` refuse the request; a park reason says it needs approval (`force`). */
+      reason: 'keyReused' | 'dismissed' | 'notWaiting' | NotificationParkReason;
+      message: string;
+    };
 
 /** Statuses a pass may start from: the payment has no final outcome yet. */
 export const OPEN_REQUEST_STATUSES: readonly IngestRequestStatus[] = ['received', 'parked', 'rejected'];
@@ -57,17 +64,23 @@ const notWaitingResult = ({ locale }: { locale: string }): ProcessIngestResult =
 
 /**
  * Whether the user may retry the request: it is parked, or it was received long enough ago that
- * its processing pass must have been lost.
+ * its processing must have been lost. A tap is measured from its arrival; a notification is measured
+ * from its last change, because a retry puts a parked one back to `received` and starts it over.
  */
 export const isWaitingRequest = ({
   row,
   now = new Date(),
 }: {
-  row: Pick<IngestRequests, 'status' | 'createdAt'>;
+  row: Pick<IngestRequests, 'status' | 'createdAt' | 'updatedAt' | 'pipeline'>;
   now?: Date;
-}) =>
-  row.status === 'parked' ||
-  (row.status === 'received' && now.getTime() - row.createdAt.getTime() > cardPaymentTimings.interruptedAfterMs);
+}) => {
+  if (row.status === 'parked') return true;
+  if (row.status !== 'received') return false;
+
+  return row.pipeline === 'notification'
+    ? now.getTime() - row.updatedAt.getTime() > notificationTimings.interruptedAfterMs
+    : now.getTime() - row.createdAt.getTime() > cardPaymentTimings.interruptedAfterMs;
+};
 
 /** The answer for a request that is already logged, from the stored transaction. */
 export const replayLoggedRequest = async ({

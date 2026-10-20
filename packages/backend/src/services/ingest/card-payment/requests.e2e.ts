@@ -519,8 +519,8 @@ describe('waiting card payments', () => {
     });
   });
 
-  describe('not confirmed by the bank', () => {
-    it('lists a card-payment plan once the match window has passed, and never a plan the user wrote', async () => {
+  describe('not confirmed', () => {
+    it('lists a payment at once as waiting for the owner, and as unconfirmed by the bank once the match window has passed', async () => {
       const account = await connectedAccount();
       const { secret } = await ingestHelpers.createTestIngestToken();
       await linkCard({ accountId: account.id });
@@ -531,13 +531,25 @@ describe('waiting card payments', () => {
       const logged = await send({ secret, body: payment() });
       expect(logged.body.response).toMatchObject({ outcome: 'logged', planned: true });
 
-      expect(await helpers.listUnconfirmedCardPayments({ raw: true })).toEqual([]);
-      expect(
-        await withClockAhead({
-          offsetMs: (PLANNED_MATCH_WINDOW_DAYS - 1) * DAY_MS,
-          fn: () => helpers.listUnconfirmedCardPayments({ raw: true }),
-        }),
-      ).toEqual([]);
+      const waiting = {
+        transactionId: logged.body.response.transactionId,
+        accountId: account.id,
+        amount: 47,
+        merchant: MERCHANT,
+        card: CARD,
+      };
+
+      // The plan the user wrote never appears; the logged payment waits for the owner's confirmation.
+      const fresh = await helpers.listUnconfirmedCardPayments({ raw: true });
+      expect(fresh).toHaveLength(1);
+      expect(fresh[0]).toMatchObject({ ...waiting, awaitingConfirmation: true, bankUnconfirmed: false });
+
+      const insideWindow = await withClockAhead({
+        offsetMs: (PLANNED_MATCH_WINDOW_DAYS - 1) * DAY_MS,
+        fn: () => helpers.listUnconfirmedCardPayments({ raw: true }),
+      });
+      expect(insideWindow).toHaveLength(1);
+      expect(insideWindow[0]).toMatchObject({ awaitingConfirmation: true, bankUnconfirmed: false });
 
       const unconfirmed = await withClockAhead({
         offsetMs: (PLANNED_MATCH_WINDOW_DAYS + 1) * DAY_MS,
@@ -545,26 +557,26 @@ describe('waiting card payments', () => {
       });
 
       expect(unconfirmed).toHaveLength(1);
-      expect(unconfirmed[0]).toMatchObject({
-        transactionId: logged.body.response.transactionId,
-        accountId: account.id,
-        amount: 47,
-        merchant: MERCHANT,
-        card: CARD,
-      });
+      expect(unconfirmed[0]).toMatchObject({ ...waiting, awaitingConfirmation: true, bankUnconfirmed: true });
     });
 
-    it('does not list a manual-account payment, which is final at once', async () => {
+    it('lists a manual-account payment as waiting for the owner but never as unconfirmed by the bank', async () => {
       const { account, secret } = await setUp();
       await linkCard({ accountId: account.id });
-      expect((await send({ secret, body: payment() })).status).toBe(200);
+      const logged = await send({ secret, body: payment() });
+      expect(logged.status).toBe(200);
 
-      const unconfirmed = await withClockAhead({
+      const listed = await withClockAhead({
         offsetMs: (PLANNED_MATCH_WINDOW_DAYS + 1) * DAY_MS,
         fn: () => helpers.listUnconfirmedCardPayments({ raw: true }),
       });
 
-      expect(unconfirmed).toEqual([]);
+      expect(listed).toHaveLength(1);
+      expect(listed[0]).toMatchObject({
+        transactionId: logged.body.response.transactionId,
+        awaitingConfirmation: true,
+        bankUnconfirmed: false,
+      });
     });
   });
 });
