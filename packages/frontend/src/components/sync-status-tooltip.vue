@@ -103,7 +103,7 @@
         {{ $t('syncStatusTooltip.applePay.waiting', { count: applePay.waitingCount }) }}
       </span>
       <Button as-child size="sm" variant="outline" class="shrink-0">
-        <RouterLink :to="{ name: ROUTES_NAMES.accountApplePay }">{{
+        <RouterLink :to="{ name: ROUTES_NAMES.accountIosAutomation }">{{
           $t('syncStatusTooltip.applePay.open')
         }}</RouterLink>
       </Button>

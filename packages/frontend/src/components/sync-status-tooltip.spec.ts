@@ -7,7 +7,11 @@ import SyncStatusTooltip from './sync-status-tooltip.vue';
 
 vi.mock('@/composable/use-ai-allowance', () => ({ useAiAllowance: () => ({ showBadge: () => false }) }));
 vi.mock('@/routes/constants', () => ({
-  ROUTES_NAMES: { accounts: 'accounts', accountApplePay: 'account-apple-pay', accountIntegrationDetails: 'details' },
+  ROUTES_NAMES: {
+    accounts: 'accounts',
+    accountIosAutomation: 'account-ios-automation',
+    accountIntegrationDetails: 'details',
+  },
 }));
 
 const mountTooltip = (props: Record<string, unknown> = {}) =>
@@ -31,15 +35,15 @@ const mountTooltip = (props: Record<string, unknown> = {}) =>
 
 const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
 
-describe('SyncStatusTooltip Apple Pay row', () => {
-  it('shows the empty state and no Apple Pay row when nothing is connected', () => {
+describe('SyncStatusTooltip iOS Automation row', () => {
+  it('shows the empty state and no iOS Automation row when nothing is connected', () => {
     const wrapper = mountTooltip();
 
     expect(wrapper.text()).toContain('No bank accounts connected');
     expect(wrapper.find('[data-testid="sync-apple-pay"]').exists()).toBe(false);
   });
 
-  it('drops the empty-state text but keeps the Connect button when Apple Pay is the only connection', () => {
+  it('drops the empty-state text but keeps the Connect button when iOS Automation is the only connection', () => {
     const wrapper = mountTooltip({ applePay: { waitingCount: 0, lastPaymentAt: minutesAgo(5) } });
 
     expect(wrapper.text()).not.toContain('No bank accounts connected');
@@ -48,13 +52,13 @@ describe('SyncStatusTooltip Apple Pay row', () => {
     expect(links).toContainEqual({ name: 'accounts', query: { connect: 'bank' } });
   });
 
-  it('shows the last payment as relative time and links to the Apple Pay page', () => {
+  it('shows the last payment as relative time and links to the iOS Automation page', () => {
     const wrapper = mountTooltip({ applePay: { waitingCount: 0, lastPaymentAt: minutesAgo(5) } });
 
-    expect(wrapper.get('[data-testid="sync-apple-pay"]').text()).toContain('Apple Pay');
+    expect(wrapper.get('[data-testid="sync-apple-pay"]').text()).toContain('iOS Automation');
     expect(wrapper.get('[data-testid="sync-apple-pay-last"]').text()).toBe('Last payment 5 minutes ago');
     const links = wrapper.findAll('a').map((link) => JSON.parse(link.attributes('data-to')!));
-    expect(links).toContainEqual({ name: 'account-apple-pay' });
+    expect(links).toContainEqual({ name: 'account-ios-automation' });
   });
 
   it('says so when no payment has arrived yet', () => {
@@ -76,7 +80,7 @@ describe('SyncStatusTooltip Apple Pay row', () => {
     ).toBe('3 waiting');
   });
 
-  it('offers no sync now button for Apple Pay alone, and keeps the bank sync button for banks', () => {
+  it('offers no sync now button for iOS Automation alone, and keeps the bank sync button for banks', () => {
     expect(mountTooltip({ applePay: { waitingCount: 0, lastPaymentAt: null } }).text()).not.toContain('Sync now');
   });
 });

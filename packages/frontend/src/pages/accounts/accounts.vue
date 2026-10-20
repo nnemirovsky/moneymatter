@@ -106,7 +106,7 @@
                 :accounts="row.accounts"
                 :folder-group-names="folderGroupNames"
               />
-              <ApplePayConnectionRow
+              <IosAutomationConnectionRow
                 v-if="isApplePaySetUp"
                 :linked-cards-count="applePayLinkedCardsCount"
                 :waiting-count="applePayWaitingCount"
@@ -238,8 +238,8 @@ import { collectGroupAccounts } from '@/components/sidebar/accounts-view/helpers
 import { buildAccountGroupTree } from '@/components/sidebar/accounts-view/helpers/build-account-group-tree';
 import { useBaseBalanceTotals } from '@/composable/use-base-balance-totals';
 import { useProjectedBalance } from '@/composable/use-projected-balance';
-import ApplePayConnectionRow from '@/pages/accounts/integrations/apple-pay/components/apple-pay-connection-row.vue';
-import { useApplePayStatus } from '@/pages/accounts/integrations/apple-pay/composables/use-apple-pay-status';
+import IosAutomationConnectionRow from '@/pages/accounts/integrations/ios-automation/components/ios-automation-connection-row.vue';
+import { useIosAutomationStatus } from '@/pages/accounts/integrations/ios-automation/composables/use-ios-automation-status';
 import AddIntegrationDialog from '@/pages/accounts/integrations/components/add-integration-dialog.vue';
 import { useAccountsStore } from '@/stores';
 import { ACCOUNT_CATEGORIES, ACCOUNT_STATUSES, AccountModel } from '@bt/shared/types';
@@ -301,7 +301,7 @@ const {
   isSetUp: isApplePaySetUp,
   linkedCardsCount: applePayLinkedCardsCount,
   waitingCount: applePayWaitingCount,
-} = useApplePayStatus();
+} = useIosAutomationStatus();
 
 const { baseCurrencyCode, includeCreditLimit, sumBaseBalance } = useBaseBalanceTotals();
 

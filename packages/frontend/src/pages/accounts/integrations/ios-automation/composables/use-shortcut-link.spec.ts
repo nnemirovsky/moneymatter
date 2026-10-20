@@ -1,0 +1,117 @@
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
+import { flushPromises, mount } from '@vue/test-utils';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { defineComponent } from 'vue';
+
+import { useShortcutLink } from './use-shortcut-link';
+
+const { mockProbe } = vi.hoisted(() => ({ mockProbe: vi.fn() }));
+
+vi.mock('../ios-automation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../ios-automation')>()),
+  probeShortcutFile: mockProbe,
+}));
+
+const ICLOUD = 'https://www.icloud.com/shortcuts/abc123';
+const FILE = '/shortcuts/log-card-payment.shortcut';
+
+const mountComposable = async ({ icloudUrl, queryClient }: { icloudUrl?: string; queryClient?: QueryClient } = {}) => {
+  let composable!: ReturnType<typeof useShortcutLink>;
+  mount(
+    defineComponent({
+      setup() {
+        composable = useShortcutLink({ filePath: FILE, icloudUrl });
+        return () => null;
+      },
+    }),
+    {
+      global: {
+        plugins: [
+          [
+            VueQueryPlugin,
+            { queryClient: queryClient ?? new QueryClient({ defaultOptions: { queries: { retry: false } } }) },
+          ],
+        ],
+      },
+    },
+  );
+  await flushPromises();
+  return composable;
+};
+
+describe('useShortcutLink', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockProbe.mockResolvedValue(true);
+  });
+
+  it('links the signed file when the probe finds it', async () => {
+    expect((await mountComposable()).href.value).toBe(FILE);
+  });
+
+  it('probes the file path it was given', async () => {
+    await mountComposable();
+
+    expect(mockProbe).toHaveBeenCalledWith({ filePath: FILE });
+  });
+
+  it('has no link when the file is absent and there is no iCloud link', async () => {
+    mockProbe.mockResolvedValue(false);
+
+    expect((await mountComposable()).href.value).toBeNull();
+  });
+
+  it('links the iCloud link when the file is absent', async () => {
+    mockProbe.mockResolvedValue(false);
+
+    expect((await mountComposable({ icloudUrl: ICLOUD })).href.value).toBe(ICLOUD);
+  });
+
+  it('prefers the iCloud link over the file, whatever the device', async () => {
+    expect((await mountComposable({ icloudUrl: ICLOUD })).href.value).toBe(ICLOUD);
+  });
+
+  it('keeps one probe per file path', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    await mountComposable({ queryClient });
+    mockProbe.mockResolvedValue(false);
+
+    let other!: ReturnType<typeof useShortcutLink>;
+    mount(
+      defineComponent({
+        setup() {
+          other = useShortcutLink({ filePath: '/shortcuts/log-payments.shortcut', icloudUrl: undefined });
+          return () => null;
+        },
+      }),
+      { global: { plugins: [[VueQueryPlugin, { queryClient }]] } },
+    );
+    await flushPromises();
+
+    expect(other.href.value).toBeNull();
+  });
+
+  it('hides the link while the probe is in flight', async () => {
+    mockProbe.mockReturnValue(new Promise(() => {}));
+    let composable!: ReturnType<typeof useShortcutLink>;
+    mount(
+      defineComponent({
+        setup() {
+          composable = useShortcutLink({ filePath: FILE, icloudUrl: undefined });
+          return () => null;
+        },
+      }),
+      { global: { plugins: [[VueQueryPlugin, { queryClient: new QueryClient() }]] } },
+    );
+    await flushPromises();
+
+    expect(composable.href.value).toBeNull();
+    expect(composable.isResolved.value).toBe(false);
+  });
+
+  it('is resolved once the probe has answered', async () => {
+    mockProbe.mockResolvedValue(false);
+
+    expect((await mountComposable()).isResolved.value).toBe(true);
+  });
+});

@@ -77,7 +77,7 @@
       "syncingAccounts": "Синхронізація {count} рахунків",
       "stuck": "Синхронізація зависла",
       "failed": "Синхронізацію не вдалося виконати, деякі рахунки потребують уваги",
-      "applePayWaiting": "Платежі Apple Pay очікують на вас"
+      "applePayWaiting": "Платежі очікують на вас"
     },
     "categorization": {
       "title": "AI-категоризація",
@@ -161,7 +161,7 @@
       "yearsAgo": "{count} рік тому | {count} роки тому | {count} років тому"
     },
     "applePay": {
-      "title": "Apple Pay",
+      "title": "Автоматизація iOS",
       "lastPayment": "Останній платіж {time}",
       "noPayments": "Платежів ще немає",
       "waiting": "Очікують: {count}",

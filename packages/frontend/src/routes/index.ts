@@ -62,10 +62,15 @@ const routes: RouteRecordRaw[] = [
         redirect: { name: ROUTES_NAMES.accounts },
       },
       {
-        path: '/accounts/integrations/apple-pay',
-        name: ROUTES_NAMES.accountApplePay,
-        component: () => import('@/pages/accounts/integrations/apple-pay/apple-pay-details.vue'),
+        path: '/accounts/integrations/ios-automation',
+        name: ROUTES_NAMES.accountIosAutomation,
+        component: () => import('@/pages/accounts/integrations/ios-automation/ios-automation-details.vue'),
         meta: { navSection: 'accounts', i18nChunks: ['settings/integrations'] },
+      },
+      // The page was called "Apple Pay" before it also logged bank notifications.
+      {
+        path: '/accounts/integrations/apple-pay',
+        redirect: { name: ROUTES_NAMES.accountIosAutomation },
       },
       {
         path: '/accounts/integrations/:connectionId',
@@ -541,8 +546,8 @@ const routes: RouteRecordRaw[] = [
               { path: 'endpoints', redirect: { name: ROUTES_NAMES.settingsAiModels } },
             ],
           },
-          // Apple Pay setup moved next to the bank connections.
-          { path: 'integrations/:pathMatch(.*)*', redirect: { name: ROUTES_NAMES.accountApplePay } },
+          // The shortcut setup moved next to the bank connections.
+          { path: 'integrations/:pathMatch(.*)*', redirect: { name: ROUTES_NAMES.accountIosAutomation } },
           {
             path: 'security',
             name: ROUTES_NAMES.settingsSecurity,

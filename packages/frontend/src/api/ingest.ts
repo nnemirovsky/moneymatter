@@ -10,11 +10,15 @@ import type {
   CreateCardPaymentSetupCodeResponse,
   CreateIngestTokenPayload,
   CreateIngestTokenResponse,
+  GateStrictnessDto,
   IngestTokenDto,
+  NotificationSourceDto,
+  RetryCardPaymentRequestPayload,
   SetAccessHeadersPayload,
   UnconfirmedCardPaymentDto,
   UnlinkedCardDto,
   UpdateCardMappingPayload,
+  UpdateNotificationSourcePayload,
 } from '@bt/shared/types';
 
 export const getIngestTokens = async (): Promise<IngestTokenDto[]> => {
@@ -64,10 +68,15 @@ export const getCardPaymentRequests = async ({
 /** Answers 200 when the payment was logged and 202 when it is still waiting; the body says which. */
 export const retryCardPaymentRequest = async ({
   id,
+  force,
 }: {
   id: CardPaymentRequestDto['id'];
+  /** Logs a notification payment parked for the owner's approval (`ownTransfer`, `lowConfidence`). */
+  force?: boolean;
 }): Promise<CardPaymentRetryResponse> => {
-  return api.post(`/user/settings/card-payments/requests/${id}/retry`);
+  const payload: RetryCardPaymentRequestPayload | undefined = force ? { force } : undefined;
+
+  return api.post(`/user/settings/card-payments/requests/${id}/retry`, payload);
 };
 
 export const dismissCardPaymentRequest = async ({
@@ -95,4 +104,31 @@ export const createCardPaymentSetupCode = async (
   payload: CreateCardPaymentSetupCodePayload,
 ): Promise<CreateCardPaymentSetupCodeResponse> => {
   return api.post('/user/settings/card-payments/setup-code', payload);
+};
+
+export const getNotificationSources = async (): Promise<NotificationSourceDto[]> => {
+  return api.get('/user/settings/notification-sources');
+};
+
+export const updateNotificationSource = async ({
+  id,
+  ...payload
+}: UpdateNotificationSourcePayload & { id: NotificationSourceDto['id'] }): Promise<NotificationSourceDto> => {
+  return api.patch(`/user/settings/notification-sources/${id}`, payload);
+};
+
+export const deleteNotificationSource = async ({
+  id,
+}: {
+  id: NotificationSourceDto['id'];
+}): Promise<{ success: boolean }> => {
+  return api.delete(`/user/settings/notification-sources/${id}`);
+};
+
+export const getGateStrictness = async (): Promise<GateStrictnessDto> => {
+  return api.get('/user/settings/card-payments/gate-strictness');
+};
+
+export const setGateStrictness = async (payload: GateStrictnessDto): Promise<GateStrictnessDto> => {
+  return api.put('/user/settings/card-payments/gate-strictness', payload);
 };

@@ -77,7 +77,7 @@
       "syncingAccounts": "Syncing {count} accounts",
       "stuck": "Sync stuck",
       "failed": "Sync failed, some accounts need attention",
-      "applePayWaiting": "Apple Pay payments are waiting for you"
+      "applePayWaiting": "Payments are waiting for you"
     },
     "categorization": {
       "title": "AI categorization",
@@ -161,7 +161,7 @@
       "yearsAgo": "{count} year ago | {count} years ago"
     },
     "applePay": {
-      "title": "Apple Pay",
+      "title": "iOS Automation",
       "lastPayment": "Last payment {time}",
       "noPayments": "No payments yet",
       "waiting": "{count} waiting",

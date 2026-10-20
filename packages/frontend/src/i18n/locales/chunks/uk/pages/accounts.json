@@ -45,7 +45,7 @@
       "expired": "Закінчився"
     },
     "applePay": {
-      "name": "Apple Pay",
+      "name": "Автоматизація iOS",
       "cardsLinked": "{count} картку прив’язано | {count} картки прив’язано | {count} карток прив’язано",
       "waiting": "{count} очікують"
     }

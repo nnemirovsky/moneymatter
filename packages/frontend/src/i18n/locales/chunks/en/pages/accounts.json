@@ -45,7 +45,7 @@
       "expired": "Expired"
     },
     "applePay": {
-      "name": "Apple Pay",
+      "name": "iOS Automation",
       "cardsLinked": "{count} card linked | {count} cards linked",
       "waiting": "{count} waiting"
     }

@@ -10,7 +10,7 @@ export const ROUTES_NAMES = Object.freeze({
   accounts: `${ROUTER_LAYOUTS.dashboard}.accounts`,
   account: `${ROUTER_LAYOUTS.dashboard}.account`,
   accountsVehicleDetails: `${ROUTER_LAYOUTS.dashboard}.accounts.vehicle-details`,
-  accountApplePay: `${ROUTER_LAYOUTS.dashboard}.account-apple-pay`,
+  accountIosAutomation: `${ROUTER_LAYOUTS.dashboard}.account-ios-automation`,
   accountIntegrationDetails: `${ROUTER_LAYOUTS.dashboard}.account-integration-details`,
   bankCallback: `${ROUTER_LAYOUTS.dashboard}.bank-callback`,
   planned: `${ROUTER_LAYOUTS.dashboard}.planned`,

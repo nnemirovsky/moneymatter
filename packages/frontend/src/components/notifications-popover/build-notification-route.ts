@@ -168,7 +168,7 @@ export const buildNotificationRoute = (notification: NotificationStruct): Notifi
       // The setup page is where the payment's limits, sources and failed requests are handled.
       return {
         kind: 'spa',
-        to: { name: ROUTES_NAMES.accountApplePay },
+        to: { name: ROUTES_NAMES.accountIosAutomation },
       };
 
     default:

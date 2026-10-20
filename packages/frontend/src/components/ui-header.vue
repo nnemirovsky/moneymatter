@@ -200,7 +200,7 @@ import NotificationsPopover from '@/components/notifications-popover/index.vue';
 import Sidebar from '@/components/sidebar/index.vue';
 import SyncConfirmationDialog from '@/components/sync-confirmation-dialog.vue';
 import SyncStatusTooltip from '@/components/sync-status-tooltip.vue';
-import { useApplePayStatus } from '@/pages/accounts/integrations/apple-pay/composables/use-apple-pay-status';
+import { useIosAutomationStatus } from '@/pages/accounts/integrations/ios-automation/composables/use-ios-automation-status';
 import {
   createTransactionPrefill,
   isCreateTransactionDialogOpen,
@@ -294,7 +294,7 @@ const {
   isSetUp: isApplePaySetUp,
   waitingCount: applePayWaitingCount,
   lastPaymentAt: applePayLastPaymentAt,
-} = useApplePayStatus();
+} = useIosAutomationStatus();
 
 // Sync button is icon-only, so its meaning lives in the accessible name.
 const syncButtonLabel = computed(() => {

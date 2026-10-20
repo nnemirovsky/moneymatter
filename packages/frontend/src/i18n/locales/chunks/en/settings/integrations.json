@@ -56,21 +56,24 @@
           "done": "Done"
         }
       },
-      "applePay": {
-        "title": "Apple Pay",
-        "description": "Log every Apple Pay payment in MoneyMatter the moment you tap, without typing anything. An iOS Shortcut sends each payment here, and MoneyMatter files it on the account linked to the card.",
+      "iosAutomation": {
+        "title": "iOS Automation",
+        "description": "Log your card payments in MoneyMatter without typing anything. An iOS Shortcut sends each Apple Pay tap and, on iOS 27 or later, the notifications your banks send, and MoneyMatter files them on the account linked to the card.",
         "manualGuide": "Prefer to build the shortcut by hand? Follow the {link}.",
         "manualGuideLink": "manual setup guide",
         "setup": {
-          "title": "One-tap setup",
-          "description": "Generate a setup code, add the MoneyMatter shortcut to your iPhone and paste the code when the shortcut asks for it. The code carries a new token, so nothing else needs to be typed.",
-          "revokePrevious": "Revoke the previous Apple Pay token",
+          "title": "Shortcut setup",
+          "description": "Generate a setup code, add the shortcut that matches your iPhone and paste the code when the shortcut asks for it. The code carries a new token, so nothing else needs to be typed.",
+          "revokePrevious": "Revoke the previous setup token",
           "revokePreviousHint": "The shortcut that uses the old token stops working until you set it up again with the new code.",
           "generate": "Generate setup code",
           "generateError": "Could not generate the setup code",
-          "addShortcut": "Add Shortcut",
-          "addShortcutHint": "Copy the setup code first. The shortcut asks for it once, when you add it.",
-          "shortcutUnavailable": "This instance does not ship the shortcut file. Build the shortcut by hand with the manual guide below, or ask the administrator for the shortcut link."
+          "payments": {
+            "addShortcut": "Add shortcut — iOS 27 or later"
+          },
+          "tap": {
+            "addShortcut": "Add shortcut — iOS 26 or earlier"
+          }
         },
         "accessHeaders": {
           "title": "Cloudflare Access (optional)",
@@ -94,13 +97,14 @@
         },
         "codeDialog": {
           "title": "Your setup code",
-          "description": "Copy the code, tap Add Shortcut and paste the code when the shortcut asks for it. To set up another phone, scan the QR code and copy the text it shows.",
+          "description": "Copy the code, tap an Add shortcut button and paste the code when the shortcut asks for it. To set up another phone, scan the QR code and copy the text it shows.",
           "warning": "You won't see this code again. It holds a token that can add payments to your account, so don't share it. If you lose it, generate a new one.",
           "codeLabel": "Setup code",
           "qrLabel": "QR code of the setup code",
           "copy": "Copy code",
           "copied": "Setup code copied to clipboard",
-          "done": "Done"
+          "done": "Done",
+          "manualCopy": "Tap and hold the code to copy it."
         },
         "checklist": {
           "title": "Then create the automation on your iPhone",
@@ -113,7 +117,7 @@
         },
         "cardLinks": {
           "title": "Card links",
-          "description": "Apple Wallet gives each card a name. Link that name to the account its payments should be logged on. A card in several currencies can have an account for each currency and a default for the rest. A payment from a card without a link waits until you link it.",
+          "description": "Apple Wallet gives each card a name. Link that name to the account its payments should be logged on. A card in several currencies can have an account for each currency and a default for the rest. A payment from a card without a link waits until you link it. Bank notifications name the card by its last digits, so add them too.",
           "add": "Link a card",
           "loadError": "Could not load your card links. Check your connection and try again.",
           "empty": {
@@ -144,7 +148,11 @@
             "currencyPlaceholder": "Select a currency",
             "currencyDefault": "Default (other currencies)",
             "currencyHint": "Payments in this currency are logged on this account.",
-            "currencyDefaultHint": "Payments in a currency without an account of its own are logged here."
+            "currencyDefaultHint": "Payments in a currency without an account of its own are logged here.",
+            "lastDigits": "Last digits (optional)",
+            "lastDigitsPlaceholder": "For example 1234",
+            "lastDigitsHint": "Bank notifications name a card by its last digits, not by its Wallet name.",
+            "lastDigitsInvalid": "Enter 4 to 8 digits."
           },
           "deleteDialog": {
             "title": "Delete this card link?",
@@ -193,7 +201,21 @@
             "processingFailed": "MoneyMatter could not process this payment.",
             "interrupted": "Processing was interrupted before it finished.",
             "emptyPayment": "iOS sent no amount or merchant for this payment. Add it by hand.",
-            "rejected": "This payment was refused as invalid."
+            "rejected": "This payment was refused as invalid.",
+            "unknownAccount": "No account matches this payment. Link the card above and retry, or pick an account in the inbox.",
+            "sourceNotApproved": "The app or sender is not approved yet. Approve it under the sources above, or mute it.",
+            "aiUnavailable": "No AI model is available to read this notification. Retry once one is set up.",
+            "aiCapReached": "The monthly AI limit is reached. Retry after it resets or once you raise it.",
+            "aiLimitReached": "The daily limit for reading notifications is reached. Retry tomorrow.",
+            "ownTransfer": "This looks like a transfer between your own accounts. Log it anyway, or settle it in the inbox.",
+            "lowConfidence": "MoneyMatter is not sure this is a payment. Log it if it is, or dismiss it.",
+            "ignored": {
+              "declined": "Read as a declined payment, so nothing was logged.",
+              "security": "Read as a security message, such as a code, so nothing was logged.",
+              "promo": "Read as a promotion, so nothing was logged.",
+              "info": "Read as information without a payment, so nothing was logged.",
+              "other": "Not a payment, so nothing was logged."
+            }
           },
           "retry": "Retry",
           "retryAria": "Retry the payment at {name}",
@@ -223,7 +245,14 @@
             "rejected": "Refused",
             "dismissed": "Dismissed",
             "ignored": "Ignored"
-          }
+          },
+          "kinds": {
+            "cardPayment": "Wallet tap",
+            "notification": "Notification"
+          },
+          "openInbox": "Open in the inbox",
+          "approve": "Log it",
+          "approveAria": "Log the payment at {name} anyway"
         },
         "unconfirmed": {
           "title": "Not confirmed by the bank",
@@ -239,7 +268,96 @@
           }
         },
         "back": "Back to accounts",
-        "limitation": "Only contactless taps in a shop start the shortcut. Apple Pay payments inside apps and on websites do not trigger the Wallet automation, so log them by hand or connect your bank to bring them in with the bank sync."
+        "limitation": "The iOS 26 shortcut logs contactless taps in a shop only. Payments inside apps and on websites do not trigger the Wallet automation; on iOS 27 or later the notifications from Wallet and your bank log them too. Otherwise log them by hand or connect your bank to bring them in with the bank sync.",
+        "choice": {
+          "payments": {
+            "title": "iOS 27 or later",
+            "summary": "One shortcut with built-in triggers. It logs Apple Pay taps and online payments from Wallet, and bank notifications: app pushes, SMS and email."
+          },
+          "tap": {
+            "title": "iOS 26 or earlier",
+            "summary": "Logs Apple Pay taps in shops. It runs from a Wallet Transaction automation that you create on the phone."
+          },
+          "showInstructions": "Show instructions",
+          "hideInstructions": "Hide instructions",
+          "unavailable": "This instance does not ship the \"{name}\" shortcut. Build it by hand with the manual guide above, or ask the administrator for the shortcut link.",
+          "hint": "Copy the setup code first. The shortcut asks for it once, when you add it. In the home-screen app the link opens in a sheet: tap Get Shortcut there."
+        },
+        "triggered": {
+          "title": "Then switch on the triggers on your iPhone",
+          "description": "The shortcut brings its own triggers, one for Wallet payments and one for notifications. iOS adds them switched off.",
+          "step1": "Add the shortcut and paste the setup code when it asks for it.",
+          "step2": "Open the shortcut, tap each of its two triggers (Transaction and Notification) and turn on Automation. Imported triggers arrive switched off, so nothing runs until you do. Choose Run Immediately for both.",
+          "step3": "The Notification trigger comes with Wallet and Messages already selected. Open it and add your bank apps, and your mail app if your bank writes by email.",
+          "step4": "Apple Wallet may be missing from the Notification trigger after the import. If you do not see it in the list of apps, add it by hand.",
+          "gateTitle": "What leaves your phone",
+          "gate": "Only notifications that show an amount leave your phone. The check is a built-in Match Text, so no Apple Intelligence is needed.",
+          "testTitle": "Test it",
+          "test": "Run the shortcut by hand from the Shortcuts app. It sends a test request and shows a notification that confirms the connection."
+        },
+        "gate": {
+          "title": "Amount check",
+          "description": "Before a notification leaves your phone, the shortcut checks that it shows an amount, and the server checks it again. A stricter level sends less text, a looser one catches more payments.",
+          "loadError": "Could not load the amount check.",
+          "saved": "Amount check updated",
+          "saveError": "Could not change the amount check",
+          "levels": {
+            "strict": {
+              "title": "Strict",
+              "description": "Only text with a currency code or symbol next to the number, like 43.60 GEL or $12."
+            },
+            "standard": {
+              "title": "Standard",
+              "description": "Also local currency words, with a code, symbol or word within a few characters of the number."
+            },
+            "loose": {
+              "title": "Loose",
+              "description": "Also a number with two decimals and no currency, like 43.60."
+            }
+          },
+          "looseWarning": "The loose level also lets through messages that have only a number like 12.50, such as promos and delivery notes, so more unrelated text leaves your phone.",
+          "newCodeHint": "The level is part of the shortcut. Generate a new setup code and add the shortcut again to apply it."
+        },
+        "sources": {
+          "title": "Notification sources",
+          "description": "Apps that sent notifications. Wallet and known banks are trusted from the start, you approve the rest. Mute a source to ignore its notifications.",
+          "loadError": "Could not load the notification sources.",
+          "empty": "No sources yet. They appear after the first notification arrives.",
+          "unknownApp": "Unknown app",
+          "sender": "From {sender}",
+          "modes": {
+            "auto": "Trusted",
+            "pending": "Waiting",
+            "approved": "Approved",
+            "muted": "Muted"
+          },
+          "approve": "Approve",
+          "approveAria": "Approve {name}",
+          "mute": "Mute",
+          "muteAria": "Mute {name}",
+          "forget": "Forget",
+          "forgetAria": "Forget {name}",
+          "saveError": "Could not update the source",
+          "forgetDialog": {
+            "title": "Forget this source?",
+            "description": "{name} counts as a new source the next time it sends a notification. Payments already logged stay as they are.",
+            "confirm": "Forget source",
+            "success": "Source forgotten",
+            "error": "Could not forget the source"
+          }
+        },
+        "pending": {
+          "title": "Sources waiting for your OK",
+          "description": "These apps or senders sent notifications that may hold payments. Approve one to have its notifications read, or mute it to delete the text held for it.",
+          "loadError": "Could not load the sources waiting for your OK.",
+          "unknownApp": "Unknown app",
+          "sender": "From {sender}",
+          "approve": "Approve",
+          "approveAria": "Approve {name}",
+          "mute": "Mute",
+          "muteAria": "Mute {name}",
+          "saveError": "Could not update the source"
+        }
       }
     }
   }

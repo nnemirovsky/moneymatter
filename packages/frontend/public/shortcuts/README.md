@@ -1,6 +1,6 @@
 # Card-payment Shortcut
 
-`log-card-payment.shortcut` is the signed Shortcut that the Apple Pay page (Accounts → Apple Pay) offers as **Add Shortcut**. The page hides the button while the file is missing (a HEAD probe), so the file can be added later. nginx serves this directory at `/shortcuts/` as a download.
+`log-card-payment.shortcut` is the signed Shortcut that the iOS Automation page (Accounts → iOS Automation) offers as **Add Shortcut**. The page hides the button while the file is missing (a HEAD probe), so the file can be added later. nginx serves this directory at `/shortcuts/` as a download.
 
 ## Where it comes from
 

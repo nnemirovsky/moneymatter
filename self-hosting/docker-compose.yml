@@ -119,6 +119,7 @@ services:
       API_VER: ${API_VER:-/api/v1}
       MCP_BASE_URL: ${MCP_BASE_URL:-}
       CARD_PAYMENT_SHORTCUT_ICLOUD_URL: ${CARD_PAYMENT_SHORTCUT_ICLOUD_URL:-}
+      PAYMENTS_SHORTCUT_ICLOUD_URL: ${PAYMENTS_SHORTCUT_ICLOUD_URL:-}
       # Optional frontend runtime config. Set the corresponding keys in
       # .env to enable; left empty they are no-ops.
       POSTHOG_KEY: ${VITE_POSTHOG_KEY:-}

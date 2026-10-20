@@ -322,7 +322,7 @@ describe('buildNotificationRoute', () => {
         baseNotification({ type: NOTIFICATION_TYPES.ingestAttention, payload: { reason: 'aiCapReached' } }),
       );
 
-      expect(route).toEqual({ kind: 'spa', to: { name: ROUTES_NAMES.accountApplePay } });
+      expect(route).toEqual({ kind: 'spa', to: { name: ROUTES_NAMES.accountIosAutomation } });
     });
   });
 });

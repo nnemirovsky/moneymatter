@@ -126,21 +126,23 @@
       </template>
     </PlanRestricted>
 
-    <!-- Apple Pay is not a bank provider, so it sits outside the bank-provider plan gate. It works with any
+    <!-- iOS Automation (Apple Pay taps and bank notifications) is not a bank provider, so it sits outside the bank-provider plan gate. It works with any
          bank, so no region filter dims it. -->
     <div v-if="currentStep === 'select-provider'" class="mt-0.5 grid gap-0.5">
       <UiButton
         variant="ghost"
         class="h-auto w-full min-w-0 justify-start gap-3 px-3 py-2.5"
         data-testid="add-apple-pay"
-        @click="handleSelectApplePay"
+        @click="handleSelectIosAutomation"
       >
         <WalletIcon class="size-9 shrink-0" />
 
         <span class="min-w-0 flex-1 text-left">
-          <span class="block truncate text-sm font-medium">{{ t('pages.integrations.addDialog.applePay.name') }}</span>
-          <span class="text-muted-foreground block truncate text-xs font-normal">
-            {{ t('pages.integrations.addDialog.applePay.description') }}
+          <span class="block truncate text-sm font-medium">{{
+            t('pages.integrations.addDialog.iosAutomation.name')
+          }}</span>
+          <span class="text-muted-foreground line-clamp-2 block text-xs font-normal">
+            {{ t('pages.integrations.addDialog.iosAutomation.description') }}
           </span>
 
           <span class="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-normal">
@@ -149,7 +151,7 @@
             <span class="text-muted-foreground">·</span>
 
             <ResponsiveTooltip
-              :content="t('pages.integrations.tooltips.applePay')"
+              :content="t('pages.integrations.tooltips.iosAutomation')"
               content-class-name="max-w-xs text-wrap"
             >
               <span class="text-muted-foreground inline-flex items-center gap-1">
@@ -162,7 +164,7 @@
             <span class="text-muted-foreground">·</span>
 
             <ResponsiveTooltip
-              :content="t('pages.integrations.addDialog.applePay.worldwideTooltip')"
+              :content="t('pages.integrations.addDialog.iosAutomation.worldwideTooltip')"
               content-class-name="max-w-xs text-wrap"
             >
               <span class="text-muted-foreground inline-flex items-center gap-1" data-testid="apple-pay-worldwide">
@@ -174,7 +176,7 @@
             <span class="text-muted-foreground">·</span>
 
             <span class="text-muted-foreground" data-testid="apple-pay-modes">
-              {{ applePayModes }}
+              {{ iosAutomationModes }}
             </span>
           </span>
         </span>
@@ -211,6 +213,7 @@ import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
+import { IOS_AUTOMATION_MODE_LABEL_KEYS } from '../ios-automation/ios-automation';
 import EnableBankingConnector from './enable-banking-connector.vue';
 import LunchFlowConnector from './lunchflow-connector.vue';
 import MonobankConnector from './monobank-connector.vue';
@@ -273,10 +276,7 @@ const providerRows = computed(() => {
   });
 });
 
-/** Ways Apple Pay payments get logged. Add a key here when a new mode ships. */
-const APPLE_PAY_MODE_LABEL_KEYS = ['pages.integrations.addDialog.applePay.modes.taps'] as const;
-
-const applePayModes = computed(() => APPLE_PAY_MODE_LABEL_KEYS.map((key) => t(key)).join(' · '));
+const iosAutomationModes = computed(() => IOS_AUTOMATION_MODE_LABEL_KEYS.map((key) => t(key)).join(' · '));
 
 const chipClass = (isActive: boolean) =>
   cn(
@@ -305,10 +305,10 @@ const handleSelectProvider = (providerType: string) => {
   });
 };
 
-/** Apple Pay has no bank to authorize: its setup, cards and devices live on one page. */
-const handleSelectApplePay = () => {
+/** iOS Automation has no bank to authorize: its setup, cards and devices live on one page. */
+const handleSelectIosAutomation = () => {
   emit('update:open', false);
-  router.push({ name: ROUTES_NAMES.accountApplePay });
+  router.push({ name: ROUTES_NAMES.accountIosAutomation });
 };
 
 const handleProviderConnected = () => {

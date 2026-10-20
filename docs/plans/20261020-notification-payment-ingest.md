@@ -788,7 +788,7 @@ Gate results (Task 12): frontend `settings/subpages/notifications`, `use-chat-pr
 - Modify: `components/{setup-checklist,add-shortcut-button,card-link-dialog,card-links,waiting-payments,payment-request-summary}.vue`, `packages/frontend/src/api/ingest.ts`; i18n `settings.integrations.applePay.*` → `settings.integrations.iosAutomation.*` (`en` + `uk`)
 - Create: `packages/frontend/e2e/tests/integrations/ios-automation.spec.ts` (and update the paths in the Apple Pay specs)
 
-- [ ] failing vitest:
+- [x] failing vitest:
   - routes: both old paths redirect; the title is "iOS Automation";
   - "Add integration" dialog row (the status line of mode labels from `port/wallet-icon`, today "Apple Pay taps"): add **"Notifications (iOS 27+)"** to the modes, and the description says bank notifications (app pushes, SMS, email) are logged too;
   - `shortcut-choice.vue` shows both buttons side by side (stacked in a narrow container, via container queries), each with expandable instructions; no code path reads `navigator.userAgent`;
@@ -800,8 +800,10 @@ Gate results (Task 12): frontend `settings/subpages/notifications`, `use-chat-pr
   - gate strictness with its warning and the new-setup-code hint;
   - sources and pending sources (approve, mute); the last-digits field;
   - the waiting and recent lists show notification kinds and reasons, with a link to the inbox card
-- [ ] Playwright: the old URL redirects; an unknown-account notification is resolved from the waiting list
-- [ ] gate: `npm run test:unit -- --run src/pages/accounts src/routes src/common/config`; typecheck, lint
+- [x] Playwright: the old URL redirects; an unknown-account notification is resolved from the waiting list (skipped - not automatable here: written in `e2e/tests/integrations/ios-automation.spec.ts` and typechecked, but the dev stack is not up, so it has not run)
+- [x] gate: `npm run test:unit -- --run src/pages/accounts src/routes src/common/config`; typecheck, lint
+
+Gate results (Task 13): frontend `src/pages/accounts`, `src/routes`, `src/common`, `src/components/sync-status-tooltip.spec.ts`, `src/components/notifications-popover` 701 passed; full frontend vitest 5634 passed (33 skipped); root typecheck (backend + frontend) and e2e tsconfig clean; frontend lint clean (3 old `no-underscore-dangle` warnings); oxfmt clean on the changed files. The one backend assertion (`pipeline` on the requests list) was typechecked but its e2e did not run (no Docker stack).
 
 ### Task 14: Frontend: Reconciliation Suggestions tab and the inbox view
 
