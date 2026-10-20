@@ -12,9 +12,24 @@ import { z } from 'zod';
 /** Filters are free-form for the model's benefit; a size bound keeps a page context from carrying a payload. */
 const PAGE_CONTEXT_FILTERS_MAX_BYTES = 4_096;
 
+/** The rows ticked on a page are a sample for the model; the page says how many there are in all. */
+const PAGE_CONTEXT_SELECTION_MAX_IDS = 50;
+
+const entityRefSchema = z.strictObject({ kind: z.enum(CHAT_ENTITY_KINDS), id: recordId() });
+
 const pageContextSchema = z.strictObject({
   route: z.string().max(100).optional(),
-  entity: z.strictObject({ kind: z.enum(CHAT_ENTITY_KINDS), id: recordId() }).optional(),
+  // A kind this server does not know (a newer browser) is left out; it does not fail the message.
+  entity: entityRefSchema.optional().catch(undefined),
+  focus: entityRefSchema.optional().catch(undefined),
+  selection: z
+    .strictObject({
+      kind: z.enum(CHAT_ENTITY_KINDS),
+      ids: z.array(recordId()).max(PAGE_CONTEXT_SELECTION_MAX_IDS),
+      total: z.number().int().nonnegative().optional(),
+    })
+    .optional()
+    .catch(undefined),
   filters: z
     .record(z.string().max(100), z.unknown())
     .refine((filters) => JSON.stringify(filters).length <= PAGE_CONTEXT_FILTERS_MAX_BYTES)

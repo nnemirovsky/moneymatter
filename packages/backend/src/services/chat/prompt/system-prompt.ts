@@ -3,7 +3,7 @@ import { LOCALE_NAMES, type SupportedLocale } from '@bt/shared/i18n/locales';
 import { FINANCIAL_DATA_GUIDE_CONTENT } from '../../mcp/prompts/financial-data-guide';
 
 /** Stored on every assistant message; bump it when the prompt changes in a way worth telling runs apart by. */
-export const CHAT_PROMPT_VERSION = 'chat-3';
+export const CHAT_PROMPT_VERSION = 'chat-4';
 
 const ROLE = `You are the assistant inside MoneyMatter, a personal finance app. You work in one of two modes, chosen by what the user asks.
 
