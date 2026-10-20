@@ -382,11 +382,9 @@ describe('AI SDK chat runner', () => {
   it('puts the page context in the prompt as data, without ids the user does not own', async () => {
     const account = await helpers.createAccount({ raw: true });
     const { script, threadId } = await arrange({ turns: [{ text: 'This account has a balance.' }] });
-
-    await send({
+    await helpers.updateChatThread({
       threadId,
       payload: {
-        text: 'How is this account doing?',
         pageContext: {
           route: 'account',
           entity: { kind: 'account', id: account.id },
@@ -394,6 +392,8 @@ describe('AI SDK chat runner', () => {
         },
       },
     });
+
+    await send({ threadId, payload: { text: 'How is this account doing?' } });
 
     const system = String(script.requests[0]!.messages![0]!.content);
     expect(system).toContain(account.id);
@@ -418,10 +418,9 @@ describe('AI SDK chat runner', () => {
     });
     const { script, threadId } = await arrange({ turns: [{ text: 'It renews monthly.' }] });
 
-    await send({
+    await helpers.updateChatThread({
       threadId,
       payload: {
-        text: 'When does this renew?',
         pageContext: {
           route: 'dashboard.planned.subscription-details',
           entity: { kind: 'subscription', id: subscription.id },
@@ -430,6 +429,7 @@ describe('AI SDK chat runner', () => {
         },
       },
     });
+    await send({ threadId, payload: { text: 'When does this renew?' } });
 
     const system = String(script.requests[0]!.messages![0]!.content);
     expect(system).toContain(`open subscription: ${subscription.id} (Netflix)`);
@@ -442,17 +442,16 @@ describe('AI SDK chat runner', () => {
     const tracker = await helpers.createTracker({ name: 'Groceries limit', raw: true });
     const { script, threadId } = await arrange({ turns: [{ text: 'On track.' }, { text: 'Fine.' }] });
 
-    await send({
+    await helpers.updateChatThread({
       threadId,
       payload: {
-        text: 'Am I on track here?',
         pageContext: { route: 'dashboard.planned.tracker-details', entity: { kind: 'tracker', id: tracker.id } },
       },
     });
-    await send({
+    await send({ threadId, payload: { text: 'Am I on track here?' } });
+    await helpers.updateChatThread({
       threadId,
       payload: {
-        text: 'And here?',
         pageContext: {
           route: 'dashboard.planned.tracker-details',
           entity: { kind: 'tracker', id: FOREIGN_ID },
@@ -460,6 +459,7 @@ describe('AI SDK chat runner', () => {
         },
       },
     });
+    await send({ threadId, payload: { text: 'And here?' } });
 
     const first = String(script.requests[0]!.messages![0]!.content);
     expect(first).toContain(`open tracker: ${tracker.id} (Groceries limit)`);

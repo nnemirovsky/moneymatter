@@ -150,6 +150,99 @@ describe('Chat threads', () => {
     });
   });
 
+  describe('Page context of a thread', () => {
+    const FOREIGN_ID = '0d9c8b7a-6f5e-4d3c-8b2a-1f0e9d8c7b6a';
+
+    it('keeps the page a thread started on, names its entity, and shows it in the list and on the thread', async () => {
+      const account = await helpers.createAccount({
+        payload: helpers.buildAccountPayload({ name: 'Main card' }),
+        raw: true,
+      });
+      const created = await helpers.createChatThread({
+        pageContext: { route: 'dashboard.account', entity: { kind: 'account', id: account.id } },
+        raw: true,
+      });
+
+      expect(created.pageContext).toEqual({ route: 'dashboard.account', entity: { kind: 'account', id: account.id } });
+      expect(created.pageContextNames).toEqual({ [`account:${account.id}`]: 'Main card' });
+
+      const loaded = await helpers.getChatThread({ threadId: created.id, raw: true });
+      expect(loaded.thread.pageContext).toEqual(created.pageContext);
+      expect(loaded.thread.pageContextNames).toEqual(created.pageContextNames);
+
+      const listed = await helpers.listChatThreads({ raw: true });
+      expect(listed.threads.find((thread) => thread.id === created.id)).toMatchObject({
+        pageContext: created.pageContext,
+        pageContextNames: created.pageContextNames,
+      });
+    });
+
+    it('starts a thread without a page when none is sent', async () => {
+      const thread = await helpers.createChatThread({ raw: true });
+
+      expect(thread.pageContext).toBeNull();
+      expect(thread.pageContextNames).toEqual({});
+    });
+
+    it('drops an entity the user does not own when it is stored', async () => {
+      const thread = await helpers.createChatThread({
+        pageContext: { route: 'dashboard.planned.tracker-details', entity: { kind: 'tracker', id: FOREIGN_ID } },
+        raw: true,
+      });
+
+      expect(thread.pageContext).toEqual({ route: 'dashboard.planned.tracker-details' });
+    });
+
+    it('replaces the page, removes it with null, and leaves it alone when the request does not name it', async () => {
+      const thread = await helpers.createChatThread({ pageContext: { route: 'dashboard.transactions' }, raw: true });
+
+      const replaced = await helpers.updateChatThread({
+        threadId: thread.id,
+        payload: { pageContext: { route: 'dashboard.budget' } },
+        raw: true,
+      });
+      expect(replaced.pageContext).toEqual({ route: 'dashboard.budget' });
+
+      const renamed = await helpers.updateChatThread({ threadId: thread.id, payload: { title: 'Budget' }, raw: true });
+      expect(renamed.pageContext).toEqual({ route: 'dashboard.budget' });
+
+      const removed = await helpers.updateChatThread({
+        threadId: thread.id,
+        payload: { pageContext: null },
+        raw: true,
+      });
+      expect(removed.pageContext).toBeNull();
+    });
+
+    it('shows no name for an entity that is gone', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const thread = await helpers.createChatThread({
+        pageContext: { route: 'dashboard.account', entity: { kind: 'account', id: account.id } },
+        raw: true,
+      });
+      await ChatThreads.update(
+        { pageContext: { route: 'dashboard.account', entity: { kind: 'account', id: FOREIGN_ID } } },
+        { where: { id: thread.id } },
+      );
+
+      const loaded = await helpers.getChatThread({ threadId: thread.id, raw: true });
+
+      expect(loaded.thread.pageContext?.entity?.id).toBe(FOREIGN_ID);
+      expect(loaded.thread.pageContextNames).toEqual({});
+    });
+
+    it('no longer takes a page context on a message', async () => {
+      const thread = await helpers.createChatThread({ raw: true });
+
+      const response = await helpers.sendChatMessage({
+        threadId: thread.id,
+        payload: { text: 'Hello', pageContext: { route: 'dashboard.budget' } },
+      });
+
+      expect(response.statusCode).toBe(ERROR_CODES.ValidationError);
+    });
+  });
+
   describe('GET /chat/threads/:id', () => {
     it('returns the thread with its latest messages, oldest first, and pages backwards', async () => {
       const thread = await helpers.createChatThread({ title: 'History', raw: true });

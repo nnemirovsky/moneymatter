@@ -16,6 +16,7 @@ import {
   type ChatSendMessageRequest,
   type ChatSendMessageResponse,
   type ChatSettings,
+  type ChatPageContext,
   type ChatThread,
   type ChatThreadListPage,
   type ChatThreadWithMessages,
@@ -40,8 +41,15 @@ export async function createChatThread<R extends boolean | undefined = undefined
   title,
   connectionId,
   modelId,
+  pageContext,
   raw,
-}: { title?: string; connectionId?: string | null; modelId?: string | null; raw?: R } = {}) {
+}: {
+  title?: string;
+  connectionId?: string | null;
+  modelId?: string | null;
+  pageContext?: ChatPageContext | null;
+  raw?: R;
+} = {}) {
   return makeRequest<ChatThread, R>({
     method: 'post',
     url: '/chat/threads',
@@ -49,6 +57,7 @@ export async function createChatThread<R extends boolean | undefined = undefined
       ...(title === undefined ? {} : { title }),
       ...(connectionId === undefined ? {} : { connectionId }),
       ...(modelId === undefined ? {} : { modelId }),
+      ...(pageContext === undefined ? {} : { pageContext }),
     },
     raw,
   });

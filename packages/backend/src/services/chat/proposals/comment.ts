@@ -24,7 +24,6 @@ export async function commentOnProposal({
     threadId: card.threadId,
     text,
     attachmentIds: [],
-    pageContext: null,
     cardComment: { proposalId },
   });
 }
