@@ -6,7 +6,9 @@ import { validateCreateBudgetPlanGroupArgs } from './tools/create-budget-plan-gr
 import { validateCreateBudgetPlanLineArgs } from './tools/create-budget-plan-line';
 import { validateCreateCustomCurrencyArgs } from './tools/create-custom-currency';
 import { validateCreateHoldingArgs } from './tools/create-holding';
+import { validateCreateInvestmentTransactionArgs } from './tools/create-investment-transaction';
 import { validateCreateLoanArgs } from './tools/create-loan';
+import { validateCreateTrackerArgs } from './tools/create-tracker';
 import { validateCreateTransactionArgs } from './tools/create-transaction';
 import { validateCreateVehicleArgs } from './tools/create-vehicle';
 import { validateDismissTransferSuggestionArgs } from './tools/dismiss-transfer-suggestion';
@@ -26,9 +28,13 @@ import { validateUpdateBudgetPlanLineArgs } from './tools/update-budget-plan-lin
 import { validateUpdateCustomCurrencyArgs } from './tools/update-custom-currency';
 import { validateUpdateLoanArgs } from './tools/update-loan';
 import { validateUpdatePayeeArgs } from './tools/update-payee';
+import { validateUpdatePortfolioArgs } from './tools/update-portfolio';
+import { validateUpdateTrackerArgs } from './tools/update-tracker';
 import { validateUpdateTransactionArgs } from './tools/update-transaction';
 import { validateUpdateUserSettingsArgs } from './tools/update-user-settings';
 import { validateUpdateVehicleArgs } from './tools/update-vehicle';
+import { validateUpdateVentureDealArgs } from './tools/update-venture-deal';
+import { validateUpdateVenturePlatformArgs } from './tools/update-venture-platform';
 
 /**
  * Argument validators of the write tools, by tool name. A validator holds every check the handler
@@ -49,7 +55,9 @@ export const TOOL_ARG_VALIDATORS: Readonly<Record<string, ToolArgValidator>> = {
   create_budget_plan_line: validateCreateBudgetPlanLineArgs,
   create_custom_currency: validateCreateCustomCurrencyArgs,
   create_holding: validateCreateHoldingArgs,
+  create_investment_transaction: validateCreateInvestmentTransactionArgs,
   create_loan: validateCreateLoanArgs,
+  create_tracker: validateCreateTrackerArgs,
   create_transaction: validateCreateTransactionArgs,
   create_vehicle: validateCreateVehicleArgs,
   dismiss_transfer_suggestion: validateDismissTransferSuggestionArgs,
@@ -69,7 +77,11 @@ export const TOOL_ARG_VALIDATORS: Readonly<Record<string, ToolArgValidator>> = {
   update_custom_currency: validateUpdateCustomCurrencyArgs,
   update_loan: validateUpdateLoanArgs,
   update_payee: validateUpdatePayeeArgs,
+  update_portfolio: validateUpdatePortfolioArgs,
+  update_tracker: validateUpdateTrackerArgs,
   update_transaction: validateUpdateTransactionArgs,
   update_user_settings: validateUpdateUserSettingsArgs,
   update_vehicle: validateUpdateVehicleArgs,
+  update_venture_deal: validateUpdateVentureDealArgs,
+  update_venture_platform: validateUpdateVenturePlatformArgs,
 };
