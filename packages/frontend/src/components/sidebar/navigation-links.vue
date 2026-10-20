@@ -21,9 +21,10 @@ import {
 import { useSidebarNavCollapse } from './use-nav-collapse';
 import { useSidebarNavRoutes } from './use-nav-routes';
 
-withDefaults(defineProps<{ bottomNav?: boolean }>(), { bottomNav: false });
+const props = withDefaults(defineProps<{ bottomNav?: boolean }>(), { bottomNav: false });
 
-const navItemBase = 'w-full gap-2 px-3';
+// The bottom bar is icon-only: every cell is the same width, with the icon (and its highlight) centred in it.
+const navItemBase = props.bottomNav ? 'w-full min-w-0 justify-center gap-0 px-0 sm:gap-2 sm:px-3' : 'w-full gap-2 px-3';
 const navItemActive = 'bg-primary/10 text-foreground';
 const navIconBase = 'size-4 shrink-0';
 const navIconActive = 'text-primary-text';
