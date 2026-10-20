@@ -746,8 +746,8 @@ Gate results (Task 9): e2e `transactions/reconciliation/(duplicate-suggestions|r
 - Modify: `packages/backend/src/routes/chat.route.ts` (`PUT|DELETE /chat/presence`), `packages/backend/src/middlewares/entitlements.ts` + unit, `routes/base-currency-guard-coverage.e2e.ts`, `packages/backend/src/services/web-push/{render-push-body,build-push-payload}.ts` + unit specs, `packages/backend/src/background-jobs.ts`, backend i18n `notifications.push.*` (`en` + `uk`)
 - Modify (callers): `packages/backend/src/services/chat/runs/run-recorder.ts`, `packages/backend/src/services/chat/inbox/inbox-items.ts`, `packages/backend/src/services/ingest/event/process-notification.ts`, `packages/backend/src/services/ingest/card-payment/process-ingest-request.ts`, the thread `get` service and the notifications service (mark read by `payload.threadId`)
 
-- [ ] write failing unit tests: collapse keys, counts, cooldowns, presence; push bodies per type in `en`/`uk` with no message text; tags; `NOTIFICATION_PUSH_GROUP` places the new types in `assistant`
-- [ ] write failing e2e (delivery mocked as in `web-push/push-delivery.e2e.ts`):
+- [x] write failing unit tests: collapse keys, counts, cooldowns, presence; push bodies per type in `en`/`uk` with no message text; tags; `NOTIFICATION_PUSH_GROUP` places the new types in `assistant`
+- [x] write failing e2e (delivery mocked as in `web-push/push-delivery.e2e.ts`):
   - a run finished with no presence → one `chatReplyReady`; with pending cards → one push mentioning them;
   - a fresh presence key → nothing;
   - three inbox items → one push with count 3; a fourth within the cooldown → nothing;
@@ -757,7 +757,9 @@ Gate results (Task 9): e2e `transactions/reconciliation/(duplicate-suggestions|r
   - presence on another user's thread → 404;
   - a read-only user can send presence;
   - `PATCH` user settings keeps `push.groups.assistant`
-- [ ] gate: unit `--testPathPattern='(assistant-push|web-push|entitlements)'`; e2e `--testPathPattern='(assistant-push/assistant-push|web-push/push-delivery|notifications/notifications|chat/runs/run-stream|routes/base-currency-guard-coverage).e2e'`; frontend `--run src/pages/settings/subpages/notifications`; `npm run typecheck`
+- [x] gate: unit `--testPathPattern='(assistant-push|web-push|entitlements)'`; e2e `--testPathPattern='(assistant-push/assistant-push|web-push/push-delivery|notifications/notifications|chat/runs/run-stream|routes/base-currency-guard-coverage).e2e'`; frontend `--run src/pages/settings/subpages/notifications`; `npm run typecheck`
+
+Gate results (Task 11): unit `(assistant-push|web-push|entitlements)` 249 passed; e2e `assistant-push/assistant-push` 23 passed, and with `web-push/push-delivery`, `notifications/notifications`, `chat/runs/run-stream`, `routes/base-currency-guard-coverage`, `chat/inbox/inbox`, `chat/threads/(threads|read-only-chat)`, `ingest/event/process-notification` and `user-settings/patch-settings` 241 passed in 10 suites; frontend `settings/subpages/notifications` 33 passed; backend and frontend typecheck clean.
 
 ### Task 12: Frontend: push settings copy, presence and deep links
 
