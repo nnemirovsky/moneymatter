@@ -6,13 +6,12 @@ import { Button } from '@/components/lib/ui/button';
 import { DesktopOnlyTooltip } from '@/components/lib/ui/tooltip';
 import { extractApiErrorMessage } from '@/js/errors';
 import { cn } from '@/lib/utils';
-import type { ChatAttachment, ChatPageContext } from '@bt/shared/types';
+import type { ChatAttachment } from '@bt/shared/types';
 import { FileTextIcon, Loader2Icon, PaperclipIcon, SendIcon, SquareIcon, XIcon } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { CHAT_ATTACHMENT_ACCEPT, type ChatAttachmentProblem, planChatAttachments } from './chat-attachments';
-import { useChatContextLabel } from './chat-context-label';
 
 const props = withDefaults(
   defineProps<{
@@ -20,8 +19,6 @@ const props = withDefaults(
     isStreaming: boolean;
     /** Chat has no model to run on, or cannot take a message for another reason. */
     disabled?: boolean;
-    /** The page the chat was opened on; sent with the message while its chip is shown. */
-    context: ChatPageContext | null;
     /** The thread to put attachments on; a conversation that has not started creates it here. */
     ensureThread: () => Promise<string>;
   }>(),
@@ -29,7 +26,7 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  send: [message: { text: string; attachmentIds: string[]; pageContext?: ChatPageContext }];
+  send: [message: { text: string; attachmentIds: string[] }];
   cancel: [];
 }>();
 
@@ -42,7 +39,6 @@ interface PendingAttachment {
 }
 
 const { t } = useI18n();
-const { label: contextLabel } = useChatContextLabel();
 
 const text = ref('');
 const attachments = ref<PendingAttachment[]>([]);
@@ -51,17 +47,6 @@ const isDragging = ref(false);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const textareaRef = ref<{ $el: HTMLElement } | null>(null);
 let nextLocalId = 0;
-
-// A dismissed chip stays dismissed for that page; another page (another context) brings it back.
-const dismissedContextKey = ref<string | null>(null);
-const contextKey = computed(() => (props.context ? JSON.stringify(props.context) : null));
-const activeContext = computed(() => {
-  if (!props.context || contextKey.value === dismissedContextKey.value) return null;
-  return contextLabel({ context: props.context }) === null ? null : props.context;
-});
-const activeContextLabel = computed(() =>
-  activeContext.value ? contextLabel({ context: activeContext.value }) : null,
-);
 
 const isUploading = computed(() => attachments.value.some((item) => item.status !== 'ready'));
 const readyIds = computed(() =>
@@ -182,7 +167,6 @@ const submit = () => {
   emit('send', {
     text: text.value.trim(),
     attachmentIds: readyIds.value,
-    ...(activeContext.value ? { pageContext: activeContext.value } : {}),
   });
   text.value = '';
   attachments.value = [];
@@ -219,25 +203,6 @@ defineExpose({
       class="border-primary text-primary-text bg-background/80 pointer-events-none absolute inset-1 z-10 flex items-center justify-center rounded-lg border-2 border-dashed text-sm font-medium"
     >
       {{ $t('chat.composer.dropToAttach') }}
-    </div>
-
-    <div v-if="activeContextLabel" class="flex" data-testid="context-chip">
-      <span
-        class="bg-muted text-foreground inline-flex max-w-full items-center gap-1 rounded-full py-0.5 pr-1 pl-2.5 text-xs"
-      >
-        <span class="truncate">{{ $t('chat.composer.context.label', { label: activeContextLabel }) }}</span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          class="size-5 rounded-full"
-          data-testid="context-remove"
-          :aria-label="$t('chat.composer.context.remove')"
-          @click="dismissedContextKey = contextKey"
-        >
-          <XIcon class="size-3" aria-hidden="true" />
-        </Button>
-      </span>
     </div>
 
     <ul v-if="attachments.length > 0" class="flex flex-col gap-1.5">
@@ -293,13 +258,14 @@ defineExpose({
       {{ $t(problem.key, problem.params) }}
     </p>
 
+    <!-- One 44px line when empty: the buttons and the textarea share a height, and stay at the bottom as it grows. -->
     <div class="flex items-end gap-2">
       <DesktopOnlyTooltip :content="$t('chat.composer.attach')">
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          class="shrink-0"
+          class="size-11 shrink-0"
           data-testid="attach"
           :disabled="disabled"
           :aria-label="$t('chat.composer.attach')"
@@ -319,22 +285,25 @@ defineExpose({
         @change="onFilesPicked"
       />
 
-      <TextareaField
-        ref="textareaRef"
-        v-model="text"
-        rows="1"
-        class="min-h-10"
-        :title="$t('chat.composer.label')"
-        :placeholder="$t('chat.composer.placeholder')"
-        :disabled="disabled"
-      />
+      <!-- The field wraps its textarea in an inline label, which would add a line gap under it. -->
+      <div class="min-w-0 flex-1 [&_.field-label]:block [&_textarea]:block">
+        <TextareaField
+          ref="textareaRef"
+          v-model="text"
+          rows="1"
+          class="min-h-11 py-[11px] leading-5"
+          :title="$t('chat.composer.label')"
+          :placeholder="$t('chat.composer.placeholder')"
+          :disabled="disabled"
+        />
+      </div>
 
       <Button
         v-if="isStreaming"
         type="button"
         variant="outline"
         size="icon"
-        class="shrink-0"
+        class="size-11 shrink-0"
         data-testid="stop"
         :aria-label="$t('chat.composer.stop')"
         @click="emit('cancel')"
@@ -345,7 +314,7 @@ defineExpose({
         v-else
         type="button"
         size="icon"
-        class="shrink-0"
+        class="size-11 shrink-0"
         data-testid="send"
         :disabled="!canSend"
         :aria-label="$t('chat.composer.send')"
