@@ -46,23 +46,61 @@ describe('describeChatContext', () => {
     expect(label).toBe('Transactions · 2026-03-01 to 2026-03-31 · filtered');
   });
 
-  it('has no label for a page that tells nothing', () => {
-    expect(describeWith({ context: { route: ROUTES_NAMES.settingsGeneral } })).toBeNull();
+  it('names every kind of page, not only a few', () => {
+    expect(describeWith({ context: { route: ROUTES_NAMES.plannedSubscriptions } })).toBe('Recurring payments');
+    expect(describeWith({ context: { route: ROUTES_NAMES.plannedTrackers } })).toBe('Trackers');
+    expect(describeWith({ context: { route: ROUTES_NAMES.settingsGeneral } })).toBe('General settings');
+  });
+
+  it('names an entity page by the entity, with the open drawer after it', () => {
+    const label = describeWith({
+      context: {
+        route: ROUTES_NAMES.plannedSubscriptionDetails,
+        entity: { kind: 'subscription', id: 's1' },
+        focus: { kind: 'transaction', id: 't1' },
+      },
+    });
+
+    expect(label).toBe('Subscription · Transaction');
+  });
+
+  it('counts the selected rows', () => {
+    const label = describeWith({
+      context: {
+        route: ROUTES_NAMES.transactions,
+        selection: { kind: 'transaction', ids: ['t1', 't2'], total: 12 },
+      },
+    });
+
+    expect(label).toBe('Transactions · 12 selected');
+  });
+
+  it('does not call a sorted list filtered', () => {
+    expect(
+      describeWith({ context: { route: ROUTES_NAMES.plannedSubscriptions, filters: { sortBy: 'nextDue' } } }),
+    ).toBe('Recurring payments');
+  });
+
+  it('falls back to a generic name for a route nobody declared', () => {
+    expect(describeWith({ context: { route: 'dashboard.brand-new' } })).toBe('This page');
+  });
+
+  it('has no label without a route or any detail', () => {
     expect(describeWith({ context: {} })).toBeNull();
   });
 });
 
 describe('hasChatContext', () => {
-  it('is true for an entity, a period, filters or a page the chat knows by name', () => {
+  it('is true for any page, an entity, a period or filters', () => {
     expect(hasChatContext({ context: { entity: { kind: 'account', id: 'a1' } } })).toBe(true);
     expect(hasChatContext({ context: { period: { from: '2026-03-01', to: '2026-03-31' } } })).toBe(true);
     expect(hasChatContext({ context: { filters: { tagIds: ['t1'] } } })).toBe(true);
     expect(hasChatContext({ context: { route: ROUTES_NAMES.transactions } })).toBe(true);
   });
 
-  it('is false for no context, an empty one, or a page that tells nothing', () => {
+  it('is false for no context or an empty one', () => {
     expect(hasChatContext({ context: null })).toBe(false);
     expect(hasChatContext({ context: {} })).toBe(false);
-    expect(hasChatContext({ context: { route: ROUTES_NAMES.settingsGeneral, filters: {} } })).toBe(false);
+    expect(hasChatContext({ context: { filters: {} } })).toBe(false);
   });
 });

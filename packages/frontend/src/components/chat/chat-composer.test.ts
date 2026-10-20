@@ -135,11 +135,7 @@ describe('ChatComposer', () => {
     });
 
     it('has no chip for a page that tells nothing', () => {
-      expect(
-        mountComposer({ context: { route: 'dashboard.settings.general' } })
-          .find('[data-testid="context-chip"]')
-          .exists(),
-      ).toBe(false);
+      expect(mountComposer({ context: {} }).find('[data-testid="context-chip"]').exists()).toBe(false);
     });
 
     it('sends the context with the message', async () => {
