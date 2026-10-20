@@ -18,6 +18,7 @@ import PayeeAliases from '@models/payee-aliases.model';
 import Payees from '@models/payees.model';
 import RefundTransactions from '@models/refund-transactions.model';
 import SubscriptionPeriods from '@models/subscription-periods.model';
+import SubscriptionTags from '@models/subscription-tags.model';
 import SubscriptionTransactions from '@models/subscription-transactions.model';
 import Subscriptions from '@models/subscriptions.model';
 import TagReminders from '@models/tag-reminders.model';
@@ -451,12 +452,27 @@ describe('entity loaders', () => {
       jest.spyOn(Subscriptions, 'findOne').mockResolvedValue(record({ id: ID }) as never);
       const links = jest.spyOn(SubscriptionTransactions, 'count').mockResolvedValue(6);
       const periods = jest.spyOn(SubscriptionPeriods, 'count').mockResolvedValue(4);
+      jest.spyOn(SubscriptionTags, 'findAll').mockResolvedValue([]);
 
       const loaded = await load({ kind: 'subscription', targets: [ID] });
 
       expect(whereOf(links).where).toEqual({ subscriptionId: ID });
       expect(whereOf(periods).where).toEqual({ subscriptionId: ID });
       expect(loaded?.counts).toEqual({ linkedTransactionCount: 6, periodCount: 4 });
+    });
+
+    it('adds the tags of a subscription to its row, so an update shows the set it replaces', async () => {
+      jest.spyOn(Subscriptions, 'findOne').mockResolvedValue(record({ id: ID }) as never);
+      jest.spyOn(SubscriptionTransactions, 'count').mockResolvedValue(0);
+      jest.spyOn(SubscriptionPeriods, 'count').mockResolvedValue(0);
+      jest.spyOn(SubscriptionTags, 'findAll').mockResolvedValue([
+        { subscriptionId: ID, tagId: 'tag-b' },
+        { subscriptionId: ID, tagId: 'tag-a' },
+      ] as never);
+
+      const loaded = await load({ kind: 'subscription', targets: [ID] });
+
+      expect(loaded?.row?.tagIds).toEqual(['tag-a', 'tag-b']);
     });
 
     it('counts the assignments and categories a budget plan line delete cascades', async () => {

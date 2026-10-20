@@ -8,6 +8,7 @@
       "accounts": "Accounts",
       "actions": "Actions",
       "activeFrom": "Active from",
+      "affectsCash": "Affects cash",
       "aiDescription": "AI description",
       "aiEnabled": "Smart tracking",
       "aiPreWindowDays": "Days scanned before start",
@@ -16,10 +17,14 @@
       "amountThreshold": "Amount threshold",
       "anchorDate": "Anchor date",
       "answers": "Answers",
+      "applyAutomations": "Apply automations",
+      "applyDefaultTagsOnAiCategorization": "Apply default tags on AI categorization",
+      "archivePromptDismissed": "Archive prompt dismissed",
       "archived": "Archived",
       "attachmentId": "Attachment",
       "autoAttachAccounts": "Attach new accounts automatically",
       "autoInclude": "Include automatically",
+      "autoRecord": "Record automatically",
       "automationId": "Automation",
       "bankSyncHoursUtc": "Bank sync hours (UTC)",
       "baseTxId": "Base transaction",
@@ -68,6 +73,7 @@
       "destinationAccountId": "Destination account",
       "destinationAmount": "Destination amount",
       "destinationTransactionId": "Destination transaction",
+      "displayCurrencyCode": "Display currency",
       "dueDate": "Due date",
       "effectiveFrom": "Effective from",
       "endDate": "End date",
@@ -79,11 +85,14 @@
       "exchangeRate": "Exchange rate",
       "excludeFromStats": "Exclude from stats",
       "excludedIds": "Excluded transactions",
+      "existingTransactionId": "Existing transaction",
       "expectedAmount": "Expected amount",
       "expectedCurrencyCode": "Expected currency",
       "expectedExitDate": "Expected exit date",
       "expectedIncome": "Expected income",
       "expenseTransactionId": "Expense transaction",
+      "externalReference": "Reference",
+      "externalUrl": "Link",
       "fees": "Fees",
       "filters": "Filters",
       "fire": "FIRE settings",
@@ -129,6 +138,7 @@
       "loanId": "Loan",
       "loanType": "Loan type",
       "locale": "Language",
+      "location": "Location",
       "logoColor": "Logo color",
       "logoDomain": "Logo domain",
       "logoIcon": "Logo icon",
@@ -139,6 +149,7 @@
       "make": "Make",
       "matchSource": "Match source",
       "matchTransfersWithManualAccounts": "Match transfers with manual accounts",
+      "matchingRules": "Matching rules",
       "maxOccurrences": "Maximum occurrences",
       "merchantName": "Merchant",
       "mgmtFeePct": "Management fee (%)",
@@ -154,6 +165,7 @@
       "notes": "Notes",
       "notificationId": "Notification",
       "notifications": "Notification settings",
+      "notifyEmail": "Email reminders",
       "oppositeTxId": "Opposite transaction",
       "originalAmount": "Original amount",
       "originalCurrencyCode": "Original currency",
@@ -164,6 +176,7 @@
       "parentId": "Parent category",
       "payeeExtractionUsesDescription": "Look for payees in the description",
       "payeeId": "Payee",
+      "payeeLocked": "Payee locked",
       "payeePromotionThreshold": "Payee promotion threshold",
       "paymentDayOfMonth": "Payment day of month",
       "paymentType": "Payment type",
@@ -185,6 +198,7 @@
       "rateSource": "Rate source",
       "rawName": "Name as it appears",
       "refundTxId": "Refund transaction",
+      "remindBefore": "Remind before",
       "reminderId": "Reminder",
       "removePortfolioTransfers": "Remove portfolio transfers",
       "repeatEvery": "Repeat every",
@@ -243,6 +257,7 @@
       "ungroupedLineIds": "Ungrouped lines",
       "vehicleClass": "Vehicle class",
       "vehicleId": "Vehicle",
+      "vehicleType": "Vehicle type",
       "website": "Website",
       "weekday": "Weekday",
       "withSuggestedLines": "Add suggested lines",
@@ -471,6 +486,7 @@
       "targetIsProposal": "This change targets a record that another pending change creates, so it cannot be previewed yet.",
       "targetMissing": "This change does not say which record it targets.",
       "noTargets": "No records match this change.",
+      "nothingToUnlink": "None of these transactions is linked to the subscription, so there is nothing to unlink.",
       "mergeSelf": "A payee cannot be merged into itself.",
       "ignoredNameCollides": "This name still belongs to a payee. Ignoring it changes nothing unless that payee is deleted too.",
       "reconciliationRefused": "Planned rows, transfers and refund-linked rows cannot be removed or merged as duplicates.",
@@ -495,7 +511,8 @@
         "pair": "Pair",
         "effectiveDate": "Effective date",
         "rate": "Rate",
-        "source": "Source"
+        "source": "Source",
+        "linkedTo": "Linked to"
       },
       "appliedToast": "Change applied",
       "enumValues": {
@@ -519,10 +536,36 @@
           "mobilePayment": "Mobile payment",
           "creditCard": "Credit card",
           "debitCard": "Debit card"
+        },
+        "remindBefore": {
+          "0_days": "On the due date",
+          "1_day": "1 day before",
+          "2_days": "2 days before",
+          "3_days": "3 days before",
+          "5_days": "5 days before",
+          "1_week": "1 week before",
+          "2_weeks": "2 weeks before",
+          "1_month": "1 month before"
+        },
+        "frequency": {
+          "weekly": "Weekly",
+          "biweekly": "Every 2 weeks",
+          "monthly": "Monthly",
+          "quarterly": "Quarterly",
+          "semi_annual": "Every 6 months",
+          "annual": "Yearly"
         }
       },
       "target": {
         "title": "The record this changes"
+      },
+      "matchingRules": {
+        "none": "No rules",
+        "note": "Note contains {values}",
+        "amount": "Amount from {min} to {max}",
+        "amountCurrency": "Amount from {min} to {max} {currency}",
+        "transactionType": "Type is {value}",
+        "account": "Account is {name}"
       }
     },
     "errors": {
@@ -569,7 +612,10 @@
       "importRunning": "This import is still running.",
       "baseCurrencyBlocksEdits": "Every account and transaction is revalued, and other edits are blocked until it finishes.",
       "automationSkipped": "{count} selected transaction does not match the rule and is skipped. | {count} selected transactions do not match the rule and are skipped.",
-      "revertDeletesTransaction": "Reverting this period also deletes the payment transaction it created."
+      "revertDeletesTransaction": "Reverting this period also deletes the payment transaction it created.",
+      "subscriptionAlreadyLinked": "{count} of these transactions is already linked to a subscription, so linking is refused until it is unlinked. | {count} of these transactions are already linked to a subscription, so linking is refused until they are unlinked.",
+      "subscriptionTypeMismatch": "{count} of these transactions is not of the same type (expense or income) as the subscription, so linking is refused. | {count} of these transactions are not of the same type (expense or income) as the subscription, so linking is refused.",
+      "subscriptionNotLinked": "{count} of these transactions is not linked to this subscription and stays as it is. | {count} of these transactions are not linked to this subscription and stay as they are."
     },
     "notices": {
       "stepLimit": "Stopped after {limit} steps. Ask again to continue.",

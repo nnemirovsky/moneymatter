@@ -8,6 +8,7 @@ import type {
 
 import { confirmationFor, type ResolvedToolPolicy } from '../policies/rules';
 import { errorMessage } from '../toolkit/result-text';
+import { resolveCardLabels } from './card-labels';
 import { PREVIEW_RESOLVERS } from './previews';
 import { PreviewError } from './previews/preview-helpers';
 import type { PreviewResolution, PreviewResolver } from './previews/types';
@@ -71,10 +72,17 @@ export async function computeCardState({
 }): Promise<CardState> {
   const { resolution, error } = await runPreview({ userId, toolName: policy.name, args, policy, lock });
 
+  // A card whose resolver failed stays without a preview, so it cannot be approved; every other card
+  // carries the names of the records it points at, an args-only card included.
+  const labels = error ? {} : await resolveCardLabels({ userId, policy, args });
+  const named = Object.keys(labels).length > 0 ? { labels } : {};
+
   return {
     preview: resolution
-      ? { ...resolution.preview, ...(resolution.warnings ? { warnings: resolution.warnings } : {}) }
-      : null,
+      ? { ...resolution.preview, ...(resolution.warnings ? { warnings: resolution.warnings } : {}), ...named }
+      : policy.previewResolver === null && !error && named.labels
+        ? { ...named }
+        : null,
     error,
     snapshot: await buildSnapshot({ userId, resolved: resolution?.snapshot, parents }),
     confirmation: confirmationFor({

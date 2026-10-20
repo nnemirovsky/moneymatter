@@ -73,4 +73,17 @@ describe('useCardLookups', () => {
       'payee-main',
     ]);
   });
+
+  it('names a record the app holds no list of from the names the server sent with the card', () => {
+    const card = buildCard({
+      labels: { 'subscription:sub-1': 'Netflix', 'transaction:tx-1': '2026-10-05 · -9.99 USD · Netflix · Main card' },
+    });
+
+    const { entityName } = useCardLookups({ card });
+
+    expect(entityName({ kind: 'subscription', id: 'sub-1' })).toBe('Netflix');
+    expect(entityName({ kind: 'transaction', id: 'tx-1' })).toBe('2026-10-05 · -9.99 USD · Netflix · Main card');
+    expect(entityName({ kind: 'subscription', id: 'sub-2' })).toBeNull();
+    expect(entityName({ kind: 'tracker', id: 'sub-1' })).toBeNull();
+  });
 });

@@ -83,8 +83,8 @@ If you close the tab while an answer is running, it carries on in the background
 Each change is a card. A card shows:
 
 - what it will do, for example "Create transaction" or "Update category";
-- every field with its value, and "Was ..." beside a value that changes;
-- for a change that affects existing records, the records it touches, with their count and a few sample rows;
+- every field with its value, and "Was ..." beside a value that changes. A record a field points at is named, not just its kind: a subscription by its name, a transaction by its date, amount, payee and account. A subscription's matching rules are written out as sentences;
+- for a change that affects existing records, the records it touches, with their count and a few sample rows. Linking transactions to a subscription lists each one with its date, amount, currency, note and account, and the subscription it is already linked to, if any;
 - what the change includes beyond the target, or for a bulk change its breakdown, for example "Includes: 1 transfer leg, 2 splits";
 - values the assistant isn't sure about, highlighted with the reason, for example "The assistant guessed this from your history" or "Read from the attachment, not certain". Check these first. A payment type that differs from how the account is usually paid is marked by the app itself, which checked the account's latest transactions. A change or delete card also lists the record it affects: its amount, date, note, payee and account.
 

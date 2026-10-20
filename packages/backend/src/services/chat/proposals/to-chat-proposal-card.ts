@@ -134,6 +134,7 @@ export function toChatProposalCard({
     ...(target.length > 0 ? { target } : {}),
     ...(row.preview?.affected ? { affected: row.preview.affected } : {}),
     ...(nonZeroCounts ? { counts: nonZeroCounts } : {}),
+    ...(row.preview?.labels ? { labels: row.preview.labels } : {}),
     dependsOn: row.dependsOn.flatMap((id) => {
       const parent = parents.find((candidate) => candidate.id === id);
       return parent ? [{ id, title: titleOf({ row: parent }), status: parent.status, revision: parent.revision }] : [];

@@ -27,6 +27,8 @@ jest.mock('../proposals/account-history-guard', () => ({
   markAccountHistoryMismatch: jest.fn(async ({ uncertain }: { uncertain: unknown }) => uncertain),
 }));
 jest.mock('@services/categories.service', () => ({ getCategories: jest.fn() }));
+// The names of the records a card points at come from the database; these suites run without one.
+jest.mock('../proposals/card-labels', () => ({ resolveCardLabels: jest.fn(async () => ({})) }));
 jest.mock('@services/accounts.service', () => ({ getAccounts: jest.fn() }));
 // Storing a card opens a transaction; a unit test has no database, so the body just runs.
 jest.mock('@services/common/with-transaction', () => ({

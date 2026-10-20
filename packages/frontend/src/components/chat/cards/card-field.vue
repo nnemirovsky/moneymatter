@@ -10,6 +10,7 @@ import { useChatText } from '../chat-text';
 import { chatEntityRoute } from '../entity-route';
 import { formatVisualDate, formatVisualValue } from '../visuals/format-visual-value';
 import { fieldEntityKind, proposalRefId, summarizeValue } from './card-values';
+import { describeMatchingRules } from './matching-rules';
 import type { CardLookups } from './use-card-lookups';
 
 const props = defineProps<{
@@ -38,11 +39,15 @@ interface ValuePart {
 const entityKind = computed(() => fieldEntityKind({ field: props.field }));
 const displayKind = computed(() => props.field.display?.kind ?? 'text');
 
+/** A list of records longer than this shows its first ones and the count of the rest. */
+const NAMED_RECORDS_LIMIT = 5;
+
 const entityParts = ({ value }: { value: unknown }): ValuePart[] => {
   const kind = entityKind.value;
   const ids = Array.isArray(value) ? value : [value];
+  const hidden = Math.max(0, ids.length - NAMED_RECORDS_LIMIT);
 
-  return ids.map((id) => {
+  const parts = ids.slice(0, NAMED_RECORDS_LIMIT).map((id) => {
     const ref = proposalRefId({ value: id });
     if (ref) {
       const parent = props.dependsOn.find((dependency) => dependency.id === ref);
@@ -56,6 +61,8 @@ const entityParts = ({ value }: { value: unknown }): ValuePart[] => {
     const to = chatEntityRoute({ entity: { kind, id: String(id) } });
     return { text: name ?? written ?? entityLabel({ kind }), ...(to && !(written && !name) ? { to } : {}) };
   });
+
+  return hidden > 0 ? [...parts, { text: t('chat.cards.affected.more', { count: hidden }) }] : parts;
 };
 
 const partsOf = ({ value }: { value: unknown }): ValuePart[] => {
@@ -79,6 +86,21 @@ const partsOf = ({ value }: { value: unknown }): ValuePart[] => {
   }
   if (displayKind.value === 'enum' && typeof value === 'string') {
     return [{ text: enumValueText({ path: props.field.path, value }) }];
+  }
+  if (displayKind.value === 'enum' && Array.isArray(value)) {
+    return [{ text: value.map((item) => enumValueText({ path: props.field.path, value: String(item) })).join(', ') }];
+  }
+  if (displayKind.value === 'matchingRules') {
+    return [
+      {
+        text: describeMatchingRules({
+          value,
+          t,
+          entityName: props.lookups.entityName,
+          enumValue: enumValueText,
+        }),
+      },
+    ];
   }
   if ((displayKind.value === 'date' || displayKind.value === 'datetime') && typeof value === 'string') {
     return [{ text: formatVisualDate({ value }) }];

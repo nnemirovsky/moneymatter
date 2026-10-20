@@ -32,6 +32,7 @@ const GLOBAL_ENTITY_FIELDS: Readonly<Record<string, ChatEntityKind>> = {
   expenseTransactionId: 'transaction',
   incomeTransactionId: 'transaction',
   destinationTransactionId: 'transaction',
+  existingTransactionId: 'transaction',
   survivorId: 'transaction',
   splitId: 'split',
   trackerId: 'tracker',

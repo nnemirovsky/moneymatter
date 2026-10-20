@@ -51,4 +51,23 @@ describe('describeField', () => {
       kind: 'text',
     });
   });
+
+  it('reads the matching rules of a subscription as sentences and a list of presets as its options', () => {
+    const rules = { rules: [{ field: 'note', operator: 'contains_any', value: ['netflix'] }] };
+
+    expect(
+      describeField({ key: 'matchingRules', value: rules, node: { type: 'object' }, entityKind: undefined }),
+    ).toEqual({
+      display: { kind: 'matchingRules' },
+      editable: null,
+    });
+    expect(
+      describeField({
+        key: 'remindBefore',
+        value: ['3_days'],
+        node: { type: 'array', items: { type: 'string', enum: ['0_days', '3_days'] } },
+        entityKind: undefined,
+      }),
+    ).toEqual({ display: { kind: 'enum' }, editable: null });
+  });
 });

@@ -62,8 +62,6 @@ export const CHAT_ARGS_ONLY_TOOLS: readonly string[] = [
   'create_subscription',
   'detect_subscription_candidates',
   'dismiss_subscription_candidate',
-  'link_transactions_to_subscription',
-  'unlink_transactions_from_subscription',
   'accept_subscription_candidate',
   'pay_subscription_period',
   'skip_subscription_period',

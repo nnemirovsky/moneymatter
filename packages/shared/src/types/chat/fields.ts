@@ -45,6 +45,9 @@ export const CHAT_ENTITY_KINDS = [
 
 export type ChatEntityKind = (typeof CHAT_ENTITY_KINDS)[number];
 
+/** The key a record has in a card's `labels`: its kind and id. */
+export const chatEntityRefKey = ({ kind, id }: ChatEntityRef): string => `${kind}:${id}`;
+
 /** The i18n key of an entity's name, used in card titles and tables. */
 export const chatEntityLabelKey = ({ entity }: { entity: ChatEntityKind }): string => `chat.entities.${entity}`;
 
@@ -67,6 +70,7 @@ export const CHAT_FIELD_LABEL_KEYS: Readonly<Record<string, string>> = {
   accounts: 'chat.fields.accounts',
   actions: 'chat.fields.actions',
   activeFrom: 'chat.fields.activeFrom',
+  affectsCash: 'chat.fields.affectsCash',
   aiDescription: 'chat.fields.aiDescription',
   aiEnabled: 'chat.fields.aiEnabled',
   aiPreWindowDays: 'chat.fields.aiPreWindowDays',
@@ -75,10 +79,14 @@ export const CHAT_FIELD_LABEL_KEYS: Readonly<Record<string, string>> = {
   amountThreshold: 'chat.fields.amountThreshold',
   anchorDate: 'chat.fields.anchorDate',
   answers: 'chat.fields.answers',
+  applyAutomations: 'chat.fields.applyAutomations',
+  applyDefaultTagsOnAiCategorization: 'chat.fields.applyDefaultTagsOnAiCategorization',
+  archivePromptDismissed: 'chat.fields.archivePromptDismissed',
   archived: 'chat.fields.archived',
   attachmentId: 'chat.fields.attachmentId',
   autoAttachAccounts: 'chat.fields.autoAttachAccounts',
   autoInclude: 'chat.fields.autoInclude',
+  autoRecord: 'chat.fields.autoRecord',
   automationId: 'chat.fields.automationId',
   bankSyncHoursUtc: 'chat.fields.bankSyncHoursUtc',
   baseTxId: 'chat.fields.baseTxId',
@@ -127,6 +135,7 @@ export const CHAT_FIELD_LABEL_KEYS: Readonly<Record<string, string>> = {
   destinationAccountId: 'chat.fields.destinationAccountId',
   destinationAmount: 'chat.fields.destinationAmount',
   destinationTransactionId: 'chat.fields.destinationTransactionId',
+  displayCurrencyCode: 'chat.fields.displayCurrencyCode',
   dueDate: 'chat.fields.dueDate',
   effectiveFrom: 'chat.fields.effectiveFrom',
   endDate: 'chat.fields.endDate',
@@ -138,11 +147,14 @@ export const CHAT_FIELD_LABEL_KEYS: Readonly<Record<string, string>> = {
   exchangeRate: 'chat.fields.exchangeRate',
   excludeFromStats: 'chat.fields.excludeFromStats',
   excludedIds: 'chat.fields.excludedIds',
+  existingTransactionId: 'chat.fields.existingTransactionId',
   expectedAmount: 'chat.fields.expectedAmount',
   expectedCurrencyCode: 'chat.fields.expectedCurrencyCode',
   expectedExitDate: 'chat.fields.expectedExitDate',
   expectedIncome: 'chat.fields.expectedIncome',
   expenseTransactionId: 'chat.fields.expenseTransactionId',
+  externalReference: 'chat.fields.externalReference',
+  externalUrl: 'chat.fields.externalUrl',
   fees: 'chat.fields.fees',
   filters: 'chat.fields.filters',
   fire: 'chat.fields.fire',
@@ -188,6 +200,7 @@ export const CHAT_FIELD_LABEL_KEYS: Readonly<Record<string, string>> = {
   loanId: 'chat.fields.loanId',
   loanType: 'chat.fields.loanType',
   locale: 'chat.fields.locale',
+  location: 'chat.fields.location',
   logoColor: 'chat.fields.logoColor',
   logoDomain: 'chat.fields.logoDomain',
   logoIcon: 'chat.fields.logoIcon',
@@ -198,6 +211,7 @@ export const CHAT_FIELD_LABEL_KEYS: Readonly<Record<string, string>> = {
   make: 'chat.fields.make',
   matchSource: 'chat.fields.matchSource',
   matchTransfersWithManualAccounts: 'chat.fields.matchTransfersWithManualAccounts',
+  matchingRules: 'chat.fields.matchingRules',
   maxOccurrences: 'chat.fields.maxOccurrences',
   merchantName: 'chat.fields.merchantName',
   mgmtFeePct: 'chat.fields.mgmtFeePct',
@@ -213,6 +227,7 @@ export const CHAT_FIELD_LABEL_KEYS: Readonly<Record<string, string>> = {
   notes: 'chat.fields.notes',
   notificationId: 'chat.fields.notificationId',
   notifications: 'chat.fields.notifications',
+  notifyEmail: 'chat.fields.notifyEmail',
   oppositeTxId: 'chat.fields.oppositeTxId',
   originalAmount: 'chat.fields.originalAmount',
   originalCurrencyCode: 'chat.fields.originalCurrencyCode',
@@ -223,6 +238,7 @@ export const CHAT_FIELD_LABEL_KEYS: Readonly<Record<string, string>> = {
   parentId: 'chat.fields.parentId',
   payeeExtractionUsesDescription: 'chat.fields.payeeExtractionUsesDescription',
   payeeId: 'chat.fields.payeeId',
+  payeeLocked: 'chat.fields.payeeLocked',
   payeePromotionThreshold: 'chat.fields.payeePromotionThreshold',
   paymentDayOfMonth: 'chat.fields.paymentDayOfMonth',
   paymentType: 'chat.fields.paymentType',
@@ -244,6 +260,7 @@ export const CHAT_FIELD_LABEL_KEYS: Readonly<Record<string, string>> = {
   rateSource: 'chat.fields.rateSource',
   rawName: 'chat.fields.rawName',
   refundTxId: 'chat.fields.refundTxId',
+  remindBefore: 'chat.fields.remindBefore',
   reminderId: 'chat.fields.reminderId',
   removePortfolioTransfers: 'chat.fields.removePortfolioTransfers',
   repeatEvery: 'chat.fields.repeatEvery',
@@ -302,6 +319,7 @@ export const CHAT_FIELD_LABEL_KEYS: Readonly<Record<string, string>> = {
   ungroupedLineIds: 'chat.fields.ungroupedLineIds',
   vehicleClass: 'chat.fields.vehicleClass',
   vehicleId: 'chat.fields.vehicleId',
+  vehicleType: 'chat.fields.vehicleType',
   website: 'chat.fields.website',
   weekday: 'chat.fields.weekday',
   withSuggestedLines: 'chat.fields.withSuggestedLines',
