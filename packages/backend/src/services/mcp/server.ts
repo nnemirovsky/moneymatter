@@ -25,6 +25,7 @@ import { registerBulkDeletePayees } from './tools/bulk-delete-payees';
 import { registerBulkDeleteTransactions } from './tools/bulk-delete-transactions';
 import { registerBulkUpdateTransactions } from './tools/bulk-update-transactions';
 import { registerChangeBaseCurrency } from './tools/change-base-currency';
+import { registerConfirmIngestPayment } from './tools/confirm-ingest-payment';
 import { registerConfirmPlannedTransaction } from './tools/confirm-planned-transaction';
 import { registerCreateAccount } from './tools/create-account';
 import { registerCreateAccountGroup } from './tools/create-account-group';
@@ -179,6 +180,7 @@ import { registerListSupportedCurrencies } from './tools/list-supported-currenci
 import { registerListTrackerSuggestions } from './tools/list-tracker-suggestions';
 import { registerListTransactionAttachments } from './tools/list-transaction-attachments';
 import { registerListTransferSuggestions } from './tools/list-transfer-suggestions';
+import { registerLogIngestRequest } from './tools/log-ingest-request';
 import { registerMarkNotificationsRead } from './tools/mark-notifications-read';
 import { registerMergeDuplicateTransactions } from './tools/merge-duplicate-transactions';
 import { registerMergePayees } from './tools/merge-payees';
@@ -207,6 +209,7 @@ import { registerSetBudgetPlanLayout } from './tools/set-budget-plan-layout';
 import { registerSetBudgetPlanLineGoal } from './tools/set-budget-plan-line-goal';
 import { registerSetCurrencyRateSource } from './tools/set-currency-rate-source';
 import { registerSetExchangeRates } from './tools/set-exchange-rates';
+import { registerSetNotificationSource } from './tools/set-notification-source';
 import { registerSetPayeesCategorizationMode } from './tools/set-payees-categorization-mode';
 import { registerSetPortfolioTransferAdjustment } from './tools/set-portfolio-transfer-adjustment';
 import { registerSkipSubscriptionPeriod } from './tools/skip-subscription-period';
@@ -333,6 +336,11 @@ export function registerAllTools(server: McpServer): void {
   registerRestoreRemovedTransactions(server);
   registerMergeDuplicateTransactions(server);
   registerKeepPendingAsBooked(server);
+
+  // iOS Automation (payments logged by taps and notifications)
+  registerConfirmIngestPayment(server);
+  registerLogIngestRequest(server);
+  registerSetNotificationSource(server);
 
   // Taxonomy (categories + tags)
   registerGetCategories(server);

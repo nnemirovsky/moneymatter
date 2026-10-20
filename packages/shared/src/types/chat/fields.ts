@@ -41,6 +41,8 @@ export const CHAT_ENTITY_KINDS = [
   'bankConnection',
   'notification',
   'userSettings',
+  'ingestRequest',
+  'notificationSource',
 ] as const;
 
 export type ChatEntityKind = (typeof CHAT_ENTITY_KINDS)[number];
@@ -112,6 +114,7 @@ export const CHAT_FIELD_LABEL_KEYS: Readonly<Record<string, string>> = {
   dayOfMonth: 'chat.fields.dayOfMonth',
   dealId: 'chat.fields.dealId',
   decimals: 'chat.fields.decimals',
+  defaultAccountId: 'chat.fields.defaultAccountId',
   defaultCarryPct: 'chat.fields.defaultCarryPct',
   defaultCategoryId: 'chat.fields.defaultCategoryId',
   defaultEntryFeePct: 'chat.fields.defaultEntryFeePct',
@@ -127,6 +130,7 @@ export const CHAT_FIELD_LABEL_KEYS: Readonly<Record<string, string>> = {
   destinationAccountId: 'chat.fields.destinationAccountId',
   destinationAmount: 'chat.fields.destinationAmount',
   destinationTransactionId: 'chat.fields.destinationTransactionId',
+  direction: 'chat.fields.direction',
   dueDate: 'chat.fields.dueDate',
   effectiveFrom: 'chat.fields.effectiveFrom',
   endDate: 'chat.fields.endDate',
@@ -250,6 +254,7 @@ export const CHAT_FIELD_LABEL_KEYS: Readonly<Record<string, string>> = {
   repeatUnit: 'chat.fields.repeatUnit',
   replace: 'chat.fields.replace',
   replaceWithCategoryId: 'chat.fields.replaceWithCategoryId',
+  requestId: 'chat.fields.requestId',
   resetOverrides: 'chat.fields.resetOverrides',
   salvageFloorPct: 'chat.fields.salvageFloorPct',
   savedPivotViews: 'chat.fields.savedPivotViews',

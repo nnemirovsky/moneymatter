@@ -8,6 +8,7 @@ import { resolveEntityPreview } from './entity';
 import { resolveDeleteExchangeRates } from './exchange-rates';
 import { resolveIgnorePayeeName } from './ignore-payee-name';
 import { resolveDeleteImportBatch } from './import-batch';
+import { resolveConfirmIngestPayment, resolveIngestRequest, resolveNotificationSource } from './ingest-inbox';
 import { resolveMergePayees } from './merge-payees';
 import { resolveApplyPayeeTags } from './payee-tags';
 import { resolveMergeDuplicateTransactions, resolveRemoveDuplicateTransactions } from './reconciliation';
@@ -37,4 +38,7 @@ export const PREVIEW_RESOLVERS: Record<PreviewResolverName, PreviewResolver> = {
   revertSubscriptionPeriod: resolveRevertSubscriptionPeriod,
   updateSubscriptionPeriod: resolveUpdateSubscriptionPeriod,
   budgetPlanAssignment: resolveBudgetPlanAssignment,
+  confirmIngestPayment: resolveConfirmIngestPayment,
+  ingestRequest: resolveIngestRequest,
+  notificationSource: resolveNotificationSource,
 };

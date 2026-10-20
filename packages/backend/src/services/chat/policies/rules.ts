@@ -29,6 +29,9 @@ export const PREVIEW_RESOLVER_NAMES = [
   'revertSubscriptionPeriod',
   'updateSubscriptionPeriod',
   'budgetPlanAssignment',
+  'confirmIngestPayment',
+  'ingestRequest',
+  'notificationSource',
 ] as const;
 
 export type PreviewResolverName = (typeof PREVIEW_RESOLVER_NAMES)[number];

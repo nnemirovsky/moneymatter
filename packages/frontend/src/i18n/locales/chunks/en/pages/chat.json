@@ -53,6 +53,7 @@
       "dayOfMonth": "Day of month",
       "dealId": "Deal",
       "decimals": "Decimal places",
+      "defaultAccountId": "Default account",
       "defaultCarryPct": "Default carry (%)",
       "defaultCategoryId": "Default category",
       "defaultEntryFeePct": "Default entry fee (%)",
@@ -68,6 +69,7 @@
       "destinationAccountId": "Destination account",
       "destinationAmount": "Destination amount",
       "destinationTransactionId": "Destination transaction",
+      "direction": "Direction",
       "dueDate": "Due date",
       "effectiveFrom": "Effective from",
       "endDate": "End date",
@@ -191,6 +193,7 @@
       "repeatUnit": "Repeat unit",
       "replace": "Replace the existing one",
       "replaceWithCategoryId": "Replace with category",
+      "requestId": "Automation payment",
       "resetOverrides": "Reset overrides",
       "salvageFloorPct": "Salvage floor (%)",
       "savedPivotViews": "Saved pivot views",
@@ -288,7 +291,9 @@
       "attachment": "attachment",
       "bankConnection": "bank connection",
       "notification": "notification",
-      "userSettings": "settings"
+      "userSettings": "settings",
+      "ingestRequest": "automation payment",
+      "notificationSource": "notification source"
     },
     "cards": {
       "title": {
@@ -321,7 +326,8 @@
         "expired": "This change expired before it was approved. Ask again if you still want it.",
         "unknown": "The result of this change is unknown. Check whether it happened before asking again.",
         "failed": "This change could not be applied. Nothing was changed.",
-        "stale": "Your data changed after this was proposed. Refresh the card to see the current version."
+        "stale": "Your data changed after this was proposed. Refresh the card to see the current version.",
+        "resolvedElsewhere": "Settled somewhere else, so this item is closed."
       },
       "actions": {
         "approve": "Approve",
@@ -525,7 +531,10 @@
       },
       "target": {
         "title": "The record this changes"
-      }
+      },
+      "ingestAlreadyConfirmed": "This payment is already confirmed.",
+      "ingestRequestSettled": "This payment is not waiting any more.",
+      "sourceSettled": "This source is not waiting for approval any more."
     },
     "errors": {
       "threadAction": "Could not update the conversation. Try again.",
@@ -571,7 +580,8 @@
       "importRunning": "This import is still running.",
       "baseCurrencyBlocksEdits": "Every account and transaction is revalued, and other edits are blocked until it finishes.",
       "automationSkipped": "{count} selected transaction does not match the rule and is skipped. | {count} selected transactions do not match the rule and are skipped.",
-      "revertDeletesTransaction": "Reverting this period also deletes the payment transaction it created."
+      "revertDeletesTransaction": "Reverting this period also deletes the payment transaction it created.",
+      "ingestEstimate": "The amount on the suggested account, {amount} {currencyCode}, is an estimate from today's exchange rate. Enter the bank's figure if you know it."
     },
     "notices": {
       "stepLimit": "Stopped after {limit} steps. Ask again to continue.",

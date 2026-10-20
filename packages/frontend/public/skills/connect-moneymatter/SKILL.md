@@ -130,6 +130,16 @@ Duplicate cleanup and bank rows stuck in pending.
 | `merge_duplicate_transactions`    | Merge 2 to 4 duplicates of one account into a survivor that takes their links (`finance:write`) |
 | `keep_pending_as_booked`          | Confirm stuck pending bank transactions as booked (`finance:write`)                             |
 
+### iOS Automation
+
+Payments the iOS Shortcut logs on its own from Apple Pay taps and bank notifications, and the questions it leaves for the owner.
+
+| Tool                      | Purpose                                                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `confirm_ingest_payment`  | Confirm an automatically logged payment, optionally correcting account, amount, payee or category (`finance:write`) |
+| `log_ingest_request`      | Log a notification payment that parked for an account or an approval (`finance:write`)                              |
+| `set_notification_source` | Approve or mute a source of notifications and set its default account (`finance:write`)                             |
+
 ### Categories and tags
 
 Includes tag reminders.

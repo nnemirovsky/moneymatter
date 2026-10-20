@@ -102,6 +102,21 @@ export const EXPLICIT_POLICIES: Readonly<Record<string, ExplicitPolicy>> = {
   merge_duplicate_transactions: { entity: 'transaction', previewResolver: 'mergeDuplicateTransactions' },
   keep_pending_as_booked: { entity: 'transaction' },
 
+  // iOS Automation: the cards the automation inbox posts
+  confirm_ingest_payment: { kind: 'update', entity: 'transaction', previewResolver: 'confirmIngestPayment' },
+  log_ingest_request: {
+    kind: 'action',
+    entity: 'ingestRequest',
+    previewResolver: 'ingestRequest',
+    entityFields: { requestId: 'ingestRequest' },
+  },
+  set_notification_source: {
+    kind: 'update',
+    entity: 'notificationSource',
+    previewResolver: 'notificationSource',
+    entityFields: { sourceId: 'notificationSource', defaultAccountId: 'account' },
+  },
+
   // Tags, notifications, settings
   update_tag: { targetFields: ['id'] },
   delete_tag: { targetFields: ['id'] },
