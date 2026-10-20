@@ -42,7 +42,7 @@ The plan delivers:
    - It covers finished chat replies and waiting cards when the user is not viewing the thread, new inbox items (collapsed with a count), and parked ingests that have no card.
    - Pushes are debounced, deep-linked, and toggled per group.
 9. **Bank balances** from notifications are stored with an `authoritative` flag. When the same bank holds several non-zero currency balances, the stated balance is informational only.
-10. **Setup UI:** the page is renamed from "Apple Pay" to **"iOS Automation"** (Accounts → iOS Automation). The user picks their iOS version, the choice is remembered, and the page shows the matching shortcut and instructions.
+10. **Setup UI:** the page is renamed from "Apple Pay" to **"iOS Automation"** (Accounts → iOS Automation). It shows two **Add shortcut** buttons side by side, "iOS 27 or later" and "iOS 26 or earlier", each with its own short instructions. Nothing is detected. Both work from the home-screen web app (standalone PWA).
 11. **Docs.**
 
 Out of scope: Android, own-account transfer pairing, balance-drift alerts (the balance is only stored), and changes to the planned-row settlement rules of the Apple Pay plan.
@@ -94,7 +94,8 @@ Out of scope: Android, own-account transfer pairing, balance-drift alerts (the b
   - The settings route `integrations/*` redirects to the page. i18n: `settings.integrations.applePay.*`. Docs: `integrations/apple-pay.mdx`.
 - **Shortcut generator:** `frontend/scripts/shortcuts/build-card-payment-shortcut.ts` (deterministic plist, drift spec, fixture `fixtures/transaction-input.xml`). The shortcut falls back to `response.message` for its notification.
 - **iOS facts:**
-  - Since iOS 26, Safari and web apps freeze the user-agent OS token at `iPhone OS 18_x`; only `Version/NN` follows the release. So the UA cannot gate iOS 27 reliably.
+  - Since iOS 26, Safari freezes the user-agent OS token at `iPhone OS 18_x`. A home-screen web app (standalone; the owner's setup) has no Safari `Version/` token at all. The UA cannot tell the iOS version.
+  - Current link code: `resolveShortcutHref` prefers the iCloud link on iOS (detected by UA through `isIosDevice`) and the file elsewhere. `add-shortcut-button.vue` gives the file a `download` attribute, and the iCloud link gets `target="_blank"`. `setup-code-dialog.vue` copies with `navigator.clipboard.writeText`.
   - Owner's iPhone (`WFWorkflowClientVersion` 5037.111), **known:** `WFWorkflowTriggers` is an array of `{ WFTriggerIdentifier, WFTriggerSerializedParameters, WFTriggerUUID }`; the Notification trigger is `WFNotificationTrigger`; its filters serialize as a `WFContentPredicateTableTemplate`.
   - **Unknown:** the App parameter (and whether "any app" exists), the Wallet Transaction trigger's identifier, the input property names, whether Run Immediately is stored, whether signing keeps triggers.
   - Wallet sample: title `TBC Bank`, subtitle `Wolt`, body `GEL 43.60`.
@@ -109,9 +110,21 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
   - Trigger scope: "any app" where iOS allows it. Otherwise Wallet is pre-filled, and the checklist asks the user to add Messages, the bank's app and the mail app.
   - URL: the setup code's `url` with its last segment replaced (`card-payment` → `event`).
   - iOS < 27 keeps the tap-only shortcut.
-- **iOS version is the user's choice, not detected (owner-visible).**
-  - The page asks "iOS 27 or later?" and remembers the answer in `localStorage` (behind try/catch).
-  - A Safari `Version/(\d+)` token of 27 or higher only pre-selects the answer, as a hint. The frozen `iPhone OS 18_x` token is ignored, and nothing is hidden based on the UA.
+- **Two buttons, no detection (owner-visible; owner decision).**
+  - The setup section shows two buttons side by side, **"Add shortcut — iOS 27 or later"** (`log-payments`) and **"Add shortcut — iOS 26 or earlier"** (`log-card-payment`). Each has its own short instructions in an expandable section underneath.
+  - Nothing parses the user agent and nothing is remembered: no version detection, no pre-selection, no `localStorage`.
+  - `isIosDevice` is removed from link resolution too: on every device the iCloud link wins when configured, and the file is the fallback.
+- **Links and clipboard in the home-screen web app (owner-visible).** The owner runs MoneyMatter as a standalone PWA.
+  - **Detecting standalone:** `isStandalone()` reads `matchMedia('(display-mode: standalone)').matches` or `navigator.standalone`. These are feature checks, not UA parsing.
+  - **iCloud link (preferred):** opened with `window.open(url, '_blank', 'noopener')` from the click handler. In standalone mode iOS shows it in an in-app browser sheet, whose "Get Shortcut" button opens the Shortcuts app. In a normal tab it is an `<a target="_blank" rel="noopener">`.
+  - **File fallback** (no iCloud link configured):
+    - in a normal tab, today's `<a download>`;
+    - in standalone mode, no `download` attribute, because a standalone PWA cannot hand a download to Shortcuts. The absolute file URL opens with `window.open(..., '_blank')` in the system browser sheet, which offers to open it in Shortcuts.
+    - The docs and the button's hint recommend setting the iCloud links for PWA users.
+  - **Copying the setup code:** `navigator.clipboard.writeText` runs synchronously inside the click handler, with no `await` before it, so iOS keeps the user gesture.
+    - If it rejects, a fallback selects a hidden read-only `<textarea>` and runs `document.execCommand('copy')`.
+    - If that fails too, the code shows in a read-only, auto-selected field with "Tap and hold to copy".
+    - The QR code stays as the other path.
 - **Banner: record, enqueue, wait on a budget.** The endpoint records the request (tx 1), enqueues `ingest-notification` without delay, and polls the row for up to `notificationTimings.waitBudgetMs` (10 s, 250 ms steps), as `aiWaitBudgetMs` does today.
 
   | Outcome | Banner (`summary`) | `notify` |
@@ -126,7 +139,7 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
   - **Errors always show (owner-visible).** The shortcut shows `summary` when `notify` is true. On any non-2xx answer it shows `response.message`, as the tap shortcut does today. Only `ignored`, `dropped` and `duplicate` stay silent.
   - **Why a job plus a wait:** retries with backoff, crash safety, AI concurrency through the queue, and the same path as a UI retry. A synchronous AI call would lose the payment on a timeout.
   - **Why no delay:** tier 1 runs under one per-user lock in both paths, so order does not matter, and AI never attaches anything.
-  - **Job ids:** each attempt gets its own id, `${requestId}:${attempt}` (`IngestRequests.attempts` is incremented when enqueuing). The queue sets `removeOnComplete: true` and `removeOnFail: { age: 3600 }`. A UI retry therefore always enqueues, even while the failed job is still retained.
+  - **Job ids:** each attempt gets its own id, `${requestId}-${attempt}` (`IngestRequests.attempts` is incremented when enqueuing; BullMQ rejects custom ids containing `:`, so every id in this plan joins its parts with `-`). The queue sets `removeOnComplete: true` and `removeOnFail: { age: 3600 }`. A UI retry therefore always enqueues, even while the failed job is still retained.
 - **Three privacy layers:**
   1. **On-device gate.** **Match Text** on title + subtitle + body, then **If** no match → **Stop**. These are built-in actions; no Apple Intelligence is required.
      - The regex comes from the setup code's optional `gate`; the built-in standard pattern is the fallback.
@@ -135,7 +148,10 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
      - no amount → dropped (`noAmount`);
      - **OTP, narrowed (owner-visible):** dropped as `security` only when the text asks the user to enter, confirm or not share a code, and a standalone 4–8 digit code is present. Request phrases are kept per language: enter / confirm / do not share / введите / подтвердите / не сообщайте / შეიყვანეთ / …. Phrases like "auth code", "approval code" or "код авторизации" mark a completed payment; they override the rule and the text goes on;
      - a strong promo marker with no card digits or balance → `promo`;
-     - a muted source → `muted`.
+     - a muted source → `muted`;
+     - **our own output → `self`:** the Shortcuts app (`com.apple.shortcuts`, or a localized "Shortcuts" name), the MoneyMatter home-screen web app (its app name, and the bundle iOS reports for web-app notifications, from the device capture), and any text that starts with one of our banner or push templates in the user's locale (`formatSummary` prefixes such as "Logged ", "Already logged ", "Needs your OK" and "Queued, ", plus the `render-push-body.ts` titles). This never creates a source.
+
+     On the device, the shortcut checks the input's app and bundle **before** Match Text: if it is Shortcuts or MoneyMatter, it stops. Without that, our own "Logged 43.60 GEL …" banner would fire the any-app trigger again.
 
      A drop is answered `200 dropped` and **not stored**: only a counter changes, and only on a source that already exists. A conversational source row is created only after the prefilter passes.
   3. **Source approval: fail closed (owner-visible).** Every new source starts `pending`, except Wallet (`com.apple.Passbook`) and a small seed list of known bank apps in `notification-sources.ts`, which start `auto`.
@@ -144,7 +160,7 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
      - Approving the source processes what it holds. Muting it deletes what it holds.
      - Messaging and mail apps (a list of bundle ids and names) are additionally split **per sender** (`app + title`), so approving "Messages · TBC" does not approve every chat.
 - **Text at rest (owner-visible; reconciles "non-payment text is never stored").** Notification text (title, subtitle, body, `raw`) never sits in plain JSON. It is stored only as `IngestRequests.textEnc`, encrypted with `encryptToken` (AES-256-GCM, `common/utils/encryption.ts`). `payload` keeps only non-text metadata: app, bundle id, time and key.
-  - **Not a payment (AI-classified):** `textEnc` is nulled in the classifying transaction; the hash, kind and reason stay; the row is deleted after 7 days.
+  - **Not a payment (AI-classified):** in the classifying transaction, `textEnc` and `summary` are nulled and `parsed` is reduced to `{ parser, kind, confidence }`, so no merchant, card digits or balance stay in plain JSON. The hash, kind and reason stay, and the row is deleted after 7 days.
   - **Not yet classified** (`sourceNotApproved`, `aiUnavailable`, `aiCapReached`, `aiLimitReached`, `processingFailed` on a notification): `textEnc` is kept **at most 7 days**, then the row is deleted and a counter records it.
   - **Payments:** `textEnc` is kept under the existing 90-day retention, for review and retry.
   - **Repeats:** a repeat folded into an `ignored` or dropped original stores no text.
@@ -213,6 +229,12 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
 
     Anything looser becomes a tier-2 suggestion.
   - **Fold window (owner-visible).** The text fingerprint folds a repeat only when the times are within 5 s: the same notification on two devices, or a double fire. The time is the notification's own date when iOS exposes it, else the shortcut's run time **to the second**, which also goes into the idempotency key. Two identical Wallet payments minutes apart become two rows.
+  - **Tap fold, made consistent (owner-visible; changes shipped behaviour).** `findOriginalInWindow` (`card-payment/process-ingest-request.ts`) uses the transaction's own time when the request sends one (`timeProvided` in `parse-payload.ts`).
+    - When both requests carry a `time`, it folds only if the two are within 5 s.
+    - When neither carries one (the legacy shortcut, or an iOS that exposes no transaction time), it keeps today's 120 s receipt window.
+    - The iOS 27 shortcut sends the Transaction's own date when the input has one, so two identical taps a minute apart stay two rows.
+    - Without a time, two identical taps within 120 s still fold. On iOS 27 the second coffee still gets its own row from its Wallet notification, because the first row's `wallet-notification` slot is taken.
+    - `card-payment/constants.ts` adds `repeatWindowWithTimeMs: 5_000`. A new e2e pins both cases, and the existing repeat-window e2e stays green.
   - **Tier 2, AI judge: suggestions only.**
     - It runs **after** the logging transaction commits (as `categorize-after-commit.ts` does), never inside the dedup lock.
     - A match with confidence ≥ 0.6 stores a suggestion with `INSERT … ON CONFLICT DO NOTHING` on the ordered pair.
@@ -233,6 +255,7 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
   - **Edit merge:** `mergeTransactions` calls a new `planReconciliationEditMerge` (`reconciliation/edit-merge.ts`), which wraps `planEditMerge`.
     - Each side's machine baseline comes in: `externalData.ingest.systemNote`, or the provider note, as the sync note.
     - The machine-written payment type is passed too: `mobilePayment` for ingest rows, `bankTransfer` for bank rows. `planEditMerge` gains optional `orphanMachinePaymentType`/`canonicalMachinePaymentType`, defaulting to `bankTransfer`.
+    - **Machine categories:** a non-manual `categorizationMeta` (`ai`, `mcc_rule`, `user_rule`, `subscription_rule`, `payee_rule`) is already not a user signal in `planEditMerge`. An ingest row's unstamped category is the pipeline's own pick (the history category, a hint-mode payee default or the default category). `logIngestedPayment` records it as `externalData.ingest.systemCategoryId`, and legacy `cardPayment` rows without it count the same. The wrapper passes `orphanMachineCategoryId`/`canonicalMachineCategoryId`, new optional `planEditMerge` params; a side whose `categoryId` equals its machine category and whose meta is null signals `none`. So only a manual stamp can raise `category_conflict`, and two ingest rows with different history categories merge, keeping the survivor's.
     - Only real user edits can conflict, and a conflict rejects the merge with its reason.
   - **Survivor:** a booked bank or imported row, else the earliest ingest row.
   - The chat preview `reconciliation.ts` accepts the same rows.
@@ -253,6 +276,7 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
   - **Cards:** `create-proposal.ts` exports a run-free `storeProposal({ userId, threadId, messageId, replaces?, expiresAt, values })` that `createProposal` and the new `createSystemProposal` both call.
     - Inbox cards expire after `inboxConfig.cardTtlDays` (30). The `CHAT_PROPOSAL_LIFETIME_MS` comment names that exception.
     - Expiry resolves nothing: the record stays open in Reconciliation or the waiting list.
+    - **Expiry re-evaluates the thread.** `expireDueCards`/`expireAllDueCards` (`chat/proposals/card-expiry.ts`) return the affected thread ids and call `reevaluateInboxThreads({ threadIds })`. An `open` thread whose last pending card expired turns `closed` and is unpinned. The cleanup cron runs the same check as a backstop.
 
     | Item | Tool | Approve | Edit | Reject |
     |---|---|---|---|---|
@@ -273,11 +297,11 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
     | `chatReplyReady` | a run in a `chat` thread finished or failed and the thread is not being viewed | `chatThread` | per thread, 5 min |
     | `chatCardsWaiting` | that run left pending cards | `chatThread` | merged into the run's push |
     | `automationInbox` | new inbox items | `chatThread` (live inbox) | one per 10 min, with a count |
-    | `ingestAttention` | a park **without a card**: `ai*`, `rateUnavailable`, `processingFailed`, the tap path's `unknownCard` | `accountIosAutomation` | per reason, per day |
+    | `ingestAttention` | a park **without a card**: `ai*`, `rateUnavailable`, `processingFailed`, the tap path's `unknownCard` | the setup page (`accountApplePay` until Task 13 renames it `accountIosAutomation`) | per reason, per day |
 
   - **No double push:** items with cards push only as `automationInbox`.
   - **Presence:** `PUT /chat/presence { threadId }` every 20 s while a thread is visible and focused, and `DELETE` on leave. It is stored in Redis as `chat:presence:<userId>:<threadId>` with a 45 s TTL. A reader of the run's event stream also counts.
-  - **Debounce:** a delayed BullMQ job (`assistant-push`, 60 s, `jobId` = collapse key + window start) plus a Redis counter and a cooldown key. The tag is `assistant:<threadId>` (`build-push-payload.ts` takes a per-type tag).
+  - **Debounce:** a delayed BullMQ job (`assistant-push`, 60 s, `jobId` = `assistant-<type>-<userId>-<threadId or reason>-<windowStart>`, joined with `-`, never `:`) plus a Redis counter and a cooldown key. The tag is `assistant:<threadId>` (`build-push-payload.ts` takes a per-type tag).
   - **Read state:** opening a thread marks its pushes read; opening the iOS Automation page marks `ingestAttention` read.
   - **Bodies:** no AI or notification text; only counts, the thread title and the reason.
 - **Page renamed "iOS Automation":**
@@ -292,7 +316,8 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
   |---|---|
   | `POST /ingest/event` | `checkBaseCurrencyLock` |
   | `POST /transactions/reconciliation/suggestions/:id/dismiss` | `checkBaseCurrencyLock` |
-  | `PATCH/DELETE /user/settings/notification-sources/:id`, `PUT /user/settings/card-payments/gate-strictness` | exempt (settings, no money) |
+  | `PATCH/DELETE /user/settings/notification-sources/:id`, `PUT /user/settings/card-payments/gate-strictness` | exempt: approving a source only **enqueues** its held requests, and the job applies the lock (next row) |
+  | `ingest-notification` job (no route) | `processNotification` calls `isBaseCurrencyChangeLocked({ userId })` first. While locked, it re-delays itself by 60 s (`job.moveToDelayed` + `DelayedError`, so no attempt is used) and leaves the request `received`; the banner poll answers "Queued" |
   | `POST /chat/threads/:id/clear-resolved`, `/archive` | exempt (chat housekeeping); read-only allowed |
   | `PUT/DELETE /chat/presence` | exempt (presence); read-only allowed |
   | card approval | the existing `POST /chat/proposals/:id/approve` (already guarded) |
@@ -339,7 +364,7 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
   - restore with `proposalId` set;
   - a retry after `processingFailed`;
   - push collapse and presence.
-- **Frontend vitest:** the version picker and hint, parameterized shortcut links, route redirects, sources, the Suggestions tab, the inbox view (no composer, no comment), the push toggle, presence.
+- **Frontend vitest:** the two shortcut buttons (no UA reads), standalone link handling (`window.open` vs anchor, no `download` in standalone), the clipboard fallbacks, parameterized shortcut links, route redirects, sources, the Suggestions tab, the inbox view (no composer, no comment), the push toggle, presence.
 - **Playwright:** approve an inbox card; merge a suggestion and see its card resolved.
 
 ## Progress Tracking
@@ -360,7 +385,7 @@ iOS 27 shortcut "MoneyMatter: log payments" (WFWorkflowTriggers: Wallet Transact
   ├─ walletTransaction → ingestCardPayment (pipeline cardPayment) → 200 {summary, notify:true}
   └─ notification → prefilter ─drop→ counter → 200 {dropped}
        → service rate limit (hour/day) → tx 1: IngestRequests (pipeline notification, textEnc) + source upsert
-       → enqueue job (`${requestId}:${attempt}`) → poll ≤ 10 s → 200 {outcome, summary, notify}
+       → enqueue job (`${requestId}-${attempt}`) → poll ≤ 10 s → 200 {outcome, summary, notify}
 
 ingest-notification job:
   fold repeat (fingerprint, ±5 s) → source pending? park sourceNotApproved (+ inbox card)
@@ -407,7 +432,7 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
 - **Reasons:**
   - park: `unknownAccount`, `sourceNotApproved`, `aiUnavailable`, `aiCapReached`, `aiLimitReached`, `ownTransfer`, `lowConfidence`;
   - ignore: `declined`, `security`, `promo`, `info`, `other`;
-  - drop counters: `noAmount`, `security`, `promo`, `muted`, `rateLimited`, `expiredUnclassified`.
+  - drop counters: `noAmount`, `security`, `promo`, `muted`, `self`, `rateLimited`, `expiredUnclassified`.
 - **Constants** (objects, so tests can shorten them):
   - `notificationTimings`: wait 10 s, poll 250 ms, fold 5 s, interrupted after 30 min, unclassified text TTL 7 days, pending-source TTL 30 days;
   - `dedupConfig`: twin 30 min, settlement 7 days, judge 72 h, tolerance `CARD_PAYMENT_AMOUNT_TOLERANCE`, suggest ≥ 0.6, 5 candidates;
@@ -440,7 +465,8 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
 - Create: `packages/backend/src/migrations/20261020120000-notification-ingest.ts`, `packages/backend/src/models/{notification-sources,duplicate-suggestions}.model.ts`
 - Modify: `packages/backend/src/models/{ingest-requests,ingest-settings,card-account-mappings,chat-threads}.model.ts`
 - Modify/Create: `packages/shared/src/types/ingest/{index,amount-gate,notification-sources}.ts` (statuses, reasons, `pipeline`, gate patterns and samples, `buildSourceKey`, the seed lists of conversational and known-bank apps), chat thread `kind`/`inboxState` types
-- Modify: `packages/backend/src/services/backup/registry.ts` (new entries; `nullOnRestore` option and its use in the restore path), `packages/backend/src/services/user/wipe-user-data.service.ts`
+- Modify: `packages/backend/src/services/backup/registry.ts` (new entries; the `nullOnRestore` option on `BackupTableDef`), `packages/backend/src/services/backup/restore/restore-tables.ts` (applies `nullOnRestore` next to `stripSecret`/`isValidRow`), `packages/backend/src/services/user/wipe-user-data.service.ts`
+- Modify: `packages/frontend/src/pages/accounts/integrations/apple-pay/components/waiting-payments.vue`. It gets an `ignored` entry in the exhaustive `STATUS_VARIANTS: Record<IngestRequestStatus, Variant>`, so the root typecheck passes, plus its status label key (`en` + `uk`)
 
 - [ ] write failing tests:
   - `registry.unit.ts` lists the new models;
@@ -472,6 +498,7 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
   - `walletTransaction` → card-payment summary, `notify: true`, `pipeline` = `cardPayment`;
   - a notification → `logged` with the summary; a slow stub → `queued`;
   - `noAmount`/`security`/`promo` → `200 dropped`, no row, counter bumped on an existing source;
+  - `self`: a notification from `com.apple.shortcuts`, one from the MoneyMatter web app, and one whose body is our own "Logged 43.60 GEL at Wolt → Food" → `dropped/self`, with no row and no source created;
   - a muted source (set through `PATCH /notification-sources/:id`) → `dropped`;
   - over 120 in an hour → 429, and dropped requests don't count;
   - key replay → `duplicate`; same key, other body → 409;
@@ -479,7 +506,6 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
   - dry run; 413;
   - a non-2xx answer carries `message`;
   - the stored payload has no title, subtitle or body, only `textEnc`;
-  - a retry enqueues a new attempt while the failed job is still retained;
   - sources: list (empty, then after a notification), mode, default account (owned and active; 404 otherwise), delete;
   - `lastDigits` (validation, 409 on a duplicate);
   - strictness `PUT` (422 for an unknown level), and a new setup code carries `gate`;
@@ -489,7 +515,7 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
   - prefilter, then the service-level `checkRateLimit` (hour and day, notifications only);
   - source upsert (conversational rows only after the prefilter);
   - tx 1 with `pipeline`, `textEnc` and `attempts`;
-  - enqueue `${requestId}:${attempt}` with `removeOnComplete: true`, `removeOnFail: { age: 3600 }`, 4 attempts with backoff; the final failure parks `processingFailed`;
+  - enqueue `${requestId}-${attempt}` with `removeOnComplete: true`, `removeOnFail: { age: 3600 }`, 4 attempts with backoff; the final failure parks `processingFailed`;
   - `waitForOutcome`
 - [ ] gate: unit `--testPathPattern='(ingest/event|setup-code)'`; e2e `--testPathPattern='(ingest/event/(ingest-event|notification-sources)|ingest/(card-mappings|setup-code|card-payment/ingest-card-payment)|routes/base-currency-guard-coverage).e2e'`
 
@@ -524,18 +550,20 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
 
 **Files:**
 
-- Create: `packages/backend/src/services/ingest/log-ingested-payment.ts` (writes `externalData.ingest.systemNote`); Modify: `packages/backend/src/services/ingest/card-payment/process-card-payment.ts`
+- Create: `packages/backend/src/services/ingest/log-ingested-payment.ts` (writes `externalData.ingest.systemNote` and `systemCategoryId`); Modify: `packages/backend/src/services/ingest/card-payment/process-card-payment.ts`
 - Create: `packages/backend/src/services/ingest/event/{process-notification,resolve-notification-account,apply-payee-choice}.ts` + `apply-payee-choice.unit.ts`
-- Modify: `packages/backend/src/services/ingest/card-payment/{process-ingest-request,list-requests,retry-request,format-summary}.ts` (branch on `pipeline`), `packages/backend/src/crons/ingest-requests-cleanup.ts`
+- Modify: `packages/backend/src/services/ingest/card-payment/{process-ingest-request,list-requests,retry-request,run-ingest-pass,format-summary}.ts` (branch on `pipeline`; `retry-request.ts` enqueues `${requestId}-${attempts + 1}` for notifications and accepts `force`), `packages/backend/src/controllers/ingest/card-payment-requests.controller.ts` (`{ force?: boolean }` on retry), `packages/backend/src/services/ingest/event/notification-sources.service.ts` (approve → enqueue the held requests; mute → delete them), `packages/backend/src/crons/ingest-requests-cleanup.ts`
 - Create: `packages/backend/src/services/ingest/event/{process-notification,payee-resolution}.e2e.ts`
 
 - [ ] write failing e2e (AI over MSW):
   - a Wallet notification is logged without AI;
   - a push debit and credit are logged with payee and category;
-  - non-payments → `ignored`, with `textEnc` null;
+  - non-payments → `ignored`, with `textEnc` and `summary` null and `parsed` exactly `{ parser, kind, confidence }`;
   - a pending source → parked `sourceNotApproved` without AI; approving it through `PATCH /notification-sources/:id` logs it; muting deletes it;
   - `aiUnavailable`, `aiCapReached` and `aiLimitReached` → each followed by a successful retry;
-  - `ownTransfer`/`lowConfidence` → `force` logs them;
+  - `ownTransfer`/`lowConfidence` → `POST /user/settings/card-payments/requests/:id/retry { force: true }` logs them; without `force` the retry answers 409 with the park reason;
+  - a notification request that ended `processingFailed` (an MSW 500 on every attempt) → `retry` enqueues `${requestId}-2` while the failed job is still retained, and the request is logged;
+  - a base-currency change in progress (the lock held) → the job re-delays without using an attempt and the banner says "Queued"; once the lock is released the request is logged;
   - FX → `originalAmount`;
   - a connected account → a planned row;
   - accounts: card name, `lastDigits`, source default, and `unknownAccount` with a guess;
@@ -557,7 +585,7 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
 **Files:**
 
 - Create: `packages/backend/src/services/ingest/dedup/{constants,source-slots,find-twin,find-settlement-target,enrich-twin}.ts` + unit specs, `twin.e2e.ts`
-- Modify: `packages/backend/src/services/ingest/log-ingested-payment.ts`, `packages/backend/src/services/ingest/event/process-notification.ts`
+- Modify: `packages/backend/src/services/ingest/log-ingested-payment.ts`, `packages/backend/src/services/ingest/event/process-notification.ts`, `packages/backend/src/services/ingest/card-payment/{process-ingest-request,constants}.ts` (tap fold by `time`), `packages/backend/src/services/ingest/card-payment/processing.e2e.ts` (the tap fold cases)
 
 - [ ] write failing unit tests:
   - slots, including legacy `externalData.cardPayment`;
@@ -565,7 +593,9 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
   - the settlement rule: same source, open authorization slot, same merchant text, 7 days
 - [ ] write failing e2e:
   - tap → Wallet → push → SMS gives one row in any order;
-  - **tap, tap, Wallet, Wallet** for two identical coffees gives two rows, each with two sources;
+  - **tap, tap, Wallet, Wallet** for two identical coffees, with the taps' `time` 60 s apart, gives two rows, each with two sources;
+  - the same order with taps carrying **no** `time`: the second tap folds (as today), and the result is still two rows: tap + Wallet, and Wallet only;
+  - the tap path alone: two identical taps with `time` 60 s apart → two rows; with `time` 2 s apart → folded; without `time` within 120 s → folded (shipped behaviour);
   - a USD tap on a GEL manual account takes the bank's GEL and the balance follows;
   - the payee is filled and the spelling aliased;
   - a settlement **two days later** attaches to its authorization; one with a different merchant text logs a new row;
@@ -600,7 +630,7 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
 - Modify: `packages/backend/src/services/chat/proposals/previews/reconciliation.ts`, i18n `transactions.reconciliation.*` (`en` + `uk`), `packages/frontend/src/pages/optimizations/reconciliation/block-reasons.ts` + test
 
 - [ ] write failing tests:
-  - unit: `planReconciliationEditMerge`. Two ingest rows "Wolt" vs "WOLT.COM TBILISI" with machine notes → merge, no `note_conflict`. A user-edited note on both sides → `note_conflict`. `mobilePayment` on both sides → no conflict;
+  - unit: `planReconciliationEditMerge`. Two ingest rows "Wolt" vs "WOLT.COM TBILISI" with machine notes → merge, no `note_conflict`. A user-edited note on both sides → `note_conflict`. `mobilePayment` on both sides → no conflict; two ingest rows with **different unstamped history categories** (their `systemCategoryId`s) → merge, keeping the survivor's category; a manual stamp on one side and a different machine category on the other → that side's manual category moves;
   - e2e: a manual-account merge, remove and restore change the balance and `Balances` correctly; bank rows are unchanged;
   - e2e: an ingest plan merges into a booked row and is hidden (planned included); the reverse is rejected; a user plan is rejected;
   - e2e: the chat merge preview accepts the same rows
@@ -611,7 +641,7 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
 
 **Files:**
 
-- Modify: `packages/backend/src/services/transactions/reconciliation/duplicate-suggestions.ts` (dismiss, `markSuggestionsStale`, null-side sweep), `packages/backend/src/services/transactions/{delete-transaction,bulk-delete}.ts`, `packages/backend/src/services/transactions/reconciliation/remove-transactions.ts`, `packages/backend/src/crons/ingest-requests-cleanup.ts`
+- Modify: `packages/backend/src/services/transactions/reconciliation/duplicate-suggestions.ts` (dismiss, `markSuggestionsStale`, `markSuggestionMerged`, null-side sweep), `packages/backend/src/services/transactions/reconciliation/merge-transactions.ts` (marks the pair's open suggestion `merged` inside the merge transaction), `packages/backend/src/services/transactions/{delete-transaction,bulk-delete}.ts`, `packages/backend/src/services/transactions/reconciliation/remove-transactions.ts`, `packages/backend/src/crons/ingest-requests-cleanup.ts`
 - Create: `packages/backend/src/services/ingest/dedup/{duplicate-scan-queue,event-listeners}.ts`; Modify: `packages/backend/src/services/import-export/statement-parser/execute-import.service.ts`, `packages/backend/src/background-jobs.ts`
 - Modify: the controller and routes (`POST /transactions/reconciliation/suggestions/:id/dismiss`, guarded), `routes/base-currency-guard-coverage.e2e.ts`
 - MCP: `list-duplicate-suggestions`, `dismiss-duplicate-suggestion` (`add-mcp-tool`)
@@ -632,7 +662,7 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
 **Files:**
 
 - Create: `packages/backend/src/services/chat/inbox/{inbox-thread,create-system-proposal,inbox-items}.ts` + unit specs, `inbox.e2e.ts`
-- Modify: `packages/backend/src/services/chat/proposals/create-proposal.ts` (exported run-free `storeProposal`, `expiresAt` parameter, lifetime comment), `packages/backend/src/services/chat/proposals/reject.ts` (`onInboxCardRejected`), `packages/backend/src/services/chat/runs/start-run.ts` (409 for inbox threads), `packages/backend/src/services/chat/threads/{list.service,to-chat-thread,update.service,delete.service}.ts`, `packages/backend/src/routes/chat.route.ts` + controllers (`clear-resolved`, `archive`), `packages/backend/src/middlewares/entitlements.ts` + `entitlements.unit.ts`, `routes/base-currency-guard-coverage.e2e.ts`
+- Modify: `packages/backend/src/services/chat/proposals/create-proposal.ts` (exported run-free `storeProposal`, `expiresAt` parameter, lifetime comment), `packages/backend/src/services/chat/proposals/card-expiry.ts` (return affected thread ids; call `reevaluateInboxThreads`), `packages/backend/src/services/chat/proposals/reject.ts` (`onInboxCardRejected`), `packages/backend/src/services/chat/runs/start-run.ts` (409 for inbox threads), `packages/backend/src/services/chat/threads/{list.service,to-chat-thread,update.service,delete.service}.ts`, `packages/backend/src/routes/chat.route.ts` + controllers (`clear-resolved`, `archive`), `packages/backend/src/middlewares/entitlements.ts` + `entitlements.unit.ts`, `routes/base-currency-guard-coverage.e2e.ts`
 - Create: chat policies and previews for `log_ingest_request` and `set_notification_source` (`services/chat/policies/explicit.ts`, `services/chat/proposals/previews/ingest-requests.ts`); MCP tools `log-ingest-request` and `set-notification-source` (`add-mcp-tool`)
 - Modify: `packages/backend/src/services/ingest/event/{process-notification,notification-sources.service}.ts`, `packages/backend/src/services/ingest/card-payment/{retry-request,dismiss-request}.ts`, `packages/backend/src/services/transactions/reconciliation/duplicate-suggestions.ts`
 - Modify: `packages/backend/src/services/backup/restore/restore-backup.e2e.ts`
@@ -647,6 +677,7 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
   - two concurrent items with no live thread → one live thread holding both cards;
   - `DELETE` or unpin of a `live`/`open` thread → 409; on `closed` it works;
   - `clear-resolved` keeps pending cards; `archive` → 409 with a pending card;
+  - an `open` thread whose last pending card expires (through the existing card-expiry helper) turns `closed`, is unpinned and can be deleted;
   - a read-only user can clear-resolved and archive;
   - restore of a backup taken with sources and dismissed suggestions that carry `proposalId` → succeeds, with `proposalId` null
 - [ ] gate: unit `--testPathPattern='(chat/inbox|chat/policies|entitlements)'`; e2e `--testPathPattern='(chat/inbox/inbox|chat/threads/threads|chat/proposals/(approve|card-actions)|ingest/event/process-notification|transactions/reconciliation/duplicate-suggestions|backup/restore/restore-backup|routes/base-currency-guard-coverage).e2e'`
@@ -684,27 +715,30 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
 
 - [ ] failing vitest:
   - the heartbeat is sent every 20 s only while the page is visible and focused; it stops on blur, hide and leave, with `DELETE` on leave;
-  - deep links: the thread types → `chatThread`; `ingestAttention` → the iOS Automation waiting list;
+  - deep links: the thread types → `chatThread`; `ingestAttention` → `ROUTES_NAMES.accountApplePay`, the current setup page (Task 13 switches it);
   - the bell shows counts
 - [ ] gate: `npm run test:unit -- --run src/pages/settings/subpages/notifications src/composable/use-chat-presence.test.ts src/components/notifications-popover`; typecheck, lint
 
-### Task 13: Frontend: rename to "iOS Automation" and version-aware setup
+### Task 13: Frontend: rename to "iOS Automation", two shortcut buttons, PWA-safe links
 
 **Files:**
 
 - Move: `packages/frontend/src/pages/accounts/integrations/apple-pay/` → `ios-automation/` (`apple-pay-details.vue` → `ios-automation-details.vue`; `apple-pay.ts` → `ios-automation.ts`, specs follow)
-- Modify: `packages/frontend/src/routes/{index,constants}.ts` (`accountIosAutomation`, redirects), `pages/accounts/accounts.vue`, `pages/accounts/integrations/components/add-integration-dialog.vue`, `components/sync-status-tooltip.vue`, `components/ui-header.vue`
-- Modify: `ios-automation.ts` and `composables/use-shortcut-link.ts` (parameterized by `{ filePath, icloudUrl }`; adds `PAYMENTS_SHORTCUT_FILE_PATH`); `packages/frontend/src/common/config.ts` + `self-hosting/frontend/docker-entrypoint.sh` (`PAYMENTS_SHORTCUT_ICLOUD_URL`)
-- Create: `ios-automation/components/{ios-version-picker,triggered-shortcut-setup,gate-strictness,notification-sources,pending-sources}.vue` + specs, `composables/use-ios-version.ts` + spec
+- Modify: `packages/frontend/src/routes/{index,constants}.ts` (`accountIosAutomation`, redirects), `packages/frontend/src/components/notifications-popover/build-notification-route.ts` + test (`ingestAttention` → `accountIosAutomation`), `pages/accounts/accounts.vue`, `pages/accounts/integrations/components/add-integration-dialog.vue`, `components/sync-status-tooltip.vue`, `components/ui-header.vue`
+- Modify: `ios-automation.ts` (`resolveShortcutHref`/`probeShortcutFile` parameterized by `{ filePath, icloudUrl }`; iCloud first on every device; `isIosDevice` removed; new `isStandalone`, `openShortcutLink`, `PAYMENTS_SHORTCUT_FILE_PATH`) and `composables/use-shortcut-link.ts`; `components/{add-shortcut-button,setup-code-dialog}.vue` (standalone-safe open, clipboard fallbacks), with a new `packages/frontend/src/common/utils/copy-text.ts` + test; `packages/frontend/src/common/config.ts` + `self-hosting/frontend/docker-entrypoint.sh` (`PAYMENTS_SHORTCUT_ICLOUD_URL`)
+- Create: `ios-automation/components/{shortcut-choice,triggered-shortcut-setup,gate-strictness,notification-sources,pending-sources}.vue` + specs
 - Modify: `components/{setup-checklist,add-shortcut-button,card-link-dialog,card-links,waiting-payments,payment-request-summary}.vue`, `packages/frontend/src/api/ingest.ts`; i18n `settings.integrations.applePay.*` → `settings.integrations.iosAutomation.*` (`en` + `uk`)
 - Create: `packages/frontend/e2e/tests/integrations/ios-automation.spec.ts` (and update the paths in the Apple Pay specs)
 
 - [ ] failing vitest:
   - routes: both old paths redirect; the title is "iOS Automation";
   - "Add integration" dialog row (the status line of mode labels from `port/wallet-icon`, today "Apple Pay taps"): add **"Notifications (iOS 27+)"** to the modes, and the description says bank notifications (app pushes, SMS, email) are logged too;
-  - the version picker: the stored choice wins; `Version/27` pre-selects iOS 27+ as a hint; tested with real frozen user agents (`iPhone OS 18_6 … Version/26.0`, `… Version/27.0`); nothing is hidden by the UA alone;
-  - iOS 27+: **Add Shortcut** opens `log-payments.shortcut` or `PAYMENTS_SHORTCUT_ICLOUD_URL`, **never** the tap shortcut's link. The checklist: turn on the built-in triggers; if iOS asks, add Wallet, Messages, the bank's app and the mail app; Run Immediately. The gate note says "only notifications that show an amount leave your phone; built-in Match Text, no Apple Intelligence needed";
-  - earlier iOS: today's file and checklist;
+  - `shortcut-choice.vue` shows both buttons side by side (stacked in a narrow container, via container queries), each with expandable instructions; no code path reads `navigator.userAgent`;
+  - "iOS 27 or later" opens `PAYMENTS_SHORTCUT_ICLOUD_URL` or `log-payments.shortcut`, **never** the tap shortcut's link. Its instructions: turn on the built-in triggers; if iOS asks, add Wallet, Messages, the bank's app and the mail app; Run Immediately. The gate note: "only notifications that show an amount leave your phone; built-in Match Text, no Apple Intelligence needed";
+  - "iOS 26 or earlier" opens the tap shortcut (iCloud link or file) with today's checklist;
+  - a button whose iCloud link and file are both missing is hidden, with a note;
+  - standalone mode (mock `matchMedia('(display-mode: standalone)')`): the iCloud link goes through `window.open(..., '_blank', 'noopener')`; the file has no `download` attribute and opens through `window.open`. In a normal tab: an anchor, with `download` for the file;
+  - `copyText`: synchronous `writeText` inside the handler; on rejection, the `execCommand` fallback; then the "Tap and hold to copy" field;
   - gate strictness with its warning and the new-setup-code hint;
   - sources and pending sources (approve, mute); the last-digits field;
   - the waiting and recent lists show notification kinds and reasons, with a link to the inbox card
@@ -745,6 +779,7 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
   - the URL rewrite;
   - the gate uses `code.gate`, falling back to `AMOUNT_GATE_PATTERNS.standard`; the shared samples pass through the same regex;
   - the gate uses only **Match Text** + **If** (no Apple Intelligence action identifiers appear);
+  - an **If** on the input's app or bundle stops the run for the Shortcuts app and the MoneyMatter web app before Match Text (the `self` rule);
   - the key includes the time to the second;
   - no input → dry run;
   - a banner on `notify`, and `message` on a non-2xx answer
@@ -755,7 +790,7 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
 
 - [ ] tap, Wallet notification, push and SMS in any order → one row with every source, the bank's amount, the resolved payee and a new alias; the right banner each time; two identical payments → two rows
 - [ ] an online Apple Pay payment is logged from the Wallet notification alone; a chat, an OTP request and a promo leave no stored text; a pending source's text is encrypted and expires after 7 days
-- [ ] the limits hold; Wallet logs without AI; errors show a banner
+- [ ] the limits hold; Wallet logs without AI; errors show a banner; our own banners and pushes never come back in as notifications
 - [ ] every AI-judged match is a suggestion; resolving it in the inbox or in Reconciliation resolves both; manual-account balances stay right
 - [ ] sync and statement import create no duplicate rows (the plan is settled) or a suggestion
 - [ ] multi-currency balances are informational
@@ -768,7 +803,7 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
 ### Task 17: [Final] Update documentation
 
 - [ ] `packages/docs/src/content/docs/integrations/ios-automation.mdx` (it replaces `apple-pay.mdx`; redirect in `astro.config.mjs`), per the `user-docs` skill. Cover:
-  - the two shortcuts and choosing the iOS version;
+  - the two shortcut buttons (iOS 27 or later, iOS 26 or earlier) and using them from the home-screen app;
   - the triggers and the apps to add;
   - the gate (Match Text, no Apple Intelligence) and its strictness;
   - logged, ignored, dropped and parked notifications;
@@ -804,8 +839,15 @@ _Items requiring manual work or external systems; no checkboxes._
   - Do TBC payment confirmations carry an auth code? (They must pass the prefilter.)
   - Is a balance line per account or a total?
   - Does iOS expose the notification's date? (It drives the fold window and the key.)
+  - Does the any-app trigger receive the Shortcuts app's own banners and MoneyMatter's web pushes, and under which app name or bundle id? (It drives the `self` rule on both sides.)
+  - Does the Wallet Transaction input expose the transaction's own time? (It drives the tap fold.)
 
-**Signing:** sign `log-payments.plist` (see `public/shortcuts/README.md`). Confirm the triggers survive signing and import, then run it once by hand for the dry-run banner. Optionally set `PAYMENTS_SHORTCUT_ICLOUD_URL`.
+**Signing:** sign `log-payments.plist` (see `public/shortcuts/README.md`). Confirm the triggers survive signing and import, then run it once by hand for the dry-run banner. Share it from the iPhone to get an iCloud link, and set `PAYMENTS_SHORTCUT_ICLOUD_URL` (and `CARD_PAYMENT_SHORTCUT_ICLOUD_URL`, if it isn't set yet). PWA users need these links.
+
+**Home-screen web app check (owner's iPhone):** from the installed MoneyMatter app (standalone, not Safari):
+- tap each **Add shortcut** button and confirm the Shortcuts app offers the import, first with the iCloud link and then with only the file configured;
+- generate a setup code, tap **Copy**, and paste it into the shortcut's import question;
+- record anything that fails, with the iOS version.
 
 **Cloudflare Access for `money.nemirovsky.dev`:** widen the path-scoped Service Auth app to `/api/v1/ingest/`, keeping the same service token. Then verify that an anonymous request gets 403 and one with the headers reaches the app.
 
