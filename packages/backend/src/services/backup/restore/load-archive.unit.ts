@@ -192,9 +192,37 @@ describe('loadBackupArchive money format', () => {
     expect(archive.data.get('transactions')).toEqual([{ id: 'a', amount: '15.5', refAmount: null }]);
   });
 
-  it('keeps the money of a format version 2 archive as it is', async () => {
+  it('converts the cents of a format version 2 archive written with the tracker names', async () => {
+    const buffer = await buildArchiveFromFiles({
+      files: { 'data/transactions.json': rows, 'data/trackers.json': JSON.stringify([{ id: 't', limitAmount: 5000 }]) },
+      formatVersion: 2,
+    });
+
+    const archive = await loadBackupArchive({ fileContent: buffer.toString('base64') });
+
+    expect(archive.data.get('transactions')).toEqual([{ id: 'a', amount: '15.5', refAmount: null }]);
+    expect(archive.data.get('trackers')).toEqual([{ id: 't', limitAmount: '50' }]);
+  });
+
+  it('keeps the decimal money of a format version 2 archive that still carries the budget names', async () => {
     const decimalRows = JSON.stringify([{ id: 'a', amount: '15.500000000000000000', refAmount: null }]);
-    const buffer = await buildArchiveFromFiles({ files: { 'data/transactions.json': decimalRows }, formatVersion: 2 });
+    const buffer = await buildArchiveFromFiles({
+      files: {
+        'data/transactions.json': decimalRows,
+        'data/budgets.json': JSON.stringify([{ id: 't', limitAmount: '50.000000000000000000' }]),
+      },
+      formatVersion: 2,
+    });
+
+    const archive = await loadBackupArchive({ fileContent: buffer.toString('base64') });
+
+    expect(archive.data.get('transactions')).toEqual([{ id: 'a', amount: '15.500000000000000000', refAmount: null }]);
+    expect(archive.data.get('trackers')).toEqual([{ id: 't', limitAmount: '50.000000000000000000' }]);
+  });
+
+  it('keeps the money of a format version 3 archive as it is', async () => {
+    const decimalRows = JSON.stringify([{ id: 'a', amount: '15.500000000000000000', refAmount: null }]);
+    const buffer = await buildArchiveFromFiles({ files: { 'data/transactions.json': decimalRows }, formatVersion: 3 });
 
     const archive = await loadBackupArchive({ fileContent: buffer.toString('base64') });
 

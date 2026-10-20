@@ -222,6 +222,13 @@ export async function loadBackupArchive({
     parsedByPath.set(path, parseJson({ buffer: bytes, path }));
   }
 
+  // Version 2 means two things. Upstream wrote it with the tracker names and integer cents. An earlier build
+  // of this fork wrote it with decimal money but the older "budget" names, which no later version carries:
+  // it leaves `budgets.json` (and no `trackers.json`) behind.
+  const isDecimalMoneyWithLegacyNames =
+    formatVersion === 2 && parsedByPath.has('data/budgets.json') && !parsedByPath.has('data/trackers.json');
+  const holdsCents = formatVersion < FIRST_DECIMAL_MONEY_FORMAT_VERSION && !isDecimalMoneyWithLegacyNames;
+
   normalizeLegacyArchive({ formatVersion, parsedByPath });
 
   const data = new Map<BackupFileName, Row[]>();
@@ -246,7 +253,7 @@ export async function loadBackupArchive({
   }
 
   // Older archives store money as integer cents; every later step expects decimals.
-  if (formatVersion < FIRST_DECIMAL_MONEY_FORMAT_VERSION) {
+  if (holdsCents) {
     convertV1MoneyToDecimal({ data });
   }
 
