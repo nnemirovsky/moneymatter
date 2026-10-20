@@ -511,7 +511,7 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
 - Modify: `packages/backend/src/routes/base-currency-guard-coverage.e2e.ts` (`GUARD_EXEMPT_ROUTES` for the source and strictness writes)
 - Create: `packages/backend/src/services/ingest/event/{ingest-event,notification-sources}.e2e.ts`; Modify: `packages/backend/src/tests/helpers/ingest.ts`, `packages/backend/src/services/ingest/card-mappings.e2e.ts`
 
-- [ ] write failing unit tests:
+- [x] write failing unit tests:
   - `kind` is required;
   - aliases and caps;
   - prefilter: an OTP request with a code → `security`; "Payment 43.60 GEL, auth code 482913" → pass; percent-off promo → `promo`; payment text with card digits and a promo word → pass;
@@ -519,7 +519,7 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
   - the fingerprint and the 5 s fold;
   - the `gate` setup-code round trip, and an old code still decodes;
   - `notification-text` round trip
-- [ ] write failing e2e (the job's processor is a stub that marks the row `logged`):
+- [x] write failing e2e (the job's processor is a stub that marks the row `logged`):
   - `walletTransaction` → card-payment summary, `notify: true`, `pipeline` = `cardPayment`;
   - a notification → `logged` with the summary; a slow stub → `queued`;
   - `noAmount`/`security`/`promo` → `200 dropped`, no row, counter bumped on an existing source;
@@ -535,14 +535,19 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
   - `lastDigits` (validation, 409 on a duplicate);
   - strictness `PUT` (422 for an unknown level), and a new setup code carries `gate`;
   - guard coverage
-- [ ] implement:
+- [x] implement:
   - dispatch on `kind`;
   - prefilter, then the service-level `checkRateLimit` (hour and day, notifications only);
   - source upsert (conversational rows only after the prefilter);
   - tx 1 with `pipeline`, `textEnc` and `attempts`;
   - enqueue `${requestId}-${attempt}` with `removeOnComplete: true`, `removeOnFail: { age: 3600 }`, 4 attempts with backoff; the final failure parks `processingFailed`;
   - `waitForOutcome`
-- [ ] gate: unit `--testPathPattern='(ingest/event|setup-code)'`; e2e `--testPathPattern='(ingest/event/(ingest-event|notification-sources)|ingest/(card-mappings|setup-code|card-payment/ingest-card-payment)|routes/base-currency-guard-coverage).e2e'`
+- [x] ➕ owner fact (multi-currency TBC card): the owner has ONE TBC card with 4 currencies, GEL and USD non-empty, each a separate MoneyMatter account. Extend `CardAccountMappings` so a card (label and/or `lastDigits`) holds one row per currency plus one default row (`currencyCode` NULL). The migration gets a unique index on `(userId, normalized card key, currency)` that treats a NULL currency as the default; existing rows become the default
+- [x] ➕ account resolution, used by both the tap path (card-payment) and notifications: the payment currency's mapping first; otherwise the card's default (the bank converts from the default balance); otherwise unknown card. Extend the card-mappings API (list, set and remove per currency) and its validation. Update the tap-path e2e: a GEL payment goes to the GEL account, a USD payment to the USD account, EUR to the default
+- [x] ➕ frontend: `card-links.vue` on the Apple Pay page lets the user add currency-specific accounts under a card and pick the default (`en` and `uk` i18n, vitest); compact
+- [x] gate: unit `--testPathPattern='(ingest/event|setup-code)'`; e2e `--testPathPattern='(ingest/event/(ingest-event|notification-sources)|ingest/(card-mappings|setup-code|card-payment/ingest-card-payment)|routes/base-currency-guard-coverage).e2e'`
+
+Gate results (Task 2): backend unit (full) 359 suites pass; e2e `services/ingest/.*`, `routes/base-currency-guard-coverage`, `backup/(export-backup|restore/restore-backup)` 11 suites pass; frontend `src/pages/accounts/integrations` and the full vitest run pass; root typecheck, lint and backend knip clean.
 
 ### Task 3: AI features `notificationParsing` and `duplicateMatching`
 
