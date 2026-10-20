@@ -16,6 +16,7 @@ import {
 import { withTransaction } from '@services/common/with-transaction';
 import { Op } from 'sequelize';
 
+import { markSuggestionMerged, markSuggestionsStale } from './duplicate-suggestions';
 import { type EditMergeRow, planReconciliationEditMerge } from './edit-merge';
 import { detachLinks, loadReconcilableRows, softDeleteTransactions } from './helpers';
 
@@ -218,6 +219,11 @@ export const mergeTransactions = withTransaction(
     }
     await detachLinks({ transactionIds: removedIds });
     await softDeleteTransactions({ userId, rows: removedRows, mergedIntoId: survivorId });
+
+    // The pair the owner just merged is done; a suggestion that pairs a removed row with some other
+    // row has lost its row and goes stale. The survivor's other suggestions stay open.
+    await markSuggestionMerged({ userId, transactionIds });
+    await markSuggestionsStale({ transactionIds: removedIds });
 
     return { removedIds };
   },

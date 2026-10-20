@@ -1,6 +1,7 @@
 import { INGEST_REQUEST_RETENTION_DAYS, type IngestRequestStatus, type RecordId } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
 import { connection } from '@models/connection';
+import DuplicateSuggestions from '@models/duplicate-suggestions.model';
 import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
 import { ingestRequestsCleanupCron } from '@root/crons/ingest-requests-cleanup';
@@ -8,7 +9,13 @@ import * as helpers from '@tests/helpers';
 
 /** The cleanup has no HTTP surface, so this e2e invokes it directly. */
 
-const NOTHING_ELSE = { ignoredDeleted: 0, unclassifiedExpired: 0, pendingSourcesDeleted: 0 };
+const NOTHING_ELSE = {
+  ignoredDeleted: 0,
+  unclassifiedExpired: 0,
+  pendingSourcesDeleted: 0,
+  suggestionsSwept: 0,
+  suggestionsDeleted: 0,
+};
 
 const STATUSES: IngestRequestStatus[] = ['logged', 'rejected', 'dismissed', 'parked', 'received'];
 
@@ -38,6 +45,43 @@ const ageRows = async ({ ids, daysAgo }: { ids: RecordId[]; daysAgo: number }) =
     `UPDATE "IngestRequests" SET "createdAt" = now() - make_interval(days => :daysAgo), "updatedAt" = now() - make_interval(days => :daysAgo) WHERE id IN (:ids)`,
     { replacements: { daysAgo, ids } },
   );
+
+const seedSuggestion = async ({
+  status,
+  resolvedDaysAgo = null,
+  sides = 'both',
+}: {
+  status: 'open' | 'merged' | 'dismissed' | 'stale';
+  resolvedDaysAgo?: number | null;
+  sides?: 'both' | 'transactionOnly';
+}) => {
+  const user = await helpers.getUserInfo({ raw: true });
+  const account = await helpers.createAccount({ raw: true });
+  const [first, second] = await Promise.all([
+    helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({ accountId: account.id, amount: 10 }),
+      raw: true,
+    }),
+    helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({ accountId: account.id, amount: 11 }),
+      raw: true,
+    }),
+  ]);
+  const [low, high] = [first[0]!.id, second[0]!.id].toSorted();
+  const suggestion = await DuplicateSuggestions.create({
+    userId: user.id,
+    accountId: account.id,
+    transactionId: low,
+    candidateId: sides === 'both' ? high : null,
+    confidence: 0.9,
+    reason: null,
+    trigger: 'scan',
+    status,
+    resolvedAt: resolvedDaysAgo === null ? null : new Date(Date.now() - resolvedDaysAgo * 24 * 60 * 60_000),
+  });
+
+  return suggestion.id;
+};
 
 const seedNotification = async ({
   userId,
@@ -189,6 +233,33 @@ describe('Ingest requests cleanup cron', () => {
       expect(await NotificationSources.findOne({ where: { id: stale.id } })).toBeNull();
       expect(await NotificationSources.findOne({ where: { id: approved.id } })).not.toBeNull();
       expect(await IngestRequests.findOne({ where: { id: held.id } })).toBeNull();
+    });
+  });
+  describe('duplicate suggestions', () => {
+    it('marks an open suggestion with a missing side stale, and leaves a whole one open', async () => {
+      const orphan = await seedSuggestion({ status: 'open', sides: 'transactionOnly' });
+      const whole = await seedSuggestion({ status: 'open' });
+
+      const result = await ingestRequestsCleanupCron.triggerManualSync();
+
+      expect(result).toMatchObject({ suggestionsSwept: 1 });
+      expect((await DuplicateSuggestions.findByPk(orphan))!.status).toBe('stale');
+      expect((await DuplicateSuggestions.findByPk(whole))!.status).toBe('open');
+    });
+
+    it('deletes merged and stale suggestions settled over 90 days ago, and keeps dismissed and recent ones', async () => {
+      const oldMerged = await seedSuggestion({ status: 'merged', resolvedDaysAgo: 91 });
+      const oldStale = await seedSuggestion({ status: 'stale', resolvedDaysAgo: 91 });
+      const recentMerged = await seedSuggestion({ status: 'merged', resolvedDaysAgo: 89 });
+      const oldDismissed = await seedSuggestion({ status: 'dismissed', resolvedDaysAgo: 400 });
+
+      const result = await ingestRequestsCleanupCron.triggerManualSync();
+
+      expect(result).toMatchObject({ suggestionsDeleted: 2 });
+      expect(await DuplicateSuggestions.findByPk(oldMerged)).toBeNull();
+      expect(await DuplicateSuggestions.findByPk(oldStale)).toBeNull();
+      expect(await DuplicateSuggestions.findByPk(recentMerged)).not.toBeNull();
+      expect(await DuplicateSuggestions.findByPk(oldDismissed)).not.toBeNull();
     });
   });
 });

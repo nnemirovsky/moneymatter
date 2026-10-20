@@ -13,6 +13,7 @@ import { Op } from 'sequelize';
 import { withTransaction } from '../common/with-transaction';
 import { getWritableTransactionById } from './get-by-id';
 import { assertPlannedWriteAllowed } from './planned-matching/assert-planned-invariants';
+import { markSuggestionsStale } from './reconciliation/duplicate-suggestions';
 
 export const deleteTransaction = withTransaction(
   async ({ id, userId }: { id: string; userId: number }): Promise<void> => {
@@ -39,6 +40,10 @@ export const deleteTransaction = withTransaction(
       // Not gated on `refundLinked` — the flag is a cache of the link rows, and a row whose flag
       // drifted false would otherwise keep its links and leave the other end flagged forever.
       await unlinkRefundTransaction({ id });
+
+      // The row is about to go for good; a duplicate suggestion naming it goes stale first, while its
+      // foreign key still points at the row (the delete then nulls that side and keeps the suggestion).
+      await markSuggestionsStale({ transactionIds: [id] });
 
       // The model's deleteTransactionById filters by `(id, userId)` — pass the row's
       // actual creator userId rather than the caller's so a recipient with `'all'`
@@ -86,6 +91,7 @@ export const deleteTransaction = withTransaction(
 
         // Sequential: a leg on a bank-linked account rejects the delete, and the rollback
         // must not race the other leg's queries.
+        await markSuggestionsStale({ transactionIds: transferTransactions.map((transferTx) => transferTx.id) });
         for (const transferTx of transferTransactions) {
           await Transactions.deleteTransactionById({ id: transferTx.id, userId: transferTx.userId });
         }

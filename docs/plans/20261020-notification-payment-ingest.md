@@ -699,7 +699,7 @@ Gate results (Task 8): e2e `transactions/reconciliation/reconciliation.e2e` 71 t
 - MCP: `list-duplicate-suggestions`, `dismiss-duplicate-suggestion` (`add-mcp-tool`)
 - Create: `packages/backend/src/services/transactions/reconciliation/duplicate-suggestions.e2e.ts`
 
-- [ ] write failing e2e:
+- [x] write failing e2e:
   - dismiss for good (a rescan does not recreate it);
   - a merge marks it `merged`;
   - deleting a transaction marks it `stale` and keeps the row (`SET NULL`);
@@ -707,7 +707,9 @@ Gate results (Task 8): e2e `transactions/reconciliation/reconciliation.e2e` 71 t
   - two ingest rows judged 0.95 → a suggestion, not merged;
   - a statement import → a suggestion;
   - guard coverage
-- [ ] gate: e2e `--testPathPattern='(transactions/reconciliation/(duplicate-suggestions|reconciliation)|ingest/dedup/(judge|twin)|routes/base-currency-guard-coverage).e2e'`; unit `--testPathPattern='(reconciliation-tools|mcp)'`
+- [x] gate: e2e `--testPathPattern='(transactions/reconciliation/(duplicate-suggestions|reconciliation)|ingest/dedup/(judge|twin)|routes/base-currency-guard-coverage).e2e'`; unit `--testPathPattern='(reconciliation-tools|mcp)'`
+
+Gate results (Task 9): e2e `transactions/reconciliation/(duplicate-suggestions|reconciliation)`, `ingest/dedup/(judge|twin)`, `routes/base-currency-guard-coverage` and `crons/ingest-requests-cleanup` 6 suites, 134 tests pass (plus `transactions/bulk-delete`, `statement-parser/execute-import`, `planned-matching/merge-on-sync`: 9 suites, 178 tests); unit `(services/(mcp|chat)/|reconciliation-tools|mcp|ingest|background-jobs|transactions)` 142 suites, 3012 tests pass; backend and frontend typecheck, backend lint (no errors), backend knip clean.
 
 ### Task 10: Automation inbox thread and cards
 

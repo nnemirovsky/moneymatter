@@ -331,6 +331,22 @@ describe('Base-currency lock returns 423 on guarded routes', () => {
     });
   });
 
+  it('blocks POST /transactions/reconciliation/suggestions/:id/dismiss', async () => {
+    const user = await helpers.getUserInfo({ raw: true });
+
+    await withUserLock({
+      userId: user.id,
+      fn: async () => {
+        expectLocked(
+          await helpers.makeRequest({
+            method: 'post',
+            url: '/transactions/reconciliation/suggestions/11111111-1111-4111-8111-111111111111/dismiss',
+          }),
+        );
+      },
+    });
+  });
+
   it('still serves GET /user/currencies/change-base/status while locked (200, not 423)', async () => {
     // The overlay polls this endpoint to learn the change finished; if the lock
     // blocked it, a locked client could never observe the unblock.

@@ -4,6 +4,10 @@ import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
 import { notificationTimings } from '@services/ingest/event/constants';
 import { UNCLASSIFIED_PARK_REASONS } from '@services/ingest/event/stored-parse';
+import {
+  purgeResolvedSuggestions,
+  sweepOrphanedSuggestions,
+} from '@services/transactions/reconciliation/duplicate-suggestions';
 import { subDays } from 'date-fns';
 import { Op, QueryTypes } from 'sequelize';
 
@@ -18,6 +22,10 @@ interface IngestCleanupResult {
   unclassifiedExpired: number;
   /** Sources nobody approved, with what they held. */
   pendingSourcesDeleted: number;
+  /** Open duplicate suggestions whose transaction was removed by a path that did not mark them. */
+  suggestionsSwept: number;
+  /** Merged and stale duplicate suggestions past their keep. */
+  suggestionsDeleted: number;
 }
 
 /**
@@ -114,6 +122,8 @@ const runCleanup = async (): Promise<IngestCleanupResult> => ({
   ignoredDeleted: await deleteIgnoredRequests(),
   unclassifiedExpired: await expireUnclassifiedRequests(),
   pendingSourcesDeleted: await deleteStalePendingSources(),
+  suggestionsSwept: (await sweepOrphanedSuggestions()).length,
+  suggestionsDeleted: await purgeResolvedSuggestions(),
 });
 
 /** Schedule: 04:30 UTC daily, after the other retention sweeps. */

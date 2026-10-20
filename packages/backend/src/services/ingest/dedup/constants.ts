@@ -17,6 +17,10 @@ import { CARD_PAYMENT_AMOUNT_TOLERANCE } from '@services/transactions/planned-ma
  * - `judgeMaxCandidates`: rows put to the judge for one new row.
  * - `judgeAmountTolerance`: a candidate's amount may differ from the new row's by this share (a tip,
  *   a rounded conversion); an equal charged amount qualifies whatever the amounts say.
+ * - `scanMaxRows`: rows of one sync or import the scan job puts to the judge (the newest first); a
+ *   first pull of a long history does not judge every row.
+ * - `resolvedSuggestionRetentionDays`: a `merged` or `stale` suggestion is deleted this long after it
+ *   was settled; a `dismissed` one is kept so the pair is never raised again.
  */
 export const dedupConfig = {
   twinWindowMs: 30 * 60_000,
@@ -27,4 +31,6 @@ export const dedupConfig = {
   judgeSameSlotWindowMs: 30_000,
   judgeMaxCandidates: 5,
   judgeAmountTolerance: CARD_PAYMENT_AMOUNT_TOLERANCE,
+  scanMaxRows: 100,
+  resolvedSuggestionRetentionDays: 90,
 };

@@ -14,6 +14,7 @@ import { registerAiCategorizationListeners } from './services/ai-categorization'
 import { initializeBankProviders } from './services/bank-data-providers/initialize-providers';
 import { seedBrandLogos } from './services/brand-logos';
 import { initializeExchangeRateProviders } from './services/exchange-rates/providers';
+import { registerDuplicateScanListeners } from './services/ingest/dedup/event-listeners';
 import { registerPayeeNoteBackfillListeners } from './services/payees';
 import { registerSubscriptionMatchingListeners } from './services/subscriptions';
 import { registerTagReminderListeners } from './services/tag-reminders';
@@ -36,6 +37,7 @@ registerAiCategorizationListeners();
 registerTagReminderListeners();
 registerSubscriptionMatchingListeners();
 registerPayeeNoteBackfillListeners();
+registerDuplicateScanListeners();
 
 // Populate the shared brand-logo cache from the bundled seed. Skipped under
 // test (suites seed explicitly). Fire-and-forget: a seed failure must not block

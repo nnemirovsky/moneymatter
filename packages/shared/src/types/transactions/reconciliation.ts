@@ -77,3 +77,9 @@ export interface DuplicateSuggestionItem {
   transactionSlots: string[];
   candidateSlots: string[];
 }
+
+/** The answer of dismissing a duplicate suggestion: the pair is kept as `dismissed` and never raised again. */
+export interface DismissDuplicateSuggestionResponse {
+  id: RecordId;
+  status: 'dismissed';
+}

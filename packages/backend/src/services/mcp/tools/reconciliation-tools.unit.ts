@@ -12,6 +12,10 @@ import {
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { NotFoundError, ValidationError } from '@js/errors';
 import { getPayeeNames } from '@services/payees/get-payee-names';
+import {
+  dismissDuplicateSuggestion,
+  listDuplicateSuggestions,
+} from '@services/transactions/reconciliation/duplicate-suggestions';
 import { getReconciliationHistory } from '@services/transactions/reconciliation/get-history';
 import { mergeTransactions } from '@services/transactions/reconciliation/merge-transactions';
 import { removeTransactions } from '@services/transactions/reconciliation/remove-transactions';
@@ -22,6 +26,10 @@ import { z } from 'zod';
 
 // Block the real services, whose import chains build queues at module scope and would open
 // Redis connections in a unit test. The services return API-shaped transactions already.
+jest.mock('@services/transactions/reconciliation/duplicate-suggestions', () => ({
+  dismissDuplicateSuggestion: jest.fn(),
+  listDuplicateSuggestions: jest.fn(),
+}));
 jest.mock('@services/transactions/reconciliation/get-history', () => ({ getReconciliationHistory: jest.fn() }));
 jest.mock('@services/transactions/reconciliation/merge-transactions', () => ({ mergeTransactions: jest.fn() }));
 jest.mock('@services/transactions/reconciliation/remove-transactions', () => ({ removeTransactions: jest.fn() }));
@@ -35,8 +43,10 @@ jest.mock('@services/currencies/base-currency-lock', () => ({ isBaseCurrencyChan
 
 import { isBaseCurrencyChangeLocked } from '@services/currencies/base-currency-lock';
 
+import { registerDismissDuplicateSuggestion } from './dismiss-duplicate-suggestion';
 import { registerGetReconciliationHistory } from './get-reconciliation-history';
 import { registerKeepPendingAsBooked } from './keep-pending-as-booked';
+import { registerListDuplicateSuggestions } from './list-duplicate-suggestions';
 import { registerListStuckPendingTransactions } from './list-stuck-pending-transactions';
 import { registerMergeDuplicateTransactions } from './merge-duplicate-transactions';
 import { registerRemoveDuplicateTransactions } from './remove-duplicate-transactions';
@@ -49,6 +59,8 @@ const LOCKED = /currencies.baseCurrencyChangeInProgress/;
 const lockCheck = jest.mocked(isBaseCurrencyChangeLocked);
 const payeeNames = jest.mocked(getPayeeNames);
 const history = jest.mocked(getReconciliationHistory);
+const suggestions = jest.mocked(listDuplicateSuggestions);
+const dismiss = jest.mocked(dismissDuplicateSuggestion);
 const stuckPending = jest.mocked(getStuckPending);
 const merge = jest.mocked(mergeTransactions);
 const remove = jest.mocked(removeTransactions);
@@ -456,5 +468,111 @@ describe('merge_duplicate_transactions', () => {
     expect(description).toMatch(/group/i);
     expect(description).toMatch(/subscription/i);
     expect(description).toMatch(/survivor/i);
+  });
+});
+
+describe('list_duplicate_suggestions', () => {
+  const tool = captureTools({ register: registerListDuplicateSuggestions })[0]!;
+
+  it('registers under its name, takes no input and points at the merge and dismiss tools', () => {
+    expect(tool.name).toBe('list_duplicate_suggestions');
+    expect(tool.config.inputSchema).toBeUndefined();
+    expect(tool.config.description).toMatch(/merge_duplicate_transactions/);
+    expect(tool.config.description).toMatch(/dismiss_duplicate_suggestion/);
+    expect(tool.config.description).toMatch(/Nothing is merged/);
+  });
+
+  it('returns each pair with slim transactions and their payee, the row to keep and the sources', async () => {
+    suggestions.mockResolvedValue([
+      {
+        id: ID_5,
+        accountId: ACCOUNT_ID,
+        confidence: 0.95,
+        reason: 'Same shop a minute apart.',
+        trigger: 'scan',
+        createdAt: '2026-10-20T10:00:00.000Z',
+        transaction: makeTx({ id: ID_1, payeeId: PAYEE_ID }),
+        candidate: makeTx({ id: ID_2 }),
+        suggestedSurvivorId: ID_1,
+        transactionSlots: ['wallet-notification'],
+        candidateSlots: [],
+      },
+    ] as never);
+    payeeNames.mockResolvedValue(new Map([[PAYEE_ID, 'Starbucks']]));
+
+    const data = (await call({ tool })) as { suggestions: Record<string, unknown>[] };
+
+    expect(suggestions).toHaveBeenCalledWith({ userId: 42 });
+    expect(payeeNames).toHaveBeenCalledTimes(1);
+    expect(data.suggestions).toHaveLength(1);
+    expect(data.suggestions[0]).toMatchObject({
+      id: ID_5,
+      confidence: 0.95,
+      trigger: 'scan',
+      transaction: { id: ID_1, payee: { id: PAYEE_ID, name: 'Starbucks' } },
+      candidate: { id: ID_2, payee: null },
+      suggestedSurvivorId: ID_1,
+      sources: { transaction: ['wallet-notification'], candidate: [] },
+    });
+    expect(data.suggestions[0]!.transaction).not.toHaveProperty('userId');
+  });
+
+  it('returns an empty list when nothing is suggested', async () => {
+    suggestions.mockResolvedValue([]);
+
+    expect(await call({ tool })).toEqual({ suggestions: [] });
+  });
+
+  it('is a read tool: a read-only user may call it and no lock is checked', async () => {
+    suggestions.mockResolvedValue([]);
+    lockCheck.mockResolvedValue(true);
+
+    await call({ tool, extra: READ });
+
+    expect(lockCheck).not.toHaveBeenCalled();
+    expect(suggestions).toHaveBeenCalled();
+  });
+});
+
+describe('dismiss_duplicate_suggestion', () => {
+  const tool = captureTools({ register: registerDismissDuplicateSuggestion })[0]!;
+  const schema = z.object(tool.config.inputSchema!);
+
+  it('registers under its name and takes a suggestion id', () => {
+    expect(tool.name).toBe('dismiss_duplicate_suggestion');
+    expect(schema.safeParse({ suggestionId: ID_1 }).success).toBe(true);
+    expect(schema.safeParse({ suggestionId: 'nope' }).success).toBe(false);
+    expect(schema.safeParse({}).success).toBe(false);
+  });
+
+  it('dismisses the suggestion for the caller and returns its id and status only', async () => {
+    dismiss.mockResolvedValue({ id: ID_1, userId: 42, proposalId: null, status: 'dismissed' } as never);
+
+    const data = await call({ tool, args: { suggestionId: ID_1 }, extra: WRITE });
+
+    expect(dismiss).toHaveBeenCalledWith({ userId: 42, id: ID_1 });
+    expect(data).toEqual({ id: ID_1, status: 'dismissed' });
+  });
+
+  it('passes the service refusals through with their messages', async () => {
+    dismiss.mockRejectedValueOnce(new NotFoundError({ message: 'That suggestion no longer exists.' }));
+
+    await expect(call({ tool, args: { suggestionId: ID_1 }, extra: WRITE })).rejects.toThrow(
+      'That suggestion no longer exists.',
+    );
+  });
+
+  it('needs finance:write, an editing plan and an unlocked base currency, with nothing dismissed otherwise', async () => {
+    const args = { suggestionId: ID_1 };
+
+    await expect(call({ tool, args, extra: READ })).rejects.toThrow(/no longer includes editing|finance:write/);
+    await expect(call({ tool, args, extra: makeExtra({ scopes: ['finance:read'] }) })).rejects.toThrow(/finance:write/);
+    await expect(
+      call({ tool, args, extra: makeExtra({ scopes: ['finance:read', 'finance:write'], readOnly: true }) }),
+    ).rejects.toThrow(/no longer includes editing/);
+    lockCheck.mockResolvedValue(true);
+    await expect(call({ tool, args, extra: WRITE })).rejects.toThrow(LOCKED);
+
+    expect(dismiss).not.toHaveBeenCalled();
   });
 });

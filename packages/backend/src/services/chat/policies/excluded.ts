@@ -25,6 +25,7 @@ export const CHAT_ARGS_ONLY_TOOLS: readonly string[] = [
   'link_transfer',
   'unlink_transfer',
   'dismiss_transfer_suggestion',
+  'dismiss_duplicate_suggestion',
   'restore_removed_transactions',
   'keep_pending_as_booked',
   'create_category',

@@ -75,7 +75,7 @@ describe('getToolCatalog', () => {
   it('lists exactly the tools of the server card', () => {
     const names = getToolCatalog().map((entry) => entry.name);
 
-    expect(names).toHaveLength(257);
+    expect(names).toHaveLength(259);
     expect(names.toSorted()).toEqual(cardToolNames().toSorted());
     expect(new Set(names).size).toBe(names.length);
   });
@@ -95,7 +95,7 @@ describe('getToolCatalog', () => {
       .map((entry) => entry.name)
       .toSorted();
 
-    expect(withoutShape).toHaveLength(16);
+    expect(withoutShape).toHaveLength(17);
     expect(withoutShape).toEqual(toolsRegisteredWithoutInput());
   });
 

@@ -1,4 +1,4 @@
-import type { RecordId } from '@bt/shared/types';
+import type { DismissDuplicateSuggestionResponse, RecordId } from '@bt/shared/types';
 import type { listDuplicateSuggestions as apiListSuggestions } from '@services/transactions/reconciliation/duplicate-suggestions';
 import type { getReconciliationHistory as apiGetHistory } from '@services/transactions/reconciliation/get-history';
 import type { mergeTransactions as apiMerge } from '@services/transactions/reconciliation/merge-transactions';
@@ -109,6 +109,20 @@ export function listDuplicateSuggestions<R extends boolean | undefined = undefin
   return makeRequest<Awaited<ReturnType<typeof apiListSuggestions>>, R>({
     method: 'get',
     url: '/transactions/reconciliation/suggestions',
+    raw,
+  });
+}
+
+export function dismissDuplicateSuggestion<R extends boolean | undefined = undefined>({
+  id,
+  raw,
+}: {
+  id: RecordId;
+  raw?: R;
+}) {
+  return makeRequest<DismissDuplicateSuggestionResponse, R>({
+    method: 'post',
+    url: `/transactions/reconciliation/suggestions/${id}/dismiss`,
     raw,
   });
 }

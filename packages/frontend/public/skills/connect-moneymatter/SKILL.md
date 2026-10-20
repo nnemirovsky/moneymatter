@@ -123,6 +123,8 @@ Duplicate cleanup and bank rows stuck in pending.
 | --------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `get_reconciliation_history`      | Past duplicate removals and merges, newest first, with the removed rows and survivors           |
 | `list_stuck_pending_transactions` | Bank transactions pending over 7 days, each with the booked row that likely replaced it         |
+| `list_duplicate_suggestions`      | Open AI suggestions of two transactions that record one payment, with the row to keep           |
+| `dismiss_duplicate_suggestion`    | Dismiss a suggested pair as not duplicates (`finance:write`)                                    |
 | `remove_duplicate_transactions`   | Remove duplicates from the books; restorable, but without their links (`finance:write`)         |
 | `restore_removed_transactions`    | Bring back removed or merged transactions, without the links they lost (`finance:write`)        |
 | `merge_duplicate_transactions`    | Merge 2 to 4 duplicates of one account into a survivor that takes their links (`finance:write`) |
@@ -470,7 +472,10 @@ multi-currency data.
   them and `restore_removed_transactions` brings them back, but a restored row does not
   get back the budget, group and subscription links it lost. Bank rows pending for over
   a week show up in `list_stuck_pending_transactions` with the booked row that likely
-  replaced each.
+  replaced each. `list_duplicate_suggestions` lists pairs the AI thinks record one payment
+  (an iOS Automation payment next to a bank row); nothing is merged until you call
+  `merge_duplicate_transactions`, and `dismiss_duplicate_suggestion` rejects a wrong pair
+  for good.
 - A subscription period is one billing cycle. `get_subscription_periods` lists them,
   `preview_subscription_payment` shows what a payment would book, and
   `pay_subscription_period` either links an existing transaction or books a new one.

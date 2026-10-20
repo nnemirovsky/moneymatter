@@ -84,6 +84,8 @@ export const UNMAPPED_ID_FIELDS: Readonly<Record<string, string[]>> = {
   reject_tracker_suggestions: ['suggestionIds'],
   // Subscription candidates and budget plan periods are short-lived rows without an entity page.
   dismiss_subscription_candidate: ['candidateId'],
+  // A duplicate suggestion is a short-lived pair of transactions, without an entity page.
+  dismiss_duplicate_suggestion: ['suggestionId'],
   accept_subscription_candidate: ['candidateId'],
   pay_subscription_period: ['periodId'],
   skip_subscription_period: ['periodId'],

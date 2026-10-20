@@ -1,6 +1,7 @@
 import type { ReconciliationActionResponse, RecordId } from '@bt/shared/types';
 import { withTransaction } from '@services/common/with-transaction';
 
+import { markSuggestionsStale } from './duplicate-suggestions';
 import { detachLinks, loadReconcilableRows, softDeleteTransactions } from './helpers';
 
 export const removeTransactions = withTransaction(
@@ -16,6 +17,7 @@ export const removeTransactions = withTransaction(
 
     await detachLinks({ transactionIds: removedIds });
     await softDeleteTransactions({ userId, rows, mergedIntoId: null });
+    await markSuggestionsStale({ transactionIds: removedIds });
 
     return { removedIds };
   },

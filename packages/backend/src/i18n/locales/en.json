@@ -135,6 +135,8 @@
       "cannotReduceBelowRefunded": "This split has refunds totaling {{refundsText}}. You cannot reduce it below the refunded amount. To reduce further, first unlink the refunds."
     },
     "reconciliation": {
+      "suggestionNotFound": "That suggestion no longer exists.",
+      "suggestionResolved": "That suggestion is already resolved, so it can't be dismissed.",
       "plannedNotAllowed": "Planned transactions can't be merged or removed, except payments logged by iOS Automation.",
       "plannedSurvivor": "A planned payment can't be the one to keep when it's merged with a booked transaction. Keep the booked one.",
       "editConflict": {

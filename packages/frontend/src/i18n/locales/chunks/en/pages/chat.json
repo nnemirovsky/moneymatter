@@ -214,6 +214,7 @@
       "subscriptionId": "Subscription",
       "subscriptions": "Subscription settings",
       "suggestionAnswers": "Suggestion answers",
+      "suggestionId": "Duplicate suggestion",
       "suggestionIds": "Suggestions",
       "survivorId": "Transaction to keep",
       "symbol": "Symbol",

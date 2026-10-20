@@ -563,6 +563,14 @@
       "description": "List bank transactions pending for over 7 days with the booked row that likely replaced each."
     },
     {
+      "name": "list_duplicate_suggestions",
+      "description": "List open duplicate suggestions: pairs of transactions the AI thinks record one payment, with confidence, reason and the row to keep."
+    },
+    {
+      "name": "dismiss_duplicate_suggestion",
+      "description": "Dismiss a suggested pair as not duplicates so it is never offered again. Requires finance:write scope."
+    },
+    {
       "name": "remove_duplicate_transactions",
       "description": "Remove duplicate transactions from the books; restorable, but their budget, group and subscription links are not. Requires finance:write scope."
     },

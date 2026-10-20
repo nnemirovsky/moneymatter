@@ -83,6 +83,7 @@ import { registerDeleteUserCurrency } from './tools/delete-user-currency';
 import { registerDeleteVehicle } from './tools/delete-vehicle';
 import { registerDeleteVentureEventLink } from './tools/delete-venture-event-link';
 import { registerDetectSubscriptionCandidates } from './tools/detect-subscription-candidates';
+import { registerDismissDuplicateSuggestion } from './tools/dismiss-duplicate-suggestion';
 import { registerDismissNotification } from './tools/dismiss-notification';
 import { registerDismissSubscriptionCandidate } from './tools/dismiss-subscription-candidate';
 import { registerDismissTransferSuggestion } from './tools/dismiss-transfer-suggestion';
@@ -165,6 +166,7 @@ import { registerListBankConnections } from './tools/list-bank-connections';
 import { registerListBudgetPlanPeriods } from './tools/list-budget-plan-periods';
 import { registerListBudgetPlans } from './tools/list-budget-plans';
 import { registerListCustomCurrencies } from './tools/list-custom-currencies';
+import { registerListDuplicateSuggestions } from './tools/list-duplicate-suggestions';
 import { registerListImportBatches } from './tools/list-import-batches';
 import { registerListPortfolioTransfers } from './tools/list-portfolio-transfers';
 import { registerListShareInvitations } from './tools/list-share-invitations';
@@ -325,6 +327,8 @@ export function registerAllTools(server: McpServer): void {
   // Reconciliation
   registerGetReconciliationHistory(server);
   registerListStuckPendingTransactions(server);
+  registerListDuplicateSuggestions(server);
+  registerDismissDuplicateSuggestion(server);
   registerRemoveDuplicateTransactions(server);
   registerRestoreRemovedTransactions(server);
   registerMergeDuplicateTransactions(server);

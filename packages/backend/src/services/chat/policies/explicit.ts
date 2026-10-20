@@ -92,6 +92,7 @@ export const EXPLICIT_POLICIES: Readonly<Record<string, ExplicitPolicy>> = {
   unlink_transfer: { entity: 'transaction' },
   confirm_planned_transaction: { entity: 'transaction', previewResolver: 'entity', targetFields: ['transactionId'] },
   dismiss_transfer_suggestion: { entity: 'transaction' },
+  dismiss_duplicate_suggestion: { entity: 'transaction' },
   remove_duplicate_transactions: {
     kind: 'bulk',
     entity: 'transaction',

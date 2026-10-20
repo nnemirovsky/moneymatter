@@ -273,6 +273,7 @@ export const CHAT_FIELD_LABEL_KEYS: Readonly<Record<string, string>> = {
   subscriptionId: 'chat.fields.subscriptionId',
   subscriptions: 'chat.fields.subscriptions',
   suggestionAnswers: 'chat.fields.suggestionAnswers',
+  suggestionId: 'chat.fields.suggestionId',
   suggestionIds: 'chat.fields.suggestionIds',
   survivorId: 'chat.fields.survivorId',
   symbol: 'chat.fields.symbol',

@@ -25,6 +25,7 @@ import { resolveVisibleCurrencies } from '@services/currencies/assert-currency-c
 import { assertImportTargetNotBankLinked } from '@services/import-export/core/assert-import-target-not-bank-linked';
 import { type OpenImportBatch, withImportBatchRecord } from '@services/import-export/core/import-batch-record';
 import { anchorImportDate } from '@services/import-export/core/parse/anchor-import-date';
+import { enqueueDuplicateScan } from '@services/ingest/dedup/duplicate-scan-queue';
 import { createTransaction } from '@services/transactions';
 import { accountHasPlannedRows } from '@services/transactions/planned-matching';
 import { v4 as uuidv4 } from 'uuid';
@@ -265,6 +266,15 @@ export async function executeImport(params: ExecuteImportParams): Promise<Statem
       scope: CATEGORIZATION_SCOPE.anyCategory,
       trigger: CATEGORIZATION_TRIGGER.import,
     });
+    // An imported row may record a payment an iOS Automation plan or row already holds.
+    // A failed enqueue is logged: the import has committed and must still report its result.
+    await enqueueDuplicateScan({ userId: params.userId, transactionIds: result.newTransactionIds }).catch(
+      (error: unknown) =>
+        logger.error({
+          message: 'Failed to queue the duplicate scan of imported transactions',
+          error: error instanceof Error ? error : new Error(String(error)),
+        }),
+    );
   }
 
   return result;

@@ -125,16 +125,19 @@ const toJudgeSubject = ({ row, names }: { row: Transactions; names: readonly str
 /**
  * The new row and the rows of its own account that may record the same payment, ready for the judge.
  * Only the row's own account and direction are looked at: a payment on another account is another
- * payment. Nothing to judge answers `null`.
+ * payment. `poolFilter` narrows the rows that may be candidates (the scan only pairs a synced or
+ * imported row with an ingest row). Nothing to judge answers `null`.
  */
 export const findJudgeCandidates = async ({
   userId,
   transaction,
+  poolFilter,
 }: {
   userId: number;
   transaction: Transactions;
+  poolFilter?: (row: Transactions) => boolean;
 }): Promise<{ payment: ReturnType<typeof toJudgeSubject>; candidates: JudgeCandidateRow[] } | null> => {
-  const rows = await findTransactions({
+  const found = await findTransactions({
     planned: 'include',
     access: { accountOwner: userId },
     balanceAdjustments: 'exclude',
@@ -151,6 +154,7 @@ export const findJudgeCandidates = async ({
     },
     order: [['time', 'DESC']],
   });
+  const rows = poolFilter ? found.filter(poolFilter) : found;
   if (!rows.length) return null;
 
   const subjectSlots = readTakenSlots({ externalData: transaction.externalData });
