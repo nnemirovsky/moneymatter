@@ -1,3 +1,4 @@
+import { isIngestPlan } from '@bt/shared/types';
 import type Transactions from '@models/transactions.model';
 
 import { hashTargetIds, latestUpdatedAt } from '../snapshot';
@@ -12,8 +13,12 @@ import {
 } from './preview-helpers';
 import type { PreviewResolver } from './types';
 
-/** Planned rows, transfers and refund-linked rows are refused by both reconciliation services. */
-const isRefused = ({ row }: { row: Transactions }) => row.isPlanned || Boolean(row.transferId) || row.refundLinked;
+/**
+ * Both reconciliation services refuse a planned row unless an ingest pipeline wrote it, and refuse
+ * transfers and refund-linked rows.
+ */
+const isRefused = ({ row }: { row: Transactions }) =>
+  (row.isPlanned && !isIngestPlan({ tx: row })) || Boolean(row.transferId) || row.refundLinked;
 
 async function loadDuplicates({
   userId,
@@ -26,7 +31,8 @@ async function loadDuplicates({
 }): Promise<Transactions[]> {
   assertConcreteTargets({ value: ids, what: 'transactions' });
 
-  const rows = await loadUserTransactions({ userId, ids, lock });
+  // `externalData` tells an ingest plan, which the services accept, from the owner's own plan.
+  const rows = await loadUserTransactions({ userId, ids, lock, extraAttributes: ['externalData'] });
   if (rows.length !== ids.length) throw targetNotFound({ what: 'transactions' });
 
   if (rows.some((row) => isRefused({ row }))) {
@@ -66,6 +72,13 @@ export const resolveMergeDuplicateTransactions: PreviewResolver = async ({ userI
   const survivor = rows.find((row) => row.id === survivorId);
   if (!survivor) throw targetNotFound({ what: 'surviving transaction' });
   const removed = rows.filter((row) => row.id !== survivorId);
+  // The merge service keeps a booked row over a plan, never the other way round.
+  if (survivor.isPlanned && removed.some((row) => !row.isPlanned)) {
+    throw new PreviewError({
+      messageKey: 'chat.cards.reconciliationPlannedSurvivor',
+      message: 'A planned payment cannot be the one that stays when it is merged with a booked row',
+    });
+  }
   const survivorVisible = (await keepVisibleRows({ userId, rows: [survivor] })).length > 0;
 
   return {

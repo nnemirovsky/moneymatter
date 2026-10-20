@@ -15,7 +15,7 @@ export const removeTransactions = withTransaction(
     const removedIds = rows.map((row) => row.id);
 
     await detachLinks({ transactionIds: removedIds });
-    await softDeleteTransactions({ userId, transactionIds: removedIds, mergedIntoId: null });
+    await softDeleteTransactions({ userId, rows, mergedIntoId: null });
 
     return { removedIds };
   },

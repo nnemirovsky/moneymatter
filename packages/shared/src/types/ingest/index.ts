@@ -423,3 +423,17 @@ export const DUPLICATE_SUGGESTION_MIN_CONFIDENCE = 0.6;
 export interface GateStrictnessDto {
   strictness: GateStrictness;
 }
+
+/**
+ * Whether a transaction was written by an ingest pipeline: both pipelines stamp `externalData.cardPayment`
+ * (the marker bank sync settles a plan by) and the notification pipeline also `externalData.ingest`.
+ */
+export const isIngestTransaction = ({ externalData }: { externalData: unknown }): boolean => {
+  if (!externalData || typeof externalData !== 'object') return false;
+  const data = externalData as { cardPayment?: unknown; ingest?: unknown };
+  return Boolean(data.cardPayment || data.ingest);
+};
+
+/** A planned row an ingest pipeline wrote on a bank-connected account, which the bank has not settled yet. */
+export const isIngestPlan = ({ tx }: { tx: { isPlanned: boolean; externalData: unknown } }): boolean =>
+  tx.isPlanned && isIngestTransaction({ externalData: tx.externalData });

@@ -135,8 +135,15 @@
       "cannotReduceBelowRefunded": "This split has refunds totaling {{refundsText}}. You cannot reduce it below the refunded amount. To reduce further, first unlink the refunds."
     },
     "reconciliation": {
-      "systemNotAllowed": "Only bank-connected transactions can be merged or removed.",
-      "plannedNotAllowed": "Planned transactions can't be merged or removed.",
+      "plannedNotAllowed": "Planned transactions can't be merged or removed, except payments logged by iOS Automation.",
+      "plannedSurvivor": "A planned payment can't be the one to keep when it's merged with a booked transaction. Keep the booked one.",
+      "editConflict": {
+        "note": "Both transactions have a different note that you wrote. Keep one note, then merge.",
+        "category": "Both transactions have a different category that you picked. Align the categories before merging.",
+        "legacyCategory": "Both transactions have a different category that looks hand-picked. Align the categories before merging.",
+        "paymentType": "Both transactions have a different payment type that you set. Align them before merging.",
+        "payee": "Both transactions have a different payee that you assigned. Align the payees before merging."
+      },
       "transferNotAllowed": "Linked transfers can't be merged or removed. Unlink the transfer first.",
       "refundNotAllowed": "Refund-linked transactions can't be merged or removed. Unlink the refund first.",
       "survivorPending": "Pick the booked transaction as the one to keep. A pending survivor would stay stuck as pending.",

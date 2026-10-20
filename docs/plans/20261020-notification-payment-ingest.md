@@ -679,13 +679,15 @@ Gate results (Task 7): unit `ingest/dedup/judge` 3 suites, 25 tests pass; e2e `i
 - Create: `packages/backend/src/services/ingest/dedup/choose-survivor.ts` + unit spec
 - Modify: `packages/backend/src/services/chat/proposals/previews/reconciliation.ts`, i18n `transactions.reconciliation.*` (`en` + `uk`), `packages/frontend/src/pages/optimizations/reconciliation/block-reasons.ts` + test
 
-- [ ] write failing tests:
+- [x] write failing tests:
   - unit: `planReconciliationEditMerge`. Two ingest rows "Wolt" vs "WOLT.COM TBILISI" with machine notes → merge, no `note_conflict`. A user-edited note on both sides → `note_conflict`. `mobilePayment` on both sides → no conflict; two ingest rows with **different unstamped history categories** (their `systemCategoryId`s) → merge, keeping the survivor's category; a manual stamp on one side and a different machine category on the other → that side's manual category moves;
   - e2e: a manual-account merge, remove and restore change the balance and `Balances` correctly; bank rows are unchanged;
   - e2e: an ingest plan merges into a booked row and is hidden (planned included); the reverse is rejected; a user plan is rejected;
   - e2e: the chat merge preview accepts the same rows
-- [ ] implement; rewrite the `softDeleteTransactions` comment
-- [ ] gate: e2e `--testPathPattern='transactions/reconciliation/reconciliation.e2e'`; unit `--testPathPattern='(choose-survivor|edit-merge|plan-edit-merge|chat/proposals)'`; frontend `--run src/pages/optimizations/reconciliation`
+- [x] implement; rewrite the `softDeleteTransactions` comment
+- [x] gate: e2e `--testPathPattern='transactions/reconciliation/reconciliation.e2e'`; unit `--testPathPattern='(choose-survivor|edit-merge|plan-edit-merge|chat/proposals)'`; frontend `--run src/pages/optimizations/reconciliation`
+
+Gate results (Task 8): e2e `transactions/reconciliation/reconciliation.e2e` 71 tests pass (manual-account merge, remove and restore with the balance and the chart; ingest rows' edit merge; ingest plans; chat cards through propose and approve), and with `duplicate-suggestions`, `ingest/dedup/(judge|twin)`, `chat/proposals/(approve|card-actions)` and `routes/base-currency-guard-coverage` 8 suites, 166 tests pass; backend unit `(choose-survivor|edit-merge|plan-edit-merge|chat/proposals|reconciliation|mcp|i18n)` 60 suites, 1530 tests pass; frontend `src/pages/optimizations/reconciliation` 18 tests pass; backend and frontend typecheck, lint, backend knip and oxfmt clean.
 
 ### Task 9: Suggestion dismiss, stale marking and the scan job
 

@@ -11,6 +11,8 @@ import {
 import { NONEXISTENT_ID } from '@common/lib/record-id-helpers';
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import * as helpers from '@tests/helpers';
+import { cardFor, proposeCards } from '@tests/helpers/chat-cards';
+import * as ingestHelpers from '@tests/helpers/ingest-tokens';
 import { useSelfHost } from '@tests/helpers/self-host';
 import {
   FixedTransaction,
@@ -18,7 +20,8 @@ import {
   MOCK_IDENTIFICATION_HASH_2,
 } from '@tests/mocks/enablebanking/data';
 import { getLunchFlowTransactionsMock } from '@tests/mocks/lunchflow/mock-api';
-import { format, subDays } from 'date-fns';
+import { addMinutes, format, subDays } from 'date-fns';
+import { randomUUID } from 'node:crypto';
 
 const daysAgo = ({ days }: { days: number }) => format(subDays(new Date(), days), 'yyyy-MM-dd');
 
@@ -190,6 +193,77 @@ const historyEvents = async () =>
     ids: event.transactions.map((tx) => tx.id).toSorted(),
   }));
 
+const TAP_CARD = 'TBC Visa';
+
+const accountBalance = async ({ accountId }: { accountId: RecordId }) =>
+  (await helpers.getAccount({ id: accountId, raw: true })).currentBalance;
+
+/** What the balance chart reads for today, in cents of the base currency. */
+const chartCentsToday = async ({ accountId }: { accountId: RecordId }) =>
+  helpers.balanceCentsOn({
+    rows: (await helpers.getBalanceHistory({ accountId, raw: true })) as unknown as { date: string; amount: number }[],
+    date: new Date(),
+  });
+
+const manualAccount = ({ initialBalance = 1000 }: { initialBalance?: number } = {}) =>
+  helpers.createAccount({ payload: helpers.buildAccountPayload({ initialBalance }), raw: true });
+
+const manualExpense = async ({
+  accountId,
+  amount = 100,
+  transactionType = TRANSACTION_TYPES.expense,
+}: {
+  accountId: RecordId;
+  amount?: number;
+  transactionType?: TRANSACTION_TYPES;
+}) =>
+  (
+    await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({ accountId, amount, transactionType }),
+      raw: true,
+    })
+  )[0].id as RecordId;
+
+/** Logs one Apple Pay tap to the account the card points at, `minutes` after the base moment. */
+const tap = async ({
+  secret,
+  merchant,
+  amount = '47.00',
+  minutes = 0,
+}: {
+  secret: string;
+  merchant: string;
+  amount?: string;
+  minutes?: number;
+}) => {
+  const res = await ingestHelpers.postCardPayment({
+    secret,
+    body: {
+      amount,
+      merchant,
+      card: TAP_CARD,
+      source: 'apple-pay',
+      time: addMinutes(new Date(), minutes).toISOString(),
+      idempotencyKey: `key-${randomUUID()}`,
+    },
+  });
+  expect(res.status).toBe(200);
+  expect(res.body.response.outcome).toBe('logged');
+
+  return res.body.response.transactionId as RecordId;
+};
+
+const linkTapCard = async ({ accountId }: { accountId: RecordId }) => {
+  await helpers.createCardMapping({ payload: { cardLabel: TAP_CARD, accountId }, raw: true });
+
+  return (await ingestHelpers.createTestIngestToken()).secret;
+};
+
+const storedTx = async ({ id }: { id: RecordId }) => (await helpers.getTransactionById({ id, raw: true }))!;
+
+const hiddenIds = async () =>
+  (await helpers.getReconciliationHistory({ raw: true })).flatMap((event) => event.transactions.map((tx) => tx.id));
+
 useSelfHost();
 
 describe('Transactions reconciliation', () => {
@@ -255,7 +329,7 @@ describe('Transactions reconciliation', () => {
       expect(await subscriptionTxIds({ subscriptionId })).toEqual([]);
     });
 
-    it('rejects system, planned, transfer and refund-linked rows', async () => {
+    it('rejects planned, transfer and refund-linked rows', async () => {
       const fixed = [
         booked({ ref: 'r1', amount: '30.00' }),
         booked({ ref: 'r2', amount: '40.00' }),
@@ -264,10 +338,6 @@ describe('Transactions reconciliation', () => {
       const { accountId, byAmount } = await setupEnableBanking({ transactions: fixed });
 
       const systemAccount = await helpers.createAccount({ raw: true });
-      const [systemTx] = await helpers.createTransaction({
-        payload: helpers.buildTransactionPayload({ accountId: systemAccount.id }),
-        raw: true,
-      });
       const [systemIncome] = await helpers.createTransaction({
         payload: helpers.buildTransactionPayload({
           accountId: systemAccount.id,
@@ -287,7 +357,6 @@ describe('Transactions reconciliation', () => {
       });
 
       for (const id of [
-        systemTx.id,
         planned.id,
         byAmount({ amount: 30 }).id,
         byAmount({ amount: 40 }).id,
@@ -1353,6 +1422,273 @@ describe('Transactions reconciliation', () => {
       expect(result.mergedCount).toBe(1);
       expect(await liveIdsWithAmount({ accountId, amount: 25 })).toEqual([bookedCopy.id]);
       expect(await historyEvents()).toEqual([{ type: 'merge', survivorId: bookedCopy.id, ids: [mergedAway.id] }]);
+    });
+  });
+  describe('manual accounts', () => {
+    it('merges, removes and restores rows with the balance and the chart following', async () => {
+      const account = await manualAccount();
+      const [a, b, c] = [
+        await manualExpense({ accountId: account.id }),
+        await manualExpense({ accountId: account.id }),
+        await manualExpense({ accountId: account.id }),
+      ];
+      expect(await accountBalance({ accountId: account.id })).toBe(700);
+      expect(await chartCentsToday({ accountId: account.id })).toBe(70_000);
+
+      const merged = await helpers.reconciliationMerge({ transactionIds: [a, b, c], survivorId: a, raw: true });
+      expect(merged.removedIds.toSorted()).toEqual([b, c].toSorted());
+      expect(await accountBalance({ accountId: account.id })).toBe(900);
+      expect(await chartCentsToday({ accountId: account.id })).toBe(90_000);
+      expect(await listIds({ accountId: account.id })).toEqual([a]);
+
+      await helpers.reconciliationRestore({ transactionIds: [b], raw: true });
+      expect(await accountBalance({ accountId: account.id })).toBe(800);
+      expect(await chartCentsToday({ accountId: account.id })).toBe(80_000);
+
+      await helpers.reconciliationRemove({ transactionIds: [a, b], raw: true });
+      expect(await accountBalance({ accountId: account.id })).toBe(1000);
+      expect(await chartCentsToday({ accountId: account.id })).toBe(100_000);
+
+      await helpers.reconciliationRestore({ transactionIds: [a, b, c], raw: true });
+      expect(await accountBalance({ accountId: account.id })).toBe(700);
+      expect(await chartCentsToday({ accountId: account.id })).toBe(70_000);
+      expect(await historyEvents()).toEqual([]);
+    });
+
+    it('takes an income row out of the balance and puts it back', async () => {
+      const account = await manualAccount();
+      const income = await manualExpense({
+        accountId: account.id,
+        amount: 50,
+        transactionType: TRANSACTION_TYPES.income,
+      });
+      expect(await accountBalance({ accountId: account.id })).toBe(1050);
+
+      await helpers.reconciliationRemove({ transactionIds: [income], raw: true });
+      expect(await accountBalance({ accountId: account.id })).toBe(1000);
+      expect(await chartCentsToday({ accountId: account.id })).toBe(100_000);
+
+      await helpers.reconciliationRestore({ transactionIds: [income], raw: true });
+      expect(await accountBalance({ accountId: account.id })).toBe(1050);
+      expect(await chartCentsToday({ accountId: account.id })).toBe(105_000);
+    });
+
+    it('leaves the balance of a bank row alone', async () => {
+      const { accountId, byAmount } = await setupEnableBanking({
+        transactions: [booked({ ref: 'r1', amount: '10.00' }), booked({ ref: 'r2', amount: '11.00' })],
+      });
+      const [a, b] = [byAmount({ amount: 10 }), byAmount({ amount: 11 })];
+      const before = await accountBalance({ accountId });
+
+      await helpers.reconciliationMerge({ transactionIds: [a.id, b.id], survivorId: a.id, raw: true });
+      expect(await accountBalance({ accountId })).toEqual(before);
+
+      await helpers.reconciliationRestore({ transactionIds: [b.id], raw: true });
+      expect(await accountBalance({ accountId })).toEqual(before);
+    });
+  });
+
+  describe('ingest rows', () => {
+    it('merges two ingest rows whose merchant spellings differ, keeping the survivor note and category', async () => {
+      const account = await manualAccount();
+      const secret = await linkTapCard({ accountId: account.id });
+      const first = await tap({ secret, merchant: 'Wolt', minutes: -20 });
+      const second = await tap({ secret, merchant: 'WOLT.COM TBILISI', minutes: -10 });
+      expect(await accountBalance({ accountId: account.id })).toBe(906);
+
+      const merged = await helpers.reconciliationMerge({
+        transactionIds: [first, second],
+        survivorId: first,
+        raw: true,
+      });
+
+      expect(merged.removedIds).toEqual([second]);
+      expect((await storedTx({ id: first })).note).toBe('Wolt');
+      expect(await accountBalance({ accountId: account.id })).toBe(953);
+      expect(await hiddenIds()).toEqual([second]);
+    });
+
+    it('rejects a merge when both rows carry a note the owner wrote', async () => {
+      const account = await manualAccount();
+      const secret = await linkTapCard({ accountId: account.id });
+      const first = await tap({ secret, merchant: 'Wolt', minutes: -20 });
+      const second = await tap({ secret, merchant: 'Wolt', minutes: -10 });
+      await helpers.updateTransaction({ id: first, payload: { note: 'Birthday dinner' }, raw: true });
+      await helpers.updateTransaction({ id: second, payload: { note: 'Team lunch' }, raw: true });
+
+      const res = await helpers.reconciliationMerge({ transactionIds: [first, second], survivorId: first });
+
+      expect(res.statusCode).toBe(422);
+      expect(await hiddenIds()).toEqual([]);
+      expect(await accountBalance({ accountId: account.id })).toBe(906);
+    });
+
+    it('moves the note and the category only one removed row had set', async () => {
+      const account = await manualAccount();
+      const secret = await linkTapCard({ accountId: account.id });
+      const category = await helpers.addCustomCategory({ name: 'Treats', color: '#336699', raw: true });
+      const survivor = await tap({ secret, merchant: 'Wolt', minutes: -20 });
+      const edited = await tap({ secret, merchant: 'Wolt', minutes: -10 });
+      await helpers.updateTransaction({
+        id: edited,
+        payload: { note: 'Birthday dinner', categoryId: category.id },
+        raw: true,
+      });
+
+      await helpers.reconciliationMerge({ transactionIds: [survivor, edited], survivorId: survivor, raw: true });
+
+      expect(await storedTx({ id: survivor })).toMatchObject({ note: 'Birthday dinner', categoryId: category.id });
+    });
+
+    it('rejects a merge when both rows were categorized by the owner differently', async () => {
+      const account = await manualAccount();
+      const secret = await linkTapCard({ accountId: account.id });
+      const [treats, bills] = [
+        await helpers.addCustomCategory({ name: 'Treats', color: '#336699', raw: true }),
+        await helpers.addCustomCategory({ name: 'Bills', color: '#993366', raw: true }),
+      ];
+      const first = await tap({ secret, merchant: 'Wolt', minutes: -20 });
+      const second = await tap({ secret, merchant: 'Wolt', minutes: -10 });
+      await helpers.updateTransaction({ id: first, payload: { categoryId: treats.id }, raw: true });
+      await helpers.updateTransaction({ id: second, payload: { categoryId: bills.id }, raw: true });
+
+      const res = await helpers.reconciliationMerge({ transactionIds: [first, second], survivorId: first });
+
+      expect(res.statusCode).toBe(422);
+      expect(await storedTx({ id: first })).toMatchObject({ categoryId: treats.id });
+    });
+  });
+
+  describe('ingest plans on a bank account', () => {
+    const setUpPlan = async () => {
+      const { accountId, byAmount } = await setupEnableBanking({
+        transactions: [booked({ ref: 'r1', amount: '47.00' })],
+      });
+      const bookedRow = byAmount({ amount: 47 });
+      const secret = await linkTapCard({ accountId });
+      const plan = await tap({ secret, merchant: 'Wolt' });
+      expect(await storedTx({ id: plan })).toMatchObject({ isPlanned: true });
+
+      return { accountId, secret, bookedId: bookedRow.id as RecordId, plan };
+    };
+
+    it('merges a plan into its booked row, hides it and brings it back on restore', async () => {
+      const { accountId, bookedId, plan } = await setUpPlan();
+      const before = await accountBalance({ accountId });
+
+      const merged = await helpers.reconciliationMerge({
+        transactionIds: [plan, bookedId],
+        survivorId: bookedId,
+        raw: true,
+      });
+
+      expect(merged.removedIds).toEqual([plan]);
+      expect(await historyEvents()).toEqual([{ type: 'merge', survivorId: bookedId, ids: [plan] }]);
+      expect(await helpers.getTransactionById({ id: plan, raw: true })).toBeFalsy();
+      expect(await accountBalance({ accountId })).toEqual(before);
+
+      await helpers.reconciliationRestore({ transactionIds: [plan], raw: true });
+      expect(await storedTx({ id: plan })).toMatchObject({ isPlanned: true });
+      expect(await historyEvents()).toEqual([]);
+      expect(await accountBalance({ accountId })).toEqual(before);
+    });
+
+    it('removes a plan', async () => {
+      const { plan } = await setUpPlan();
+
+      await helpers.reconciliationRemove({ transactionIds: [plan], raw: true });
+
+      expect(await historyEvents()).toEqual([{ type: 'remove', survivorId: null, ids: [plan] }]);
+    });
+
+    it('refuses to keep the plan over a booked row', async () => {
+      const { bookedId, plan } = await setUpPlan();
+
+      const res = await helpers.reconciliationMerge({ transactionIds: [plan, bookedId], survivorId: plan });
+
+      expect(res.statusCode).toBe(422);
+      expect(await hiddenIds()).toEqual([]);
+    });
+
+    it('keeps refusing a plan the owner wrote', async () => {
+      const { accountId, bookedId } = await setUpPlan();
+      const [userPlan] = await helpers.createPlannedTransaction({
+        payload: { accountId, amount: 47, time: new Date().toISOString() },
+        raw: true,
+      });
+
+      const merge = await helpers.reconciliationMerge({
+        transactionIds: [userPlan.id as RecordId, bookedId],
+        survivorId: bookedId,
+      });
+      const remove = await helpers.reconciliationRemove({ transactionIds: [userPlan.id as RecordId] });
+
+      expect([merge.statusCode, remove.statusCode]).toEqual([422, 422]);
+    });
+
+    it('merges two plans of the same payment, keeping either', async () => {
+      const { secret, plan } = await setUpPlan();
+      const second = await tap({ secret, merchant: 'WOLT.COM', minutes: -10 });
+
+      const merged = await helpers.reconciliationMerge({ transactionIds: [plan, second], survivorId: plan, raw: true });
+
+      expect(merged.removedIds).toEqual([second]);
+      expect(await storedTx({ id: plan })).toMatchObject({ isPlanned: true });
+      expect(await hiddenIds()).toEqual([second]);
+    });
+  });
+
+  describe('chat cards for duplicate rows', () => {
+    const mergeTurns = ({ transactionIds, survivorId }: { transactionIds: RecordId[]; survivorId: RecordId }) => [
+      {
+        toolCalls: [
+          { id: 'call_find', name: 'find_capabilities', arguments: { query: 'merge duplicate transactions' } },
+        ],
+      },
+      {
+        toolCalls: [
+          { id: 'call_merge', name: 'merge_duplicate_transactions', arguments: { transactionIds, survivorId } },
+        ],
+      },
+      { text: 'Done.' },
+    ];
+
+    it('previews and applies a merge of manual-account rows with the balance following', async () => {
+      const account = await manualAccount();
+      const [a, b] = [await manualExpense({ accountId: account.id }), await manualExpense({ accountId: account.id })];
+
+      const { cards } = await proposeCards({ turns: mergeTurns({ transactionIds: [a, b], survivorId: a }) });
+      const card = cardFor({ cards, toolName: 'merge_duplicate_transactions' });
+      expect(card.error ?? null).toBeNull();
+
+      const approved = await helpers.approveChatProposal({
+        proposalId: card.id,
+        payload: { revision: card.revision, confirmation: card.confirmation?.phrase },
+      });
+
+      expect(approved.statusCode).toBe(200);
+      expect(approved.body.response.card.status).toBe('applied');
+      expect(await accountBalance({ accountId: account.id })).toBe(900);
+    });
+
+    it('previews a merge of a plan into its booked row and refuses the plan as the survivor', async () => {
+      const { bookedId, plan } = await (async () => {
+        const { byAmount, accountId } = await setupEnableBanking({
+          transactions: [booked({ ref: 'r1', amount: '47.00' })],
+        });
+        const secret = await linkTapCard({ accountId });
+        return { bookedId: byAmount({ amount: 47 }).id as RecordId, plan: await tap({ secret, merchant: 'Wolt' }) };
+      })();
+
+      const accepted = await proposeCards({
+        turns: mergeTurns({ transactionIds: [plan, bookedId], survivorId: bookedId }),
+      });
+      expect(cardFor({ cards: accepted.cards, toolName: 'merge_duplicate_transactions' }).error ?? null).toBeNull();
+
+      const refused = await proposeCards({ turns: mergeTurns({ transactionIds: [plan, bookedId], survivorId: plan }) });
+      expect(cardFor({ cards: refused.cards, toolName: 'merge_duplicate_transactions' }).error).toMatchObject({
+        messageKey: 'chat.cards.reconciliationPlannedSurvivor',
+      });
     });
   });
 });

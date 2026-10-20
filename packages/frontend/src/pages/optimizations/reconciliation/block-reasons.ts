@@ -1,10 +1,9 @@
-import { isExternalTransaction } from '@/composable/use-bulk-transaction-actions';
 import {
   RECONCILIATION_MERGE_MAX,
   RECONCILIATION_MERGE_MIN,
   RECONCILIATION_REMOVE_MAX,
+  isIngestPlan,
   isLinkedTransfer,
-  type AccountModel,
   type TransactionModel,
   type ReconciliationHistoryEvent,
 } from '@bt/shared/types';
@@ -12,7 +11,6 @@ import {
 type ReconciliationAction = ReconciliationHistoryEvent['type'];
 
 type ReconciliationBlockReason =
-  | 'notBankConnected'
   | 'planned'
   | 'linkedTransfer'
   | 'refundLinked'
@@ -20,22 +18,21 @@ type ReconciliationBlockReason =
   | 'tooMany'
   | 'differentAccounts';
 
-/** Client-side mirror of the backend's reconciliation validation, so the toolbar can explain a disabled action. */
+/**
+ * Client-side mirror of the backend's reconciliation validation, so the toolbar can explain a disabled
+ * action. Bank-connected and manual accounts both qualify; of the planned rows only a payment planned by
+ * iOS Automation does.
+ */
 export const getReconciliationBlockReasons = ({
   action,
   transactions,
-  accountsRecord,
 }: {
   action: ReconciliationAction;
   transactions: TransactionModel[];
-  accountsRecord: Record<string, AccountModel | undefined>;
 }): ReconciliationBlockReason[] => {
   const reasons: ReconciliationBlockReason[] = [];
 
-  if (transactions.some((tx) => !isExternalTransaction({ tx, account: accountsRecord[tx.accountId] }))) {
-    reasons.push('notBankConnected');
-  }
-  if (transactions.some((tx) => tx.isPlanned)) reasons.push('planned');
+  if (transactions.some((tx) => tx.isPlanned && !isIngestPlan({ tx }))) reasons.push('planned');
   if (transactions.some((tx) => isLinkedTransfer({ tx }))) reasons.push('linkedTransfer');
   if (transactions.some((tx) => tx.refundLinked)) reasons.push('refundLinked');
 

@@ -142,6 +142,38 @@ describe('transaction and settings previews', () => {
       ).rejects.toBeInstanceOf(PreviewError);
     });
 
+    it('accepts a payment an ingest pipeline planned and rows of a manual account', async () => {
+      const plan = tx(1, { isPlanned: true, externalData: { cardPayment: { merchant: 'Wolt' } } });
+      jest.mocked(transactionsQuery.findTransactions).mockResolvedValue([plan, tx(2)] as never);
+
+      const merge = await run({
+        resolver: resolveMergeDuplicateTransactions,
+        toolName: 'merge_duplicate_transactions',
+        args: { transactionIds: [uuid(1), uuid(2)], survivorId: uuid(2) },
+      });
+      expect(merge.affectedCount).toBe(1);
+
+      const remove = await run({
+        resolver: resolveRemoveDuplicateTransactions,
+        toolName: 'remove_duplicate_transactions',
+        args: { transactionIds: [uuid(1), uuid(2)] },
+      });
+      expect(remove.affectedCount).toBe(2);
+    });
+
+    it('refuses to keep an ingest plan when a booked row is merged into it', async () => {
+      const plan = tx(1, { isPlanned: true, externalData: { cardPayment: { merchant: 'Wolt' } } });
+      jest.mocked(transactionsQuery.findTransactions).mockResolvedValue([plan, tx(2)] as never);
+
+      await expect(
+        run({
+          resolver: resolveMergeDuplicateTransactions,
+          toolName: 'merge_duplicate_transactions',
+          args: { transactionIds: [uuid(1), uuid(2)], survivorId: uuid(1) },
+        }),
+      ).rejects.toMatchObject({ messageKey: 'chat.cards.reconciliationPlannedSurvivor' });
+    });
+
     it('counts a duplicate on an account the user can no longer see but shows none of its details', async () => {
       jest
         .mocked(transactionsQuery.findTransactions)

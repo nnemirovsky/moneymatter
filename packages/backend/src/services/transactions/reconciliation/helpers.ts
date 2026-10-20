@@ -1,6 +1,7 @@
-import { isLinkedTransfer, ACCOUNT_TYPES, RecordId, SUBSCRIPTION_LINK_STATUS } from '@bt/shared/types';
+import { isIngestPlan, isLinkedTransfer, ACCOUNT_TYPES, RecordId, SUBSCRIPTION_LINK_STATUS } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { NotFoundError, ValidationError } from '@js/errors';
+import Balances from '@models/balances.model';
 import SubscriptionPeriods from '@models/subscription-periods.model';
 import SubscriptionTransactions from '@models/subscription-transactions.model';
 import TrackerTransactions from '@models/tracker-transactions.model';
@@ -8,7 +9,8 @@ import TransactionGroupItems from '@models/transaction-group-items.model';
 import { dissolveUndersizedGroups } from '@models/transaction-groups.model';
 import { findTransactions, updateTransactions } from '@models/transactions-query';
 import type Transactions from '@models/transactions.model';
-import { Op } from 'sequelize';
+import { updateAccountBalanceForChangedTx } from '@services/accounts/update-balance-for-changed-tx';
+import { literal, Op } from 'sequelize';
 
 export const rejectIfAny = ({ rows, key }: { rows: Transactions[]; key: string }) => {
   if (rows.length === 0) return;
@@ -36,11 +38,12 @@ export const loadReconcilableRows = async ({
     throw new NotFoundError({ message: t({ key: 'transactions.notFound' }) });
   }
 
+  // A plan an ingest pipeline wrote is a copy of a payment the bank has yet to report; only the
+  // owner's own plans are real intent that reconciliation must not touch.
   rejectIfAny({
-    rows: rows.filter((row) => row.accountType === ACCOUNT_TYPES.system),
-    key: 'transactions.reconciliation.systemNotAllowed',
+    rows: rows.filter((row) => row.isPlanned && !isIngestPlan({ tx: row })),
+    key: 'transactions.reconciliation.plannedNotAllowed',
   });
-  rejectIfAny({ rows: rows.filter((row) => row.isPlanned), key: 'transactions.reconciliation.plannedNotAllowed' });
   rejectIfAny({
     rows: rows.filter((tx) => isLinkedTransfer({ tx })),
     key: 'transactions.reconciliation.transferNotAllowed',
@@ -66,20 +69,100 @@ export const detachLinks = async ({ transactionIds }: { transactionIds: RecordId
   await dissolveUndersizedGroups({ groupIds: [...new Set(groupItems.map((item) => item.groupId))] });
 };
 
-// Hooks stay off: provider balances are bank-authoritative, so hiding a row moves no balance.
-export const softDeleteTransactions = ({
+const isManualAccountRow = ({ row }: { row: Transactions }) =>
+  row.accountType === ACCOUNT_TYPES.system && !row.isPlanned;
+
+/**
+ * Marks a hidden row whose amount left a manual balance. The account type of a row follows its
+ * account (an unlink retypes hidden rows too), so on restore only this marker says whether the
+ * amount was ever withdrawn: a row hidden on a bank account was not, and its amount is still in
+ * whatever balance the account holds.
+ */
+const BALANCE_WITHDRAWN_PATH = '{reconciliation,balanceWithdrawn}';
+
+/**
+ * Hides rows from the books (soft delete) with the Transaction hooks off.
+ *
+ * - A bank row moves no balance: provider balances are bank-authoritative, so the bank's figure
+ *   already stands whichever copy is hidden.
+ * - A row of a manual (system) account is the ledger: its balance is the sum of its rows. Hiding one
+ *   withdraws its amount exactly as `@BeforeDestroy` does (account balance and `Balances`) and marks
+ *   the row, and `reapplyBalances` puts the amount back.
+ * - A planned row (an ingest plan on a bank account) never moved a balance, so there is nothing to
+ *   take back.
+ */
+export const softDeleteTransactions = async ({
   userId,
-  transactionIds,
+  rows,
   mergedIntoId,
 }: {
   userId: number;
-  transactionIds: RecordId[];
+  rows: Transactions[];
   mergedIntoId: RecordId | null;
-}) =>
-  updateTransactions({
+}) => {
+  await updateTransactions({
     values: { deletedAt: new Date(), mergedIntoId },
-    where: { id: { [Op.in]: transactionIds } },
-    planned: 'exclude',
+    where: { id: { [Op.in]: rows.map((row) => row.id) } },
+    planned: 'include',
     access: { creator: userId },
     balanceAdjustments: 'include',
   });
+
+  const withdrawn = rows.filter((candidate) => isManualAccountRow({ row: candidate }));
+  if (!withdrawn.length) return;
+
+  await updateTransactions({
+    values: {
+      externalData: literal(
+        `COALESCE("externalData", '{}'::jsonb) || jsonb_build_object('reconciliation', COALESCE("externalData"->'reconciliation', '{}'::jsonb) || '{"balanceWithdrawn": true}'::jsonb)`,
+      ),
+    },
+    where: { id: { [Op.in]: withdrawn.map((row) => row.id) } },
+    paranoid: false,
+    planned: 'include',
+    access: { creator: userId },
+    balanceAdjustments: 'include',
+  });
+
+  for (const row of withdrawn) {
+    await updateAccountBalanceForChangedTx({
+      accountId: row.accountId,
+      prevAmount: row.amount,
+      transactionType: row.transactionType,
+      removedTransactionId: row.id,
+    });
+    await Balances.handleTransactionChange({ data: row, isDelete: true });
+  }
+};
+
+/**
+ * Puts back the amounts `softDeleteTransactions` withdrew, as `@AfterCreate` does, for the restored
+ * rows that carry the marker and still sit on a manual account. A row whose account was linked to a
+ * bank in the meantime stays out of the balance, which is now the bank's figure.
+ */
+export const reapplyBalances = async ({ userId, rows }: { userId: number; rows: Transactions[] }) => {
+  const marked = rows.filter((row) =>
+    Boolean(
+      (row.externalData as { reconciliation?: { balanceWithdrawn?: unknown } } | null)?.reconciliation
+        ?.balanceWithdrawn,
+    ),
+  );
+  if (!marked.length) return;
+
+  await updateTransactions({
+    values: { externalData: literal(`"externalData" #- '${BALANCE_WITHDRAWN_PATH}'`) },
+    where: { id: { [Op.in]: marked.map((row) => row.id) } },
+    planned: 'include',
+    access: { creator: userId },
+    balanceAdjustments: 'include',
+  });
+
+  for (const row of marked.filter((candidate) => isManualAccountRow({ row: candidate }))) {
+    await updateAccountBalanceForChangedTx({
+      accountId: row.accountId,
+      amount: row.amount,
+      transactionType: row.transactionType,
+    });
+    await Balances.handleTransactionChange({ data: row });
+  }
+};

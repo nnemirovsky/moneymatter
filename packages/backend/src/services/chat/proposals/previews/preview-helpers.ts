@@ -151,10 +151,13 @@ export const loadUserTransactions = ({
   userId,
   ids,
   lock,
+  extraAttributes = [],
 }: {
   userId: number;
   ids: string[];
   lock?: boolean;
+  /** Columns a resolver reads beyond the sample ones. */
+  extraAttributes?: Array<keyof Transactions>;
 }): Promise<Transactions[]> =>
   findTransactions({
     ...forUpdate({ lock }),
@@ -162,7 +165,7 @@ export const loadUserTransactions = ({
     access: { creator: userId },
     balanceAdjustments: 'include',
     completeness: 'all',
-    attributes: TRANSACTION_SAMPLE_ATTRIBUTES,
+    attributes: [...TRANSACTION_SAMPLE_ATTRIBUTES, ...extraAttributes],
     where: { id: ids },
     order: [
       ['time', 'DESC'],

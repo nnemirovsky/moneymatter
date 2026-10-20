@@ -5,6 +5,10 @@ import SubscriptionPeriods from '@models/subscription-periods.model';
 import SubscriptionTransactions from '@models/subscription-transactions.model';
 import TrackerTransactions from '@models/tracker-transactions.model';
 import TransactionGroupItems from '@models/transaction-group-items.model';
+import { updateTransactions } from '@models/transactions-query';
+import type Transactions from '@models/transactions.model';
+import { getUserDefaultCategory } from '@models/users.model';
+import type { EditMergeSkipReason } from '@services/bank-data-providers/enablebanking/utils/plan-edit-merge';
 import {
   hasSettledStatus,
   isPreBookingRow,
@@ -12,7 +16,65 @@ import {
 import { withTransaction } from '@services/common/with-transaction';
 import { Op } from 'sequelize';
 
+import { type EditMergeRow, planReconciliationEditMerge } from './edit-merge';
 import { detachLinks, loadReconcilableRows, softDeleteTransactions } from './helpers';
+
+const EDIT_CONFLICT_KEYS: Record<EditMergeSkipReason, string> = {
+  note_conflict: 'note',
+  category_conflict: 'category',
+  legacy_category_conflict: 'legacyCategory',
+  payment_type_conflict: 'paymentType',
+  payee_conflict: 'payee',
+};
+
+const toEditMergeRow = ({ row }: { row: Transactions }): EditMergeRow => ({
+  note: row.note ?? null,
+  categoryId: row.categoryId,
+  paymentType: row.paymentType,
+  payeeId: row.payeeId,
+  payeeLocked: row.payeeLocked,
+  categorizationMeta: row.categorizationMeta,
+  externalData: row.externalData as Record<string, unknown> | null,
+});
+
+/**
+ * The edits of the removed rows that move onto the survivor, folded in order so a second row sees
+ * what the first one already moved. A real edit on both sides that disagrees rejects the merge with
+ * its reason: there is no winner to pick, and the removed row's value would be lost.
+ */
+const planSurvivorEdits = async ({
+  userId,
+  removed,
+  survivor,
+}: {
+  userId: number;
+  removed: Transactions[];
+  survivor: Transactions;
+}) => {
+  const defaultCategoryId = await getUserDefaultCategory({ id: userId });
+  const now = new Date();
+  let survivorRow = toEditMergeRow({ row: survivor });
+  const valuesToMove: Partial<EditMergeRow> = {};
+
+  for (const row of removed) {
+    const plan = planReconciliationEditMerge({
+      removed: toEditMergeRow({ row }),
+      survivor: survivorRow,
+      defaultCategoryId,
+      now,
+    });
+    if (plan.action === 'skip') {
+      throw new ValidationError({
+        message: t({ key: `transactions.reconciliation.editConflict.${EDIT_CONFLICT_KEYS[plan.reason]}` }),
+        details: { transactionIds: [row.id, survivor.id], reason: plan.reason },
+      });
+    }
+    Object.assign(valuesToMove, plan.valuesToMove);
+    survivorRow = { ...survivorRow, ...plan.valuesToMove };
+  }
+
+  return valuesToMove;
+};
 
 /**
  * Targets the removed rows' links move onto the survivor. Rejects with `key` when the survivor
@@ -69,6 +131,14 @@ export const mergeTransactions = withTransaction(
     ) {
       throw new ValidationError({ message: t({ key: 'transactions.reconciliation.survivorPending' }) });
     }
+
+    // A plan only describes a payment the booked row already records, so it cannot be the one kept.
+    if (survivor.isPlanned && rows.some((row) => row.id !== survivorId && !row.isPlanned)) {
+      throw new ValidationError({ message: t({ key: 'transactions.reconciliation.plannedSurvivor' }) });
+    }
+
+    const removedRows = rows.filter((row) => row.id !== survivorId);
+    const survivorEdits = await planSurvivorEdits({ userId, removed: removedRows, survivor });
 
     const where = { transactionId: { [Op.in]: transactionIds } };
     const [trackerLinks, groupLinks, subscriptionLinks, periodLinks] = await Promise.all([
@@ -136,8 +206,18 @@ export const mergeTransactions = withTransaction(
     }
 
     const removedIds = transactionIds.filter((id) => id !== survivorId);
+    // Hooks stay off like the rest of the merge: none of the moved fields is balance-relevant.
+    if (Object.keys(survivorEdits).length > 0) {
+      await updateTransactions({
+        values: survivorEdits,
+        where: { id: survivorId },
+        planned: 'include',
+        access: { creator: userId },
+        balanceAdjustments: 'include',
+      });
+    }
     await detachLinks({ transactionIds: removedIds });
-    await softDeleteTransactions({ userId, transactionIds: removedIds, mergedIntoId: survivorId });
+    await softDeleteTransactions({ userId, rows: removedRows, mergedIntoId: survivorId });
 
     return { removedIds };
   },

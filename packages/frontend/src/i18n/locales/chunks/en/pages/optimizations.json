@@ -144,7 +144,7 @@
         "history": "History"
       },
       "table": {
-        "hint": "Select bank transactions to merge duplicates or remove extras"
+        "hint": "Select transactions to merge duplicates or remove extras"
       },
       "actions": {
         "merge": "Merge",
@@ -155,8 +155,7 @@
           "merge": "Can't merge for {count} reasons:",
           "remove": "Can't remove for {count} reasons:"
         },
-        "notBankConnected": "Only bank-connected transactions can be reconciled.",
-        "planned": "Planned transactions can't be reconciled.",
+        "planned": "Planned transactions you created can't be reconciled.",
         "linkedTransfer": "Linked transfers can't be reconciled. Unlink the transfer first.",
         "refundLinked": "Refund-linked transactions can't be reconciled. Unlink the refund first.",
         "tooFew": "Select at least 2 transactions to merge.",

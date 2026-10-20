@@ -2,7 +2,6 @@
 import ResponsiveTooltip from '@/components/common/responsive-tooltip.vue';
 import { Button } from '@/components/lib/ui/button';
 import { DesktopOnlyTooltip } from '@/components/lib/ui/tooltip';
-import { useAccountsStore } from '@/stores';
 import {
   RECONCILIATION_MERGE_MAX,
   RECONCILIATION_REMOVE_MAX,
@@ -10,7 +9,6 @@ import {
   type TransactionModel,
 } from '@bt/shared/types';
 import { GitMergeIcon, Trash2Icon, XIcon } from '@lucide/vue';
-import { storeToRefs } from 'pinia';
 import { computed, ref } from 'vue';
 
 import { getReconciliationBlockReasons } from '../block-reasons';
@@ -23,7 +21,6 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ 'clear-selection': [] }>();
 
-const { accountsRecord } = storeToRefs(useAccountsStore());
 const blockReasonParams = { mergeMax: RECONCILIATION_MERGE_MAX, removeMax: RECONCILIATION_REMOVE_MAX };
 
 const selectedIdSet = computed(() => new Set(props.selectedIds));
@@ -52,7 +49,6 @@ const actions = computed(() =>
     reasons: getReconciliationBlockReasons({
       action,
       transactions: selectedTransactions.value,
-      accountsRecord: accountsRecord.value,
     }),
     open: () => openAction({ action }),
   })),

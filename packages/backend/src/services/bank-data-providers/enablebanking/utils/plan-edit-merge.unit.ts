@@ -32,11 +32,21 @@ function plan({
   canonical,
   orphanSyncNote = SYNC_NOTE,
   canonicalSyncNote = SYNC_NOTE,
+  machine = {},
 }: {
   orphan: EditMergeSide;
   canonical: EditMergeSide;
   orphanSyncNote?: string | null;
   canonicalSyncNote?: string | null;
+  machine?: Partial<
+    Pick<
+      Parameters<typeof planEditMerge>[0],
+      | 'orphanMachinePaymentType'
+      | 'canonicalMachinePaymentType'
+      | 'orphanMachineCategoryId'
+      | 'canonicalMachineCategoryId'
+    >
+  >;
 }) {
   return planEditMerge({
     orphan,
@@ -45,6 +55,7 @@ function plan({
     canonicalSyncNote,
     defaultCategoryId: DEFAULT_CATEGORY_ID,
     now: NOW,
+    ...machine,
   });
 }
 
@@ -446,5 +457,99 @@ describe('planEditMerge – combined', () => {
     });
 
     expect(result).toEqual({ action: 'skip', reason: 'payment_type_conflict' });
+  });
+});
+
+describe('planEditMerge – machine baselines of another pipeline', () => {
+  it('treats the machine payment type of each side as not edited', () => {
+    const result = plan({
+      orphan: side({ paymentType: PAYMENT_TYPES.mobilePayment }),
+      canonical: side({ paymentType: PAYMENT_TYPES.mobilePayment }),
+      machine: {
+        orphanMachinePaymentType: PAYMENT_TYPES.mobilePayment,
+        canonicalMachinePaymentType: PAYMENT_TYPES.mobilePayment,
+      },
+    });
+
+    expect(result).toEqual({ action: 'merge', valuesToMove: {} });
+  });
+
+  it('does not move a machine payment type onto a bank survivor', () => {
+    const result = plan({
+      orphan: side({ paymentType: PAYMENT_TYPES.mobilePayment }),
+      canonical: side(),
+      machine: { orphanMachinePaymentType: PAYMENT_TYPES.mobilePayment },
+    });
+
+    expect(result).toEqual({ action: 'merge', valuesToMove: {} });
+  });
+
+  it('still moves a payment type the owner changed away from the machine one', () => {
+    const result = plan({
+      orphan: side({ paymentType: PAYMENT_TYPES.cash }),
+      canonical: side({ paymentType: PAYMENT_TYPES.mobilePayment }),
+      machine: { canonicalMachinePaymentType: PAYMENT_TYPES.mobilePayment },
+    });
+
+    expect(result).toEqual({ action: 'merge', valuesToMove: { paymentType: PAYMENT_TYPES.cash } });
+  });
+
+  it('merges two unstamped machine categories that differ and keeps the canonical one', () => {
+    const result = plan({
+      orphan: side({ categoryId: 'category-food' }),
+      canonical: side({ categoryId: 'category-groceries' }),
+      machine: { orphanMachineCategoryId: 'category-food', canonicalMachineCategoryId: 'category-groceries' },
+    });
+
+    expect(result).toEqual({ action: 'merge', valuesToMove: {} });
+  });
+
+  it('moves a manual category of the orphan over a different machine category of the canonical', () => {
+    const result = plan({
+      orphan: side({ categoryId: 'category-travel', categorizationMeta: MANUAL }),
+      canonical: side({ categoryId: 'category-groceries' }),
+      machine: { canonicalMachineCategoryId: 'category-groceries' },
+    });
+
+    expect(result).toEqual({
+      action: 'merge',
+      valuesToMove: { categoryId: 'category-travel', categorizationMeta: MANUAL },
+    });
+  });
+
+  it('keeps a manual canonical category over a different machine category of the orphan', () => {
+    const result = plan({
+      orphan: side({ categoryId: 'category-food' }),
+      canonical: side({ categoryId: 'category-travel', categorizationMeta: MANUAL }),
+      machine: { orphanMachineCategoryId: 'category-food' },
+    });
+
+    expect(result).toEqual({ action: 'merge', valuesToMove: {} });
+  });
+
+  it('raises a category conflict when both sides carry a manual stamp', () => {
+    const result = plan({
+      orphan: side({ categoryId: 'category-travel', categorizationMeta: MANUAL }),
+      canonical: side({ categoryId: 'category-groceries', categorizationMeta: MANUAL }),
+      machine: { orphanMachineCategoryId: 'category-food', canonicalMachineCategoryId: 'category-groceries' },
+    });
+
+    expect(result).toEqual({ action: 'skip', reason: 'category_conflict' });
+  });
+
+  it('treats an unstamped category that is not the machine pick as a legacy edit', () => {
+    const result = plan({
+      orphan: side({ categoryId: 'category-travel' }),
+      canonical: side({ categoryId: 'category-groceries' }),
+      machine: { orphanMachineCategoryId: 'category-food', canonicalMachineCategoryId: 'category-groceries' },
+    });
+
+    expect(result).toEqual({
+      action: 'merge',
+      valuesToMove: {
+        categoryId: 'category-travel',
+        categorizationMeta: SYNTHESIZED_MANUAL,
+      },
+    });
   });
 });

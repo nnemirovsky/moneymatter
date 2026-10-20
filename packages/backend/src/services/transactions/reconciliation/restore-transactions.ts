@@ -6,7 +6,7 @@ import { findTransactions, updateTransactions } from '@models/transactions-query
 import { withTransaction } from '@services/common/with-transaction';
 import { Op } from 'sequelize';
 
-import { rejectIfAny } from './helpers';
+import { reapplyBalances, rejectIfAny } from './helpers';
 
 export const restoreTransactions = withTransaction(
   async ({
@@ -48,6 +48,7 @@ export const restoreTransactions = withTransaction(
       access: { creator: userId },
       balanceAdjustments: 'include',
     });
+    await reapplyBalances({ userId, rows });
 
     return { restoredIds: transactionIds };
   },

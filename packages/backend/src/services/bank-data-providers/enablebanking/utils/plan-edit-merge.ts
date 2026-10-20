@@ -45,13 +45,17 @@ type CategorizationSignal = 'manual' | 'legacy' | 'none';
 function categorizationSignal({
   side,
   defaultCategoryId,
+  machineCategoryId,
 }: {
   side: EditMergeSide;
   defaultCategoryId: string;
+  machineCategoryId?: string;
 }): CategorizationSignal {
   if (side.categorizationMeta) {
     return side.categorizationMeta.source === CATEGORIZATION_SOURCE.manual ? 'manual' : 'none';
   }
+  // A pipeline that wrote the category itself (an ingest row's history pick) leaves it unstamped.
+  if (machineCategoryId !== undefined && side.categoryId === machineCategoryId) return 'none';
   return side.categoryId !== defaultCategoryId ? 'legacy' : 'none';
 }
 
@@ -67,6 +71,10 @@ export function hasManualStamp({ meta }: { meta: CategorizationMeta | null }): b
  * The survivor never ends up with a weaker categorization stamp than either
  * side had: a manual stamp on the canonical is never overwritten, and a moved
  * category always arrives with a manual stamp so the next AI run leaves it alone.
+ *
+ * Bank rows are the default. A row another pipeline writes names what that pipeline wrote, so only
+ * a different value counts as a user edit: `*MachinePaymentType` (default `bankTransfer`) and
+ * `*MachineCategoryId` (the unstamped category the pipeline picked).
  */
 export function planEditMerge({
   orphan,
@@ -75,6 +83,10 @@ export function planEditMerge({
   canonicalSyncNote,
   defaultCategoryId,
   now,
+  orphanMachinePaymentType = PAYMENT_TYPES.bankTransfer,
+  canonicalMachinePaymentType = PAYMENT_TYPES.bankTransfer,
+  orphanMachineCategoryId,
+  canonicalMachineCategoryId,
 }: {
   orphan: EditMergeSide;
   canonical: EditMergeSide;
@@ -82,6 +94,10 @@ export function planEditMerge({
   canonicalSyncNote: string | null;
   defaultCategoryId: string;
   now: Date;
+  orphanMachinePaymentType?: PAYMENT_TYPES;
+  canonicalMachinePaymentType?: PAYMENT_TYPES;
+  orphanMachineCategoryId?: string;
+  canonicalMachineCategoryId?: string;
 }): EditMergePlan {
   const valuesToMove: EditMergeValues = {};
 
@@ -95,8 +111,16 @@ export function planEditMerge({
     if (orphanEdited) valuesToMove.note = orphanNote;
   }
 
-  const orphanCategorization = categorizationSignal({ side: orphan, defaultCategoryId });
-  const canonicalCategorization = categorizationSignal({ side: canonical, defaultCategoryId });
+  const orphanCategorization = categorizationSignal({
+    side: orphan,
+    defaultCategoryId,
+    machineCategoryId: orphanMachineCategoryId,
+  });
+  const canonicalCategorization = categorizationSignal({
+    side: canonical,
+    defaultCategoryId,
+    machineCategoryId: canonicalMachineCategoryId,
+  });
 
   if (orphan.categoryId !== canonical.categoryId) {
     if (orphanCategorization !== 'none' && canonicalCategorization !== 'none') {
@@ -123,8 +147,8 @@ export function planEditMerge({
   }
 
   if (orphan.paymentType !== canonical.paymentType) {
-    const orphanEdited = orphan.paymentType !== PAYMENT_TYPES.bankTransfer;
-    const canonicalEdited = canonical.paymentType !== PAYMENT_TYPES.bankTransfer;
+    const orphanEdited = orphan.paymentType !== orphanMachinePaymentType;
+    const canonicalEdited = canonical.paymentType !== canonicalMachinePaymentType;
     if (orphanEdited && canonicalEdited) return { action: 'skip', reason: 'payment_type_conflict' };
     if (orphanEdited) valuesToMove.paymentType = orphan.paymentType;
   }

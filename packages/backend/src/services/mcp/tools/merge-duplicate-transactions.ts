@@ -19,7 +19,7 @@ export function registerMergeDuplicateTransactions(server: McpServer) {
     'merge_duplicate_transactions',
     {
       description:
-        'Merge duplicate transactions of one account into a survivor: the other rows are removed and their budget, group and subscription links move to the survivor, which keeps its own data. The removed rows are soft-deleted, so restore_removed_transactions brings them back, but a restored row does not get its links back (they stay on the survivor). Planned rows, transfers, refund-linked rows and system-account rows are refused, as is a merge whose rows link to different budgets, groups or subscriptions than the survivor can take. Returns { removedIds }, the merged rows. Requires finance:write scope.',
+        'Merge duplicate transactions of one account, bank-connected or manual, into a survivor: the other rows are removed and their budget, group and subscription links move to the survivor, which keeps its own data, except a note, category, payment type or payee only a removed row had you set, which moves over. The removed rows are soft-deleted, so restore_removed_transactions brings them back, but a restored row does not get its links back (they stay on the survivor). On a manual account the removed amounts leave the balance. Planned rows you created, transfers and refund-linked rows are refused, as is a merge whose rows link to different budgets, groups or subscriptions than the survivor can take, or whose rows were edited to different notes, categories, payment types or payees. A payment planned by iOS Automation can be merged into its booked row, never the other way round. Returns { removedIds }, the merged rows. Requires finance:write scope.',
       inputSchema,
     },
     async (args, extra) => {

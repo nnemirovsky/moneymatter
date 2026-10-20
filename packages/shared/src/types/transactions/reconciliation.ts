@@ -72,6 +72,8 @@ export interface DuplicateSuggestionItem {
   createdAt: string;
   transaction: TransactionModel;
   candidate: TransactionModel;
+  /** The side a merge should keep: a booked bank or imported row, else the earliest ingest row. */
+  suggestedSurvivorId: RecordId;
   transactionSlots: string[];
   candidateSlots: string[];
 }

@@ -2,6 +2,7 @@ import type { DuplicateSuggestionTrigger, RecordId } from '@bt/shared/types';
 import DuplicateSuggestions from '@models/duplicate-suggestions.model';
 import { findTransactions } from '@models/transactions-query';
 import { serializeTransaction } from '@root/serializers/transactions.serializer';
+import { chooseSurvivor } from '@services/ingest/dedup/choose-survivor';
 import { readTakenSlots } from '@services/ingest/dedup/source-slots';
 import { Op } from 'sequelize';
 
@@ -97,6 +98,7 @@ export const listDuplicateSuggestions = async ({ userId }: { userId: number }) =
         createdAt: suggestion.createdAt.toISOString(),
         transaction: serializeTransaction(transaction),
         candidate: serializeTransaction(candidate),
+        suggestedSurvivorId: chooseSurvivor({ candidates: [transaction, candidate] }),
         transactionSlots: readTakenSlots({ externalData: transaction.externalData }),
         candidateSlots: readTakenSlots({ externalData: candidate.externalData }),
       },
