@@ -85,9 +85,10 @@ const WIPE_ORDER = BACKUP_TABLES.toReversed();
  * invoke it from `runUserDestroyLifecycle`'s `destroyInTx` hook so the
  * surrounding spine handles share-target snapshots and notification fan-out.
  *
- * Deletes the user's chat history (excluded from backups, so the registry never reaches it) and
- * walks the backup registry's `userColumn` tables (and clears the ingest request log, which the registry excludes
- * from exports); `viaParent` children go with their parents via FK cascade. Leaves the Users + `ba_user` rows intact
+ * Deletes the user's chat history, the automation inbox thread included (excluded from backups, so the
+ * registry never reaches it) and walks the backup registry's `userColumn` tables, which cover the
+ * notification sources and duplicate suggestions (and clears the ingest request log, which the registry
+ * excludes from exports); `viaParent` children go with their parents via FK cascade. Leaves the Users + `ba_user` rows intact
  * (identity is preserved); only the domain data + per-user settings go.
  */
 export const destroyUserOwnedData = async ({ user }: { user: Users.default }) => {

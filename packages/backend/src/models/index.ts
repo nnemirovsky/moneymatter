@@ -27,6 +27,7 @@ import ChatProposalsModel from './chat-proposals.model';
 import ChatThreadsModel from './chat-threads.model';
 import { connection } from './connection';
 import CurrenciesModel from './currencies.model';
+import DuplicateSuggestionsModel from './duplicate-suggestions.model';
 import ExchangeRatesModel from './exchange-rates.model';
 import FeatureUsagesModel from './feature-usages.model';
 import ImportBatchAccountEffectsModel from './import-batch-account-effects.model';
@@ -44,6 +45,7 @@ import SecurityCurrencyCacheModel from './investments/security-currency-cache.mo
 import SecurityPricingModel from './investments/security-pricing.model';
 import LoanDetailsModel from './loan-details.model';
 import MerchantCategoryCodesModel from './merchant-category-codes.model';
+import NotificationSourcesModel from './notification-sources.model';
 import NotificationsModel from './notifications.model';
 import PayeeAliasesModel from './payee-aliases.model';
 import PayeeIgnoredNamesModel from './payee-ignored-names.model';
@@ -165,6 +167,8 @@ const models = [
   IngestRequestsModel,
   IngestSettingsModel,
   CardAccountMappingsModel,
+  NotificationSourcesModel,
+  DuplicateSuggestionsModel,
   PayeeIgnoredNamesModel,
   PayeeTagsModel,
   CategoryTagsModel,

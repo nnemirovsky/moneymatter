@@ -1,3 +1,4 @@
+import type { GateStrictness } from '@bt/shared/types';
 import { Table, Column, Model, ForeignKey, BelongsTo, DataType } from 'sequelize-typescript';
 
 import Users from './users.model';
@@ -22,6 +23,10 @@ export default class IngestSettings extends Model {
 
   @Column({ type: DataType.TEXT, allowNull: true })
   accessClientSecretEnc!: string | null;
+
+  /** How strict the amount gate is, on the device and on the server. */
+  @Column({ type: DataType.STRING(16), allowNull: false, defaultValue: 'standard' })
+  gateStrictness!: GateStrictness;
 
   declare createdAt: Date;
   declare updatedAt: Date;

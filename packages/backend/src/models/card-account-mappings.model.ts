@@ -29,6 +29,10 @@ export default class CardAccountMappings extends Model {
   @Column({ type: DataType.STRING(255), allowNull: false })
   normalizedLabel!: string;
 
+  /** The card's last digits, for a notification that names no Wallet card. Unique per user when set. */
+  @Column({ type: DataType.STRING(8), allowNull: true })
+  lastDigits!: string | null;
+
   @ForeignKey(() => Accounts)
   @Column({ type: DataType.UUID, allowNull: false })
   accountId!: RecordId;

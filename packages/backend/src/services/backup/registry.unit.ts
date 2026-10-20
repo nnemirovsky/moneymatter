@@ -3,6 +3,9 @@ import { connection } from '@models/index';
 
 import { BACKUP_EXCLUDED, BACKUP_TABLES, REFERENCE_TABLES } from './registry';
 
+const tierOf = ({ modelName }: { modelName: string }) =>
+  BACKUP_TABLES.find((e) => e.model === connection.sequelize.models[modelName])!.tier;
+
 describe('backup registry drift guard', () => {
   it('every registered Sequelize model has an explicit backup decision', () => {
     // Compare by class reference: a model registered with Sequelize but absent
@@ -35,4 +38,33 @@ describe('backup registry drift guard', () => {
       expect(restored).toBe(false);
     },
   );
+
+  it.each(['NotificationSources', 'DuplicateSuggestions'])(
+    '%s is part of the backup, with its chat card reference nulled',
+    (modelName) => {
+      const model = connection.sequelize.models[modelName];
+      expect(model).toBeDefined();
+
+      const entry = BACKUP_TABLES.find((e) => e.model === model);
+      expect(entry).toBeDefined();
+      expect(entry!.restoreMode).toBe('insert');
+      expect(entry!.scope).toEqual({ strategy: 'userColumn', column: 'userId' });
+      expect(entry!.nullOnRestore).toEqual(['proposalId']);
+
+      expect(BACKUP_EXCLUDED.some((e) => e.model === model)).toBe(false);
+    },
+  );
+
+  it('restores the new tables after the tables their rows point at', () => {
+    expect(tierOf({ modelName: 'NotificationSources' })).toBeGreaterThan(tierOf({ modelName: 'Accounts' }));
+    expect(tierOf({ modelName: 'DuplicateSuggestions' })).toBeGreaterThan(tierOf({ modelName: 'Transactions' }));
+    expect(tierOf({ modelName: 'DuplicateSuggestions' })).toBeGreaterThan(tierOf({ modelName: 'Accounts' }));
+  });
+
+  it('keeps the ingest request log out of the backup', () => {
+    const model = connection.sequelize.models.IngestRequests;
+
+    expect(BACKUP_EXCLUDED.some((e) => e.model === model)).toBe(true);
+    expect(BACKUP_TABLES.some((e) => e.model === model)).toBe(false);
+  });
 });

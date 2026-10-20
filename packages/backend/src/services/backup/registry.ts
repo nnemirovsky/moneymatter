@@ -75,6 +75,12 @@ export interface BackupTableDef<Name extends string = BackupFileName> {
   requireSeededCurrency?: boolean;
   /** Drop a row on restore that breaks an app-level rule the DB constraints don't cover. */
   isValidRow?: (params: { row: Record<string, unknown> }) => boolean;
+  /**
+   * Columns written as null on restore whatever the archive holds. For references to rows that are
+   * never backed up (a chat card lives and dies with its thread, which the restore wipes), so the
+   * archive's id would point at nothing.
+   */
+  nullOnRestore?: readonly string[];
 }
 
 /**
@@ -322,6 +328,14 @@ const TABLE_DEFS = [
     restoreMode: 'insert',
   },
   {
+    fileName: 'notification-sources',
+    model: models.NotificationSources,
+    tier: 4,
+    scope: { strategy: 'userColumn', column: 'userId' },
+    restoreMode: 'insert',
+    nullOnRestore: ['proposalId'],
+  },
+  {
     fileName: 'transactions',
     model: models.Transactions,
     tier: 4,
@@ -416,6 +430,14 @@ const TABLE_DEFS = [
   },
 
   // tier 5
+  {
+    fileName: 'duplicate-suggestions',
+    model: models.DuplicateSuggestions,
+    tier: 5,
+    scope: { strategy: 'userColumn', column: 'userId' },
+    restoreMode: 'insert',
+    nullOnRestore: ['proposalId'],
+  },
   {
     fileName: 'transaction-splits',
     model: models.TransactionSplits,

@@ -1,4 +1,10 @@
-import { AI_MODEL_NAME_MAX_LENGTH, ChatThreadTitleSource, RecordId } from '@bt/shared/types';
+import {
+  AI_MODEL_NAME_MAX_LENGTH,
+  ChatInboxState,
+  ChatThreadKind,
+  ChatThreadTitleSource,
+  RecordId,
+} from '@bt/shared/types';
 import { IdColumn } from '@common/types/id-column';
 import { Table, Column, Model, ForeignKey, BelongsTo, HasMany, DataType } from 'sequelize-typescript';
 
@@ -36,6 +42,14 @@ export default class ChatThreads extends Model {
 
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   pinned!: boolean;
+
+  /** `automationInbox` is the thread MoneyMatter owns and fills with cards; it never runs the assistant. */
+  @Column({ type: DataType.STRING(24), allowNull: false, defaultValue: 'chat' })
+  kind!: ChatThreadKind;
+
+  /** The life stage of an inbox thread; null on a chat thread. At most one thread per user is `live`. */
+  @Column({ type: DataType.STRING(8), allowNull: true })
+  inboxState!: ChatInboxState | null;
 
   @Column({ type: DataType.DATE, allowNull: false, defaultValue: DataType.NOW })
   lastMessageAt!: Date;

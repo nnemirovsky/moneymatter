@@ -13,6 +13,7 @@ import { BACKUP_TABLES, type BackupTableDef } from '../registry';
 import type { ArchiveAnalysis, TableColumnPlan } from './analyze-archive';
 import { buildInsertRecord, runBulkInsert } from './bulk-insert';
 import type { ParsedArchive } from './load-archive';
+import { buildNullOnRestoreOverrides } from './null-on-restore';
 import { type GuardedFk, buildGuardedReferenceMap, guardRowReferences } from './owned-reference-guard';
 import { remapEmbeddedReferences } from './remap-embedded-references';
 import { type CustomCurrencyDefinition } from './resolve-custom-currencies';
@@ -142,6 +143,9 @@ function buildRowOverrides({
     const metadata = (row.metadata && typeof row.metadata === 'object' ? row.metadata : {}) as Row;
     overrides.metadata = { ...metadata, deactivationReason: DEACTIVATION_REASON.RESTORED };
   }
+
+  // References to rows no backup carries (the chat cards) would point at nothing.
+  Object.assign(overrides, buildNullOnRestoreOverrides({ def, plan }));
 
   return overrides;
 }
