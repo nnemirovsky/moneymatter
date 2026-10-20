@@ -68,6 +68,8 @@ const LABEL_SOURCES: Partial<Record<ChatEntityKind, { attributes: string[]; labe
   transactionAutomation: { attributes: ['name'], label: (row) => String(row.name) },
   venturePlatform: { attributes: ['name'], label: (row) => String(row.name) },
   ventureDeal: { attributes: ['name'], label: (row) => String(row.name) },
+  bankConnection: { attributes: ['providerName'], label: (row) => String(row.providerName) },
+  notification: { attributes: ['title'], label: (row) => String(row.title) },
   vehicle: {
     attributes: ['year', 'make', 'model'],
     label: (row) => `${row.year} ${row.make} ${row.model}`,

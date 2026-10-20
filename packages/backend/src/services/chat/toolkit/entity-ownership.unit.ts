@@ -1,9 +1,11 @@
 import type { ChatEntityRef } from '@bt/shared/types';
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import Accounts from '@models/accounts.model';
+import BankDataProviderConnections from '@models/bank-data-provider-connections.model';
 import BudgetPlans from '@models/budget-plans.model';
 import Categories from '@models/categories.model';
 import ImportBatches from '@models/import-batches.model';
+import Notifications from '@models/notifications.model';
 import TransactionAutomations from '@models/transaction-automations.model';
 import Transactions from '@models/transactions.model';
 import VentureDeals from '@models/venture/venture-deals.model';
@@ -87,5 +89,23 @@ describe('findForeignEntities', () => {
     const query = batches.mock.calls[0]![0] as any;
     expect(query.where).toEqual({ userId: 7, batchId: [A1] });
     expect(query.attributes[0]).toEqual(['batchId', 'id']);
+  });
+
+  it('names a bank connection by its provider and a notification by its title', async () => {
+    jest
+      .spyOn(BankDataProviderConnections, 'findAll')
+      .mockResolvedValue([{ id: A1, providerName: 'monobank' }] as never);
+    jest.spyOn(Notifications, 'findAll').mockResolvedValue([{ id: A2, title: 'Rent is due' }] as never);
+
+    const { labels } = await lookupEntities({
+      userId: 7,
+      refs: [
+        { kind: 'bankConnection', id: A1 },
+        { kind: 'notification', id: A2 },
+      ],
+    });
+
+    expect(labels.get(`bankConnection:${A1}`)).toBe('monobank');
+    expect(labels.get(`notification:${A2}`)).toBe('Rent is due');
   });
 });
