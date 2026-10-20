@@ -67,6 +67,18 @@ describe('parseWalletNotification', () => {
     });
   });
 
+  it('reads the online Wolt payment of the owner phone: card as the title, merchant as the subtitle, GEL before the number', () => {
+    const result = parse({ fixture: walletFixtures.woltOnline });
+
+    expect(result?.classified.payment).toMatchObject({
+      kind: 'debit',
+      amount: '29.41',
+      currencyCode: 'GEL',
+      merchant: 'Wolt',
+      cardName: 'TBC Bank',
+    });
+  });
+
   it('reads a Wallet notification that carries only the display name', () => {
     expect(parse({ fixture: walletFixtures.woltByName })?.classified.payment.merchant).toBe('Wolt');
   });

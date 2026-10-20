@@ -14,6 +14,7 @@ import { findTransactions } from '@models/transactions-query';
 import { subDays } from 'date-fns';
 import { Op, literal } from 'sequelize';
 
+import { correctionOf, transferSuggestionOf } from '../corrections/read-ingest-suggestions';
 import { notificationTimings } from '../event/constants';
 import { readStoredParse } from '../event/stored-parse';
 import { cardPaymentTimings } from './constants';
@@ -203,6 +204,8 @@ export const listUnconfirmedCardPayments = async ({
         time: row.time.toISOString(),
         awaitingConfirmation: awaitingIds.has(row.id),
         bankUnconfirmed: staleIds.has(row.id),
+        correction: correctionOf({ externalData: row.externalData }),
+        transferSuggestion: transferSuggestionOf({ externalData: row.externalData }),
       };
     });
 };

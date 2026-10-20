@@ -87,11 +87,14 @@ export const ignoreNotification = withTransaction(ignoreNotificationImpl);
 const finishLoggedNotificationImpl = async ({
   requestId,
   summary,
+  duplicate = false,
   locale,
 }: {
   requestId: RecordId;
   /** The categorization answer, when the AI replied in time; otherwise the stored row is described. */
   summary?: string;
+  /** The payment joined a row that was already logged: the line says "Already logged". */
+  duplicate?: boolean;
   locale: string;
 }): Promise<void> => {
   const row = await IngestRequests.findOne({ where: { id: requestId }, lock: true });
@@ -103,7 +106,7 @@ const finishLoggedNotificationImpl = async ({
       await buildLoggedSummary({
         userId: row.userId,
         transactionId: row.transactionId,
-        duplicate: false,
+        duplicate,
         categoryPending: false,
         locale,
       })

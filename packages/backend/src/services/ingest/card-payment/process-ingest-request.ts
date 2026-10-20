@@ -19,6 +19,7 @@ import { cardPaymentTimings } from './constants';
 import { formatSummary } from './format-summary';
 import { parsePayload } from './parse-payload';
 import { processCardPayment } from './process-card-payment';
+import { isRepeatOf } from './repeat-window';
 import { resolveStatedCurrency } from './resolve-currency';
 
 interface LoggedResult {
@@ -151,28 +152,32 @@ const lockFingerprint = async ({ userId, fingerprint }: { userId: number; finger
   });
 };
 
-/**
- * An original logged request with this fingerprint received within the repeat window of `row`.
- * Only originals count (`duplicateOfId IS NULL`): a suppressed duplicate never anchors a window,
- * so repeats cannot stretch it past the first payment.
- */
-const findOriginalInWindow = ({ row }: { row: IngestRequests }) => {
-  const windowMs = cardPaymentTimings.repeatWindowMs;
+/** How far back the repeat lookup reads: far enough to cover a request that waited in a phone's offline queue. */
+const REPEAT_LOOKUP_MS = 60 * 60_000;
 
-  return IngestRequests.findOne({
+/**
+ * An original logged request with this fingerprint that `row` repeats (see `isRepeatOf`). Only
+ * originals count (`duplicateOfId IS NULL`): a suppressed duplicate never anchors a window, so
+ * repeats cannot stretch it past the first payment. The earliest original wins.
+ */
+const findOriginalInWindow = async ({ row }: { row: IngestRequests }) => {
+  const candidates = await IngestRequests.findAll({
     where: {
       userId: row.userId,
       fingerprint: row.fingerprint,
+      pipeline: 'cardPayment',
       status: 'logged',
       duplicateOfId: null,
       id: { [Op.ne]: row.id },
       createdAt: {
-        [Op.gte]: new Date(row.createdAt.getTime() - windowMs),
-        [Op.lte]: new Date(row.createdAt.getTime() + windowMs),
+        [Op.gte]: new Date(row.createdAt.getTime() - REPEAT_LOOKUP_MS),
+        [Op.lte]: new Date(row.createdAt.getTime() + REPEAT_LOOKUP_MS),
       },
     },
     order: [['createdAt', 'ASC']],
   });
+
+  return candidates.find((original) => isRepeatOf({ row, original })) ?? null;
 };
 
 const processIngestRequestImpl = async ({
@@ -274,10 +279,12 @@ const processIngestRequestImpl = async ({
     });
   }
 
+  // A payment another source already logged is answered as a repeat: "Already logged …".
+  const attached = processed.kind === 'attached';
   const logged = await buildLoggedSummary({
     userId: row.userId,
     transactionId: processed.transactionId,
-    duplicate: false,
+    duplicate: attached,
     categoryPending: false,
     locale,
   });
@@ -291,7 +298,7 @@ const processIngestRequestImpl = async ({
     transactionId: processed.transactionId,
     planned: logged?.planned ?? false,
     categoryPending: false,
-    duplicate: false,
+    duplicate: attached,
   };
 };
 

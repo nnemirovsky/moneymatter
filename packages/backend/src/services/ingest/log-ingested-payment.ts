@@ -8,6 +8,7 @@ import {
 } from '@bt/shared/types';
 import type { Money } from '@common/types/money';
 import { ExchangeRateUnavailableError } from '@js/errors';
+import Accounts from '@models/accounts.model';
 import { connection } from '@models/connection';
 import { getBaseCurrency } from '@models/users-currencies.model';
 import { DOMAIN_EVENTS, eventBus, type IngestPaymentLoggedPayload } from '@services/common/event-bus';
@@ -16,6 +17,7 @@ import { createTransaction } from '@services/transactions/create-transaction';
 import { QueryTypes } from 'sequelize';
 
 import { CardPaymentRateUnavailableError } from './card-payment/rate-unavailable-error';
+import type { IngestSlot, IngestSourceEntry } from './dedup/source-slots';
 import type { StoredBalanceAfter } from './event/balance-authority';
 
 /** The `externalData.cardPayment` marker both pipelines write: bank sync settles a plan that carries it. */
@@ -25,17 +27,6 @@ interface CardPaymentMarker {
   name: string | null;
   merchant: string;
   rawAmount: string;
-}
-
-/**
- * The first source of a logged payment, as `externalData.ingest.sources[]` keeps it. `sourceKey` is the
- * notification source (`null` for a tap).
- */
-interface IngestSourceRecord {
-  requestId: RecordId;
-  pipeline: IngestPipeline;
-  sourceKey: string | null;
-  balanceAfter: StoredBalanceAfter | null;
 }
 
 interface LogIngestedPaymentParams {
@@ -57,7 +48,11 @@ interface LogIngestedPaymentParams {
   externalReference: string;
   cardPayment: CardPaymentMarker;
   sourceKey?: string | null;
+  /** The dedup slot the request fills (`tap`, `wallet-notification` or `bank:<sourceKey>:<stage>`). */
+  slot: IngestSlot;
   balanceAfter?: StoredBalanceAfter | null;
+  /** The card's last digits, when the source states them. */
+  cardLastDigits?: string | null;
 }
 
 /**
@@ -67,6 +62,9 @@ interface LogIngestedPaymentParams {
  *   `cardPayment`, which the bank sync uses to settle a plan, and `ingest`, which says where it came
  *   from. `ingest.unconfirmed` stays true until the owner confirms the row in the Automation inbox
  *   (or edits it); `GET /user/settings/card-payments/unconfirmed` lists such rows.
+ * - `ingest.balanceBefore` is what a debit's account held before it (the correction suggestion for a
+ *   short per-currency balance starts from it); `ingest.sources[]` lists every request that told of
+ *   the payment, each with the dedup slot it fills.
  * - `ingest.systemNote` is the note the pipeline wrote and `ingest.systemCategoryId` the category it
  *   ended up with when no rule or AI stamped one, so a later merge can tell the pipeline's own values
  *   from the owner's edits.
@@ -95,9 +93,22 @@ export const logIngestedPayment = async ({
   externalReference,
   cardPayment,
   sourceKey = null,
+  slot,
   balanceAfter = null,
+  cardLastDigits = null,
 }: LogIngestedPaymentParams): Promise<{ transactionId: RecordId }> => {
-  const source: IngestSourceRecord = { requestId, pipeline, sourceKey, balanceAfter };
+  const source: IngestSourceEntry = {
+    requestId,
+    pipeline,
+    sourceKey,
+    slot,
+    balanceAfter,
+    ...(cardLastDigits && { cardLastDigits }),
+  };
+
+  // What the account held before this payment: a short balance on a per-currency account is what the
+  // correction suggestion starts from.
+  const accountBefore = await Accounts.findOne({ where: { id: account.id }, attributes: ['currentBalance'] });
 
   let transaction: Awaited<ReturnType<typeof createTransaction>>[0];
   try {
@@ -119,7 +130,18 @@ export const logIngestedPayment = async ({
       externalReference,
       externalData: {
         cardPayment: { ...cardPayment, requestId },
-        ingest: { requestId, pipeline, unconfirmed: true, systemNote: merchant, sources: [source] },
+        ingest: {
+          requestId,
+          pipeline,
+          unconfirmed: true,
+          systemNote: merchant,
+          sources: [source],
+          ...(cardLastDigits && { cardLastDigits }),
+          ...(direction === 'debit' &&
+            accountBefore && {
+              balanceBefore: { amount: accountBefore.currentBalance.toNumber(), currencyCode: account.currencyCode },
+            }),
+        },
       },
     });
   } catch (error) {

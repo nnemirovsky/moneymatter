@@ -42,6 +42,8 @@ export const WALLET_BUNDLE = 'com.apple.Passbook';
 export const walletFixtures = {
   /** Wallet's fixed layout: the card, the merchant, the amount. */
   wolt: { appName: 'Wallet', bundleId: WALLET_BUNDLE, title: 'TBC Bank', subtitle: 'Wolt', body: 'GEL 43.60' },
+  /** An online Apple Pay payment, as the owner's phone showed it (2026-10-20): card, merchant, amount. */
+  woltOnline: { appName: 'Wallet', bundleId: WALLET_BUNDLE, title: 'TBC Bank', subtitle: 'Wolt', body: 'GEL 29.41' },
   /** The same layout when the device reports only the display name. */
   woltByName: { appName: 'Wallet', bundleId: null, title: 'TBC Bank', subtitle: 'Wolt', body: 'GEL 43.60' },
   dollarSymbol: { appName: 'Wallet', bundleId: WALLET_BUNDLE, title: 'Visa •• 4321', subtitle: 'Apple', body: '$9.99' },
@@ -62,7 +64,47 @@ export const walletFixtures = {
   },
 } as const;
 
+/**
+ * One online payment as it reached the owner's phone on 2026-10-20: the Wallet notification, the TBC push
+ * about two minutes later, and what a Wallet Transaction tap would send. The three describe the same
+ * payment and must end up as one transaction. The push prints the transaction amount in its own
+ * currency, the card with its last digits, the merchant with the bank's local time, and the TOTAL
+ * balance in GEL (the card is multi-currency, so that balance is not the account's).
+ */
+export const woltOnlinePayment = {
+  wallet: walletFixtures.woltOnline,
+  tbcPush: {
+    appName: 'TBC Bank',
+    bundleId: null,
+    title: 'TBC',
+    subtitle: '',
+    body: '29.41 GEL\nTBC CARD VISA GOLD (***8543)\nWolt 20/10/26 18:40\nBalance: 3816.41 GEL',
+  },
+  tap: { card: 'TBC Bank', merchant: 'Wolt', amount: 'GEL 29.41' },
+  /** What a model should answer for the push. */
+  tbcPushAnswer: answer({
+    amount: '29.41',
+    currency: 'GEL',
+    merchant: 'Wolt',
+    cardName: 'TBC CARD VISA GOLD',
+    cardLastDigits: '8543',
+    balanceAfter: { amount: '3816.41', currency: 'GEL', scopeHint: 'total' },
+    occurredAt: '2026-10-20T18:40:00',
+  }),
+} as const;
+
 export const notificationFixtures: readonly NotificationFixture[] = [
+  {
+    id: 'tbc-push-wolt-online',
+    channel: 'push',
+    appName: woltOnlinePayment.tbcPush.appName,
+    bundleId: null,
+    title: woltOnlinePayment.tbcPush.title,
+    subtitle: woltOnlinePayment.tbcPush.subtitle,
+    body: woltOnlinePayment.tbcPush.body,
+    prefilter: 'pass',
+    answer: woltOnlinePayment.tbcPushAnswer,
+  },
   {
     id: 'tbc-ka-debit',
     channel: 'push',

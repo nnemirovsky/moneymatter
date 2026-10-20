@@ -742,6 +742,8 @@
     "requestNotFound": "Card payment request not found.",
     "requestNeedsApproval": "This payment needs your approval before it is logged. Confirm it to log it.",
     "requestNotWaiting": "This payment is not waiting to be logged.",
+    "correctionNotOpen": "This payment has no open account suggestion.",
+    "correctionAccountNotOffered": "That account is not one the suggestion offers.",
     "setupCodeUnusable": "The setup code cannot be built from these values. Shorten the ingest URL or the Cloudflare Access values.",
     "rateLimited": "Too many notifications. Try again later."
   },

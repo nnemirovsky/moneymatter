@@ -157,10 +157,20 @@ export const CARD_PAYMENT_REQUEST_KEYS = [
   'card',
   'name',
   'time',
+  'timeSource',
   'idempotencyKey',
   'source',
   'dryRun',
 ] as const;
+
+/**
+ * What a request's `time` is: `run` is the moment the shortcut ran (what the Transaction input forces,
+ * since it has no date of its own), `transaction` is a time that belongs to the payment itself. A
+ * request without `timeSource` counts as `run`.
+ */
+export const CARD_PAYMENT_TIME_SOURCES = ['run', 'transaction'] as const;
+
+export type CardPaymentTimeSource = (typeof CARD_PAYMENT_TIME_SOURCES)[number];
 
 export type CardPaymentRequestKey = (typeof CARD_PAYMENT_REQUEST_KEYS)[number];
 
@@ -290,6 +300,68 @@ export interface UnlinkedCardDto {
   count: number;
 }
 
+/** An amount in a currency, as a correction shows it. */
+export interface IngestCorrectionAmount {
+  amount: number;
+  currencyCode: string;
+}
+
+/** One account the correction thinks may have paid, in the order of likelihood. */
+export interface IngestCorrectionCandidate {
+  accountId: RecordId;
+  currencyCode: string;
+  /** What the account holds now. */
+  balance: number;
+  /** The payment's amount in this account's currency at the day's rate. An estimate, never the bank's figure. */
+  estimatedAmount: number;
+  /** The card's default account: the one a bank converts from first. */
+  isDefault: boolean;
+}
+
+/**
+ * A suggestion stored on a payment that was logged to a per-currency account holding less than the
+ * payment: the bank most likely took the whole amount from another balance of the same card. It is
+ * never applied silently: the owner approves "Move it to <account>?" (the transaction moves, balances
+ * follow, and the charged amount stays as the original amount) or dismisses it.
+ *
+ * `composedBy` says whether the AI picked the account and wrote `reason`, or the deterministic rule
+ * did (default account first, no reason).
+ */
+export interface IngestShortBalanceCorrection {
+  kind: 'shortBalance';
+  status: 'open' | 'applied' | 'dismissed';
+  /** What the account the payment was logged to held before it, in its own currency. */
+  balanceBefore: IngestCorrectionAmount;
+  suggestedAccountId: RecordId;
+  /** The amount on the suggested account, converted at the day's rate. Always an estimate. */
+  estimatedAmount: IngestCorrectionAmount & { estimate: true };
+  candidates: IngestCorrectionCandidate[];
+  /** One line from the AI; `null` for the deterministic fallback. */
+  reason: string | null;
+  composedBy: 'ai' | 'rules';
+  createdAt: string;
+}
+
+/**
+ * A suggestion stored on both legs of what looks like a currency conversion between two of the
+ * user's own accounts: money out of one, the converted money into another, within about an hour and
+ * at a plausible rate. It is a suggestion to link the two as a transfer; nothing is linked until the
+ * owner approves it (`PUT /transactions/link`), and a dismissal (`POST /transactions/transfer-recommendations/dismiss`)
+ * keeps the pair from being suggested again.
+ */
+export interface IngestTransferSuggestion {
+  kind: 'currencyConversion';
+  expenseTransactionId: RecordId;
+  incomeTransactionId: RecordId;
+  /** Incoming amount per unit of the outgoing amount. */
+  impliedRate: number;
+  /** The day's rate between the two currencies. */
+  marketRate: number;
+  /** How far the implied rate is from the day's, as a share. */
+  deviation: number;
+  createdAt: string;
+}
+
 /**
  * A row the ingest pipeline logged that the owner or the bank has not confirmed yet. Every automated
  * payment, a tap or a notification, is written at once and waits for the owner's confirmation
@@ -308,6 +380,10 @@ export interface UnconfirmedCardPaymentDto {
   awaitingConfirmation: boolean;
   /** A plan the bank has not settled within the match window. */
   bankUnconfirmed: boolean;
+  /** Set when the payment hit a short per-currency balance: which account most likely paid. */
+  correction: IngestShortBalanceCorrection | null;
+  /** Set when the payment looks like one leg of a currency conversion between the user's accounts. */
+  transferSuggestion: IngestTransferSuggestion | null;
 }
 
 /** Request body of `POST /user/settings/card-payments/setup-code`. */

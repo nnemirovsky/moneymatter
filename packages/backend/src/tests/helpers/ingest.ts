@@ -186,6 +186,37 @@ export async function listUnconfirmedCardPayments<R extends boolean | undefined 
   });
 }
 
+export async function approveIngestCorrection<R extends boolean | undefined = false>({
+  transactionId,
+  payload = {},
+  raw,
+}: {
+  transactionId: string;
+  payload?: { accountId?: string; amount?: number };
+  raw?: R;
+}) {
+  return makeRequest<{ transactionId: string; accountId: string }, R>({
+    method: 'post',
+    url: `/user/settings/card-payments/corrections/${transactionId}/approve`,
+    payload,
+    raw,
+  });
+}
+
+export async function dismissIngestCorrection<R extends boolean | undefined = false>({
+  transactionId,
+  raw,
+}: {
+  transactionId: string;
+  raw?: R;
+}) {
+  return makeRequest<{ transactionId: string }, R>({
+    method: 'post',
+    url: `/user/settings/card-payments/corrections/${transactionId}/dismiss`,
+    raw,
+  });
+}
+
 export async function createCardPaymentSetupCode<R extends boolean | undefined = false>({
   payload,
   raw,

@@ -6,6 +6,7 @@ import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
 import { isBaseCurrencyChangeLocked } from '@services/currencies/base-currency-lock';
 
+import { afterPaymentLogged } from '../after-payment-logged';
 import { categorizeAfterCommit } from '../card-payment/categorize-after-commit';
 import { formatSummary, type SummaryAmount } from '../card-payment/format-summary';
 import { CardPaymentRateUnavailableError } from '../card-payment/rate-unavailable-error';
@@ -261,7 +262,11 @@ export const processNotification = async ({
   const locale = await readUserLocale({ userId: row.userId });
 
   if (row.transactionId) {
-    await finishLoggedNotification({ requestId, locale });
+    await finishLoggedNotification({
+      requestId,
+      duplicate: Boolean(readStoredParse({ value: row.parsed })?.attached),
+      locale,
+    });
 
     return 'done';
   }
@@ -326,6 +331,13 @@ export const processNotification = async ({
     return 'done';
   }
 
+  // A payment that joined a row already logged changes nothing the row's own pass has not handled.
+  if (result.attached) {
+    await finishLoggedNotification({ requestId, duplicate: true, locale });
+
+    return 'done';
+  }
+
   const categorized = await categorizeAfterCommit({
     userId: row.userId,
     requestId,
@@ -333,6 +345,7 @@ export const processNotification = async ({
     locale,
     waitBudgetMs: notificationTimings.categorizeWaitMs,
   });
+  await afterPaymentLogged({ userId: row.userId, transactionId: result.transactionId });
   await finishLoggedNotification({ requestId, summary: categorized?.summary, locale });
 
   return 'done';

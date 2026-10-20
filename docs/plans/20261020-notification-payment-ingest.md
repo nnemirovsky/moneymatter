@@ -621,14 +621,15 @@ Gate results (Task 5): e2e `ingest/event/(process-notification|payee-resolution|
 
 **Files:**
 
-- Create: `packages/backend/src/services/ingest/dedup/{constants,source-slots,find-twin,find-settlement-target,enrich-twin}.ts` + unit specs, `twin.e2e.ts`
+- Create: `packages/backend/src/services/ingest/dedup/{constants,source-slots,twin-rule,find-dedup-target,enrich-twin,attach-to-existing-payment}.ts` (the twin and settlement rules are one pure `twin-rule.ts`, the lookup one `find-dedup-target.ts`) + unit specs, `twin.e2e.ts`; `card-payment/repeat-window.ts` (the fold by `time`)
+- Create (➕): `packages/backend/src/services/ingest/dedup/{conversion-pair-rule,suggest-conversion-pair}.ts` + `conversion-pair.e2e.ts`; `packages/backend/src/services/ingest/corrections/{short-balance-rule,compose-correction,suggest-short-balance-correction,apply-correction,read-ingest-suggestions}.ts` + `short-balance.e2e.ts`; `packages/backend/src/services/ingest/after-payment-logged.ts`
 - Modify: `packages/backend/src/services/ingest/log-ingested-payment.ts`, `packages/backend/src/services/ingest/event/process-notification.ts`, `packages/backend/src/services/ingest/card-payment/{process-ingest-request,constants,parse-payload}.ts` (fold by `time` and `timeSource`; `timeSource` parsed), `packages/shared/src/types/ingest/index.ts` (`timeSource` in the request keys), `packages/backend/src/services/ingest/card-payment/processing.e2e.ts` (the tap fold cases)
 
-- [ ] write failing unit tests:
+- [x] write failing unit tests:
   - slots, including legacy `externalData.cardPayment`;
   - the twin rule: exact amount, original amount, window, taken slot, `isSameShop` veto; interchangeable candidates → the earliest;
   - the settlement rule: same source, open authorization slot, same merchant text, 7 days
-- [ ] write failing e2e:
+- [x] write failing e2e:
   - tap → Wallet → push → SMS gives one row in any order;
   - **tap, tap, Wallet, Wallet** for two identical coffees, with the taps' run times 60 s apart and different keys, gives two rows, each with two sources;
   - tap path alone, with run-time semantics (no `timeSource`, different keys, as the shipped shortcut sends across a minute boundary):
@@ -642,8 +643,13 @@ Gate results (Task 5): e2e `ingest/event/(process-notification|payee-resolution|
   - the payee is filled and the spelling aliased;
   - a settlement **two days later** attaches to its authorization; one with a different merchant text logs a new row;
   - the banner says "Already logged …"
-- [ ] implement under `ingest-dedup:<userId>` in both paths; attach through `updateTransaction`
-- [ ] gate: unit `--testPathPattern='ingest/dedup'`; e2e `--testPathPattern='ingest/(dedup/twin|card-payment/(ingest-card-payment|processing)|event/process-notification).e2e'`
+- [x] implement under `ingest-dedup:<userId>` in both paths; attach through `updateTransaction`
+- [x] gate: unit `--testPathPattern='ingest/dedup'`; e2e `--testPathPattern='ingest/(dedup/twin|card-payment/(ingest-card-payment|processing)|event/process-notification).e2e'`
+- [x] ➕ real-data twin fixtures (owner decision 2026-10-20, device fact): the twin and settlement tests use the formats of the owner's phone (`woltOnlinePayment` in `ingest/event/fixtures/notifications.ts`). The Wallet notification is title `TBC Bank`, subtitle `Wolt`, body `GEL 29.41`; the TBC push, about 2 minutes later, is title `TBC`, body `29.41 GEL\nTBC CARD VISA GOLD (***8543)\nWolt 20/10/26 18:40\nBalance: 3816.41 GEL`; the tap is card `TBC Bank`, merchant `Wolt`, amount `GEL 29.41`. Any of them, in any order, ends as ONE transaction; the push adds last digits 8543 and the bank's own time (read off the notification time, since the text prints no zone), and its balance stays non-authoritative on a multi-currency card
+- [x] ➕ short-balance correction (owner decision 2026-10-20): a debit logged to an account of a card (a currency row or the default) whose balance before the payment was below the amount stores `externalData.ingest.correction` on the transaction. Candidates are the card's other accounts whose balance covers the payment converted at the day's rate, the default account first; the `duplicateMatching` connection ranks them and writes a one-line reason, and without a model (or on any failure, or a spent daily limit) the deterministic order stands with no reason. It holds the estimated converted amount (flagged `estimate`). `GET /user/settings/card-payments/unconfirmed` exposes it as `correction`; `POST /user/settings/card-payments/corrections/:transactionId/{approve,dismiss}` (guarded) move the transaction (balances follow, the charged amount stays as the original amount) or close the suggestion. E2E and unit tests; Task 10's single confirm card shows "Move it to <account>?" from this field and calls the two endpoints
+- [x] ➕ currency-conversion pair (owner decision 2026-10-20): a logged payment that has an opposite-direction row on another own account in a different currency within 1 hour, at ±3% of the day's rate, gets `externalData.ingestTransferSuggestion` on both legs. Nothing is linked: the owner links with the existing `PUT /transactions/link` and dismisses with the existing `POST /transactions/transfer-recommendations/dismiss` (which also keeps the pair from being suggested again); `INGEST_PAYMENT_LOGGED` is emitted again for each ingest leg. The unconfirmed list exposes it as `transferSuggestion`. E2E and unit tests (the real TBC pair: 300.00 USD out, 778.50 GEL in 6 minutes later)
+
+Gate results (Task 6): e2e `services/ingest`, `routes/base-currency-guard-coverage`, `crons/ingest-requests-cleanup` 18 suites, 361 tests pass; backend unit `ingest` 33 suites, 801 tests pass; backend typecheck, lint, knip and oxfmt clean for the changed files; frontend typecheck and `src/pages/accounts/integrations` vitest pass.
 
 ### Task 7: AI duplicate judge and the suggestions list
 

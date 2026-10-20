@@ -6,6 +6,7 @@ export {
   listCardMappings,
   updateCardMapping,
 } from './card-mappings.service';
+export { approveCorrection, dismissCorrection } from './corrections/apply-correction';
 export { createCardPaymentSetupCode } from './create-setup-code';
 export { ingestCardPayment } from './card-payment/ingest-card-payment';
 export { dismissIngestRequest } from './card-payment/dismiss-request';

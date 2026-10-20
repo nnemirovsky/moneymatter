@@ -6,9 +6,12 @@ import {
   type UnlinkedCardDto,
 } from '@bt/shared/types';
 import { recordId } from '@common/lib/zod/custom-types';
+import { Money } from '@common/types/money';
 import { createController } from '@controllers/helpers/controller-factory';
 import { ConflictError, ValidationError } from '@js/errors';
 import {
+  approveCorrection,
+  dismissCorrection,
   dismissIngestRequest,
   listCardPaymentRequests,
   listUnconfirmedCardPayments,
@@ -87,3 +90,35 @@ export const listUnconfirmedCardPaymentsController = createController(z.object({
 
   return { data };
 });
+
+/**
+ * Approves the short-balance correction stored on a logged payment: the payment moves to the suggested
+ * account (or another one the suggestion offers) and takes the amount in that account's currency, the
+ * estimate unless `amount` is given. Balances follow.
+ */
+export const approveIngestCorrectionController = createController(
+  z.object({
+    params: z.object({ transactionId: recordId() }),
+    body: z.object({ accountId: recordId().optional(), amount: z.number().positive().optional() }).optional(),
+  }),
+  async ({ user, params, body }) => {
+    const data = await approveCorrection({
+      userId: user.id,
+      transactionId: params.transactionId,
+      accountId: body?.accountId,
+      amount: body?.amount === undefined ? undefined : Money.fromDecimal(body.amount),
+    });
+
+    return { data };
+  },
+);
+
+/** Leaves the payment on the account it was logged to and closes the correction. */
+export const dismissIngestCorrectionController = createController(
+  z.object({ params: z.object({ transactionId: recordId() }) }),
+  async ({ user, params }) => {
+    const data = await dismissCorrection({ userId: user.id, transactionId: params.transactionId });
+
+    return { data };
+  },
+);

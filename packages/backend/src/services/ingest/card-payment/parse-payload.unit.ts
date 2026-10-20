@@ -37,6 +37,7 @@ describe('parsePayload', () => {
         name: null,
         time: receivedAt,
         timeProvided: false,
+        timeSource: 'run',
       });
     });
 
@@ -254,6 +255,17 @@ describe('parsePayload', () => {
 
     it('defaults to receivedAt', () => {
       expect(parse({ body: validBody })).toMatchObject({ time: receivedAt, timeProvided: false });
+    });
+
+    it('reads the time as the shortcut run time unless the request says it belongs to the transaction', () => {
+      const time = '2026-10-17T21:04:11+04:00';
+
+      expect(parse({ body: { ...validBody, time } })).toMatchObject({ timeSource: 'run' });
+      expect(parse({ body: { ...validBody, time, timeSource: 'run' } })).toMatchObject({ timeSource: 'run' });
+      expect(parse({ body: { ...validBody, time, timeSource: 'transaction' } })).toMatchObject({
+        timeSource: 'transaction',
+      });
+      expect(parse({ body: { ...validBody, time, timeSource: 'nonsense' } })).toMatchObject({ timeSource: 'run' });
     });
   });
 

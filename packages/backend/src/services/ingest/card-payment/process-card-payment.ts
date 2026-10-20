@@ -6,6 +6,8 @@ import { getUserDefaultCategory } from '@models/users.model';
 import { resolveVisibleCurrencies } from '@services/currencies/assert-currency-codes-visible';
 import { resolvePayeeForIncomingRow } from '@services/payees/resolve-payee-for-incoming-row';
 
+import { attachToExistingPayment } from '../dedup/attach-to-existing-payment';
+import { TAP_SLOT } from '../dedup/source-slots';
 import { logIngestedPayment } from '../log-ingested-payment';
 import { buildExternalReference } from './constants';
 import { convertToAccountCurrency } from './convert-to-account-currency';
@@ -22,6 +24,7 @@ const PAYEE_PROMOTION_THRESHOLD = 1;
 
 type ProcessCardPaymentResult =
   | { kind: 'logged'; transactionId: RecordId }
+  | { kind: 'attached'; transactionId: RecordId }
   | { kind: 'rejected'; reason: CardPaymentRejectionReason }
   | { kind: 'unlinked' }
   | { kind: 'parked'; reason: 'rateUnavailable'; fromCurrencyCode: string; toCurrencyCode: string; date: string };
@@ -38,6 +41,8 @@ type ProcessCardPaymentResult =
  * - The merchant becomes a payee (found by name or alias, or created on first sight). The category
  *   is the payee's default (applied by `createTransaction`), else the payee's most frequent past
  *   category, else the user's default category.
+ * - A payment another source already logged (the Wallet notification of the same payment, a bank
+ *   push) is not logged twice: the tap joins that row (`attached`) and enriches it.
  * - On a bank-connected account the row is planned, the only kind of manual row such an account
  *   accepts; the bank sync later settles it.
  *
@@ -114,6 +119,32 @@ export const processCardPayment = async ({
     ? await pickHistoryCategory({ ownerUserId: userId, payeeId, asOf: payment.time })
     : null;
 
+  const attached = await attachToExistingPayment({
+    userId,
+    payment: {
+      requestId,
+      pipeline: 'cardPayment',
+      account,
+      direction: 'debit',
+      time: payment.time,
+      slot: TAP_SLOT,
+      stage: null,
+      sourceKey: null,
+      fromBank: false,
+      statedAmount: paymentAmount,
+      statedCurrencyCode: resolved.currencyCode,
+      originalAmount: null,
+      originalCurrencyCode: null,
+      merchant: payment.merchant,
+      payeeId,
+      cardLabel: payment.card,
+      cardLastDigits: null,
+      balanceAfter: null,
+      bankWallClock: null,
+    },
+  });
+  if (attached) return { kind: 'attached', transactionId: attached.transactionId };
+
   const { transactionId } = await logIngestedPayment({
     userId,
     requestId,
@@ -128,6 +159,7 @@ export const processCardPayment = async ({
     payeeId,
     categoryId: historyCategoryId ?? (await getUserDefaultCategory({ id: userId })),
     externalReference: buildExternalReference({ source: payment.source, idempotencyKey: payment.idempotencyKey }),
+    slot: TAP_SLOT,
     cardPayment: {
       source: payment.source,
       card: payment.card,

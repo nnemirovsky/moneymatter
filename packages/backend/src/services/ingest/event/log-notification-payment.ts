@@ -14,6 +14,8 @@ import { formatSummary, type SummaryAmount } from '../card-payment/format-summar
 import { pickHistoryCategory } from '../card-payment/pick-history-category';
 import { formatRateDate } from '../card-payment/rate-unavailable-error';
 import { resolveCurrency, resolveStatedCurrency } from '../card-payment/resolve-currency';
+import { attachToExistingPayment } from '../dedup/attach-to-existing-payment';
+import { slotOfNotification } from '../dedup/source-slots';
 import { logIngestedPayment } from '../log-ingested-payment';
 import { applyPayeeChoice } from './apply-payee-choice';
 import { resolveBalanceAuthority } from './balance-authority';
@@ -25,7 +27,7 @@ import { toStoredPayment, type StoredParse } from './stored-parse';
 
 /** What the job should do after the logging transaction. */
 type LogNotificationResult =
-  | { kind: 'logged'; transactionId: RecordId }
+  | { kind: 'logged'; transactionId: RecordId; attached: boolean }
   | {
       kind: 'park';
       reason: 'unknownAccount' | 'lowConfidence' | 'rateUnavailable';
@@ -53,6 +55,13 @@ const amountOf = async ({
 
   return { amount: Number(amount), currencyCode, decimals };
 };
+
+/**
+ * A parsed time stated without a zone (`new Date("2026-10-20T18:40:00")`) read back as the wall clock
+ * it was written as, whatever zone the server runs in.
+ */
+const wallClockOf = ({ date }: { date: Date }): Date =>
+  new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), date.getMinutes()));
 
 const logNotificationPaymentImpl = async ({
   requestId,
@@ -218,6 +227,43 @@ const logNotificationPaymentImpl = async ({
   const kept = original ?? (inAccountCurrency ? null : { amount: paymentAmount, currencyCode: resolved.currencyCode });
 
   const merchant = payment.merchant ?? sourceLabel;
+  const slot = slotOfNotification({ sourceKey: source?.sourceKey ?? null, stage: payment.stage });
+  const balanceStored = { ...base, balanceAfter };
+
+  // A source of a payment that is already logged joins that row and enriches it.
+  const attached = await attachToExistingPayment({
+    userId,
+    payment: {
+      requestId,
+      pipeline: 'notification',
+      account,
+      direction: payment.kind,
+      time,
+      slot,
+      stage: payment.stage,
+      sourceKey: source?.sourceKey ?? null,
+      fromBank: slot.startsWith('bank:'),
+      statedAmount: paymentAmount,
+      statedCurrencyCode: resolved.currencyCode,
+      originalAmount: original?.amount ?? null,
+      originalCurrencyCode: original?.currencyCode ?? null,
+      merchant: payment.merchant,
+      payeeId,
+      cardLabel: payment.cardName,
+      cardLastDigits: payment.cardLastDigits,
+      balanceAfter,
+      bankWallClock: payment.occurredAt ? wallClockOf({ date: payment.occurredAt }) : null,
+    },
+  });
+  if (attached) {
+    await row.update({
+      transactionId: attached.transactionId,
+      cardLabel,
+      parsed: { ...balanceStored, attached: true } as unknown as Record<string, unknown>,
+    });
+
+    return { kind: 'logged', transactionId: attached.transactionId, attached: true };
+  }
 
   const { transactionId } = await logIngestedPayment({
     userId,
@@ -241,16 +287,18 @@ const logNotificationPaymentImpl = async ({
       rawAmount: `${payment.amount} ${resolved.currencyCode}`,
     },
     sourceKey: source?.sourceKey ?? null,
+    slot,
     balanceAfter,
+    cardLastDigits: payment.cardLastDigits,
   });
 
   await row.update({
     transactionId,
     cardLabel,
-    parsed: { ...base, balanceAfter } as unknown as Record<string, unknown>,
+    parsed: balanceStored as unknown as Record<string, unknown>,
   });
 
-  return { kind: 'logged', transactionId };
+  return { kind: 'logged', transactionId, attached: false };
 };
 
 /**

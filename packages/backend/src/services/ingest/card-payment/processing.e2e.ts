@@ -145,6 +145,8 @@ afterEach(async () => {
   await helpers.clearExchangeRatesForDates({ dates: SEEDED_DATES.splice(0) });
 });
 
+const rowCount = async () => (await helpers.getTransactions({ raw: true })).length;
+
 describe('card payment processing', () => {
   describe('payee', () => {
     it('creates a payee and an alias for a first-seen merchant and resolves its logo', async () => {
@@ -576,6 +578,86 @@ describe('card payment processing', () => {
       const tx = await storedTransaction(await ingest({ secret, overrides: { time: sentAt.toISOString() } }));
 
       expect(new Date(tx.time).toISOString()).toBe(sentAt.toISOString());
+    });
+  });
+
+  describe('a payment run twice', () => {
+    const START = new Date(Date.now() - 10 * 60 * 1000);
+    START.setMilliseconds(0);
+
+    const runAt = ({ seconds }: { seconds: number }) => new Date(START.getTime() + seconds * 1000).toISOString();
+
+    const sendRun = ({
+      secret,
+      seconds,
+      overrides = {},
+    }: {
+      secret: string;
+      seconds: number;
+      overrides?: Record<string, unknown>;
+    }) => send({ secret, body: payment({ time: runAt({ seconds }), ...overrides }) });
+
+    describe('with the run time the shipped shortcut sends', () => {
+      it('folds runs 8 seconds apart', async () => {
+        const { secret } = await linkCard();
+
+        const first = await sendRun({ secret, seconds: 0 });
+        const second = await sendRun({ secret, seconds: 8 });
+
+        expect(second.body.response.duplicate).toBe(true);
+        expect(second.body.response.transactionId).toBe(first.body.response.transactionId);
+        expect(await rowCount()).toBe(1);
+      });
+
+      it('keeps runs 25 seconds apart as two payments', async () => {
+        const { secret } = await linkCard();
+
+        await sendRun({ secret, seconds: 0 });
+        const second = await sendRun({ secret, seconds: 25 });
+
+        expect(second.body.response.duplicate).toBeUndefined();
+        expect(await rowCount()).toBe(2);
+      });
+
+      it('keeps runs 60 seconds apart as two payments', async () => {
+        const { secret } = await linkCard();
+
+        await sendRun({ secret, seconds: 0 });
+        const second = await sendRun({ secret, seconds: 60 });
+
+        expect(second.body.response.duplicate).toBeUndefined();
+        expect(await rowCount()).toBe(2);
+      });
+    });
+
+    describe('with a time that belongs to the transaction', () => {
+      it('folds identical times and keeps times 10 seconds apart as two payments', async () => {
+        const { secret } = await linkCard();
+        const overrides = { timeSource: 'transaction' };
+
+        const first = await sendRun({ secret, seconds: 0, overrides });
+        const same = await sendRun({ secret, seconds: 0, overrides });
+        const apart = await sendRun({ secret, seconds: 10, overrides });
+
+        expect(same.body.response.duplicate).toBe(true);
+        expect(same.body.response.transactionId).toBe(first.body.response.transactionId);
+        expect(apart.body.response.duplicate).toBeUndefined();
+        expect(await rowCount()).toBe(2);
+      });
+    });
+
+    describe('with the same key', () => {
+      it('replays the answer of the first run, as before', async () => {
+        const { secret } = await linkCard();
+        const body = payment({ time: runAt({ seconds: 0 }) });
+
+        const first = await send({ secret, body });
+        const second = await send({ secret, body });
+
+        expect(second.body.response.duplicate).toBe(true);
+        expect(second.body.response.transactionId).toBe(first.body.response.transactionId);
+        expect(await rowCount()).toBe(1);
+      });
     });
   });
 });

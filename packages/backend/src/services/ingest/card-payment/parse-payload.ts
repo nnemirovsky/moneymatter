@@ -1,4 +1,4 @@
-import type { CardPaymentRejectionReason, CardPaymentRequestKey } from '@bt/shared/types';
+import type { CardPaymentRejectionReason, CardPaymentRequestKey, CardPaymentTimeSource } from '@bt/shared/types';
 
 import { cleanText } from './clean-text';
 import { amountInputToText, parseAmount } from './parse-amount';
@@ -40,6 +40,8 @@ export interface ParsedCardPayment {
   /** The payment time: the request's own when it sent one, the receive time otherwise. */
   time: Date;
   timeProvided: boolean;
+  /** What `time` stands for; `run` unless the request says the time belongs to the transaction. */
+  timeSource: CardPaymentTimeSource;
 }
 
 /** A dry run only asks whether the connection and a card link work; nothing is validated or written. */
@@ -140,6 +142,10 @@ export const resolvePayloadTime = ({
 export const readPayloadTime = ({ value, fallback }: { value: unknown; fallback: Date }): string =>
   (typeof value === 'string' ? parseTime({ value }) : null)?.toISOString() ?? fallback.toISOString();
 
+/** A payload's `time` as a date when it is a valid ISO 8601 timestamp, else `null` (blank or malformed). */
+export const readProvidedPayloadTime = ({ value }: { value: unknown }): Date | null =>
+  typeof value === 'string' ? parseTime({ value }) : null;
+
 const readDryRunCard = ({ value }: { value: unknown }): string | null => {
   if (typeof value !== 'string') return null;
 
@@ -224,5 +230,6 @@ export const parsePayload = ({ body, receivedAt }: { body: unknown; receivedAt: 
     name: name || null,
     time,
     timeProvided,
+    timeSource: fields.timeSource === 'transaction' ? 'transaction' : 'run',
   };
 };

@@ -13,7 +13,12 @@ import { notificationTimings } from './constants';
 const toResponse = ({ row, locale }: { row: IngestRequests; locale: string }): NotificationEventResponse => {
   switch (row.status) {
     case 'logged':
-      return { outcome: 'logged', summary: row.summary ?? '', requestId: row.id, notify: true };
+      return {
+        outcome: (row.parsed as { attached?: boolean } | null)?.attached ? 'attached' : 'logged',
+        summary: row.summary ?? '',
+        requestId: row.id,
+        notify: true,
+      };
 
     case 'parked':
       return {

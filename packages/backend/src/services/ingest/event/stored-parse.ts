@@ -23,6 +23,8 @@ export interface StoredParse {
   /** A currency symbol the amount text carried (`$`), which only the user's own currencies can settle. */
   symbol?: string | null;
   balanceAfter?: StoredBalanceAfter | null;
+  /** The payment joined a transaction that was already logged (a twin or a settlement) instead of making a row. */
+  attached?: boolean;
   /** For a payment parked on `unknownAccount`: the only account in its currency, to pre-fill the inbox card. */
   accountGuessId?: RecordId | null;
 }

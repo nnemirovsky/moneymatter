@@ -35,6 +35,8 @@ const makePlan = (overrides: Partial<UnconfirmedCardPaymentDto> = {}): Unconfirm
   time: '2026-10-05T10:00:00.000Z',
   awaitingConfirmation: false,
   bankUnconfirmed: true,
+  correction: null,
+  transferSuggestion: null,
   ...overrides,
 });
 

@@ -33,7 +33,9 @@ import {
   updateCardMappingController,
 } from '@controllers/ingest/card-mappings.controller';
 import {
+  approveIngestCorrectionController,
   dismissCardPaymentRequestController,
+  dismissIngestCorrectionController,
   listCardPaymentRequestsController,
   listUnconfirmedCardPaymentsController,
   listUnlinkedCardsController,
@@ -257,6 +259,18 @@ router.get('/settings/card-payments/requests', listCardPaymentRequestsController
 router.post('/settings/card-payments/requests/:id/retry', checkBaseCurrencyLock, retryCardPaymentRequestController);
 router.delete('/settings/card-payments/requests/:id', dismissCardPaymentRequestController);
 router.get('/settings/card-payments/unconfirmed', listUnconfirmedCardPaymentsController);
+// A payment logged to a per-currency account that held less than the payment carries a correction
+// suggestion; approving moves the transaction, so it honors the base-currency lock.
+router.post(
+  '/settings/card-payments/corrections/:transactionId/approve',
+  checkBaseCurrencyLock,
+  approveIngestCorrectionController,
+);
+router.post(
+  '/settings/card-payments/corrections/:transactionId/dismiss',
+  checkBaseCurrencyLock,
+  dismissIngestCorrectionController,
+);
 
 // Cloudflare Access service-token headers for the setup code. The secret is write-only. Demo users
 // cannot store credentials.
