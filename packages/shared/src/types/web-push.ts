@@ -1,7 +1,7 @@
 import { NOTIFICATION_TYPES, type NotificationType } from './notifications';
 
 /**
- * Preference groups for Web Push. 26 notification types are too many switches, so a user
+ * Preference groups for Web Push. 30 notification types are too many switches, so a user
  * toggles a group and every type maps into exactly one of them.
  */
 export const PUSH_GROUPS = {
@@ -10,6 +10,7 @@ export const PUSH_GROUPS = {
   sharing: 'sharing',
   system: 'system',
   releases: 'releases',
+  assistant: 'assistant',
 } as const;
 
 export type PushGroup = (typeof PUSH_GROUPS)[keyof typeof PUSH_GROUPS];
@@ -49,6 +50,11 @@ export const NOTIFICATION_PUSH_GROUP: Record<NotificationType, PushGroup> = {
   [NOTIFICATION_TYPES.system]: PUSH_GROUPS.system,
 
   [NOTIFICATION_TYPES.changelog]: PUSH_GROUPS.releases,
+
+  [NOTIFICATION_TYPES.chatReplyReady]: PUSH_GROUPS.assistant,
+  [NOTIFICATION_TYPES.chatCardsWaiting]: PUSH_GROUPS.assistant,
+  [NOTIFICATION_TYPES.automationInbox]: PUSH_GROUPS.assistant,
+  [NOTIFICATION_TYPES.ingestAttention]: PUSH_GROUPS.assistant,
 };
 
 /**
@@ -61,6 +67,7 @@ export const PUSH_GROUP_DEFAULTS: Record<PushGroup, boolean> = {
   [PUSH_GROUPS.sharing]: true,
   [PUSH_GROUPS.system]: true,
   [PUSH_GROUPS.releases]: false,
+  [PUSH_GROUPS.assistant]: true,
 };
 
 /** Top-level discriminator of a Declarative Web Push message. */

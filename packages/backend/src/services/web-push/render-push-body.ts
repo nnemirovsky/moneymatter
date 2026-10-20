@@ -11,6 +11,7 @@ import {
   type TagReminderNotificationPayload,
 } from '@bt/shared/types';
 import { t } from '@i18n/index';
+import { isAssistantNotificationType, renderAssistantBody } from '@services/assistant-push/assistant-push-text';
 
 type RenderableNotification = Pick<NotificationModel, 'type' | 'message' | 'payload'>;
 
@@ -161,6 +162,10 @@ export const renderPushBody = ({
 
   if (notification.type === NOTIFICATION_TYPES.tagReminder) {
     return renderTagReminderBody({ payload: payload as TagReminderNotificationPayload, locale });
+  }
+
+  if (isAssistantNotificationType({ type: notification.type })) {
+    return renderAssistantBody({ type: notification.type, payload, locale });
   }
 
   if (SHARE_NOTIFICATION_TYPES.includes(notification.type)) {

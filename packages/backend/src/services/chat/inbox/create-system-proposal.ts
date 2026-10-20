@@ -2,6 +2,7 @@ import type { ChatProposalCard } from '@bt/shared/types';
 import ChatMessages from '@models/chat-messages.model';
 import ChatProposals from '@models/chat-proposals.model';
 import type ChatThreads from '@models/chat-threads.model';
+import { emitInboxItem } from '@services/assistant-push/emit-assistant-push';
 import { runAfterCommit } from '@services/common/run-after-commit';
 import { withTransaction } from '@services/common/with-transaction';
 import { randomUUID } from 'crypto';
@@ -95,6 +96,8 @@ export const createSystemProposal = withTransaction(
     // The thread's last message moves; it is pinned, so it never gets an expiry.
     await thread.update({ lastMessageAt: new Date() });
     await runAfterCommit({ fn: () => notifyThreadUpdated({ userId, threadId: thread.id }) });
+    // The one place a new inbox item is posted, so the one place that raises its push.
+    await runAfterCommit({ fn: () => emitInboxItem({ userId, threadId: thread.id }) });
 
     return { proposalId, threadId: thread.id, messageId: message.id, card: toChatProposalCard({ row, parents: [] }) };
   },

@@ -7,6 +7,7 @@ import {
   type WebPushMessage,
 } from '@bt/shared/types';
 import { t } from '@i18n/index';
+import { isAssistantNotificationType } from '@services/assistant-push/assistant-push-text';
 
 import { renderPushBody } from './render-push-body';
 
@@ -103,6 +104,21 @@ const buildMessage = ({
 });
 
 /**
+ * The tag a browser collapses notifications by. The assistant's pushes share one per thread (or per
+ * park reason), so a newer reply replaces the older one on the lock screen; every other type is
+ * its own notification.
+ */
+const tagOf = ({ notification }: { notification: PushNotification }): string => {
+  if (!isAssistantNotificationType({ type: notification.type })) return notification.id;
+
+  const { threadId, reason } = (notification.payload ?? {}) as { threadId?: string; reason?: string };
+  if (threadId) return `assistant:${threadId}`;
+  if (reason) return `assistant:ingest-${reason}`;
+
+  return notification.id;
+};
+
+/**
  * The Declarative Web Push message for a notification. `origin` is the frontend origin without a
  * trailing slash (`FRONTEND_BASE_URL`). The fields stay complete so a browser that shows the
  * notification itself still opens the right page.
@@ -124,7 +140,7 @@ export const buildPushPayload = ({
     title: buildTitle({ notification, locale }),
     navigate: `${origin}${path}`,
     locale,
-    tag: notification.id,
+    tag: tagOf({ notification }),
     data: {
       v: 1,
       kind: WEB_PUSH_MESSAGE_KINDS.notification,

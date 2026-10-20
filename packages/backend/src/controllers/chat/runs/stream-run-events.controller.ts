@@ -40,6 +40,8 @@ export default async function streamRunEvents(req: Request, res: CustomResponse)
       runId,
       messageId: message.id,
       afterId: normalizeLastEventId({ value: req.get('Last-Event-ID') }),
+      userId: (req.user as Users).id,
+      threadId: message.threadId,
     });
   } catch (error) {
     if (res.headersSent) {

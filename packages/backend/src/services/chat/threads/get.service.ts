@@ -2,6 +2,7 @@ import type { ChatMessage, ChatProposalCard, ChatThreadWithMessages } from '@bt/
 import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
 import { t } from '@i18n/index';
 import ChatMessages from '@models/chat-messages.model';
+import { markThreadNotificationsRead } from '@services/notifications';
 import { Op, type WhereOptions } from 'sequelize';
 
 import { expireDueCards } from '../proposals/card-expiry';
@@ -48,6 +49,8 @@ export const getThread = async ({
   limit: number;
 }): Promise<ChatThreadWithMessages> => {
   const thread = await findThreadOrThrow({ userId, threadId });
+  // Opening a thread answers the pushes about it.
+  await markThreadNotificationsRead({ userId, threadId });
 
   let where: WhereOptions = { threadId };
   if (before) {

@@ -92,3 +92,11 @@ export type ChatInboxState = (typeof CHAT_INBOX_STATES)[number];
 export interface ChatClearResolvedResponse {
   deletedMessages: number;
 }
+
+/**
+ * Presence: a client that shows a thread (visible and focused) sends `PUT /chat/presence` every
+ * `CHAT_PRESENCE_HEARTBEAT_MS`; the server keeps it for `CHAT_PRESENCE_TTL_MS`, so a closed tab stops
+ * counting within a heartbeat or two. While a thread is present the assistant sends no push for it.
+ */
+export const CHAT_PRESENCE_HEARTBEAT_MS = 20_000;
+export const CHAT_PRESENCE_TTL_MS = 45_000;

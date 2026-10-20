@@ -1,5 +1,6 @@
 import {
   NOTIFICATION_PRIORITIES,
+  NOTIFICATION_TYPES,
   NOTIFICATION_STATUSES,
   NotificationModel,
   NotificationPayload,
@@ -129,6 +130,32 @@ export const markAsRead = withTransaction(async ({ id, userId }: { id: string; u
 
   return updated > 0;
 });
+
+/** Types whose payload names a chat thread; opening that thread answers them. */
+const THREAD_NOTIFICATION_TYPES: NotificationType[] = [
+  NOTIFICATION_TYPES.chatReplyReady,
+  NOTIFICATION_TYPES.chatCardsWaiting,
+  NOTIFICATION_TYPES.automationInbox,
+];
+
+/** Marks the unread assistant notifications about `threadId` as read. */
+export const markThreadNotificationsRead = withTransaction(
+  async ({ userId, threadId }: { userId: number; threadId: string }): Promise<number> => {
+    const [updated] = await Notifications.update(
+      { status: NOTIFICATION_STATUSES.read, readAt: new Date() },
+      {
+        where: {
+          userId,
+          status: NOTIFICATION_STATUSES.unread,
+          type: THREAD_NOTIFICATION_TYPES,
+          payload: { threadId },
+        },
+      },
+    );
+
+    return updated;
+  },
+);
 
 export const markAllAsRead = withTransaction(async ({ userId }: { userId: number }): Promise<number> => {
   const [updated] = await Notifications.update(

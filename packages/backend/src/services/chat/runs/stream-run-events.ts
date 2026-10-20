@@ -1,6 +1,7 @@
 import type { ChatRunEvent, ChatRunStatus } from '@bt/shared/types';
 import ChatMessages from '@models/chat-messages.model';
 import { redisClient } from '@root/redis-client';
+import { touchPresence } from '@services/assistant-push/presence';
 import type { Response } from 'express';
 
 import { encodeSseEvent, readRunEventsAfter, runStreamKey, type StreamEntry } from './event-log';
@@ -26,17 +27,24 @@ const readMessage = ({ messageId }: { messageId: string }) =>
  * A run that ended long ago has no stream left (it expires an hour after the end), so its closing
  * event is rebuilt from the stored message. The heartbeat keeps proxies from closing an idle
  * connection, and also notices a run that ended without its closing event reaching the stream.
+ *
+ * A connected reader counts as looking at the thread: it marks the thread present when it connects and on
+ * every heartbeat, so a run that ends under a watching client sends no push.
  */
 export async function pipeRunEvents({
   res,
   runId,
   messageId,
   afterId,
+  userId,
+  threadId,
 }: {
   res: Response;
   runId: string;
   messageId: string;
   afterId: string;
+  userId: number;
+  threadId: string;
 }): Promise<void> {
   let subscription: RunSubscription | null = null;
   let lastDeliveredId = afterId;
@@ -67,9 +75,12 @@ export async function pipeRunEvents({
     finish();
   };
 
+  const markPresent = () => touchPresence({ userId, threadId }).catch(() => undefined);
+
   const heartbeat = setInterval(() => {
     if (done) return;
     res.write(': heartbeat\n\n');
+    void markPresent();
 
     // A run that is over with no closing event in the stream would otherwise hold the connection open.
     readMessage({ messageId })
@@ -86,6 +97,7 @@ export async function pipeRunEvents({
   res.on('close', finish);
 
   try {
+    await markPresent();
     subscription = await chatTailHub.subscribe({ runId, afterId, onEntry: (entry) => write({ entry }) });
     if (done) subscription.close();
 

@@ -8,6 +8,7 @@ import {
 import { logger } from '@js/utils/logger';
 import ChatMessages from '@models/chat-messages.model';
 import { type AIClientResult } from '@services/ai/ai-client-factory';
+import { emitChatRunFinished } from '@services/assistant-push/emit-assistant-push';
 import { randomUUID } from 'node:crypto';
 
 import { endBridgeRun } from '../bridge/bridge-runs';
@@ -220,6 +221,11 @@ async function finishRun({
       });
       await expireRunStream({ runId });
     },
+  });
+  // After the stored message is final: the push decides on the cards the run left.
+  await attempt({
+    label: 'assistant push',
+    step: () => emitChatRunFinished({ userId, threadId, messageId, status: end.status }),
   });
   notifyThreadUpdated({ userId, threadId });
 }

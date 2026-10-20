@@ -44,6 +44,14 @@ export const NOTIFICATION_TYPES = {
   householdExpired: 'household_expired',
   householdOwnerAccountDeleted: 'household_owner_account_deleted',
   householdMemberAccountDeleted: 'household_member_account_deleted',
+  /** An assistant run in a chat thread finished or failed while the user was not looking at the thread. */
+  chatReplyReady: 'chat_reply_ready',
+  /** An assistant run left cards that wait for the user's OK. Replaces `chatReplyReady` for that run. */
+  chatCardsWaiting: 'chat_cards_waiting',
+  /** New items landed in the Automation inbox thread; one entry per burst, with a count. */
+  automationInbox: 'automation_inbox',
+  /** An ingested payment is stuck for a reason that has no inbox card (AI limits, a missing rate, a failure). */
+  ingestAttention: 'ingest_attention',
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
@@ -216,6 +224,34 @@ export interface ShareInvitationSendFailedPayload {
   } | null;
 }
 
+/**
+ * Payloads of the assistant types. They hold ids, counts and the thread's title only: never the text
+ * of a message, of a card, or of a bank notification.
+ */
+export interface ChatReplyReadyPayload {
+  threadId: string;
+  threadTitle: string;
+  /** How the run ended: the reply is ready, or the run failed. */
+  runStatus: 'complete' | 'failed' | 'stepLimit';
+}
+
+export interface ChatCardsWaitingPayload {
+  threadId: string;
+  threadTitle: string;
+  cardCount: number;
+}
+
+export interface AutomationInboxPayload {
+  threadId: string;
+  /** How many items arrived since the last push. */
+  count: number;
+}
+
+export interface IngestAttentionPayload {
+  /** The park reason, as stored on the ingest request. */
+  reason: string;
+}
+
 export type NotificationPayload =
   | TrackerAlertPayload
   | SystemNotificationPayload
@@ -226,6 +262,10 @@ export type NotificationPayload =
   | ShareInvitationNotificationPayload
   | ShareLifecycleNotificationPayload
   | ShareInvitationSendFailedPayload
+  | ChatReplyReadyPayload
+  | ChatCardsWaitingPayload
+  | AutomationInboxPayload
+  | IngestAttentionPayload
   | Record<string, unknown>;
 
 export interface NotificationModel {

@@ -51,6 +51,10 @@
             "label": "System",
             "description": "Important messages about your account and this instance."
           },
+          "assistant": {
+            "label": "Assistant",
+            "description": "Finished chat replies, cards waiting for your OK, and new items in the Automation inbox."
+          },
           "releases": {
             "label": "New releases",
             "description": "A message for every new MoneyMatter version. Off by default."

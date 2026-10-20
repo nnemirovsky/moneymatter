@@ -116,6 +116,7 @@ const ZodPushGroupsSchema = z.object({
   [PUSH_GROUPS.sharing]: z.boolean().optional(),
   [PUSH_GROUPS.system]: z.boolean().optional(),
   [PUSH_GROUPS.releases]: z.boolean().optional(),
+  [PUSH_GROUPS.assistant]: z.boolean().optional(),
 });
 
 const ZodPushPreferencesSchema = z.object({

@@ -2,6 +2,7 @@ import { logger } from '@js/utils/logger';
 import { shutdownPostHog } from '@js/utils/posthog';
 import { abortAllCliRuns } from '@services/ai/cli/cli-run-limiter';
 import { resetCliAuthSessions } from '@services/ai/cli/login/cli-auth-sessions';
+import { assistantPushWorker } from '@services/assistant-push/assistant-push-queue';
 import { accountSyncWorker } from '@services/bank-data-providers/sync/account-sync-queue';
 
 import { aiUsageMonthEndCron } from './crons/ai-usage-month-end';
@@ -105,6 +106,7 @@ export async function shutdownBackgroundJobs() {
   await accountSyncWorker.close();
   await notificationIngestWorker.close();
   await duplicateScanWorker.close();
+  await assistantPushWorker.close();
   // Flush remaining PostHog events before exit
   await shutdownPostHog();
 }

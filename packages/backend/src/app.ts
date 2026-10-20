@@ -11,6 +11,7 @@ import path from 'path';
 import { initializeBackgroundJobs, shutdownBackgroundJobs } from './background-jobs';
 import { API_PREFIX } from './config';
 import { registerAiCategorizationListeners } from './services/ai-categorization';
+import { registerAssistantPushListeners } from './services/assistant-push/assistant-push-listeners';
 import { initializeBankProviders } from './services/bank-data-providers/initialize-providers';
 import { seedBrandLogos } from './services/brand-logos';
 import { registerInboxListeners } from './services/chat/inbox/inbox-listeners';
@@ -40,6 +41,7 @@ registerSubscriptionMatchingListeners();
 registerPayeeNoteBackfillListeners();
 registerDuplicateScanListeners();
 registerInboxListeners();
+registerAssistantPushListeners();
 
 // Populate the shared brand-logo cache from the bundled seed. Skipped under
 // test (suites seed explicitly). Fire-and-forget: a seed failure must not block

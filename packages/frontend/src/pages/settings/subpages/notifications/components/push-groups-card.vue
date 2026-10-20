@@ -37,7 +37,7 @@
 import { Card, CardContent, CardHeader } from '@/components/lib/ui/card';
 import { Switch } from '@/components/lib/ui/switch';
 import { PUSH_GROUPS, type PushGroup } from '@bt/shared/types';
-import { BellRingIcon, LandmarkIcon, PackageIcon, ServerIcon, UsersIcon } from '@lucide/vue';
+import { BellRingIcon, LandmarkIcon, PackageIcon, ServerIcon, SparklesIcon, UsersIcon } from '@lucide/vue';
 import { type Component, computed } from 'vue';
 
 import { usePushGroups } from '../use-push-groups';
@@ -48,6 +48,7 @@ const GROUP_ICONS: Record<PushGroup, Component> = {
   [PUSH_GROUPS.bankSync]: LandmarkIcon,
   [PUSH_GROUPS.sharing]: UsersIcon,
   [PUSH_GROUPS.system]: ServerIcon,
+  [PUSH_GROUPS.assistant]: SparklesIcon,
   [PUSH_GROUPS.releases]: PackageIcon,
 };
 

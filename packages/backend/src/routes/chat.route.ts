@@ -2,6 +2,7 @@ import { CHAT_ATTACHMENT_MAX_BYTES } from '@bt/shared/types';
 import getAttachmentImage from '@controllers/chat/attachments/get-attachment-image.controller';
 import uploadAttachment from '@controllers/chat/attachments/upload-attachment.controller';
 import sendMessage from '@controllers/chat/messages/send-message.controller';
+import { deleteChatPresence, putChatPresence } from '@controllers/chat/presence.controller';
 import approveAll from '@controllers/chat/proposals/approve-all.controller';
 import approveProposal from '@controllers/chat/proposals/approve-proposal.controller';
 import commentProposal from '@controllers/chat/proposals/comment-proposal.controller';
@@ -47,6 +48,11 @@ router.delete('/threads/:id', deleteThread);
 // Housekeeping of the automation inbox thread. It writes no financial data, and a read-only user keeps it.
 router.post('/threads/:id/clear-resolved', clearResolvedThread);
 router.post('/threads/:id/archive', archiveThread);
+
+// Presence: the client is looking at a thread, so the assistant sends no push for it. It writes no
+// financial data and expires on its own, so a read-only user keeps it.
+router.put('/presence', putChatPresence);
+router.delete('/presence', deleteChatPresence);
 
 // The body is the file, so the route has its own parser. It sits behind the guards and the rate
 // limit so a refused request is answered before up to 10 MB is buffered.

@@ -1022,5 +1022,36 @@
   "notificationSources": {
     "sourceNotFound": "Notification source not found.",
     "accountNotFound": "Account not found."
+  },
+  "notifications": {
+    "push": {
+      "chatReplyReady": {
+        "title": "Your reply is ready",
+        "titleFailed": "The assistant could not finish",
+        "bodyFallback": "Open the chat to read it."
+      },
+      "chatCardsWaiting": {
+        "title_one": "{{count}} card waits for your OK",
+        "title_other": "{{count}} cards wait for your OK",
+        "bodyFallback": "Open the chat to review them."
+      },
+      "automationInbox": {
+        "title": "Automation inbox",
+        "body_one": "{{count}} new item to review",
+        "body_other": "{{count}} new items to review"
+      },
+      "ingestAttention": {
+        "title": "A payment needs attention",
+        "reasons": {
+          "unknownCard": "A card payment came from a card that is not linked to an account.",
+          "rateUnavailable": "A payment waits for an exchange rate.",
+          "processingFailed": "A payment could not be processed. You can retry it.",
+          "aiUnavailable": "A bank notification could not be read: no AI model is available.",
+          "aiCapReached": "A bank notification could not be read: the monthly AI limit is reached.",
+          "aiLimitReached": "A bank notification could not be read: the daily AI limit for notifications is reached.",
+          "other": "A payment is waiting for you."
+        }
+      }
+    }
   }
 }

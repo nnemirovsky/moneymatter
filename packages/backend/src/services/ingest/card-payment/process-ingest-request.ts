@@ -9,6 +9,8 @@ import { t } from '@i18n/index';
 import { connection } from '@models/connection';
 import IngestRequests from '@models/ingest-requests.model';
 import UsersCurrencies from '@models/users-currencies.model';
+import { emitIngestAttention } from '@services/assistant-push/emit-assistant-push';
+import { runAfterCommit } from '@services/common/run-after-commit';
 import { withTransaction } from '@services/common/with-transaction';
 import { Op } from 'sequelize';
 
@@ -127,7 +129,10 @@ const markRejected = async ({
   return { outcome: 'rejected', reason, message };
 };
 
-/** Records the request as waiting for the user and answers with the parked summary. */
+/**
+ * Records the request as waiting for the user and answers with the parked summary. A park here has no
+ * inbox card, so it raises the `ingestAttention` push (one per reason per day).
+ */
 export const markParked = async ({
   row,
   reason,
@@ -138,6 +143,7 @@ export const markParked = async ({
   summary: string;
 }): Promise<ProcessIngestResult> => {
   await row.update({ status: 'parked', reason, summary });
+  await runAfterCommit({ fn: () => emitIngestAttention({ userId: row.userId, reason }) });
 
   return { outcome: 'parked', reason, summary, requestId: row.id };
 };

@@ -27,6 +27,14 @@ export const MERGE_DUPLICATES_TOOL = 'merge_duplicate_transactions';
 /** Park reasons whose request gets a card of its own; the others have no action the owner can take. */
 const REQUEST_CARD_REASONS = ['unknownAccount', 'ownTransfer', 'lowConfidence'];
 
+/**
+ * Whether a parked notification request gets an inbox card for `reason`: its own card, or the card of
+ * the source it waits on. A park without one (`ai*`, `rateUnavailable`, `processingFailed`) needs an
+ * `ingestAttention` push instead.
+ */
+export const parkHasInboxCard = ({ reason }: { reason: string }): boolean =>
+  reason === 'sourceNotApproved' || REQUEST_CARD_REASONS.includes(reason);
+
 /** The values of a payment a confirm card offers for editing; also what the card was built from. */
 interface ConfirmBaseline {
   accountId: string;
