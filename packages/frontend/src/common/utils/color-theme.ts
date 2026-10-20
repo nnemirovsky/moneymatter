@@ -33,10 +33,25 @@ const resolveTheme = (pref: ThemePreference): Themes => {
   return pref === ThemePreference.dark ? Themes.dark : Themes.light;
 };
 
+// Keep in sync with --background in styles/global.css (and the theme-color tags in index.html).
+const THEME_COLORS: Record<Themes, string> = {
+  [Themes.light]: '#f7f6f4',
+  [Themes.dark]: '#0b0908',
+};
+
+/** Tints the status bar / safe area to the in-app theme, which can differ from the OS one. */
+const applyThemeColorMeta = (theme: Themes) => {
+  document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((meta) => {
+    meta.removeAttribute('media');
+    meta.content = THEME_COLORS[theme];
+  });
+};
+
 const applyTheme = (theme: Themes) => {
   _currentTheme.value = theme;
   document.documentElement.classList.remove(Themes.dark, Themes.light);
   document.documentElement.classList.add(theme);
+  applyThemeColorMeta(theme);
 };
 
 const isValidPreference = (value: string | null): value is ThemePreference =>
