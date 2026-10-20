@@ -33,24 +33,24 @@ import {
 } from '@services/sharing/auth/authorize-account-write.service';
 import { canUserAccessResource } from '@services/sharing/auth/can-user-access-resource.service';
 import { ensureUserCurrencyConnected } from '@services/sharing/auth/ensure-currency-connected.service';
-import { matchTransactionToSubscriptions } from '@services/subscriptions/matching-engine';
 import { settlePeriodOnConfirm } from '@services/subscriptions/settle-period-on-match';
 import * as refundsService from '@services/tx-refunds';
 import { ConnectionError, DatabaseError, UniqueConstraintError } from 'sequelize';
 
-import { withTransaction } from '../common/with-transaction';
-import { calcTransferTransactionRefAmount, createOppositeTransaction } from './create-transaction';
-import { getWritableTransactionById } from './get-by-id';
-import { buildManualCategorizationMeta } from './manual-categorization-meta';
+import { withTransaction } from '../../common/with-transaction';
+import { calcTransferTransactionRefAmount, createOppositeTransaction } from '../create-transaction';
+import { getWritableTransactionById } from '../get-by-id';
+import { buildManualCategorizationMeta } from '../manual-categorization-meta';
 import {
   assertAccountCanHoldPlans,
   assertPlannedFlipAllowed,
   assertPlannedStandalone,
   assertPlannedWriteAllowed,
-} from './planned-matching/assert-planned-invariants';
-import { manageSplits } from './splits';
-import { linkTransactions } from './transactions-linking';
-import { type UpdateTransactionParams } from './types';
+} from '../planned-matching/assert-planned-invariants';
+import { manageSplits } from '../splits';
+import { linkTransactions } from '../transactions-linking';
+import { type UpdateTransactionParams } from '../types';
+import { matchEditedTransactionToSubscriptions } from './match-edited-transaction-to-subscriptions';
 
 /**
  * Resolved auth context computed once at the top of `updateTransaction`. Threaded into
@@ -859,68 +859,17 @@ export const updateTransaction = withTransaction(
         }
       }
 
-      // A row that matched no subscription when it was created can match after an edit, say a
-      // note reworded to name the service. It matches as it would on create, as its author, and
-      // only while the author can still read the account: a revoked recipient's subscriptions
-      // must not reach a row on the owner's account. The engine skips a row that has any link
-      // row, so an unlinked one is never matched again, and a match settles the period. The
-      // subscription's category replaces only one nobody chose, and never one this edit sets.
-      // The response carries the row as the match left it.
-      const [matchedTx] = updatedTransactions;
-      if (editChangesMatchingFields && !isTwoLegTransfer(matchedTx.transferNature)) {
-        try {
-          const authorCanRead = await canUserAccessResource({
-            userId: matchedTx.userId,
-            resourceType: RESOURCE_TYPES.account,
-            resourceId: matchedTx.accountId,
-            requiredPermission: SHARE_PERMISSIONS.read,
-          });
-
-          if (!authorCanRead.granted) {
-            logger.info(`Skipped subscription matching of ${matchedTx.id}: its author no longer reads the account`);
-          } else {
-            const matched = await matchTransactionToSubscriptions({
-              transaction: matchedTx,
-              userId: matchedTx.userId,
-              preserveCategory:
-                payload.categoryId !== undefined ||
-                !(await isReplaceableCategory({ ...prevCategory, ownerUserId: ctx.accountOwnerUserId })),
-            });
-            if (matched) await matchedTx.reload();
-          }
-        } catch (error) {
-          if (
-            error instanceof DatabaseError ||
-            error instanceof UniqueConstraintError ||
-            error instanceof ConnectionError
-          ) {
-            throw error;
-          }
-          logger.error({
-            message: `Failed to match edited transaction ${matchedTx.id} to subscriptions`,
-            error: error as Error,
-          });
-        }
-      }
+      await matchEditedTransactionToSubscriptions({
+        transaction: updatedTransactions[0],
+        payload,
+        prevData,
+        accountOwnerUserId: ctx.accountOwnerUserId,
+      });
 
       // Confirming a plan is the moment its money moves, so a subscription it is linked to
       // can settle its period now.
       if (prevData.isPlanned && !baseTransaction.isPlanned) {
-        try {
-          await settlePeriodOnConfirm({ transaction: baseTransaction, userId: ctx.accountOwnerUserId });
-        } catch (error) {
-          if (
-            error instanceof DatabaseError ||
-            error instanceof UniqueConstraintError ||
-            error instanceof ConnectionError
-          ) {
-            throw error;
-          }
-          logger.error({
-            message: `Failed to settle a subscription period for confirmed transaction ${baseTransaction.id}`,
-            error: error as Error,
-          });
-        }
+        await settlePeriodOnConfirm({ transaction: baseTransaction, userId: ctx.accountOwnerUserId });
       }
 
       return updatedTransactions;

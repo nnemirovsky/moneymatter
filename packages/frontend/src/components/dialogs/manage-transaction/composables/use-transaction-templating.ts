@@ -8,7 +8,6 @@ import { storeToRefs } from 'pinia';
 import { type MaybeRefOrGetter, computed, nextTick, ref, toValue } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import { getTemplateHiddenFields } from '../components/templates/use-template-list';
 import { buildFormattedCategoriesMap } from '../helpers';
 import { FORM_TYPES } from '../types';
 import { formToTemplate } from '../utils/form-to-template';
@@ -104,8 +103,6 @@ export const useTransactionTemplating = ({
   const announcement = ref('');
 
   const isCategoryDeleted = computed(() => missing.value.includes('category'));
-
-  const hiddenFields = computed(() => (applied.value ? getTemplateHiddenFields({ template: applied.value, t }) : ''));
 
   const moveFocusAfterApply = () => {
     if (missing.value.includes('category')) {
@@ -278,7 +275,6 @@ export const useTransactionTemplating = ({
     applied,
     isVisible,
     isCategoryDeleted,
-    hiddenFields,
     announcement,
     templateSources,
     listProps,

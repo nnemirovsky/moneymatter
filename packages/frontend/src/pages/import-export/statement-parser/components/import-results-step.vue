@@ -95,6 +95,9 @@
         <Button variant="outline" class="flex-1" @click="store.reset()">
           {{ $t('pages.statementParser.importResults.startNewImportButton') }}
         </Button>
+        <Button variant="outline" class="flex-1" @click="handleFindTransfers">
+          {{ $t('pages.importExport.importResults.findTransfers') }}
+        </Button>
         <Button class="flex-1" @click="handleViewTransactions">
           {{ $t('pages.statementParser.importResults.viewTransactionsButton') }}
         </Button>
@@ -230,5 +233,10 @@ async function handleImport() {
 
 function handleViewTransactions() {
   router.push({ name: ROUTES_NAMES.transactions });
+}
+
+function handleFindTransfers() {
+  const range = store.extractedDateRange;
+  router.push({ name: ROUTES_NAMES.optimizationsTransfers, query: { from: range?.startDate, to: range?.endDate } });
 }
 </script>

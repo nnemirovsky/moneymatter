@@ -65,31 +65,36 @@ const onCloseAutoFocus = (event: Event) => {
 
 <template>
   <Drawer.Drawer v-model:open="isOpen">
-    <div class="mb-3.5 flex items-center gap-1">
+    <div class="flex min-w-0 items-center gap-1">
       <Drawer.DrawerTrigger as-child>
         <Button
-          variant="ghost"
+          variant="secondary"
+          size="sm"
           :disabled="disabled"
-          class="border-border bg-muted h-11 flex-1 justify-between rounded-lg border px-3 font-normal dark:bg-black/20"
+          :class="
+            cn(
+              'min-w-0 gap-1.5 font-normal',
+              applied && 'border-primary/60 bg-primary/20 text-primary-text hover:bg-primary/30 rounded-full border',
+            )
+          "
         >
-          <span class="flex min-w-0 items-center gap-2">
-            <LayoutTemplateIcon class="text-muted-foreground size-4 shrink-0" />
-            <span class="truncate" :class="applied && 'text-primary-text font-medium'">
-              {{ applied ? applied.name : $t('dialogs.manageTransaction.templates.trigger') }}
-            </span>
+          <LayoutTemplateIcon class="size-4 shrink-0" />
+          <span class="truncate">
+            {{ applied ? applied.name : $t('dialogs.manageTransaction.templates.trigger') }}
           </span>
-          <ChevronUpIcon class="text-muted-foreground size-4 shrink-0" />
+          <ChevronUpIcon class="size-3.5 shrink-0" />
         </Button>
       </Drawer.DrawerTrigger>
 
       <Button
         v-if="applied"
         variant="ghost"
-        class="size-11 shrink-0 p-0"
+        size="icon-sm"
+        class="shrink-0"
         :aria-label="$t('dialogs.manageTransaction.templates.removeAriaLabel')"
         @click="emit('clear')"
       >
-        <XIcon class="size-5" />
+        <XIcon class="size-4" />
       </Button>
     </div>
 

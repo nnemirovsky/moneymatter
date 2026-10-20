@@ -121,6 +121,7 @@
         "title": "Спостереження за категоріями",
         "addCategory": "Додати категорію",
         "selectCategories": "Обрати категорії",
+        "showTrend": "Показувати тренд за 6 місяців",
         "sort": {
           "title": "Сортування",
           "custom": "Власний порядок",
@@ -149,6 +150,7 @@
         "start": "Початок",
         "end": "Кінець",
         "growth": "Зростання",
+        "changeInPeriod": "Зміна за {period}",
         "previousPeriodsTrend": "Тренд попередніх періодів",
         "excludedTooltip": "Виключено з чистого капіталу: {components}",
         "viewHistory": "Переглянути історію",
@@ -298,7 +300,10 @@
         "daysLeft": "Залишився {count} день | Залишилось {count} дні | Залишилось {count} днів",
         "lastDay": "Останній день періоду",
         "empty": "Бюджету ще немає",
-        "create": "Налаштувати бюджет"
+        "create": "Налаштувати бюджет",
+        "sort": {
+          "overspent": "Спочатку найбільші перевитрати"
+        }
       },
       "trackers": {
         "spentOfLimit": "{spent} із {limit}",

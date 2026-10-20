@@ -23,7 +23,7 @@ const isModalClosed = () => {
     <div class="mb-4 flex items-center justify-between gap-3">
       <div class="min-w-0">
         <h1 class="text-2xl font-bold tracking-tight">{{ $t('budgets.title') }}</h1>
-        <p class="text-muted-foreground mt-0.5 text-xs">{{ $t('budgets.description') }}</p>
+        <p class="text-muted-foreground mt-1 text-sm">{{ $t('budgets.description') }}</p>
       </div>
       <Button class="shrink-0" @click="openModal">
         <PlusIcon class="size-4" />

@@ -1,5 +1,5 @@
 import type { AccountGroups } from '@/common/types/models';
-import { buildAccountGroupTree } from '@/components/sidebar/accounts-view/helpers/build-account-group-tree';
+import { buildAccountGroupTree } from '@/common/utils/build-account-group-tree';
 import type { AccountModel } from '@bt/shared/types';
 
 const isBankLinked = (account: AccountModel): boolean => account.bankDataProviderConnectionId != null;

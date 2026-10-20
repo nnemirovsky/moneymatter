@@ -26,6 +26,7 @@ import {
 } from '@models/transactions-query';
 import Transactions from '@models/transactions.model';
 import { getUserDefaultCategory } from '@models/users.model';
+import { FRONTEND_BASE_URL } from '@root/config';
 import {
   BaseBankDataProvider,
   DateRange,
@@ -96,7 +97,7 @@ import {
 
 type ReconcileSkipReason = EditMergeSkipReason | 'dependent_rows' | 'categorization_conflict';
 
-const getRedirectUrl = () => process.env.ENABLE_BANKING_REDIRECT_URL || 'http://localhost:8100/bank-callback';
+const getRedirectUrl = () => process.env.ENABLE_BANKING_REDIRECT_URL || `${FRONTEND_BASE_URL}/bank-callback`;
 
 /**
  * Enable Banking provider implementation

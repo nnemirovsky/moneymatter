@@ -217,6 +217,7 @@ const previewIncomeAccount = computed(
   <ResponsiveAlertDialog
     v-model:open="skipDialogOpen"
     :confirm-label="$t('optimizations.transferSuggestions.skip.action')"
+    confirm-variant="destructive"
     @confirm="handleConfirmSkip"
   >
     <template #title>{{ $t('optimizations.transferSuggestions.skip.title') }}</template>

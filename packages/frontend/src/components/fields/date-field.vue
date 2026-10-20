@@ -15,7 +15,7 @@
           <!-- Without a 4-digit-year max, Chrome accepts 6-digit years and never auto-advances past the year segment. -->
           <input
             :value="inputValue"
-            :type="mode === 'date' ? 'date' : 'datetime-local'"
+            :type="isDateOnlyInput ? 'date' : 'datetime-local'"
             :max="nativeMax"
             :min="nativeMin"
             :disabled="disabled"
@@ -52,13 +52,13 @@
 
           <!-- Keep this overlay opaque: it covers the native picker icon Firefox
                draws inside datetime-local inputs, which no CSS pseudo-element hides.
-               Disabled on Safari mobile so taps fall through to the native picker. -->
+               Disabled where Safari mobile's native picker covers it, so taps fall through. -->
           <Popover.PopoverTrigger as-child>
             <Button
               class="border-input bg-muted text-muted-foreground hover:border-primary/50 hover:bg-muted hover:text-primary-text absolute top-0 right-0 flex h-10 w-12 items-center justify-center rounded-l-none rounded-r-md border md:h-9"
               variant="ghost"
               size="icon"
-              :disabled="disabled || isSafariMobile"
+              :disabled="disabled || !isPopoverAvailable"
             >
               <CalendarClockIcon class="size-5" />
             </Button>
@@ -81,7 +81,7 @@ import { Calendar } from '@/components/lib/ui/calendar';
 import * as Popover from '@/components/lib/ui/popover';
 import { useSafariDetection } from '@/composable/detect-safari';
 import { cn } from '@/lib/utils';
-import { format, parse } from 'date-fns';
+import { format, getDate, getMonth, getYear, isSameDay, parse, set } from 'date-fns';
 import { CalendarClockIcon, XIcon } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 
@@ -102,6 +102,8 @@ const props = withDefaults(
     };
     mode?: 'date' | 'dateTime';
     clearable?: boolean;
+    /** The input shows only the date; the time stays editable in the calendar popover. */
+    hideInputTime?: boolean;
   }>(),
   {
     label: undefined,
@@ -114,6 +116,7 @@ const props = withDefaults(
     calendarOptions: undefined,
     mode: 'dateTime',
     clearable: false,
+    hideInputTime: false,
   },
 );
 
@@ -128,19 +131,27 @@ const isValidDate = (value: unknown): value is Date =>
 
 const DATE_PATTERN = 'yyyy-MM-dd';
 
-const formatToInput = (value: Date) => format(value, props.mode === 'date' ? DATE_PATTERN : 'yyyy-MM-dd HH:mm');
+const isDateOnlyInput = computed(() => props.mode === 'date' || props.hideInputTime);
+// Safari mobile relies on its native picker, except when the input hides the time the popover still sets.
+const isPopoverAvailable = computed(() => !isSafariMobile || (props.hideInputTime && props.mode !== 'date'));
+
+const formatToInput = (value: Date) => format(value, isDateOnlyInput.value ? DATE_PATTERN : 'yyyy-MM-dd HH:mm');
 
 // `new Date('yyyy-MM-dd')` is UTC midnight, the previous day in negative-offset timezones.
-const parseInput = ({ value }: { value: string }) =>
-  props.mode === 'date' ? parse(value, DATE_PATTERN, new Date()) : new Date(value);
+const parseInput = ({ value }: { value: string }) => {
+  if (!isDateOnlyInput.value) return new Date(value);
+  const date = parse(value, DATE_PATTERN, new Date());
+  if (props.mode === 'date' || !props.modelValue) return date;
+  return set(props.modelValue, { year: getYear(date), month: getMonth(date), date: getDate(date) });
+};
 
 const nativeMax = computed(() => {
-  if (props.mode !== 'date') return '9999-12-31T23:59';
+  if (!isDateOnlyInput.value) return '9999-12-31T23:59';
   const maxDate = props.calendarOptions?.maxDate;
   return maxDate ? format(maxDate, DATE_PATTERN) : '9999-12-31';
 });
 const nativeMin = computed(() => {
-  const minDate = props.mode === 'date' ? props.calendarOptions?.minDate : undefined;
+  const minDate = isDateOnlyInput.value ? props.calendarOptions?.minDate : undefined;
   return minDate ? format(minDate, DATE_PATTERN) : undefined;
 });
 
@@ -153,10 +164,9 @@ const emit = defineEmits<{
 const localValue = ref<Date | null>(props.modelValue ?? (props.clearable ? null : new Date()));
 const isPopoverOpen = ref(false);
 
-// Safari mobile uses the native picker; the calendar trigger is disabled there too.
 defineExpose({
   open: () => {
-    if (!isSafariMobile) isPopoverOpen.value = true;
+    if (isPopoverAvailable.value) isPopoverOpen.value = true;
   },
 });
 
@@ -191,8 +201,8 @@ const handleBlur = (event: FocusEvent) => {
 const isCleared = () => props.clearable && !props.modelValue;
 
 watch(
-  () => props.modelValue,
-  (value) => {
+  () => [props.modelValue, isDateOnlyInput.value] as const,
+  ([value]) => {
     inputValue.value = value ? formatToInput(value) : '';
     if (isValidDate(value)) localValue.value = value;
     else if (isCleared()) localValue.value = null;
@@ -211,6 +221,7 @@ watch(localValue, (value, previousValue) => {
   if (!isValidDate(previousValue) && !isCleared()) return;
 
   emit('update:modelValue', value);
-  isPopoverOpen.value = false;
+  // The time picker emits on every hour/minute change; only a day pick finishes the selection.
+  if (!isValidDate(previousValue) || !isSameDay(value, previousValue)) isPopoverOpen.value = false;
 });
 </script>

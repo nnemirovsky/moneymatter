@@ -96,7 +96,7 @@
             </template>
 
             <div
-              v-if="connectionRows.length || isApplePaySetUp"
+              v-if="connectionRows.length"
               class="border-border/60 bg-card divide-border/60 divide-y overflow-hidden rounded-xl border"
             >
               <BankConnectionRow
@@ -105,11 +105,6 @@
                 :connection="row.connection"
                 :accounts="row.accounts"
                 :folder-group-names="folderGroupNames"
-              />
-              <ApplePayConnectionRow
-                v-if="isApplePaySetUp"
-                :linked-cards-count="applePayLinkedCardsCount"
-                :waiting-count="applePayWaitingCount"
               />
             </div>
             <p v-else class="text-muted-foreground px-1 py-2 text-sm">{{ $t('accounts.noBanksConnected') }}</p>
@@ -221,11 +216,9 @@
 </template>
 
 <script setup lang="ts">
-import { loadAccountGroups } from '@/api/account-groups';
 import { type BankConnection, type BankProvider, listConnections, listProviders } from '@/api/bank-data-providers';
 import { getVehicles } from '@/api/vehicles';
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const';
-import type { AccountGroups } from '@/common/types/models';
 import PageWrapper from '@/components/common/page-wrapper.vue';
 import CreateAccountDialog from '@/components/dialogs/create-account-dialog.vue';
 import CreateVehicleDialog from '@/components/dialogs/create-vehicle-dialog.vue';
@@ -234,12 +227,10 @@ import { Card } from '@/components/lib/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/lib/ui/collapsible';
 import * as Popover from '@/components/lib/ui/popover';
 import GroupTotal from '@/components/sidebar/accounts-view/group-total.vue';
-import { collectGroupAccounts } from '@/components/sidebar/accounts-view/helpers/account-totals';
-import { buildAccountGroupTree } from '@/components/sidebar/accounts-view/helpers/build-account-group-tree';
+import { collectGroupAccounts, flattenAccounts } from '@/components/sidebar/accounts-view/helpers/account-totals';
+import { useAccountGroupsQuery } from '@/composable/data-queries/account-groups';
 import { useBaseBalanceTotals } from '@/composable/use-base-balance-totals';
 import { useProjectedBalance } from '@/composable/use-projected-balance';
-import ApplePayConnectionRow from '@/pages/accounts/integrations/apple-pay/components/apple-pay-connection-row.vue';
-import { useApplePayStatus } from '@/pages/accounts/integrations/apple-pay/composables/use-apple-pay-status';
 import AddIntegrationDialog from '@/pages/accounts/integrations/components/add-integration-dialog.vue';
 import { useAccountsStore } from '@/stores';
 import { ACCOUNT_CATEGORIES, ACCOUNT_STATUSES, AccountModel } from '@bt/shared/types';
@@ -257,7 +248,7 @@ import AccountsOverviewCard from './components/accounts-overview-card.vue';
 import AccountsSection from './components/accounts-section.vue';
 import AccountsSortMenu from './components/accounts-sort-menu.vue';
 import BankConnectionRow from './components/bank-connection-row.vue';
-import { buildManualFolderGroups, mapFolderGroupNames } from './manual-accounts-split';
+import { collectManualAccounts, mapFolderGroupNames, pruneBankLinkedAccounts } from './manual-accounts-split';
 import { useAccountsSort } from './use-accounts-sort';
 
 const route = useRoute();
@@ -271,12 +262,7 @@ const { sortConnectionRows, sortLeafAccounts, sortVehicles, sortManual } = useAc
 
 const { accounts, activeAccounts, isAccountsFetched } = storeToRefs(useAccountsStore());
 
-const { data: accountGroups, isFetched: isGroupsFetched } = useQuery({
-  queryFn: () => loadAccountGroups(),
-  queryKey: VUE_QUERY_CACHE_KEYS.accountGroups,
-  staleTime: Infinity,
-  placeholderData: [] as AccountGroups[],
-});
+const { data: accountGroups, isFetched: isGroupsFetched } = useAccountGroupsQuery({ placeholderData: [] });
 
 const { data: vehicles } = useQuery({
   queryKey: VUE_QUERY_CACHE_KEYS.vehiclesList,
@@ -297,12 +283,6 @@ const { data: bankConnections, isFetched: isConnectionsFetched } = useQuery({
   placeholderData: [] as BankConnection[],
 });
 
-const {
-  isSetUp: isApplePaySetUp,
-  linkedCardsCount: applePayLinkedCardsCount,
-  waitingCount: applePayWaitingCount,
-} = useApplePayStatus();
-
 const { baseCurrencyCode, includeCreditLimit, sumBaseBalance } = useBaseBalanceTotals();
 
 // Gate the skeleton on the groups and connections queries too: until they resolve every
@@ -311,25 +291,9 @@ const isInitialLoading = computed(
   () => !isAccountsFetched.value || !isGroupsFetched.value || !isConnectionsFetched.value,
 );
 
-const accountGroupTree = computed(() => buildAccountGroupTree({ groups: accountGroups.value ?? [] }));
-
 // id -> account map for every account nested anywhere in the group tree, so the
 // ungrouped list can exclude anything already shown under a group.
-const accountsInGroups = computed(() => {
-  const flatten = (groups: AccountGroups[]): Record<string, AccountModel> =>
-    groups.reduce(
-      (acc, group) => {
-        group.accounts.forEach((account) => {
-          acc[account.id] = account;
-        });
-        if (group.childGroups.length) Object.assign(acc, flatten(group.childGroups));
-        return acc;
-      },
-      {} as Record<string, AccountModel>,
-    );
-
-  return flatten(accountGroupTree.value);
-});
+const accountsInGroups = computed(() => flattenAccounts({ groups: accountGroups.value ?? [] }));
 
 // Bank connections are driven by the accounts' own connection link, not group membership:
 // regrouping a synced account must never move it out of this section (or hide the connection).
@@ -353,12 +317,13 @@ const connectionRows = computed(() =>
 
 // Manual section shows only manual accounts: folder groups pruned of bank-linked accounts
 // (those render under their connection above), dropped entirely when nothing manual remains.
-// The API returns every group in one flat list, so the tree is rebuilt first: only root groups
-// render at the top level, with their subgroups nested underneath.
-const manualSplit = computed(() => buildManualFolderGroups({ groups: accountGroups.value ?? [] }));
-const manualFolderGroups = computed(() => manualSplit.value.folderGroups);
+const manualFolderGroups = computed(() =>
+  pruneBankLinkedAccounts({
+    groups: (accountGroups.value ?? []).filter((group) => group.bankDataProviderConnectionId == null),
+  }),
+);
 
-const folderGroupNames = computed(() => mapFolderGroupNames({ groups: accountGroupTree.value }));
+const folderGroupNames = computed(() => mapFolderGroupNames({ groups: accountGroups.value ?? [] }));
 
 const vehicleAccountIds = computed(() => new Set((vehicles.value ?? []).map((v) => v.accountId)));
 
@@ -407,7 +372,9 @@ const vehiclesWithAccount = computed(() =>
 // connections implicitly, so without this rescue they would vanish from the page).
 const manualLooseAccounts = computed(() => [
   ...ungroupedAccounts.value.filter((account) => !account.bankDataProviderConnectionId),
-  ...manualSplit.value.rescuedAccounts,
+  ...collectManualAccounts({
+    groups: (accountGroups.value ?? []).filter((group) => group.bankDataProviderConnectionId != null),
+  }),
 ]);
 
 // Apply the shared sort choice to each section. Manual folds folder-groups and loose

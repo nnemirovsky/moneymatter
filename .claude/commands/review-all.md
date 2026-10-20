@@ -56,6 +56,30 @@ Each reviewer's prompt should ask for findings in this format:
 
 If no issues found, the reviewer should report "No issues found."
 
+### 2a. Large diffs: split reviewers by load
+
+Skip this step for small diffs. Spawn the 7 reviewers above, each with the whole diff.
+
+1. **Filter mechanical files first.** Pull these out of the review set:
+   - lockfiles
+   - generated code
+   - i18n locale JSON
+   - pure renames/moves (`git diff -M --name-status`, `R100`)
+   - test fixtures/snapshots
+
+   One `haiku` agent gets the filtered list and only checks "is this really mechanical?" It flags anything that isn't, and that file goes back into the review set.
+
+2. **Measure the real code.** Use `git diff --stat` on what's left.
+3. **Split when it's too big for one agent.** The limit is roughly **25 files or ~1500 changed lines**, whichever hits first.
+4. **What splits and how:**
+   - `code-reviewer` and `silent-failure-hunter`: split **by area**. Slice along app boundaries (e.g. backend services, backend routes/controllers, frontend pages, frontend components, shared types). Keep each slice within the per-agent limit. Each agent gets its slice's diff plus the full file list for context.
+   - `frontend-checker`: split **by rule group** (styling/colors/fonts, components, UI states/data flow). Also split by area if the frontend slice itself exceeds the limit.
+   - `code-simplifier` and `test-analyzer`: split by area only if one agent's share would exceed ~2× the limit.
+   - `type-analyzer` and `architecture-analyzer`: **never split**. They catch cross-file problems (coupling, duplicated invariants), and area slices hide those. On a large diff, give them the file list plus `git diff --stat` and let them read only what they need. Do not paste the full diff.
+5. **Ceiling.** The hard ceiling is the session's workflow size guideline (currently under 50 agents). It is not a fixed small number.
+6. **Confirm big runs.** If the plan needs more than ~15 agents, show the user the slices, the agent count and a rough token cost (~100k per reviewer). Ask before spawning.
+7. **Flag oversized PRs.** If the real code after filtering still needs more than ~10 area slices, add a line to the final report suggesting the PR be split. Name the natural seams you saw.
+
 ### 3. Compile final report
 
 Once all reviewers have returned, compile into a single organized report:
@@ -68,7 +92,7 @@ Once all reviewers have returned, compile into a single organized report:
 - **Architecture** — from architecture-analyzer
 - **Frontend Rules Compliance** — from frontend-checker, or "N/A — no frontend changes"
 
-For each section, list actionable items grouped by file. If a section has no issues, mark it as clean. At the end, add a **Summary** with total issue count per category. Note that since reviewers ran independently, some findings may overlap across sections — call out duplicates in the summary.
+For each section, list actionable items grouped by file. If a section has no issues, mark it as clean. At the end, add a **Summary** with total issue count per category. Note that since reviewers ran independently, some findings may overlap across sections — call out duplicates in the summary. When reviewers were split (step 2a), merge each split reviewer's slices back into its own section, and dedupe findings that point at the same file and line.
 
 ### 4. Triage: strip findings unrelated to the current feature
 

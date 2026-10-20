@@ -1,16 +1,14 @@
-import { VERBOSE_PAYMENT_TYPES } from '@/common/const';
 import type { ButtonVariantProps } from '@/components/lib/ui/button';
 import { formatUIAmount } from '@/js/helpers';
 import type { AccountModel, TransactionTemplateModel } from '@bt/shared/types';
 import { PlusIcon } from '@lucide/vue';
 import { type EmitFn, type ShortEmitsToObject, computed, ref } from 'vue';
-import { type ComposerTranslation, useI18n } from 'vue-i18n';
+import { useI18n } from 'vue-i18n';
 
 import type { TemplateFormSources } from '../../utils/template-to-form';
 import { getTemplateStaleReason } from './template-staleness';
 
 export const EMPTY_FIELD_LABEL = '—';
-const SUMMARY_SEPARATOR = ' · ';
 
 export interface TemplateListProps {
   templates: TransactionTemplateModel[];
@@ -35,24 +33,6 @@ export type TemplateListEmits = {
   retry: [];
   prefetch: [];
   'closed-after-apply': [];
-};
-
-/** The template fields the transaction form shows no control for, so the UI has to name them. */
-export const getTemplateHiddenFields = ({
-  template,
-  t,
-}: {
-  template: TransactionTemplateModel;
-  t: ComposerTranslation;
-}): string => {
-  const parts: string[] = [];
-  const paymentType = VERBOSE_PAYMENT_TYPES.find((item) => item.value === template.paymentType);
-  if (paymentType) parts.push(t(paymentType.label));
-  if (template.tagIds.length) {
-    parts.push(t('dialogs.manageTransaction.templates.tagsCount', { count: template.tagIds.length }));
-  }
-  if (template.note) parts.push(t('dialogs.manageTransaction.form.noteLabel'));
-  return parts.join(SUMMARY_SEPARATOR);
 };
 
 /** Everything the desktop popover and the mobile drawer share; each owns only its markup. */

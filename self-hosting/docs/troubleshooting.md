@@ -96,6 +96,32 @@ tuning. If you serve the API from a separate origin (`API_HTTP` set) or add a
 third-party host, list it in `CSP_EXTRA_CONNECT` / `CSP_EXTRA_ANALYTICS`, then
 `up -d`. No rebuild – the CSP is rendered from env at container start.
 
+## Enable Banking: URL "uses unsupported scheme"
+
+Enable Banking only accepts `https` redirect URLs, so an instance served over
+plain `http://<server-ip>:8080` can't be registered as is. Put the app behind
+HTTPS – any reverse proxy with TLS ([reverse-proxies.md](reverse-proxies.md)),
+or the bundled [Traefik overlay](traefik-overlay.md), which pairs with nip.io
+if you have no domain. Then set the callback in `.env`:
+
+```bash
+ENABLE_BANKING_REDIRECT_URL=https://budget.example.com/bank-callback
+```
+
+register the exact same URL in your Enable Banking application, and run
+`docker compose up -d --force-recreate backend`.
+
+**LAN-only instance (no public HTTPS).** The redirect URL is only where your
+browser lands after the bank login – Enable Banking never calls it directly. So:
+
+1. Register `https://localhost:8080/bank-callback` (use your own host and
+   port) in Enable Banking, set the same value as `ENABLE_BANKING_REDIRECT_URL`,
+   and recreate the backend as above.
+2. After approving in the bank, the browser lands on `https://...` and fails to
+   load. Change `https` to `http` in the address bar, keep the whole
+   `?code=...&state=...` part, and press Enter. The callback page finishes the
+   connection.
+
 ## Stale config after changing env vars
 
 The frontend's runtime config (`/config.js`, which carries `API_HTTP`,

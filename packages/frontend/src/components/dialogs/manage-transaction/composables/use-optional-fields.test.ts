@@ -1,3 +1,4 @@
+import { TRANSACTION_OPTIONAL_FIELDS } from '@bt/shared/types';
 import { ref } from 'vue';
 
 vi.mock('@/composable/data-queries/user-settings', () => ({
@@ -19,9 +20,21 @@ const mount = (optionalFields?: string[]) => {
 };
 
 describe('useOptionalFields', () => {
-  it('shows originalAmount by default until the setting is saved once', () => {
-    expect(mount().isEnabled('originalAmount')).toBe(true);
+  it('enables every field by default until the setting is saved once', () => {
+    const { isEnabled } = mount();
+    for (const field of TRANSACTION_OPTIONAL_FIELDS) expect(isEnabled(field)).toBe(true);
     expect(mount([]).isEnabled('originalAmount')).toBe(false);
+  });
+
+  it('saves the default list minus the field on the first toggle', async () => {
+    const { setEnabled, patchAsync } = mount();
+
+    await setEnabled({ field: 'location', value: false });
+    expect(patchAsync).toHaveBeenLastCalledWith({
+      ui: {
+        transactionForm: { optionalFields: TRANSACTION_OPTIONAL_FIELDS.filter((field) => field !== 'location') },
+      },
+    });
   });
 
   it('adds and removes a field against the stored list', async () => {

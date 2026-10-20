@@ -439,7 +439,7 @@ const routes: RouteRecordRaw[] = [
             path: 'data-management/import/text-source',
             name: ROUTES_NAMES.importStatement,
             component: () => import('@/pages/import-export/statement-parser/index.vue'),
-            meta: { i18nChunks: ['pages/import-statement', 'settings/data-management'] },
+            meta: { i18nChunks: ['pages/import-statement', 'pages/import-shared', 'settings/data-management'] },
           },
           {
             path: 'data-management/import/ynab',

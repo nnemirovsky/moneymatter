@@ -25,6 +25,7 @@ export enum AI_FEATURE {
   receiptParsing = 'receipt_parsing',
   chat = 'chat',
   trackerMatching = 'tracker_matching',
+  transferMatching = 'transfer_matching',
   // Future features:
   // insights = 'insights',
 }

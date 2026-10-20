@@ -88,8 +88,9 @@ The **Add widgets** panel and the widget itself sometimes use different names. H
 | **Credit Utilization** | **Credit Utilization** | How much of your credit limits you're using |
 | **Latest Records** | **Latest Transactions** | Your most recent transactions |
 | **FIRE progress** | **FIRE progress** | How close you are to financial independence (Plus) |
-| **Budget** | **Budget** | What's left in the current budget period, line by line |
+| **Budget** | **Budget** | What's left in the current budget period, line by line. Use **Sort by** in the gear menu to rank lines by **Highest spend first**, **Lowest spend first** or **Most overspent first** (least left at the top); **Custom order** keeps your plan's order |
 | **Trackers** | **Trackers** | Each active tracker with how much of its limit is used and its net |
+| **Average tax rate** | **Average tax rate** | The share of your income paid in taxes, with a 12-month trend |
 
 **Subscriptions & Bills** and **Planned overview** are also available as widgets.
 
@@ -167,6 +168,7 @@ Keep an eye on the categories you care about. Each row shows what came in minus 
 - Click the pencil icon to edit the list: drag rows to reorder, click a row to swap its category, or click the bin icon to remove it. Click the save icon when you're done.
 - Click a row to open its transactions for the period.
 - The gear menu has **Include planned transactions**.
+- Each row has a small trend line, which you can turn off with **Show 6-month trend** in the gear menu. It covers the six full months before the month your period ends in, and a higher point means more money moved: more spending on a red row, more income on a green one. The line is hidden when the widget is too narrow.
 
 If you add both a parent category and one of its subcategories, the subcategory's money shows only on its own row, not on the parent's.
 
@@ -211,6 +213,22 @@ Click the widget, or the arrow icon (↗) in its top corner (**Open FIRE plan**)
   src="/screenshots/stats/fire-progress-widget.png"
   alt="The FIRE progress widget at 2×1 in the Ring style: a 14% ring, Time to FIRE of 19 yrs 4 mos (January 2046 at age 54), the Saved, Next milestone and FIRE number rows, and a milestone line from Today to FIRE."
   hint="Add the FIRE progress widget to /dashboard at size 2×1 with the Ring style, on a profile whose FIRE planner has enough history (12 months of income and expenses) and a birth year. Crop to the widget."
+/>
+
+### Average tax rate
+
+Shows how much of your income goes to taxes: spending in your [tax categories](/settings/general-settings/#tax-categories) divided by your income. Until you choose tax categories, the widget shows **Choose categories**, which opens General settings.
+
+- The big number is the rate over the last 12 months. Next to it are the taxes and income behind it. To average over a shorter span, click the gear icon, open **Averaging period** and pick **Last 3 months** or **Last 6 months**. The widget then also shows how the rate differs from your 12-month rate, in percentage points.
+- The bars show your taxes for each of the last 12 months, with the months in the averaging period highlighted. The dashed line is your monthly average (**avg**) over that period. Hover a bar to see that month's taxes and share of income.
+- The thin bar at the bottom splits the taxes in the averaging period by category, with each tax category you chose broken down into its subcategories. Up to four parts are shown; the rest are grouped and listed as, for example, "2 more".
+
+The widget always covers the last 12 months and doesn't follow the dashboard's date selector. Click the arrow icon (↗) in the widget's top corner (**View cash flow**) to open the [Cash Flow report](/stats/analytics-reports/#cash-flow).
+
+<Screenshot
+  src="/screenshots/stats/average-tax-rate-widget.png"
+  alt="The Average tax rate widget showing the rate as a share of income, taxes and income totals, twelve monthly bars with a dashed average line, and a breakdown bar by tax category."
+  hint="Set Tax categories in /settings/general, make sure the user has income and tax payments over the last 12 months, and add the Average tax rate widget to /dashboard. Crop to the widget."
 />
 
 ### Latest Transactions

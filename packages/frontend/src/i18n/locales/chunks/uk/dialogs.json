@@ -107,6 +107,7 @@
         "paymentTypeLabel": "Тип платежу",
         "noteLabel": "Примітка (необов'язково)",
         "notePlaceholder": "Примітка",
+        "addFieldsLabel": "Додати",
         "externalUrlLabel": "Зовнішнє посилання",
         "externalUrlPlaceholder": "Посилання на замовлення, бронювання або чек",
         "externalReferenceLabel": "Зовнішній номер",
@@ -427,8 +428,6 @@
         "announceApplied": "Застосовано {name} — заповнено {count} поле. Сума порожня. | Застосовано {name} — заповнено {count} поля. Сума порожня. | Застосовано {name} — заповнено {count} полів. Сума порожня.",
         "announceAppliedWithAmount": "Застосовано {name} — заповнено {count} поле. Сума: {amount}. | Застосовано {name} — заповнено {count} поля. Сума: {amount}. | Застосовано {name} — заповнено {count} полів. Сума: {amount}.",
         "categoryDeletedHint": "Категорію цього шаблону видалено — оберіть іншу.",
-        "alsoSet": "Шаблон також задав: {fields}",
-        "tagsCount": "{count} тег | {count} теги | {count} тегів",
         "applyConfirmTitle": "Застосувати шаблон?",
         "applyConfirmDescription": "Застосування замінить ваш розподіл і прив'язку повернення.",
         "toasts": {
@@ -556,7 +555,11 @@
         "title": "Створити групу",
         "nameLabel": "Назва групи",
         "namePlaceholder": "Інвестиції",
-        "createButton": "Створити"
+        "createButton": "Створити",
+        "subgroupTitle": "Нова підгрупа",
+        "insideLabel": "Всередині",
+        "subgroupNamePlaceholder": "напр., Заощадження",
+        "createSubgroupButton": "Створити підгрупу"
       }
     },
     "directCashTransaction": {

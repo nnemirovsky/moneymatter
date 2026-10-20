@@ -107,6 +107,13 @@ Semantic colors come in pairs: the **base token is a fill** (button/badge backgr
 - Tinted chips like `bg-primary/10` still count as a dark background — text/icons inside them use `text-primary-text`
 - Borders, strokes (progress rings), and chart lines may keep using the base token — non-text UI parts only need 3:1 contrast
 
+### Font sizes
+
+- **14px (`text-sm`) is the floor for regular UI**: row titles, values, amounts, filter chips, buttons, page subtitles and empty-state copy. Leave row titles at the inherited base size.
+- Anything below 14px (`text-xs`, `text-[11px]`, `text-[13px]`, …) needs a real justification. Typical cases are tiny metadata badges/pills, secondary captions under a row title, uppercase section labels and chart axis ticks. "It fits better" or "it looks denser" is not a justification. Fix the layout instead.
+- Never go below 12px (`text-xs`). No `text-[10px]`/`text-[11px]`.
+- Reference: the recurring payments list (`pages/planned/subscriptions`). It uses a `text-sm` subtitle, base-size titles, `text-sm` amounts and `text-xs` only for captions and badges.
+
 ---
 
 ## Components

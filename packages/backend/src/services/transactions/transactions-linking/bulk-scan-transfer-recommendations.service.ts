@@ -2,11 +2,18 @@ import { SORT_DIRECTIONS, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES } from 
 import Transactions from '@models/transactions.model';
 import { getDismissalsForUser } from '@models/transfer-suggestion-dismissals.model';
 import { getTransactions } from '@services/transactions/get-transactions';
+import {
+  type TransferPairReview,
+  aiReviewTransferMatches,
+  transferPairKey,
+} from '@services/transactions/transactions-linking/ai-review-transfer-matches';
 import { addDays, endOfDay, startOfDay, subDays } from 'date-fns';
 
 import { MS_PER_DAY, RECOMMENDATION_DAYS_RANGE, RECOMMENDATION_PERCENT_RANGE } from './constants';
 
 const MAX_MATCHES_PER_EXPENSE = 4;
+/** Below this the pair is a coincidence of amount and date, not worth showing. */
+const MIN_CONFIDENCE = 50;
 const CONFIDENCE_WEIGHT_AMOUNT = 50;
 const CONFIDENCE_WEIGHT_DATE = 30;
 const CONFIDENCE_WEIGHT_CURRENCY = 20;
@@ -14,6 +21,7 @@ const CONFIDENCE_WEIGHT_CURRENCY = 20;
 interface BulkScanMatch {
   transaction: Transactions;
   confidence: number;
+  ai?: TransferPairReview;
 }
 
 interface BulkScanItem {
@@ -25,6 +33,8 @@ interface BulkScanResult {
   total: number;
   items: BulkScanItem[];
 }
+
+const verdictRank = (match: { ai?: TransferPairReview }) => (match.ai?.verdict === 'likely' ? 0 : 1);
 
 const emptyResult = (): BulkScanResult => ({ total: 0, items: [] });
 
@@ -85,6 +95,7 @@ export async function bulkScanTransferRecommendations({
   limit,
   offset,
   includeOutOfWallet,
+  aiReview,
 }: {
   userId: number;
   from: string;
@@ -92,6 +103,7 @@ export async function bulkScanTransferRecommendations({
   limit: number;
   offset: number;
   includeOutOfWallet: boolean;
+  aiReview: boolean;
 }): Promise<BulkScanResult> {
   const dateFromParsed = startOfDay(new Date(from));
   const dateToParsed = endOfDay(new Date(to));
@@ -158,7 +170,7 @@ export async function bulkScanTransferRecommendations({
   const dismissedPairsSet = new Set(dismissals.map((d) => `${d.expenseTransactionId}:${d.incomeTransactionId}`));
 
   // 4. Match expenses to incomes in-memory
-  const results: BulkScanItem[] = [];
+  let results: BulkScanItem[] = [];
 
   for (const expense of eligibleExpenses) {
     // Matching compares base-currency amounts, so a row still waiting for a custom-currency rate has none to compare.
@@ -198,6 +210,8 @@ export async function bulkScanTransferRecommendations({
         matchCurrency: income.currencyCode,
       });
 
+      if (confidence < MIN_CONFIDENCE) continue;
+
       matchCandidates.push({ transaction: income, confidence });
     }
 
@@ -214,6 +228,27 @@ export async function bulkScanTransferRecommendations({
   // 5. Sort results by expense date descending (newest first)
   results.sort((a, b) => new Date(b.expense.time).getTime() - new Date(a.expense.time).getTime());
 
-  // 6. Apply pagination
-  return { total: results.length, items: results.slice(offset, offset + limit) };
+  if (aiReview) {
+    const reviews = await aiReviewTransferMatches({
+      userId,
+      pairs: results.flatMap(({ expense, matches }) =>
+        matches.map(({ transaction }) => ({ expenseId: expense.id, incomeId: transaction.id })),
+      ),
+    });
+    results = results
+      .map(({ expense, matches }) => ({
+        expense,
+        matches: matches
+          .map((match) => ({
+            ...match,
+            ai: reviews.get(transferPairKey({ expenseId: expense.id, incomeId: match.transaction.id })),
+          }))
+          .filter((match) => match.ai?.verdict !== 'unlikely')
+          .toSorted((a, b) => verdictRank(a) - verdictRank(b) || b.confidence - a.confidence),
+      }))
+      .filter(({ matches }) => matches.length > 0);
+  }
+
+  // 6. Apply pagination. A reviewed scan answers in one page, so paging never re-runs the AI.
+  return { total: results.length, items: aiReview ? results : results.slice(offset, offset + limit) };
 }

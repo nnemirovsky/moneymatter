@@ -125,6 +125,8 @@
             "fillForm": "Заповніть форму наступними значеннями:",
             "appName": "Application name:",
             "redirectUrls": "Allowed redirect URLs:",
+            "httpsRequired": "Enable Banking приймає лише адреси перенаправлення з https. Розгорніть цей сервер через HTTPS, встановіть {envVar} на його публічну адресу зворотного виклику (наприклад, {example}), перестворіть контейнер бекенду та введіть ту саму адресу в цьому полі. {link}",
+            "httpsRequiredLink": "Як налаштувати",
             "appDescription": "Application description:",
             "emailProtection": "Email for data protection matters:",
             "privacyUrl": "Privacy URL:",

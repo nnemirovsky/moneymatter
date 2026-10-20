@@ -199,7 +199,7 @@ const trendBars = computed(() => {
                 {{ formattedDelta }}
               </p>
               <p class="text-muted-foreground mt-0.5 text-xs font-medium tracking-tight uppercase">
-                {{ periodLabel }}
+                {{ $t('dashboard.widgets.netWorth.changeInPeriod', { period: periodLabel }) }}
               </p>
             </div>
 

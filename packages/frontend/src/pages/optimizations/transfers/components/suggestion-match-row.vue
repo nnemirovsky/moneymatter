@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import TransactionRecord from '@/components/transactions-list/transaction-record.vue';
 import { Button } from '@/components/lib/ui/button';
+import { DesktopOnlyTooltip } from '@/components/lib/ui/tooltip';
 import { cn } from '@/lib/utils';
 import type { TransactionModel, BulkTransferScanMatch } from '@bt/shared/types';
-import { EyeOffIcon, LinkIcon, LoaderCircleIcon } from '@lucide/vue';
+import { LinkIcon, LoaderCircleIcon, SparklesIcon, XIcon } from '@lucide/vue';
 import { computed } from 'vue';
 
 const props = defineProps<{
@@ -53,20 +54,43 @@ function handleRecordClick([tx, oppositeTx]: [TransactionModel, TransactionModel
       </div>
 
       <!-- Actions -->
-      <div class="flex shrink-0 justify-end gap-1">
-        <Button variant="secondary" size="sm" :disabled="isBusy" class="gap-1.5" @click.stop="$emit('skip')">
+      <div class="flex shrink-0 justify-end gap-1 @[500px]/match:col-start-3 @[500px]/match:row-start-1">
+        <Button variant="soft-destructive" size="sm" :disabled="isBusy" class="gap-1.5" @click.stop="$emit('skip')">
           <LoaderCircleIcon v-if="isSkipping" class="size-3.5 animate-spin" />
-          <EyeOffIcon v-else class="size-3.5" />
+          <XIcon v-else class="size-3.5" />
 
           {{ $t('optimizations.transferSuggestions.skip.action') }}
         </Button>
 
-        <Button variant="outline" size="sm" :disabled="isBusy" class="gap-1.5" @click.stop="$emit('link')">
+        <Button variant="default" size="sm" :disabled="isBusy" class="gap-1.5" @click.stop="$emit('link')">
           <LoaderCircleIcon v-if="isLinking" class="size-3.5 animate-spin" />
           <LinkIcon v-else class="size-3.5" />
 
           {{ $t('common.actions.link') }}
         </Button>
+      </div>
+
+      <!-- AI verdict: its own row under the transaction -->
+      <div
+        v-if="match.ai"
+        class="text-muted-foreground col-span-full flex min-w-0 items-center gap-2 pb-1 text-sm @[500px]/match:row-start-2"
+      >
+        <span
+          :class="
+            cn(
+              'inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-bold',
+              match.ai.verdict === 'likely'
+                ? 'bg-success-text/15 text-success-text'
+                : 'bg-warning-text/15 text-warning-text',
+            )
+          "
+        >
+          <SparklesIcon class="size-3" />
+          {{ $t(`optimizations.transferSuggestions.aiReview.verdict.${match.ai.verdict}`) }}
+        </span>
+        <DesktopOnlyTooltip :content="match.ai.reason" content-class-name="max-w-sm" only-when-truncated>
+          <span class="min-w-0 truncate">{{ match.ai.reason }}</span>
+        </DesktopOnlyTooltip>
       </div>
     </div>
   </div>

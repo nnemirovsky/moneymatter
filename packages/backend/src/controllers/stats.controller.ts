@@ -27,6 +27,7 @@ import { getNetWorthDriversReport } from '@services/stats/reports/net-worth-driv
 import { getNetWorthHistoryReport } from '@services/stats/reports/net-worth-history.report';
 import { getPivotTableReport } from '@services/stats/reports/pivot.report';
 import {
+  getMonthlySpendingsByCategoriesReport,
   getSpendingsByCategoriesByTypeReport,
   getSpendingsByCategoriesReport,
 } from '@services/stats/reports/spendings-by-categories.report';
@@ -88,6 +89,27 @@ export const getSpendingsByCategories = createController(spendingsByCategoriesSc
 
   return { data: await getSpendingsByCategoriesReport({ ...params, transactionType }) };
 });
+
+const monthlySpendingsByCategoriesSchema = z.object({
+  query: withDateOrder(
+    z.object({
+      ...dateRange({ required: true }),
+      categoryIds: optionalCommaSeparatedIds(),
+      excludePlanned: booleanQuery().optional(),
+    }),
+  ),
+});
+
+export const getMonthlySpendingsByCategories = createController(
+  monthlySpendingsByCategoriesSchema,
+  async ({ user, query }) => {
+    const { from, to, categoryIds, excludePlanned } = query;
+
+    return {
+      data: await getMonthlySpendingsByCategoriesReport({ userId: user.id, from, to, categoryIds, excludePlanned }),
+    };
+  },
+);
 
 const expensesAmountSchema = z.object({
   query: withDateOrder(

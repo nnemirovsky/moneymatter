@@ -22,6 +22,7 @@ import { findTransactions } from '@models/transactions-query';
 import type Transactions from '@models/transactions.model';
 import { type AIClientResult, AI_MAX_OUTPUT_TOKENS, aiCallGuards, createAIClient } from '@services/ai';
 import { isWithinAiAllowance } from '@services/ai/ai-allowance';
+import { cell, stripControlChars } from '@services/ai/prompt-cells';
 import { createShortIds } from '@services/ai/short-ids';
 import { trackAiUsage } from '@services/ai/track-ai-usage';
 import { withTransaction } from '@services/common/with-transaction';
@@ -83,14 +84,6 @@ const PROMPT_ATTRIBUTES: (keyof Transactions)[] = [
   'payeeId',
   'categoryId',
 ];
-
-// oxlint-disable-next-line no-control-regex -- intentional: stripping control chars from user input
-const stripControlChars = ({ text }: { text: string }) => text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
-
-const cell = ({ value, max }: { value: string | null | undefined; max: number }) =>
-  stripControlChars({ text: value ?? '' })
-    .replace(/[|\r\n]+/g, ' ')
-    .slice(0, max);
 
 const formatRow = ({ tx, alias }: { tx: PromptTransaction; alias?: string }) => {
   const amount = tx.transactionType === TRANSACTION_TYPES.expense ? tx.amount.negate() : tx.amount;
