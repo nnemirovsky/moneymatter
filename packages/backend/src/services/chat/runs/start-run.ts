@@ -4,7 +4,6 @@ import {
   type ChatClarificationAnswerInput,
   type ChatAttachmentKind,
   type ChatClarificationPart,
-  type ChatPageContext,
   type ChatSendMessageResponse,
   type ChatUserPart,
   isAiCliProvider,
@@ -142,7 +141,6 @@ const createRunMessages = withTransaction(
     runId,
     text,
     attachments,
-    pageContext,
     clarificationAnswer,
     cardComment,
     provider,
@@ -153,7 +151,6 @@ const createRunMessages = withTransaction(
     runId: string;
     text: string;
     attachments: SendableAttachment[];
-    pageContext: ChatPageContext | null;
     clarificationAnswer: ChatClarificationAnswerInput | undefined;
     cardComment: { proposalId: string } | undefined;
     provider: string;
@@ -178,7 +175,6 @@ const createRunMessages = withTransaction(
         mimeType,
         kind,
       })),
-      ...(pageContext ? [{ type: 'pageContext' as const, id: randomUUID(), context: pageContext }] : []),
       ...(clarificationAnswer
         ? [
             {
@@ -201,7 +197,6 @@ const createRunMessages = withTransaction(
       status: 'complete',
       parts,
       plainText: text || answerText || null,
-      pageContext,
       createdAt: new Date(now),
     });
     const assistantMessage = await ChatMessages.create({
@@ -247,7 +242,6 @@ export async function startChatRun({
   threadId,
   text,
   attachmentIds,
-  pageContext,
   clarificationAnswer,
   cardComment,
 }: {
@@ -255,7 +249,6 @@ export async function startChatRun({
   threadId: string;
   text: string;
   attachmentIds: string[];
-  pageContext: ChatPageContext | null;
   clarificationAnswer?: ChatClarificationAnswerInput;
   /** Set when the message is a comment on a card: the card it is about. */
   cardComment?: { proposalId: string };
@@ -291,7 +284,6 @@ export async function startChatRun({
       runId,
       text,
       attachments,
-      pageContext,
       clarificationAnswer,
       cardComment,
       provider: aiClient.provider,

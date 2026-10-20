@@ -1,3 +1,5 @@
+import type { ChatPageContext } from './messages';
+
 /** `auto` is the user's first words, `model` the name the assistant gave, `user` a rename that nothing replaces. */
 export type ChatThreadTitleSource = 'auto' | 'model' | 'user';
 
@@ -29,6 +31,13 @@ export interface ChatThread {
    * Null: the connection's own model.
    */
   modelId: string | null;
+  /** The page the conversation is about, kept for the whole thread; null is none. */
+  pageContext: ChatPageContext | null;
+  /**
+   * Display names of the entities `pageContext` names, by `kind:id`, read from the user's own rows. An
+   * entity that no longer exists has no name here.
+   */
+  pageContextNames: Record<string, string>;
   createdAt: string;
 }
 
@@ -40,6 +49,8 @@ export interface ChatCreateThreadRequest {
   title?: string;
   connectionId?: string | null;
   modelId?: string | null;
+  /** The page the conversation starts on; omitted or null is none. */
+  pageContext?: ChatPageContext | null;
 }
 
 /** What `PATCH /chat/threads/:id` takes: at least one field. */
@@ -49,6 +60,8 @@ export interface ChatUpdateThreadRequest {
   connectionId?: string | null;
   /** Switching the connection resets this to null unless the request names a model of the new one. */
   modelId?: string | null;
+  /** Replaces the thread's page, or removes it with null. */
+  pageContext?: ChatPageContext | null;
 }
 
 /** `GET /chat/default-connection`: the connection a new thread would start on. */

@@ -1,4 +1,4 @@
-import type { ChatThread } from '@bt/shared/types';
+import type { ChatPageContext, ChatThread } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { ValidationError } from '@js/errors';
 import ChatThreads from '@models/chat-threads.model';
@@ -13,6 +13,7 @@ import {
 } from './thread-connection';
 import { notifyThreadUpdated } from './thread-events';
 import { computeThreadExpiry } from './thread-expiry';
+import { normalizeThreadPageContext, withPageContextNames } from './thread-page-context';
 import { toChatThread } from './to-chat-thread';
 
 interface CreateThreadParams {
@@ -25,6 +26,8 @@ interface CreateThreadParams {
    * lets a thread that inherits its connection inherit the model too. A model needs `connectionId`.
    */
   modelId?: string | null;
+  /** The page the conversation starts on. */
+  pageContext?: ChatPageContext | null;
 }
 
 const createThreadImpl = async ({
@@ -32,7 +35,9 @@ const createThreadImpl = async ({
   title,
   connectionId,
   modelId,
-}: Pick<CreateThreadParams, 'userId' | 'title'> & ThreadModelChoice): Promise<ChatThread> => {
+  pageContext,
+}: Pick<CreateThreadParams, 'userId' | 'title'> &
+  ThreadModelChoice & { pageContext: ChatPageContext | null }): Promise<ChatThread> => {
   const retentionDays = await getChatRetentionDays({ userId, lock: true });
   const lastMessageAt = new Date();
 
@@ -44,6 +49,7 @@ const createThreadImpl = async ({
     pinned: false,
     connectionId,
     modelId,
+    pageContext,
     lastMessageAt,
     expiresAt: computeThreadExpiry({ lastMessageAt, pinned: false, retentionDays }),
   });
@@ -75,7 +81,9 @@ export const createThread = async (params: CreateThreadParams): Promise<ChatThre
     };
   }
 
-  const thread = await createThreadTransactional({ userId, title: params.title, ...choice });
+  const pageContext = await normalizeThreadPageContext({ userId, context: params.pageContext });
+  const created = await createThreadTransactional({ userId, title: params.title, pageContext, ...choice });
+  const thread = (await withPageContextNames({ userId, threads: [created] }))[0]!;
   notifyThreadUpdated({ userId, threadId: thread.id });
   return thread;
 };

@@ -4,7 +4,7 @@ import { modelField } from '@controllers/user-settings/ai-connections/connection
 import { updateThread } from '@services/chat/threads/update.service';
 import { z } from 'zod';
 
-import { threadTitleSchema } from './shared-schemas';
+import { pageContextSchema, threadTitleSchema } from './shared-schemas';
 
 const schema = z.object({
   params: z.object({ id: recordId() }),
@@ -16,14 +16,17 @@ const schema = z.object({
       connectionId: z.uuid().nullable().optional(),
       // null picks the connection's own model
       modelId: modelField.nullable().optional(),
+      // null removes the page
+      pageContext: pageContextSchema.nullable().optional(),
     })
     .refine(
       (body) =>
         body.title !== undefined ||
         body.pinned !== undefined ||
         body.connectionId !== undefined ||
-        body.modelId !== undefined,
-      { message: 'Provide a title, pinned, connectionId or modelId' },
+        body.modelId !== undefined ||
+        body.pageContext !== undefined,
+      { message: 'Provide a title, pinned, connectionId, modelId or pageContext' },
     ),
 });
 
@@ -35,5 +38,6 @@ export default createController(schema, async ({ user, params, body }) => ({
     pinned: body.pinned,
     connectionId: body.connectionId,
     modelId: body.modelId,
+    pageContext: body.pageContext,
   }),
 }));

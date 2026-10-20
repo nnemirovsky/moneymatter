@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatThread } from '@bt/shared/types';
+import type { ChatMessage, ChatPageContext, ChatThread } from '@bt/shared/types';
 import type ChatMessages from '@models/chat-messages.model';
 
 /** The columns of a `ChatThreads` row that the API shows; a model instance and a raw query row both fit. */
@@ -11,6 +11,7 @@ export interface ChatThreadRow {
   expiresAt: Date | string | null;
   connectionId: string | null;
   modelId: string | null;
+  pageContext: ChatPageContext | null;
   inputTokens: string | number;
   outputTokens: string | number;
   cachedInputTokens: string | number;
@@ -34,6 +35,9 @@ export const toChatThread = ({ row }: { row: ChatThreadRow }): ChatThread => ({
   },
   connectionId: row.connectionId,
   modelId: row.modelId,
+  pageContext: row.pageContext ?? null,
+  // Filled by `withPageContextNames`, which looks the names up for a whole page of threads.
+  pageContextNames: {},
   createdAt: toIso({ value: row.createdAt }),
 });
 
