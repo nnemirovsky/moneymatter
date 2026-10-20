@@ -127,16 +127,15 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
     - The QR code stays as the other path.
 - **Banner: record, enqueue, wait on a budget.** The endpoint records the request (tx 1), enqueues `ingest-notification` without delay, and polls the row for up to `notificationTimings.waitBudgetMs` (10 s, 250 ms steps), as `aiWaitBudgetMs` does today.
 
-  | Outcome | Banner (`summary`) | `notify` |
-  |---|---|---|
-  | logged | "Logged 43.60 GEL at Wolt → Food" | true |
-  | attached | "Already logged 43.60 GEL at Wolt" | true |
-  | parked | "Needs your OK in MoneyMatter: 43.60 GEL at Wolt" | true |
-  | still running | "Queued, will appear shortly" | true |
-  | ignored, dropped, duplicate | — | false |
-  | 423 (base-currency change running) | "MoneyMatter is busy updating your currency. This payment wasn't saved, try again in a minute." (new `ingest.busy` message for ingest routes) | — |
-  | any other HTTP error (401/402/403/409/413/422/429) | the error `message` | — |
-
+  | Outcome                                            | Banner (`summary`)                                                                                                                            | `notify` |
+  | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+  | logged                                             | "Logged 43.60 GEL at Wolt → Food"                                                                                                             | true     |
+  | attached                                           | "Already logged 43.60 GEL at Wolt"                                                                                                            | true     |
+  | parked                                             | "Needs your OK in MoneyMatter: 43.60 GEL at Wolt"                                                                                             | true     |
+  | still running                                      | "Queued, will appear shortly"                                                                                                                 | true     |
+  | ignored, dropped, duplicate                        | —                                                                                                                                             | false    |
+  | 423 (base-currency change running)                 | "MoneyMatter is busy updating your currency. This payment wasn't saved, try again in a minute." (new `ingest.busy` message for ingest routes) | —        |
+  | any other HTTP error (401/402/403/409/413/422/429) | the error `message`                                                                                                                           | —        |
   - **Errors always show (owner-visible).** The shortcut shows `summary` when `notify` is true. On any non-2xx answer it shows `response.message`, as the tap shortcut does today. Only `ignored`, `dropped` and `duplicate` stay silent.
   - **423 while the base currency changes (owner-visible).** `checkBaseCurrencyLock` stays on `POST /ingest/event` and `POST /ingest/card-payment`. The answer is 423 for both kinds, because nothing has been recorded yet.
     - For ingest routes the middleware's message is the ingest-specific `ingest.busy` text, picked by a `messageKey` option on `checkBaseCurrencyLock` (default unchanged).
@@ -147,6 +146,7 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
   - **Why a job plus a wait:** retries with backoff, crash safety, AI concurrency through the queue, and the same path as a UI retry. A synchronous AI call would lose the payment on a timeout.
   - **Why no delay:** tier 1 runs under one per-user lock in both paths, so order does not matter, and AI never attaches anything.
   - **Job ids:** each attempt gets its own id, `${requestId}-${attempt}` (`IngestRequests.attempts` is incremented when enqueuing; BullMQ rejects custom ids containing `:`, so every id in this plan joins its parts with `-`). The queue sets `removeOnComplete: true` and `removeOnFail: { age: 3600 }`. A UI retry therefore always enqueues, even while the failed job is still retained.
+
 - **Three privacy layers:**
   1. **On-device gate.** **Match Text** on title + subtitle + body, then **If** no match → **Stop**. These are built-in actions; no Apple Intelligence is required.
      - The regex comes from the setup code's optional `gate`; the built-in standard pattern is the fallback.
@@ -161,11 +161,13 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
      On the device, the shortcut checks the input's app and bundle **before** Match Text: if it is Shortcuts or MoneyMatter, it stops. Without that, our own "Logged 43.60 GEL …" banner would fire the any-app trigger again.
 
      A drop is answered `200 dropped` and **not stored**: only a counter changes, and only on a source that already exists. A conversational source row is created only after the prefilter passes.
+
   3. **Source approval: fail closed (owner-visible).** Every new source starts `pending`, except Wallet (`com.apple.Passbook`) and a small seed list of known bank apps in `notification-sources.ts`, which start `auto`.
      - A pending source's first notification creates an inbox card ("Treat <app or sender> as a payment source?").
      - Its notifications park as `sourceNotApproved` **without an AI call**.
      - Approving the source processes what it holds. Muting it deletes what it holds.
      - Messaging and mail apps (a list of bundle ids and names) are additionally split **per sender** (`app + title`), so approving "Messages · TBC" does not approve every chat.
+
 - **Text at rest (owner-visible; reconciles "non-payment text is never stored").** Notification text (title, subtitle, body, `raw`) never sits in plain JSON. It is stored only as `IngestRequests.textEnc`, encrypted with `encryptToken` (AES-256-GCM, `common/utils/encryption.ts`). `payload` keeps only non-text metadata: app, bundle id, time and key.
   - **Not a payment (AI-classified):** in the classifying transaction, `textEnc` and `summary` are nulled and `parsed` is reduced to `{ parser, kind, confidence }`, so no merchant, card digits or balance stay in plain JSON. The hash, kind and reason stay, and the row is deleted after 7 days.
   - **Not yet classified** (`sourceNotApproved`, `aiUnavailable`, `aiCapReached`, `aiLimitReached`, `processingFailed` on a notification): `textEnc` is kept **at most 7 days**, then the row is deleted and a counter records it.
@@ -179,6 +181,7 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
   - `loose`: also a two-decimal number with no currency.
 
   The server uses the same level as the shortcut. Changing the level needs a new setup code.
+
 - **Pipeline column.** A new server-set `IngestRequests.pipeline` (`cardPayment` | `notification`, backfilled to `cardPayment`) is the discriminator for list, retry, retention, summaries and inbox wiring. `source` stays the client's label and is never branched on.
 - **Limits:**
   - The existing 30/min per token stays.
@@ -205,10 +208,12 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
      - ignore `SP *`, `SQ *`, `PAYPAL *`, `GOOGLE *`, `.COM`, city or country, store numbers and casing;
      - never match on a generic word alone;
      - otherwise give a clean brand name.
+
   3. **`applyPayeeChoice`** (`ingest/event/apply-payee-choice.ts`):
      - a candidate becomes the `payeeId`;
      - a raw spelling that normalizes differently is saved with `ensureAliasExists`, unless `isPayeeNameIgnored` or it resolves to another payee;
      - for `newName`: first `resolveNormalizedName(newName)`, and **adopt** any hit instead of creating, so `createPayee` never throws `ConflictError`. If the raw merchant is ignored, no payee is created and the row is logged without one, as the resolver does. Otherwise `createPayee` + the raw alias + logo resolution.
+
 - **Bank balances.** `parsed.balanceAfter = { amount, currency, authoritative, scopeHint }`.
   - **Same bank:** the account's connection, plus the accounts this source logged to or defaults to, plus the account group.
   - **Authoritative** only when every other-currency same-bank account is zero.
@@ -235,6 +240,7 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
     - it is at most 7 days old.
 
     Anything looser becomes a tier-2 suggestion.
+
   - **Fold window (owner-visible).** The text fingerprint folds a repeat only when the times are within 5 s: the same notification on two devices, or a double fire. The time is the notification's own date when iOS exposes it, else the shortcut's run time **to the second**, which also goes into the idempotency key. Two identical Wallet payments minutes apart become two rows.
   - **Tap fold, made consistent (owner-visible; changes shipped behaviour).** Every shipped shortcut sends `time`. The tap shortcut fills it with the **run time** (Current Date, `build-card-payment-shortcut.ts`), because the Transaction input has no date; `parse-payload.ts` accepts it. A "no `time`" branch therefore never runs for a shortcut. The rule is restated around what `time` actually means:
     - **`timeSource`.** A new optional body field, `run` | `transaction`. The iOS 27 shortcut sends `transaction` only if the device capture shows that the Transaction input has its own date; otherwise it sends `run`. A request without `timeSource` (the shipped tap shortcut, other clients) counts as `run`. It is stored in `parsed`/`payload` and never trusted beyond the fold.
@@ -256,6 +262,7 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
     - `transactionId`/`candidateId` are **nullable FKs with `ON DELETE SET NULL`**.
     - `markSuggestionsStale({ transactionIds })` runs from `deleteTransaction`, the bulk delete and reconciliation remove. It flips open suggestions to `stale` and resolves their cards.
     - A sweep in the cleanup cron and the scan job catches rows with a null side left by other delete paths: sync removals and import rollback.
+
 - **Enrichment:**
   - the bank's account-currency amount wins, and the charged currency stays as `originalAmount` (through `updateTransaction`);
   - a missing payee is filled;
@@ -291,32 +298,35 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
     - Expiry resolves nothing: the record stays open in Reconciliation or the waiting list.
     - **Expiry re-evaluates the thread.** `expireDueCards`/`expireAllDueCards` (`chat/proposals/card-expiry.ts`) return the affected thread ids and call `reevaluateInboxThreads({ threadIds })`. An `open` thread whose last pending card expired turns `closed` and is unpinned. The cleanup cron runs the same check as a backstop.
 
-    | Item | Tool | Approve | Edit | Reject |
-    |---|---|---|---|---|
-    | duplicate suggestion | `merge_duplicate_transactions` | merge | survivor | dismiss |
-    | unknown account, own transfer, low confidence | new `log_ingest_request` | log | account, direction | dismiss request |
-    | pending source | new `set_notification_source` | approve | default account | mute |
+    | Item                                          | Tool                           | Approve | Edit               | Reject          |
+    | --------------------------------------------- | ------------------------------ | ------- | ------------------ | --------------- |
+    | duplicate suggestion                          | `merge_duplicate_transactions` | merge   | survivor           | dismiss         |
+    | unknown account, own transfer, low confidence | new `log_ingest_request`       | log     | account, direction | dismiss request |
+    | pending source                                | new `set_notification_source`  | approve | default account    | mute            |
+
   - **Two-way sync** (`chat/inbox/inbox-items.ts`):
     - records hold `proposalId` (`DuplicateSuggestions`, `IngestRequests`, `NotificationSources`; nullable FK, `SET NULL`);
     - `reject.ts` calls `onInboxCardRejected({ proposalId })` inside its transaction;
     - resolving a record elsewhere rejects the card with `statusReason: 'resolvedElsewhere'`.
   - **Backup:** `BackupTableDef` gains `nullOnRestore?: readonly string[]`. The entries for `NotificationSources` and `DuplicateSuggestions` set `['proposalId']`, because `ChatProposals` is never backed up. `IngestRequests` stays excluded.
+
 - **Web push for the assistant:**
   - A new group `assistant` (default on), owned by Task 11, which also updates `ZodPushGroupsSchema` and `GROUP_ICONS`.
   - Types go through `createNotification` → `enqueueWebPushAfterCommit` → `push-queue.ts`:
 
-    | Type | When | Deep link | Collapse |
-    |---|---|---|---|
-    | `chatReplyReady` | a run in a `chat` thread finished or failed and the thread is not being viewed | `chatThread` | per thread, 5 min |
-    | `chatCardsWaiting` | that run left pending cards | `chatThread` | merged into the run's push |
-    | `automationInbox` | new inbox items | `chatThread` (live inbox) | one per 10 min, with a count |
-    | `ingestAttention` | a park **without a card**: `ai*`, `rateUnavailable`, `processingFailed`, the tap path's `unknownCard` | the setup page (`accountApplePay` until Task 13 renames it `accountIosAutomation`) | per reason, per day |
+    | Type               | When                                                                                                  | Deep link                                                                          | Collapse                     |
+    | ------------------ | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------- |
+    | `chatReplyReady`   | a run in a `chat` thread finished or failed and the thread is not being viewed                        | `chatThread`                                                                       | per thread, 5 min            |
+    | `chatCardsWaiting` | that run left pending cards                                                                           | `chatThread`                                                                       | merged into the run's push   |
+    | `automationInbox`  | new inbox items                                                                                       | `chatThread` (live inbox)                                                          | one per 10 min, with a count |
+    | `ingestAttention`  | a park **without a card**: `ai*`, `rateUnavailable`, `processingFailed`, the tap path's `unknownCard` | the setup page (`accountApplePay` until Task 13 renames it `accountIosAutomation`) | per reason, per day          |
 
   - **No double push:** items with cards push only as `automationInbox`.
   - **Presence:** `PUT /chat/presence { threadId }` every 20 s while a thread is visible and focused, and `DELETE` on leave. It is stored in Redis as `chat:presence:<userId>:<threadId>` with a 45 s TTL. A reader of the run's event stream also counts.
   - **Debounce:** a delayed BullMQ job (`assistant-push`, 60 s, `jobId` = `assistant-<type>-<userId>-<threadId or reason>-<windowStart>`, joined with `-`, never `:`) plus a Redis counter and a cooldown key. The tag is `assistant:<threadId>` (`build-push-payload.ts` takes a per-type tag).
   - **Read state:** opening a thread marks its pushes read; opening the iOS Automation page marks `ingestAttention` read.
   - **Bodies:** no AI or notification text; only counts, the thread title and the reason.
+
 - **Page renamed "iOS Automation":**
   - route `/accounts/integrations/ios-automation` (`ROUTES_NAMES.accountIosAutomation`), with redirects from `/accounts/integrations/apple-pay` and the settings `integrations/*`;
   - folder `ios-automation/`;
@@ -325,15 +335,15 @@ Decisions marked **(owner-visible)** change what the owner sees, compared with e
   - The **Add Shortcut** link is parameterized per shortcut: `resolveShortcutHref`, `probeShortcutFile` and `useShortcutLink` take `{ filePath, icloudUrl }`. A new runtime config `PAYMENTS_SHORTCUT_ICLOUD_URL` (`window.__APP_CONFIG__`, `self-hosting/frontend/docker-entrypoint.sh`, env reference) keeps the iOS 27 button from opening the tap shortcut's iCloud link.
 - **Guards** (each task adds its routes to the coverage test, and to `READ_ONLY_ROUTE_PATTERNS` where noted):
 
-  | Route | Classification |
-  |---|---|
-  | `POST /ingest/event` | `checkBaseCurrencyLock` |
-  | `POST /transactions/reconciliation/suggestions/:id/dismiss` | `checkBaseCurrencyLock` |
-  | `PATCH/DELETE /user/settings/notification-sources/:id`, `PUT /user/settings/card-payments/gate-strictness` | exempt: approving a source only **enqueues** its held requests, and the job applies the lock (next row) |
-  | `ingest-notification` job (no route) | `processNotification` calls `isBaseCurrencyChangeLocked({ userId })` first. While locked, it re-delays itself by 60 s (`job.moveToDelayed` + `DelayedError`, so no attempt is used) and leaves the request `received`; the banner poll answers "Queued" |
-  | `POST /chat/threads/:id/clear-resolved`, `/archive` | exempt (chat housekeeping); read-only allowed |
-  | `PUT/DELETE /chat/presence` | exempt (presence); read-only allowed |
-  | card approval | the existing `POST /chat/proposals/:id/approve` (already guarded) |
+  | Route                                                                                                      | Classification                                                                                                                                                                                                                                          |
+  | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `POST /ingest/event`                                                                                       | `checkBaseCurrencyLock`                                                                                                                                                                                                                                 |
+  | `POST /transactions/reconciliation/suggestions/:id/dismiss`                                                | `checkBaseCurrencyLock`                                                                                                                                                                                                                                 |
+  | `PATCH/DELETE /user/settings/notification-sources/:id`, `PUT /user/settings/card-payments/gate-strictness` | exempt: approving a source only **enqueues** its held requests, and the job applies the lock (next row)                                                                                                                                                 |
+  | `ingest-notification` job (no route)                                                                       | `processNotification` calls `isBaseCurrencyChangeLocked({ userId })` first. While locked, it re-delays itself by 60 s (`job.moveToDelayed` + `DelayedError`, so no attempt is used) and leaves the request `received`; the banner poll answers "Queued" |
+  | `POST /chat/threads/:id/clear-resolved`, `/archive`                                                        | exempt (chat housekeeping); read-only allowed                                                                                                                                                                                                           |
+  | `PUT/DELETE /chat/presence`                                                                                | exempt (presence); read-only allowed                                                                                                                                                                                                                    |
+  | card approval                                                                                              | the existing `POST /chat/proposals/:id/approve` (already guarded)                                                                                                                                                                                       |
 
 ## Development Approach
 
@@ -442,6 +452,7 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
   - `cardName`, `cardLastDigits`, `balanceAfter` (with `scopeHint`), `occurredAt`, `confidence`.
 
   The text is wrapped as untrusted, the call has no tools, and every field is validated.
+
 - **Reasons:**
   - park: `unknownAccount`, `sourceNotApproved`, `aiUnavailable`, `aiCapReached`, `aiLimitReached`, `ownTransfer`, `lowConfidence`;
   - ignore: `declined`, `security`, `promo`, `info`, `other`;
@@ -482,13 +493,13 @@ Inbox (pinned, no AI) ⇄ Reconciliation Suggestions ⇄ waiting list: same reco
 - Modify: `packages/backend/src/services/backup/registry.ts` (new entries; the `nullOnRestore` option on `BackupTableDef`), `packages/backend/src/services/backup/restore/restore-tables.ts` (applies `nullOnRestore` next to `stripSecret`/`isValidRow`), `packages/backend/src/services/user/wipe-user-data.service.ts`
 - Modify: `packages/frontend/src/pages/accounts/integrations/apple-pay/components/waiting-payments.vue`. It gets an `ignored` entry in the exhaustive `STATUS_VARIANTS: Record<IngestRequestStatus, Variant>`, so the root typecheck passes, plus its status label key (`en` + `uk`)
 
-- [ ] write failing tests:
+- [x] write failing tests:
   - `registry.unit.ts` lists the new models;
   - a unit test for `nullOnRestore` (a row's `proposalId` comes out null);
   - `amount-gate.unit.ts` (samples per level; negatives: plain codes, phone numbers, dates, chat text without a currency);
   - `buildSourceKey` (sender appended only for conversational apps), and default modes (Wallet and the seed banks `auto`, everything else `pending`)
-- [ ] migration with `down` (includes the `pipeline` backfill and the partial unique indexes); models; shared types. The push group is **not** touched here (Task 11 owns it).
-- [ ] gate: unit `--testPathPattern='(backup/registry|amount-gate|notification-sources)'`; `npm run typecheck`
+- [x] migration with `down` (includes the `pipeline` backfill and the partial unique indexes); models; shared types. The push group is **not** touched here (Task 11 owns it).
+- [x] gate: unit `--testPathPattern='(backup/registry|amount-gate|notification-sources)'`; `npm run typecheck`
 
 ### Task 2: Event endpoint, prefilter, limits, source and card-link settings
 
@@ -868,6 +879,7 @@ _Items requiring manual work or external systems; no checkboxes._
 **Signing:** sign `log-payments.plist` and re-sign the regenerated `log-card-payment.plist` (key to the second, 423 retry) (see `public/shortcuts/README.md`). Confirm the triggers survive signing and import, then run it once by hand for the dry-run banner. Share it from the iPhone to get an iCloud link, and set `PAYMENTS_SHORTCUT_ICLOUD_URL` (and `CARD_PAYMENT_SHORTCUT_ICLOUD_URL`, if it isn't set yet). PWA users need these links.
 
 **Home-screen web app check (owner's iPhone):** from the installed MoneyMatter app (standalone, not Safari):
+
 - tap each **Add shortcut** button and confirm the Shortcuts app offers the import, first with the iCloud link and then with only the file configured;
 - generate a setup code, tap **Copy**, and paste it into the shortcut's import question;
 - record anything that fails, with the iOS version.

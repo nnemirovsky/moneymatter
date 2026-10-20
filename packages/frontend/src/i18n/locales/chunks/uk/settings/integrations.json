@@ -210,7 +210,8 @@
             "logged": "Записано",
             "parked": "Чекає",
             "rejected": "Відхилено",
-            "dismissed": "Відхилено вручну"
+            "dismissed": "Відхилено вручну",
+            "ignored": "Проігноровано"
           }
         },
         "unconfirmed": {

@@ -210,7 +210,8 @@
             "logged": "Logged",
             "parked": "Waiting",
             "rejected": "Refused",
-            "dismissed": "Dismissed"
+            "dismissed": "Dismissed",
+            "ignored": "Ignored"
           }
         },
         "unconfirmed": {
