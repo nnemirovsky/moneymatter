@@ -1,5 +1,6 @@
 import { recordId } from '@common/lib/zod/custom-types';
 import { createController } from '@controllers/helpers/controller-factory';
+import { listDuplicateSuggestions } from '@services/transactions/reconciliation/duplicate-suggestions';
 import { getReconciliationHistory } from '@services/transactions/reconciliation/get-history';
 import { mergeTransactions } from '@services/transactions/reconciliation/merge-transactions';
 import { removeTransactions } from '@services/transactions/reconciliation/remove-transactions';
@@ -51,4 +52,8 @@ export const checkStuckPendingController = createController(
 
 export const keepAsBookedController = createController(idsBodySchema, async ({ user, body }) => ({
   data: await keepAsBooked({ userId: user.id, transactionIds: body.transactionIds }),
+}));
+
+export const listSuggestionsController = createController(z.object({}), async ({ user }) => ({
+  data: await listDuplicateSuggestions({ userId: user.id }),
 }));

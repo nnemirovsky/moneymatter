@@ -85,6 +85,7 @@ router.delete('/refund', checkBaseCurrencyLock, deleteRefund);
 
 router.get('/reconciliation/history', reconciliation.historyController);
 router.get('/reconciliation/stuck-pending', reconciliation.stuckPendingController);
+router.get('/reconciliation/suggestions', reconciliation.listSuggestionsController);
 router.post('/reconciliation/remove', checkBaseCurrencyLock, reconciliation.removeController);
 router.post('/reconciliation/merge', checkBaseCurrencyLock, reconciliation.mergeController);
 router.post('/reconciliation/restore', checkBaseCurrencyLock, reconciliation.restoreController);

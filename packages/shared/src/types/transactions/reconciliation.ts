@@ -1,3 +1,4 @@
+import type { DuplicateSuggestionTrigger } from '../ingest';
 import { RecordId } from '../record-id';
 import type { TransactionModel } from './transactions';
 
@@ -53,4 +54,24 @@ export interface KeepAsBookedBody {
 
 export interface KeepAsBookedResponse {
   updatedIds: RecordId[];
+}
+
+/**
+ * An open duplicate suggestion: two transactions the AI judge thinks record one payment. Nothing is
+ * merged; the user merges the pair through Reconciliation or dismisses it. `transactionSlots` and
+ * `candidateSlots` are the ingest sources each side holds (`tap`, `wallet-notification`,
+ * `bank:<sourceKey>:<stage>`), empty for a row entered by hand or synced.
+ */
+export interface DuplicateSuggestionItem {
+  id: RecordId;
+  accountId: RecordId;
+  /** The judge's confidence, 0.6 to 1. */
+  confidence: number;
+  reason: string | null;
+  trigger: DuplicateSuggestionTrigger;
+  createdAt: string;
+  transaction: TransactionModel;
+  candidate: TransactionModel;
+  transactionSlots: string[];
+  candidateSlots: string[];
 }

@@ -1,4 +1,5 @@
 import type { RecordId } from '@bt/shared/types';
+import type { listDuplicateSuggestions as apiListSuggestions } from '@services/transactions/reconciliation/duplicate-suggestions';
 import type { getReconciliationHistory as apiGetHistory } from '@services/transactions/reconciliation/get-history';
 import type { mergeTransactions as apiMerge } from '@services/transactions/reconciliation/merge-transactions';
 import type { removeTransactions as apiRemove } from '@services/transactions/reconciliation/remove-transactions';
@@ -100,6 +101,14 @@ export function keepAsBooked<R extends boolean | undefined = undefined>({
     method: 'post',
     url: '/transactions/reconciliation/keep-as-booked',
     payload: { transactionIds },
+    raw,
+  });
+}
+
+export function listDuplicateSuggestions<R extends boolean | undefined = undefined>({ raw }: { raw?: R } = {}) {
+  return makeRequest<Awaited<ReturnType<typeof apiListSuggestions>>, R>({
+    method: 'get',
+    url: '/transactions/reconciliation/suggestions',
     raw,
   });
 }

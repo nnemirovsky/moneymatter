@@ -659,14 +659,16 @@ Gate results (Task 6): e2e `services/ingest`, `routes/base-currency-guard-covera
 - Create: `packages/backend/src/services/transactions/reconciliation/duplicate-suggestions.ts` (insert with `ON CONFLICT DO NOTHING`, list)
 - Modify: `packages/backend/src/controllers/transactions.controller/{reconciliation,reconciliation-schemas}.ts`, `packages/backend/src/routes/transactions.route.ts` (`GET /transactions/reconciliation/suggestions`), `packages/backend/src/tests/helpers/reconciliation.ts`, `packages/backend/src/services/ingest/event/process-notification.ts`
 
-- [ ] write failing unit tests: short ids, unknown ids dropped, clamping, ≥ 0.6 → a suggestion, no client or a spent limit → none
-- [ ] write failing e2e:
+- [x] write failing unit tests: short ids, unknown ids dropped, clamping, ≥ 0.6 → a suggestion, no client or a spent limit → none
+- [x] write failing e2e:
   - judged at 0.95 → a new row plus an `open` suggestion, read via `GET /suggestions` (no attach);
   - 0.3 → none;
   - candidates exclude taken slots and other accounts;
   - the judge runs after commit: a judge failure leaves the logged row in place;
   - the suggestions list is empty for a new user
-- [ ] gate: unit `--testPathPattern='ingest/dedup/judge'`; e2e `--testPathPattern='ingest/dedup/(judge|twin).e2e'`
+- [x] gate: unit `--testPathPattern='ingest/dedup/judge'`; e2e `--testPathPattern='ingest/dedup/(judge|twin).e2e'`
+
+Gate results (Task 7): unit `ingest/dedup/judge` 3 suites, 25 tests pass; e2e `ingest/dedup/(judge|twin)` 29 tests pass, and `services/ingest`, `transactions/reconciliation`, `routes/base-currency-guard-coverage`, `crons/ingest-requests-cleanup` 21 suites, 440 tests pass; backend and frontend typecheck, backend lint and knip clean. Backend unit `amount-gate`, `prefilter-notification` and `classify-notification` fail on the local Node 22 (the gate regexes use `(?i:…)` modifier groups); they fail the same way without this task's changes (a Node version issue, not a regression).
 
 ### Task 8: Reconciliation for manual accounts and ingest plans
 
