@@ -296,7 +296,8 @@ defineExpose({
       {{ $t(problem.key, problem.params) }}
     </p>
 
-    <!-- One 44px line when empty: the buttons and the textarea share a height, and stay at the bottom as it grows. -->
+    <!-- One 44px line when empty: the buttons and the textarea share a height, and stay at the bottom as it grows.
+         The field forwards its class to both its root and its textarea, so the padding targets the textarea only. -->
     <div class="flex items-end gap-2">
       <DesktopOnlyTooltip :content="$t('chat.composer.attach')">
         <Button
@@ -329,7 +330,7 @@ defineExpose({
           ref="textareaRef"
           v-model="text"
           rows="1"
-          class="min-h-11 py-[11px] leading-5"
+          class="min-h-11 leading-5 placeholder:whitespace-nowrap [&_textarea]:py-[11px]"
           :title="$t('chat.composer.label')"
           :placeholder="$t('chat.composer.placeholder')"
           :disabled="disabled"

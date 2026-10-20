@@ -706,7 +706,7 @@
     },
     "composer": {
       "label": "Message",
-      "placeholder": "Ask about your money or describe a change",
+      "placeholder": "Ask or describe a change",
       "send": "Send",
       "stop": "Stop",
       "attach": "Attach files",
