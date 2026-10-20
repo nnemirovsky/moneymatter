@@ -852,17 +852,21 @@ Gate results (Task 14): frontend full vitest 5692 passed (33 skipped); root type
 
 ### Task 16: Verify acceptance criteria
 
-- [ ] tap, Wallet notification, push and SMS in any order → one row with every source, the bank's amount, the resolved payee and a new alias; the right banner each time; two identical payments → two rows
-- [ ] an online Apple Pay payment is logged from the Wallet notification alone; a chat, an OTP request and a promo leave no stored text; a pending source's text is encrypted and expires after 7 days
-- [ ] the limits hold; Wallet logs without AI; errors show a banner; our own banners and pushes never come back in as notifications
-- [ ] every AI-judged match is a suggestion; resolving it in the inbox or in Reconciliation resolves both; manual-account balances stay right
-- [ ] sync and statement import create no duplicate rows (the plan is settled) or a suggestion
-- [ ] multi-currency balances are informational
-- [ ] assistant pushes collapse, respect presence and the toggle
-- [ ] the inbox has one live thread, is pinned and protected, and never runs AI
-- [ ] backend: `npm run test:unit`; e2e `--testPathPattern='(ingest|transactions/reconciliation|planned-matching|duplicates-detection|ai-categorization|user-settings/ai-feature-settings|payees|chat|assistant-push|web-push|notifications|backup|mcp|crons/ingest-requests-cleanup|routes/base-currency-guard-coverage)'`
-- [ ] frontend: typecheck, lint, `npm run test:unit -- --run`; Playwright `integrations/`, `reconciliation/` and chat when the dev stack is up
-- [ ] root: `npm run format:check`, `npm run knip`
+- [x] tap, Wallet notification, push and SMS in any order → one row with every source, the bank's amount, the resolved payee and a new alias; the right banner each time; two identical payments → two rows
+- [x] an online Apple Pay payment is logged from the Wallet notification alone; a chat, an OTP request and a promo leave no stored text; a pending source's text is encrypted and expires after 7 days
+- [x] the limits hold; Wallet logs without AI; errors show a banner; our own banners and pushes never come back in as notifications (server side: 429/413/422 carry `message`, `notify` on every outcome; the on-device banner and own-output stop belong to the shortcut, ⚠️ pending Task 15)
+- [x] every AI-judged match is a suggestion; resolving it in the inbox or in Reconciliation resolves both; manual-account balances stay right
+- [x] sync and statement import create no duplicate rows (the plan is settled) or a suggestion
+- [x] multi-currency balances are informational
+- [x] assistant pushes collapse, respect presence and the toggle
+- [x] the inbox has one live thread, is pinned and protected, and never runs AI
+- [x] backend: `npm run test:unit`; e2e `--testPathPattern='(ingest|transactions/reconciliation|planned-matching|duplicates-detection|ai-categorization|user-settings/ai-feature-settings|payees|chat|assistant-push|web-push|notifications|backup|mcp|crons/ingest-requests-cleanup|routes/base-currency-guard-coverage)'`
+- [x] frontend: typecheck, lint, `npm run test:unit -- --run`; Playwright `integrations/`, `reconciliation/` and chat when the dev stack is up
+- [x] root: `npm run format:check`, `npm run knip` (format:check lists only the gitignored `.revmux/` review archive; knip exits 0 and its hints are in files this branch does not touch)
+
+Results (Node 24.21.0): backend unit 384 suites, 6633 passed; lint-rules 18 passed; backend e2e full run 359 suites passed, 4 timing flakes under load (assistant-push presence, short-balance ranking, card-payment repeat window, ai-categorization status), all 72 tests of those 4 suites pass on a rerun alone; frontend vitest 401 files, 5692 passed; typecheck, lint, i18n keys OK; Playwright `integrations/`, `reconciliation/`, `chat/` 45 passed on the dev stack.
+
+Owner-decision audit (each checked against code and a test): no AI auto-merge (judge.e2e "merging nothing", inbox.e2e "never merges on its own"); one confirm card per transaction (inbox.e2e second source updates the card); logged now, confirm in the inbox (process-notification.e2e "confirm in the inbox"); banners incl. errors (ingest-event.e2e notify per outcome, 429/413/422 message; on-device banner ⚠️ pending Task 15); iOS Automation rename and redirects (ios-automation-routes.spec, Playwright); pinned inbox (inbox.e2e, suggestions.spec); no Apple Intelligence (setup note spec; ⚠️ the generator assertion that no Apple Intelligence action appears is pending Task 15); minimal text at rest (ingest-event.e2e, process-notification.e2e, cleanup e2e); fail-closed sources (notification-sources and process-notification e2e); two setup buttons, no UA parsing (shortcut-choice.spec); PWA-safe links (add-shortcut-button.spec, copy-text.spec); per-currency card links (card-mappings.e2e); short-balance correction (short-balance.e2e, inbox.e2e); conversion pair (conversion-pair.e2e, inbox.e2e); non-authoritative multi-currency balances (process-notification.e2e "the stated balance"); payee aliases (payee-resolution.e2e); assistant push group (assistant-push.e2e).
 
 ### Task 17: [Final] Update documentation
 
