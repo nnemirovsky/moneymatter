@@ -70,3 +70,16 @@ export interface ChatThreadListPage {
 
 /** Characters of a thread title. */
 export const CHAT_THREAD_TITLE_MAX_CHARS = 120;
+
+/** `chat` is a conversation with the assistant; `automationInbox` is the MoneyMatter-owned thread that collects what automations need from the user. */
+export const CHAT_THREAD_KINDS = ['chat', 'automationInbox'] as const;
+
+export type ChatThreadKind = (typeof CHAT_THREAD_KINDS)[number];
+
+/**
+ * Where an automation inbox thread is in its life; null on a chat thread. `live` takes new items (one
+ * per user), `open` is full but still holds pending cards, `closed` is finished and expires like a chat.
+ */
+export const CHAT_INBOX_STATES = ['live', 'open', 'closed'] as const;
+
+export type ChatInboxState = (typeof CHAT_INBOX_STATES)[number];

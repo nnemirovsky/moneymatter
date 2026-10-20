@@ -1,7 +1,9 @@
 import type { RecordId } from '../record-id';
 
+export * from './amount-gate';
 export * from './card-payment-setup-code';
 export * from './normalize-card-label';
+export * from './notification-sources';
 
 /** Scopes an ingest token can carry. A scope names the one thing the token may do. */
 export const INGEST_SCOPES = {
@@ -40,10 +42,21 @@ export interface CreateIngestTokenResponse {
   secret: string;
 }
 
-/** Lifecycle of a logged ingest request. */
-export const INGEST_REQUEST_STATUSES = ['received', 'logged', 'parked', 'rejected', 'dismissed'] as const;
+/**
+ * Lifecycle of a logged ingest request. `ignored` is a notification that was read and is not a payment
+ * (declined, a code, a promo, information); its text is wiped.
+ */
+export const INGEST_REQUEST_STATUSES = ['received', 'logged', 'parked', 'rejected', 'dismissed', 'ignored'] as const;
 
 export type IngestRequestStatus = (typeof INGEST_REQUEST_STATUSES)[number];
+
+/**
+ * Which pipeline owns a request. It is set by the server, never by the client: `source` stays the
+ * client's own label and nothing branches on it.
+ */
+export const INGEST_PIPELINES = ['cardPayment', 'notification'] as const;
+
+export type IngestPipeline = (typeof INGEST_PIPELINES)[number];
 
 /** A link between a Wallet card name and the account its payments are logged on. */
 export interface CardMappingDto {
@@ -172,11 +185,34 @@ export const CARD_PAYMENT_RECENT_REQUESTS_LIMIT = 50;
 /** Days a `logged`, `rejected` or `dismissed` request is kept before the daily cleanup deletes it. */
 export const INGEST_REQUEST_RETENTION_DAYS = 90;
 
+/** Why a notification was held back instead of being logged. */
+export const NOTIFICATION_PARK_REASONS = [
+  'unknownAccount',
+  'sourceNotApproved',
+  'aiUnavailable',
+  'aiCapReached',
+  'aiLimitReached',
+  'ownTransfer',
+  'lowConfidence',
+] as const;
+
+export type NotificationParkReason = (typeof NOTIFICATION_PARK_REASONS)[number];
+
+/** Why a notification that was read is not a payment. It is stored as the reason of an `ignored` request. */
+export const NOTIFICATION_IGNORE_REASONS = ['declined', 'security', 'promo', 'info', 'other'] as const;
+
+export type NotificationIgnoreReason = (typeof NOTIFICATION_IGNORE_REASONS)[number];
+
 /**
- * Why a request is in the state it is in: a park or rejection reason, or `interrupted` for a
+ * Why a request is in the state it is in: a park, ignore or rejection reason, or `interrupted` for a
  * request whose processing died before it recorded an outcome.
  */
-export type IngestRequestReason = CardPaymentParkReason | CardPaymentRejectionReason | 'interrupted';
+export type IngestRequestReason =
+  | CardPaymentParkReason
+  | CardPaymentRejectionReason
+  | NotificationParkReason
+  | NotificationIgnoreReason
+  | 'interrupted';
 
 /** One request a client sent to the card-payment endpoint, as Settings lists it. */
 export interface CardPaymentRequestDto {
@@ -234,3 +270,16 @@ export interface CreateCardPaymentSetupCodeResponse {
   token: IngestTokenDto;
   setupCode: string;
 }
+
+/** Lifecycle of a duplicate suggestion: `stale` when one of its transactions is gone. */
+export const DUPLICATE_SUGGESTION_STATUSES = ['open', 'merged', 'dismissed', 'stale'] as const;
+
+export type DuplicateSuggestionStatus = (typeof DUPLICATE_SUGGESTION_STATUSES)[number];
+
+/** What produced a suggestion: the judge that runs after an ingested payment, or the scan after a sync or import. */
+export const DUPLICATE_SUGGESTION_TRIGGERS = ['ingest', 'scan'] as const;
+
+export type DuplicateSuggestionTrigger = (typeof DUPLICATE_SUGGESTION_TRIGGERS)[number];
+
+/** The lowest AI confidence that becomes a suggestion. */
+export const DUPLICATE_SUGGESTION_MIN_CONFIDENCE = 0.6;
