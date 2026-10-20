@@ -68,14 +68,14 @@ const onSelect = (option: ChatConnectionOption | null) => {
 
 <template>
   <div
-    v-if="options.length > 0"
+    v-if="options.length > 0 || $slots.default"
     class="min-w-0 shrink-0 border-b px-3 py-2"
     role="group"
     :aria-label="$t('chat.connection.label')"
     data-testid="chat-connection-picker"
   >
     <!-- Stacked in a narrow conversation, so both labels stay readable; side by side from 420px. -->
-    <div class="flex min-w-0 flex-col gap-2 @[420px]/chat-conversation:flex-row">
+    <div v-if="options.length > 0" class="flex min-w-0 flex-col gap-2 @[420px]/chat-conversation:flex-row">
       <SelectField
         class="w-full min-w-0 @[420px]/chat-conversation:w-auto @[420px]/chat-conversation:flex-1 @md/chat-conversation:max-w-80"
         :model-value="selected"
@@ -99,6 +99,10 @@ const onSelect = (option: ChatConnectionOption | null) => {
         @select="(next) => emit('select-model', next)"
         @update:has-choice="(value) => (hasModelChoice = value)"
       />
+    </div>
+    <!-- The thread's page context, on its own line under the selects. -->
+    <div v-if="$slots.default" :class="options.length > 0 ? 'mt-2' : ''">
+      <slot />
     </div>
   </div>
 </template>

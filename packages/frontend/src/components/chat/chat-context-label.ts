@@ -14,14 +14,20 @@ export const useChatContextLabel = () => {
   const { categoriesMap } = storeToRefs(useCategoriesStore());
   const { tagsMap } = storeToRefs(useTagsStore());
 
-  const entityName = ({ kind, id }: { kind: ChatEntityKind; id: string }): string | null => {
-    if (kind === 'account') return accountsRecord.value[id]?.name ?? null;
-    if (kind === 'category') return categoriesMap.value[id]?.name ?? null;
-    if (kind === 'tag') return tagsMap.value[id]?.name ?? null;
-    return null;
-  };
+  /** `names` are the display names the server read for a stored context, by `kind:id`; a kind missing there falls back to the stores. */
+  const entityNameFrom =
+    ({ names }: { names: Record<string, string> }) =>
+    ({ kind, id }: { kind: ChatEntityKind; id: string }): string | null => {
+      const fromServer = names[`${kind}:${id}`];
+      if (fromServer) return fromServer;
+      if (kind === 'account') return accountsRecord.value[id]?.name ?? null;
+      if (kind === 'category') return categoriesMap.value[id]?.name ?? null;
+      if (kind === 'tag') return tagsMap.value[id]?.name ?? null;
+      return null;
+    };
 
-  const label = ({ context }: { context: ChatPageContext }) => describeChatContext({ context, t, entityName });
+  const label = ({ context, names = {} }: { context: ChatPageContext; names?: Record<string, string> }) =>
+    describeChatContext({ context, t, entityName: entityNameFrom({ names }) });
 
   return { label };
 };

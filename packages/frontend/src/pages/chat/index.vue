@@ -125,7 +125,11 @@ const onThreadDeleted = ({ id }: { id: string }) => {
       </header>
 
       <div class="min-h-0 flex-1">
-        <ChatConversation :thread-id="threadId" :context="context" @thread-created="(id) => onThreadCreated({ id })" />
+        <ChatConversation
+          :thread-id="threadId"
+          :context="threadId ? null : context"
+          @thread-created="(id) => onThreadCreated({ id })"
+        />
       </div>
     </section>
   </div>

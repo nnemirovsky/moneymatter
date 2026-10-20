@@ -52,7 +52,7 @@ test.describe('Chat page context', () => {
     await loginViaUI({ page, email: creds.email, password: creds.password });
   });
 
-  /** Opens the panel on the current page, asks something and returns the page context the message carried. */
+  /** Opens the panel on the current page, asks something and returns the page context the new thread was created with. */
   const askFromPanel = async ({ page }: { page: Page }) => {
     stub.nextRun = textRun({ text: 'Done.' });
     stub.calls.length = 0;
@@ -66,8 +66,9 @@ test.describe('Chat page context', () => {
         await composer.fill('What about this?');
         await composer.press('Enter');
         await expect(panel.getByText('Done.')).toBeVisible();
-        const sent = stub.calls.find((call) => call.method === 'POST' && call.path.endsWith('/messages'));
-        return (sent?.body as { pageContext?: unknown } | undefined)?.pageContext;
+        // A conversation takes the page it starts on, as part of the thread.
+        const created = stub.calls.find((call) => call.method === 'POST' && call.path.endsWith('/threads'));
+        return (created?.body as { pageContext?: unknown } | undefined)?.pageContext;
       },
     };
   };
@@ -102,6 +103,8 @@ test.describe('Chat page context', () => {
     await page.getByTestId('panel-close').click();
     await page.goto(`/planned/trackers/${trackerId}`);
     const detail = await askFromPanel({ page });
+    // The panel still holds the conversation from the list page; a new one takes this page.
+    await detail.panel.getByTestId('panel-new-chat').click();
     await expect(detail.panel.getByTestId('context-chip')).toContainText('Tracker');
     expect(await detail.send()).toMatchObject({ entity: { kind: 'tracker', id: trackerId } });
   });
@@ -113,5 +116,22 @@ test.describe('Chat page context', () => {
 
     await expect(panel.getByTestId('context-chip')).toContainText('AI models');
     expect(await send()).toEqual({ route: 'dashboard.settings.ai.models' });
+  });
+
+  test('a conversation keeps its page on the Chat page and in the list', async ({ page }) => {
+    stub.addThread({
+      id: 'thread-sub',
+      title: 'Renewal date',
+      pageContext: {
+        route: 'dashboard.planned.subscription-details',
+        entity: { kind: 'subscription', id: subscriptionId },
+      },
+    });
+
+    // On the Chat page the thread shows its own page and never offers to switch.
+    await page.goto('/chat/thread-sub');
+    await expect(page.getByTestId('context-chip')).toContainText('Subscription');
+    await expect(page.getByTestId('context-use-page')).toHaveCount(0);
+    await expect(page.getByTestId('thread-item').first().getByTestId('thread-context')).toContainText('Subscription');
   });
 });

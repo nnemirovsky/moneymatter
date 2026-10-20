@@ -62,3 +62,23 @@ export const describeChatContext = ({
 
   return parts.length > 0 ? parts.join(DESCRIPTION_SEPARATOR) : null;
 };
+
+/**
+ * What a thread keeps of a page: the page and what it is about. An open drawer and ticked rows are
+ * about one moment on the page, so they stay out of a conversation's lasting context.
+ */
+export const toThreadContext = ({ context }: { context: ChatPageContext }): ChatPageContext => {
+  const { focus: _focus, selection: _selection, ...kept } = context;
+  return kept;
+};
+
+const sortedJson = (value: unknown): string =>
+  JSON.stringify(value, (_key, nested) =>
+    nested && typeof nested === 'object' && !Array.isArray(nested)
+      ? Object.fromEntries(Object.entries(nested as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
+      : nested,
+  );
+
+/** Whether two contexts say the same thing; the server stores JSON, which does not keep the order of keys. */
+export const isSameChatContext = ({ a, b }: { a: ChatPageContext | null; b: ChatPageContext | null }): boolean =>
+  sortedJson(a) === sortedJson(b);

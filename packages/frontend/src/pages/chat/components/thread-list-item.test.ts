@@ -1,7 +1,18 @@
 import { createChatI18n } from '@/components/chat/cards/card-test-fixtures';
-import type { ChatThreadSearchHit } from '@bt/shared/types';
+import type { ChatPageContext, ChatThreadSearchHit } from '@bt/shared/types';
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/components/chat/chat-context-label', () => ({
+  useChatContextLabel: () => ({
+    label: ({ context, names = {} }: { context: ChatPageContext; names?: Record<string, string> }) =>
+      context.entity
+        ? `Subscription: ${names[`${context.entity.kind}:${context.entity.id}`] ?? 'unnamed'}`
+        : context.filters
+          ? 'Transactions · filtered'
+          : null,
+  }),
+}));
 
 import ThreadListItem from './thread-list-item.vue';
 
@@ -15,6 +26,8 @@ const hit = (overrides: Partial<ChatThreadSearchHit> = {}): ChatThreadSearchHit 
   usage: { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 },
   connectionId: null,
   modelId: null,
+  pageContext: null,
+  pageContextNames: {},
   createdAt: '2026-03-05T10:00:00.000Z',
   ...overrides,
 });
@@ -26,6 +39,33 @@ const mountItem = ({ thread = hit(), active = false }: { thread?: ChatThreadSear
   });
 
 describe('ThreadListItem', () => {
+  it('shows where the conversation started, with the name of the entity', () => {
+    const wrapper = mountItem({
+      thread: hit({
+        pageContext: { route: 'dashboard.planned.subscription-details', entity: { kind: 'subscription', id: 's1' } },
+        pageContextNames: { 'subscription:s1': 'Spotify' },
+      }),
+    });
+
+    expect(wrapper.find('[data-testid="thread-context"]').text()).toBe('Subscription: Spotify');
+  });
+
+  it('shows a filtered list as such, and a neutral name for an entity that is gone', () => {
+    const filtered = mountItem({
+      thread: hit({ pageContext: { route: 'dashboard.transactions', filters: { tagIds: ['t'] } } }),
+    });
+    const gone = mountItem({
+      thread: hit({ pageContext: { entity: { kind: 'subscription', id: 's9' } }, pageContextNames: {} }),
+    });
+
+    expect(filtered.find('[data-testid="thread-context"]').text()).toBe('Transactions · filtered');
+    expect(gone.find('[data-testid="thread-context"]').text()).toBe('Subscription: unnamed');
+  });
+
+  it('shows no label for a conversation that started without a page', () => {
+    expect(mountItem().find('[data-testid="thread-context"]').exists()).toBe(false);
+  });
+
   it('shows the title and marks the open thread', () => {
     const wrapper = mountItem({ active: true });
 

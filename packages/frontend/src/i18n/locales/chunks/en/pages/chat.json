@@ -676,7 +676,8 @@
       },
       "context": {
         "remove": "Remove page context",
-        "label": "From this page: {label}"
+        "label": "Page: {label}",
+        "useThisPage": "Use this page"
       }
     },
     "connection": {

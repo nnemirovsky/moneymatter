@@ -151,10 +151,11 @@ test.describe('Chat page', () => {
       await composer.press('Enter');
 
       await expect(page.getByText('Your balance is 500.')).toBeVisible();
+      // The conversation keeps the page it started on: the thread is created with it, the message carries none.
+      const created = stub.calls.find((call) => call.method === 'POST' && call.path.endsWith('/threads'));
+      expect(created?.body).toMatchObject({ pageContext: { entity: { kind: 'account', id: accountId } } });
       const sent = stub.calls.find((call) => call.method === 'POST' && call.path.endsWith('/messages'));
-      expect(sent?.body).toMatchObject({
-        pageContext: { entity: { kind: 'account', id: accountId } },
-      });
+      expect(sent?.body).not.toHaveProperty('pageContext');
     });
   });
   test.describe('model picker', () => {

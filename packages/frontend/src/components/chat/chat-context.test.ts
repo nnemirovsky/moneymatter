@@ -3,7 +3,7 @@ import { ROUTES_NAMES } from '@/routes/constants';
 import { describe, expect, it } from 'vitest';
 import { createI18n } from 'vue-i18n';
 
-import { describeChatContext, hasChatContext } from './chat-context';
+import { describeChatContext, hasChatContext, isSameChatContext, toThreadContext } from './chat-context';
 
 const i18n = createI18n({ legacy: false, locale: 'en', messages: { en: enChat }, missingWarn: false });
 const t = (key: string, params?: Record<string, string>) => i18n.global.t(key, params ?? {});
@@ -102,5 +102,42 @@ describe('hasChatContext', () => {
     expect(hasChatContext({ context: null })).toBe(false);
     expect(hasChatContext({ context: {} })).toBe(false);
     expect(hasChatContext({ context: { filters: {} } })).toBe(false);
+  });
+});
+
+describe('toThreadContext', () => {
+  it('keeps the page and what it is about, and leaves out the drawer and the ticked rows', () => {
+    expect(
+      toThreadContext({
+        context: {
+          route: ROUTES_NAMES.transactions,
+          filters: { search: 'a' },
+          period: { from: '2026-03-01', to: '2026-03-31' },
+          focus: { kind: 'transaction', id: 't1' },
+          selection: { kind: 'transaction', ids: ['t1'] },
+        },
+      }),
+    ).toEqual({
+      route: ROUTES_NAMES.transactions,
+      filters: { search: 'a' },
+      period: { from: '2026-03-01', to: '2026-03-31' },
+    });
+  });
+});
+
+describe('isSameChatContext', () => {
+  it('ignores the order of keys, which stored JSON does not keep', () => {
+    expect(
+      isSameChatContext({
+        a: { route: 'r', entity: { kind: 'account', id: '1' } },
+        b: { entity: { id: '1', kind: 'account' }, route: 'r' },
+      }),
+    ).toBe(true);
+  });
+
+  it('tells a different page from the same one, and none from some', () => {
+    expect(isSameChatContext({ a: { route: 'r' }, b: { route: 'q' } })).toBe(false);
+    expect(isSameChatContext({ a: null, b: { route: 'r' } })).toBe(false);
+    expect(isSameChatContext({ a: null, b: null })).toBe(true);
   });
 });
