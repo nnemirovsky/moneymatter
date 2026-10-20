@@ -81,6 +81,8 @@ const CardLinkDialogStub = defineComponent({
             emit('saved', {
               id: 'm1' as RecordId,
               cardLabel: 'tbc visa',
+              lastDigits: null,
+              currencyCode: null,
               accountId: 'a1' as RecordId,
               createdAt: '',
             } satisfies CardMappingDto),
@@ -91,6 +93,8 @@ const CardLinkDialogStub = defineComponent({
             emit('saved', {
               id: 'm2' as RecordId,
               cardLabel: 'Revolut',
+              lastDigits: null,
+              currencyCode: null,
               accountId: 'a1' as RecordId,
               createdAt: '',
             } satisfies CardMappingDto),

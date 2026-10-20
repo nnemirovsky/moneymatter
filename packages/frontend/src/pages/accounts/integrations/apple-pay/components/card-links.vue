@@ -40,44 +40,89 @@
 
     <ul v-else class="flex flex-col gap-3">
       <li
-        v-for="mapping in mappings"
-        :key="mapping.id"
-        class="border-border flex flex-col gap-3 rounded-lg border p-4 @lg/integrations:flex-row @lg/integrations:items-center @lg/integrations:justify-between"
+        v-for="card in cards"
+        :key="card.cardLabel"
+        class="border-border flex flex-col gap-2 rounded-lg border p-4"
         data-testid="card-link-row"
       >
-        <div class="min-w-0 flex-1">
-          <div class="font-medium break-words" data-testid="card-link-label-text">{{ mapping.cardLabel }}</div>
-          <div class="text-muted-foreground mt-1 text-sm" data-testid="card-link-account-name">
-            {{ accountName({ accountId: mapping.accountId }) }}
+        <div class="flex items-center justify-between gap-2">
+          <div class="min-w-0 font-medium break-words" data-testid="card-link-label-text">
+            {{ card.cardLabel }}
+            <span v-if="card.lastDigits" class="text-muted-foreground ml-1 text-sm font-normal">
+              •••• {{ card.lastDigits }}
+            </span>
           </div>
-        </div>
 
-        <div class="flex gap-2 self-start @lg/integrations:self-center">
           <Button
             variant="outline"
             size="sm"
-            :aria-label="$t(`${LABEL_ROOT}.editAria`, { name: mapping.cardLabel })"
-            data-testid="card-link-edit"
-            @click="openEdit({ mapping })"
+            class="shrink-0"
+            :aria-label="$t(`${LABEL_ROOT}.addAccountAria`, { name: card.cardLabel })"
+            data-testid="card-link-add-account"
+            @click="openAddAccount({ card })"
           >
-            {{ $t(`${LABEL_ROOT}.edit`) }}
-          </Button>
-          <Button
-            variant="soft-destructive"
-            size="sm"
-            :aria-label="$t(`${LABEL_ROOT}.deleteAria`, { name: mapping.cardLabel })"
-            :disabled="isDeleting"
-            data-testid="card-link-delete"
-            @click="askToDelete({ mapping })"
-          >
-            {{ $t(`${LABEL_ROOT}.delete`) }}
+            <PlusIcon class="size-4" />
+            {{ $t(`${LABEL_ROOT}.addAccount`) }}
           </Button>
         </div>
+
+        <ul class="divide-border flex flex-col divide-y">
+          <li
+            v-for="mapping in card.mappings"
+            :key="mapping.id"
+            class="flex items-center gap-2 py-2 first:pt-0 last:pb-0"
+            data-testid="card-link-account-row"
+          >
+            <span
+              class="border-border text-muted-foreground shrink-0 rounded-[5px] border px-1.5 py-px text-[10.5px] font-bold tracking-wider"
+              data-testid="card-link-currency"
+            >
+              {{ mapping.currencyCode ?? $t(`${LABEL_ROOT}.defaultChip`) }}
+            </span>
+            <span class="text-muted-foreground min-w-0 flex-1 truncate text-sm" data-testid="card-link-account-name">
+              {{ accountName({ accountId: mapping.accountId }) }}
+            </span>
+
+            <Button
+              variant="outline"
+              size="sm"
+              :aria-label="$t(`${LABEL_ROOT}.editAria`, { name: rowName({ mapping }) })"
+              data-testid="card-link-edit"
+              @click="openEdit({ mapping })"
+            >
+              {{ $t(`${LABEL_ROOT}.edit`) }}
+            </Button>
+            <Button
+              variant="soft-destructive"
+              size="sm"
+              :aria-label="$t(`${LABEL_ROOT}.deleteAria`, { name: rowName({ mapping }) })"
+              :disabled="isDeleting"
+              data-testid="card-link-delete"
+              @click="askToDelete({ mapping })"
+            >
+              {{ $t(`${LABEL_ROOT}.delete`) }}
+            </Button>
+          </li>
+        </ul>
+
+        <p
+          v-if="!hasDefaultLink({ group: card })"
+          class="text-muted-foreground text-xs"
+          data-testid="card-link-no-default"
+        >
+          {{ $t(`${LABEL_ROOT}.noDefault`) }}
+        </p>
       </li>
     </ul>
   </section>
 
-  <CardLinkDialog v-model:open="isDialogOpen" :mapping="editTarget" />
+  <CardLinkDialog
+    v-model:open="isDialogOpen"
+    :mapping="editTarget"
+    :siblings="dialogSiblings"
+    :lock-label="!!addTarget"
+    :initial-label="addTarget?.cardLabel ?? ''"
+  />
 
   <ResponsiveAlertDialog
     v-model:open="isDeleteOpen"
@@ -87,7 +132,7 @@
   >
     <template #title>{{ $t(`${LABEL_ROOT}.deleteDialog.title`) }}</template>
     <template #description>
-      {{ $t(`${LABEL_ROOT}.deleteDialog.description`, { name: deleteTarget?.cardLabel ?? '' }) }}
+      {{ deleteDescription }}
     </template>
   </ResponsiveAlertDialog>
 </template>
@@ -106,6 +151,7 @@ import { useQuery } from '@tanstack/vue-query';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import { type CardLinkGroup, groupCardMappings, hasDefaultLink } from '../card-links';
 import CardLinkDialog from './card-link-dialog.vue';
 
 defineOptions({
@@ -119,6 +165,8 @@ const accountsStore = useAccountsStore();
 
 const isDialogOpen = ref(false);
 const editTarget = ref<CardMappingDto | null>(null);
+/** The card a new account is being added to; `null` while a whole new card is linked. */
+const addTarget = ref<CardLinkGroup | null>(null);
 const isDeleteOpen = ref(false);
 const deleteTarget = ref<CardMappingDto | null>(null);
 
@@ -128,6 +176,14 @@ const { data, isLoading, isError } = useQuery({
 });
 
 const mappings = computed(() => data.value ?? []);
+const cards = computed(() => groupCardMappings({ mappings: mappings.value }));
+
+/** The rows of the card the dialog works on: its currencies are not offered again. */
+const dialogSiblings = computed(() => addTarget.value?.mappings ?? []);
+
+/** The row as the buttons name it: the card, and its currency when it has one. */
+const rowName = ({ mapping }: { mapping: CardMappingDto }) =>
+  mapping.currencyCode ? `${mapping.cardLabel} ${mapping.currencyCode}` : mapping.cardLabel;
 
 const accountName = ({ accountId }: { accountId: CardMappingDto['accountId'] }) =>
   accountsStore.accountsRecord?.[accountId]?.name ?? t(`${LABEL_ROOT}.accountMissing`);
@@ -141,13 +197,30 @@ const { mutateAsync: remove, isPending: isDeleting } = useInvalidatingMutation({
 
 const openCreate = () => {
   editTarget.value = null;
+  addTarget.value = null;
+  isDialogOpen.value = true;
+};
+
+const openAddAccount = ({ card }: { card: CardLinkGroup }) => {
+  editTarget.value = null;
+  addTarget.value = card;
   isDialogOpen.value = true;
 };
 
 const openEdit = ({ mapping }: { mapping: CardMappingDto }) => {
   editTarget.value = mapping;
+  addTarget.value = null;
   isDialogOpen.value = true;
 };
+
+const deleteDescription = computed(() => {
+  const mapping = deleteTarget.value;
+  if (!mapping) return '';
+
+  return mapping.currencyCode
+    ? t(`${LABEL_ROOT}.deleteDialog.descriptionCurrency`, { name: mapping.cardLabel, currency: mapping.currencyCode })
+    : t(`${LABEL_ROOT}.deleteDialog.description`, { name: mapping.cardLabel });
+});
 
 const askToDelete = ({ mapping }: { mapping: CardMappingDto }) => {
   deleteTarget.value = mapping;

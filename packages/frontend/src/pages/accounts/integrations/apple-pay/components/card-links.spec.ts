@@ -26,21 +26,32 @@ vi.mock('@/components/common/responsive-alert-dialog.vue', async () => ({
   default: (await import('../test-support')).createResponsiveAlertDialogStub(),
 }));
 
-/** Records how the page drives the dialog: open state and which link it edits. */
+/** Records how the page drives the dialog: open state, which link it edits and which card it extends. */
 const CardLinkDialogStub = defineComponent({
   name: 'CardLinkDialogStub',
-  props: { open: { type: Boolean, default: false }, mapping: { type: Object, default: null } },
+  props: {
+    open: { type: Boolean, default: false },
+    mapping: { type: Object, default: null },
+    siblings: { type: Array, default: () => [] },
+    lockLabel: { type: Boolean, default: false },
+    initialLabel: { type: String, default: '' },
+  },
   setup: (props) => () =>
     h('div', {
       'data-testid': 'link-dialog',
       'data-open': String(props.open),
       'data-mapping-id': (props.mapping as CardMappingDto | null)?.id ?? '',
+      'data-siblings': (props.siblings as CardMappingDto[]).map((sibling) => sibling.id).join(','),
+      'data-lock-label': String(props.lockLabel),
+      'data-initial-label': props.initialLabel,
     }),
 });
 
 const makeMapping = (overrides: Partial<CardMappingDto> = {}): CardMappingDto => ({
   id: 'mapping-1' as RecordId,
   cardLabel: 'TBC Visa',
+  lastDigits: null,
+  currencyCode: null,
   accountId: 'account-1' as RecordId,
   createdAt: '2026-10-10T09:00:00.000Z',
   ...overrides,
@@ -56,6 +67,7 @@ const mountCardLinks = async (mappings: CardMappingDto[]) => {
 };
 
 const rows = (wrapper: VueWrapper) => wrapper.findAll('[data-testid="card-link-row"]');
+const accountRows = (row: ReturnType<typeof rows>[number]) => row.findAll('[data-testid="card-link-account-row"]');
 const dialog = (wrapper: VueWrapper) => wrapper.get('[data-testid="link-dialog"]');
 
 describe('CardLinks', () => {
@@ -75,6 +87,87 @@ describe('CardLinks', () => {
     expect(rows(wrapper)[0]!.get('[data-testid="card-link-label-text"]').text()).toBe('TBC Visa');
     expect(rows(wrapper)[0]!.get('[data-testid="card-link-account-name"]').text()).toBe('TBC main');
     expect(rows(wrapper)[1]!.get('[data-testid="card-link-account-name"]').text()).toBe('Cash GEL');
+    expect(rows(wrapper)[0]!.get('[data-testid="card-link-currency"]').text()).toBe('Default');
+  });
+
+  describe('a card in several currencies', () => {
+    const multiCurrencyCard = [
+      makeMapping({ id: 'default' as RecordId, lastDigits: '1234' }),
+      makeMapping({ id: 'gel' as RecordId, currencyCode: 'GEL', accountId: 'account-2' as RecordId }),
+      makeMapping({ id: 'usd' as RecordId, currencyCode: 'USD', accountId: 'account-1' as RecordId }),
+    ];
+
+    it('shows the card once with its default and each currency account', async () => {
+      const wrapper = await mountCardLinks(multiCurrencyCard);
+
+      expect(rows(wrapper)).toHaveLength(1);
+      expect(rows(wrapper)[0]!.get('[data-testid="card-link-label-text"]').text()).toContain('•••• 1234');
+
+      const accounts = accountRows(rows(wrapper)[0]!);
+      expect(accounts.map((row) => row.get('[data-testid="card-link-currency"]').text())).toEqual([
+        'Default',
+        'GEL',
+        'USD',
+      ]);
+      expect(accounts.map((row) => row.get('[data-testid="card-link-account-name"]').text())).toEqual([
+        'TBC main',
+        'Cash GEL',
+        'TBC main',
+      ]);
+      expect(wrapper.find('[data-testid="card-link-no-default"]').exists()).toBe(false);
+    });
+
+    it('keeps two cards apart', async () => {
+      const wrapper = await mountCardLinks([
+        ...multiCurrencyCard,
+        makeMapping({ id: 'revolut' as RecordId, cardLabel: 'Revolut' }),
+      ]);
+
+      expect(rows(wrapper)).toHaveLength(2);
+      expect(accountRows(rows(wrapper)[1]!)).toHaveLength(1);
+    });
+
+    it('says a card has no default account when it has only currency rows', async () => {
+      const wrapper = await mountCardLinks([multiCurrencyCard[1]!]);
+
+      expect(wrapper.get('[data-testid="card-link-no-default"]').text()).toContain('No default account');
+    });
+
+    it('opens the dialog to add an account under this card', async () => {
+      const wrapper = await mountCardLinks([
+        ...multiCurrencyCard,
+        makeMapping({ id: 'revolut' as RecordId, cardLabel: 'Revolut' }),
+      ]);
+
+      await rows(wrapper)[0]!.get('[data-testid="card-link-add-account"]').trigger('click');
+
+      expect(dialog(wrapper).attributes('data-open')).toBe('true');
+      expect(dialog(wrapper).attributes('data-mapping-id')).toBe('');
+      expect(dialog(wrapper).attributes('data-lock-label')).toBe('true');
+      expect(dialog(wrapper).attributes('data-initial-label')).toBe('TBC Visa');
+      expect(dialog(wrapper).attributes('data-siblings')).toBe('default,gel,usd');
+    });
+
+    it('opens the dialog on the row being edited, not on the whole card', async () => {
+      const wrapper = await mountCardLinks(multiCurrencyCard);
+
+      await accountRows(rows(wrapper)[0]!)[1]!.get('[data-testid="card-link-edit"]').trigger('click');
+
+      expect(dialog(wrapper).attributes('data-mapping-id')).toBe('gel');
+      expect(dialog(wrapper).attributes('data-lock-label')).toBe('false');
+    });
+
+    it('deletes one currency row and says where its payments go', async () => {
+      const wrapper = await mountCardLinks(multiCurrencyCard);
+
+      await accountRows(rows(wrapper)[0]!)[1]!.get('[data-testid="card-link-delete"]').trigger('click');
+
+      expect(wrapper.get('[data-testid="alert-dialog"]').text()).toContain('in GEL will go to the card');
+      await wrapper.get('[data-testid="alert-confirm"]').trigger('click');
+      await flushPromises();
+
+      expect(mockDeleteMapping).toHaveBeenCalledWith({ id: 'gel' });
+    });
   });
 
   it('says so when the linked account is gone', async () => {
@@ -107,6 +200,7 @@ describe('CardLinks', () => {
 
     expect(dialog(wrapper).attributes('data-open')).toBe('true');
     expect(dialog(wrapper).attributes('data-mapping-id')).toBe('');
+    expect(dialog(wrapper).attributes('data-lock-label')).toBe('false');
   });
 
   it('opens the dialog on the link being edited', async () => {

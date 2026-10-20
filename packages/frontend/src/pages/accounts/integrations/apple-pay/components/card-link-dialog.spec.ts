@@ -51,9 +51,13 @@ const LOAN = makeAccount({ id: 'loan' as RecordId, accountCategory: ACCOUNT_CATE
 const VEHICLE = makeAccount({ id: 'vehicle' as RecordId, accountCategory: ACCOUNT_CATEGORIES.vehicle });
 const SHARED_IN = makeAccount({ id: 'shared-in' as RecordId, share: { isOwner: false } as never });
 
+const USD_ACCOUNT = makeAccount({ id: 'usd' as RecordId, name: 'Dollars', currencyCode: 'USD' });
+
 const MAPPING: CardMappingDto = {
   id: 'mapping-1' as RecordId,
   cardLabel: 'TBC Visa',
+  lastDigits: null,
+  currencyCode: null,
   accountId: 'owned' as RecordId,
   createdAt: '2026-10-10T09:00:00.000Z',
 };
@@ -90,11 +94,53 @@ const AccountSelectStub = defineComponent({
   },
 });
 
+/** Lists the currencies it was offered and lets a test pick one by its value. */
+const CurrencySelectStub = defineComponent({
+  name: 'SelectFieldStub',
+  props: {
+    modelValue: { type: Object, default: null },
+    values: { type: Array, default: () => [] },
+    disabled: { type: Boolean, default: false },
+  },
+  emits: ['update:modelValue'],
+  setup(props, { emit }) {
+    type Option = { value: string; label: string };
+
+    return () =>
+      h('div', [
+        h(
+          'select',
+          {
+            'data-testid': 'currency-select',
+            disabled: props.disabled,
+            value: (props.modelValue as Option | null)?.value ?? '',
+            onChange: (event: Event) => {
+              const value = (event.target as HTMLSelectElement).value;
+              emit('update:modelValue', (props.values as Option[]).find((option) => option.value === value) ?? null);
+            },
+          },
+          (props.values as Option[]).map((option) => h('option', { value: option.value }, option.label)),
+        ),
+      ]);
+  },
+});
+
 const mountDialog = (props: Record<string, unknown> = {}) =>
   mount(CardLinkDialog, {
     props: { open: true, ...props },
-    global: { plugins: createGlobalPlugins().plugins, stubs: { AccountSelectField: AccountSelectStub } },
+    global: {
+      plugins: createGlobalPlugins().plugins,
+      stubs: { AccountSelectField: AccountSelectStub, SelectField: CurrencySelectStub },
+    },
   });
+
+const currencyValues = (wrapper: VueWrapper) =>
+  wrapper.findAll('[data-testid="currency-select"] option').map((option) => option.attributes('value'));
+const accountValues = (wrapper: VueWrapper) =>
+  wrapper.findAll('[data-testid="account-select"] option').map((option) => option.attributes('value'));
+const pickCurrency = async (wrapper: VueWrapper, value: string) => {
+  await wrapper.get('[data-testid="currency-select"]').setValue(value);
+};
 
 const labelInput = (wrapper: VueWrapper) =>
   wrapper.get('[data-testid="card-link-label"] input, input[data-testid="card-link-label"]');
@@ -199,6 +245,93 @@ describe('CardLinkDialog', () => {
 
       expect(mockUpdate).not.toHaveBeenCalled();
       expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false]);
+    });
+  });
+
+  describe('one card in several currencies', () => {
+    beforeEach(() => {
+      mockAccountsStore.accounts = [OWNED, OTHER, USD_ACCOUNT];
+    });
+
+    it('starts on the default and offers it with every currency the accounts are in', () => {
+      const wrapper = mountDialog();
+
+      expect(currencyValues(wrapper)).toEqual(['default', 'GEL', 'USD']);
+      expect((wrapper.get('[data-testid="currency-select"]').element as HTMLSelectElement).value).toBe('default');
+      expect(wrapper.get('[data-testid="card-link-currency-hint"]').text()).toContain('without an account of its own');
+    });
+
+    it('adds an account for one currency and sends the currency', async () => {
+      const wrapper = mountDialog();
+
+      await labelInput(wrapper).setValue('TBC Visa');
+      await pickCurrency(wrapper, 'USD');
+      await pickAccount(wrapper, 'usd');
+      await submit(wrapper);
+
+      expect(mockCreate).toHaveBeenCalledWith({ cardLabel: 'TBC Visa', accountId: 'usd', currencyCode: 'USD' });
+      expect(wrapper.get('[data-testid="card-link-currency-hint"]').text()).toContain('in this currency');
+    });
+
+    it('offers only the accounts in the chosen currency', async () => {
+      const wrapper = mountDialog();
+
+      expect(accountValues(wrapper)).toEqual(['owned', 'other', 'usd']);
+
+      await pickCurrency(wrapper, 'GEL');
+      expect(accountValues(wrapper)).toEqual(['owned', 'other']);
+
+      await pickCurrency(wrapper, 'USD');
+      expect(accountValues(wrapper)).toEqual(['usd']);
+    });
+
+    it('drops an account that does not fit the currency picked after it', async () => {
+      const wrapper = mountDialog();
+      await labelInput(wrapper).setValue('TBC Visa');
+      await pickAccount(wrapper, 'owned');
+
+      await pickCurrency(wrapper, 'USD');
+      await submit(wrapper);
+
+      expect(mockCreate).not.toHaveBeenCalled();
+      expect(wrapper.get('[data-testid="account-error"]').text()).toBe('Select an account.');
+    });
+
+    it('adds under an existing card: the name is fixed and taken currencies are not offered', () => {
+      const siblings: CardMappingDto[] = [
+        MAPPING,
+        { ...MAPPING, id: 'mapping-2' as RecordId, currencyCode: 'GEL', accountId: 'owned' as RecordId },
+      ];
+
+      const wrapper = mountDialog({ initialLabel: 'TBC Visa', lockLabel: true, siblings });
+
+      expect(currencyValues(wrapper)).toEqual(['USD']);
+      expect((labelInput(wrapper).element as HTMLInputElement).value).toBe('TBC Visa');
+      expect(labelInput(wrapper).attributes('disabled')).toBeDefined();
+      expect(wrapper.text()).toContain('Add an account');
+    });
+
+    it('offers the default to a card that has only currency rows', () => {
+      const siblings: CardMappingDto[] = [{ ...MAPPING, currencyCode: 'GEL' }];
+
+      const wrapper = mountDialog({ initialLabel: 'TBC Visa', lockLabel: true, siblings });
+
+      expect(currencyValues(wrapper)).toEqual(['default', 'USD']);
+    });
+
+    it('keeps the currency of an edited row, which cannot change', () => {
+      const wrapper = mountDialog({ mapping: { ...MAPPING, currencyCode: 'GEL' } });
+
+      expect(currencyValues(wrapper)).toEqual(['GEL']);
+      expect(wrapper.get('[data-testid="currency-select"]').attributes('disabled')).toBeDefined();
+      expect(accountValues(wrapper)).toEqual(['owned', 'other']);
+    });
+
+    it('edits the default row, which any account can serve', () => {
+      const wrapper = mountDialog({ mapping: MAPPING });
+
+      expect(currencyValues(wrapper)).toEqual(['default']);
+      expect(accountValues(wrapper)).toEqual(['owned', 'other', 'usd']);
     });
   });
 

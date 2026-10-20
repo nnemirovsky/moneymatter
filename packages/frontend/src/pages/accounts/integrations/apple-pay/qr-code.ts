@@ -4,8 +4,9 @@ import { encode } from 'uqr';
 export const QR_QUIET_ZONE_MODULES = 4;
 
 /**
- * A setup code is 2 KB at most; 'M' error correction fits that in a version-40 symbol and
- * survives a smudged or glare-covered screen better than 'L'.
+ * A setup code without a gate pattern is 2 KB at most; 'M' error correction fits that in a
+ * version-40 symbol and survives a smudged or glare-covered screen better than 'L'. A code that
+ * carries a gate is longer and does not fit: `encode` throws and the dialog offers the text only.
  */
 const ERROR_CORRECTION = 'M';
 

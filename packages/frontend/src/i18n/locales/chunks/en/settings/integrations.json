@@ -113,7 +113,7 @@
         },
         "cardLinks": {
           "title": "Card links",
-          "description": "Apple Wallet gives each card a name. Link that name to the account its payments should be logged on. A payment from a card without a link waits until you link it.",
+          "description": "Apple Wallet gives each card a name. Link that name to the account its payments should be logged on. A card in several currencies can have an account for each currency and a default for the rest. A payment from a card without a link waits until you link it.",
           "add": "Link a card",
           "loadError": "Could not load your card links. Check your connection and try again.",
           "empty": {
@@ -138,15 +138,26 @@
             "save": "Save",
             "createSuccess": "Card linked",
             "updateSuccess": "Card link updated",
-            "saveError": "Could not save the card link"
+            "saveError": "Could not save the card link",
+            "addAccountTitle": "Add an account",
+            "currency": "Currency",
+            "currencyPlaceholder": "Select a currency",
+            "currencyDefault": "Default (other currencies)",
+            "currencyHint": "Payments in this currency are logged on this account.",
+            "currencyDefaultHint": "Payments in a currency without an account of its own are logged here."
           },
           "deleteDialog": {
             "title": "Delete this card link?",
             "description": "Payments from {name} will wait for a new link instead of being logged. Payments already logged stay as they are.",
             "confirm": "Delete link",
             "success": "Card link deleted",
-            "error": "Could not delete the card link"
-          }
+            "error": "Could not delete the card link",
+            "descriptionCurrency": "Payments from {name} in {currency} will go to the card's default account, or wait if it has none. Payments already logged stay as they are."
+          },
+          "addAccount": "Add account",
+          "addAccountAria": "Add an account to {name}",
+          "defaultChip": "Default",
+          "noDefault": "No default account. Payments in a currency without an account of its own wait until you add one."
         },
         "unlinked": {
           "title": "Cards without a link",
