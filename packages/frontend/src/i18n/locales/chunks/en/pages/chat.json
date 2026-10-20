@@ -716,6 +716,8 @@
         "totalTooLarge": "Attachments can be up to {max} MB in total.",
         "unsupported": "{name} is not a supported file. Attach an image, PDF, CSV or text file.",
         "uploadFailed": "{name} could not be attached.",
+        "uploadRefused": "{name} could not be attached: {reason}",
+        "unreadableImage": "{name} could not be read as an image. Try a screenshot or a JPEG, PNG or WebP photo.",
         "uploading": "Uploading {name}",
         "passwordPlaceholder": "PDF password",
         "unlock": "Unlock"

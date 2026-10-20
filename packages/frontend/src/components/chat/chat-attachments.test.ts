@@ -98,5 +98,7 @@ describe('planChatAttachments', () => {
     expect(CHAT_ATTACHMENT_ACCEPT).toContain('.pdf');
     expect(CHAT_ATTACHMENT_ACCEPT).toContain('image/png');
     expect(CHAT_ATTACHMENT_ACCEPT).toContain('.csv');
+    expect(CHAT_ATTACHMENT_ACCEPT).toContain('.heic');
+    expect(CHAT_ATTACHMENT_ACCEPT).toContain('image/heic');
   });
 });

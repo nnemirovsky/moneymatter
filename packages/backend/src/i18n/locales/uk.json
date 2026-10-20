@@ -573,6 +573,7 @@
     "fileTooSmall": "Файл замалий, щоб бути коректною випискою.",
     "unsupportedFileType": "Непідтримуваний тип файлу. Завантажте файл PDF, CSV або TXT.",
     "unsupportedFileTypeWithImages": "Непідтримуваний тип файлу. Завантажте файл PDF, CSV, TXT, JPG, PNG або WebP.",
+    "heicNotSupported": "HEIC photos cannot be read here. Convert the photo to JPEG or take a screenshot, then attach it again.",
     "aiResponseUnparseable": "Відповідь AI мала неочікуваний формат. Спробуйте вилучити дані ще раз або виберіть іншу модель.",
     "allRowsDropped_one": "Модель повернула {{count}} рядок, але в ньому немає ні придатної для читання дати, ні додатної суми. Спробуйте вилучити дані ще раз або виберіть іншу модель.",
     "allRowsDropped_few": "Модель повернула {{count}} рядки, але в жодному з них немає одночасно придатної для читання дати та додатної суми. Спробуйте вилучити дані ще раз або виберіть іншу модель.",

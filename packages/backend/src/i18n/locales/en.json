@@ -571,6 +571,7 @@
     "fileTooSmall": "File is too small to be a valid statement.",
     "unsupportedFileType": "Unsupported file type. Please upload a PDF, CSV or TXT file.",
     "unsupportedFileTypeWithImages": "Unsupported file type. Please upload a PDF, CSV, TXT, JPG, PNG or WebP file.",
+    "heicNotSupported": "HEIC photos cannot be read here. Convert the photo to JPEG or take a screenshot, then attach it again.",
     "aiResponseUnparseable": "The AI response was not in the expected format. Try extracting again, or switch to a different model.",
     "allRowsDropped_one": "The model returned {{count}} row, but it had no readable date and positive amount. Try extracting again, or switch to a different model.",
     "allRowsDropped_other": "The model returned {{count}} rows, but none of them had both a readable date and a positive amount. Try extracting again, or switch to a different model.",

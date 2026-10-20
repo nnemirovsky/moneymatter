@@ -5,6 +5,7 @@ import TextareaField from '@/components/fields/textarea-field.vue';
 import { Button } from '@/components/lib/ui/button';
 import { DesktopOnlyTooltip } from '@/components/lib/ui/tooltip';
 import { extractApiErrorMessage } from '@/js/errors';
+import { fitImageForUpload } from '@/pages/import-export/statement-parser/utils/fit-image-for-upload';
 import { cn } from '@/lib/utils';
 import type { ChatAttachment } from '@bt/shared/types';
 import { FileTextIcon, Loader2Icon, PaperclipIcon, SendIcon, SquareIcon, XIcon } from '@lucide/vue';
@@ -12,7 +13,12 @@ import { useMediaQuery } from '@vueuse/core';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import { CHAT_ATTACHMENT_ACCEPT, type ChatAttachmentProblem, planChatAttachments } from './chat-attachments';
+import {
+  CHAT_ATTACHMENT_ACCEPT,
+  type ChatAttachmentProblem,
+  isImageFile,
+  planChatAttachments,
+} from './chat-attachments';
 
 const props = withDefaults(
   defineProps<{
@@ -95,16 +101,43 @@ const upload = async ({ item, threadId }: { item: PendingAttachment; threadId: s
       return;
     }
     drop({ localId: item.localId });
-    reportProblem({ key: 'chat.composer.attachments.uploadFailed', params: { name: item.file.name } });
+    const reason = extractApiErrorMessage(error);
+    reportProblem(
+      reason
+        ? { key: 'chat.composer.attachments.uploadRefused', params: { name: item.file.name, reason } }
+        : { key: 'chat.composer.attachments.uploadFailed', params: { name: item.file.name } },
+    );
   }
 };
 
+/**
+ * Shrinks images and turns HEIC/HEIF into JPEG before upload. The browser decodes them because the
+ * server never does; Safari can read HEIC, other engines cannot and the file is reported as unreadable.
+ */
+const prepareFiles = async ({ files }: { files: File[] }) => {
+  const prepared: File[] = [];
+  const unreadable: ChatAttachmentProblem[] = [];
+  for (const file of files) {
+    if (!isImageFile({ file })) {
+      prepared.push(file);
+      continue;
+    }
+    try {
+      prepared.push(await fitImageForUpload({ file }));
+    } catch {
+      unreadable.push({ key: 'chat.composer.attachments.unreadableImage', params: { name: file.name } });
+    }
+  }
+  return { prepared, unreadable };
+};
+
 const addFiles = async ({ files }: { files: File[] }) => {
+  const { prepared, unreadable } = await prepareFiles({ files });
   const plan = planChatAttachments({
     current: attachments.value.map((item) => ({ sizeBytes: item.file.size })),
-    incoming: files,
+    incoming: prepared,
   });
-  problems.value = plan.problems;
+  problems.value = [...unreadable, ...plan.problems];
   if (plan.accepted.length === 0) return;
 
   const added = plan.accepted.map(
