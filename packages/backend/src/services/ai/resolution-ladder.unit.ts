@@ -226,6 +226,47 @@ const pickChat = ({
   connections?: LadderConnection[];
 } = {}) => pickResolutionStep({ feature: AI_FEATURE.chat, config, connections, serverKeysAllowed: true });
 
+describe('included server models', () => {
+  const envBeforeTest = new Map<string, string | undefined>();
+
+  beforeEach(() => {
+    for (const envVar of SERVER_KEY_ENV_VARS) {
+      envBeforeTest.set(envVar, process.env[envVar]);
+      delete process.env[envVar];
+    }
+  });
+
+  afterEach(() => {
+    for (const envVar of SERVER_KEY_ENV_VARS) {
+      const value = envBeforeTest.get(envVar);
+      if (value === undefined) delete process.env[envVar];
+      else process.env[envVar] = value;
+    }
+  });
+
+  it('cover every feature except chat, which needs a connection of its own', () => {
+    const covered = Object.values(AI_FEATURE).filter((feature) => FALLBACK_SERVER_MODELS[feature]);
+
+    expect(covered.toSorted()).toEqual(
+      Object.values(AI_FEATURE)
+        .filter((feature) => feature !== AI_FEATURE.chat)
+        .toSorted(),
+    );
+  });
+
+  it.each([AI_FEATURE.notificationParsing, AI_FEATURE.duplicateMatching])(
+    'runs %s on a cheap and fast model while the primary key is missing',
+    (feature) => {
+      process.env.GEMINI_API_KEY = 'server-key';
+
+      expect(getServerModel({ feature, serverKeysAllowed: true })).toEqual({
+        provider: AI_PROVIDER.google,
+        model: 'gemini-3.5-flash-lite',
+      });
+    },
+  );
+});
+
 describe('chat feature', () => {
   const envBeforeTest = new Map<string, string | undefined>();
 

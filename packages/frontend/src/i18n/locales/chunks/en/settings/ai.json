@@ -99,14 +99,18 @@
           "statementParsing": "Reads the whole statement and writes back every row, so it needs a model that stays accurate over long text.",
           "investmentTransactionsParsing": "Turns broker exports into buy and sell rows. Long exports need a model that can write long answers.",
           "receiptParsing": "The model looks at the invoice file itself, so it has to read images and PDFs.",
-          "trackerMatching": "A short, repetitive job that runs every day. A small model handles it well and keeps the cost down."
+          "trackerMatching": "A short, repetitive job that runs every day. A small model handles it well and keeps the cost down.",
+          "notificationParsing": "Reads a short notification and fills in a few fields, on every payment. A small, fast model handles it well and keeps the cost down.",
+          "duplicateMatching": "Compares one payment with a short list of look-alikes. A small, fast model handles it well and keeps the cost down."
         },
         "picks": {
           "categorization": "Gemini Flash Lite · Claude Haiku",
           "statementParsing": "Gemini Flash · Claude Sonnet · GPT Terra",
           "investmentTransactionsParsing": "Gemini Flash · Claude Sonnet",
           "receiptParsing": "Gemini Flash · Claude Sonnet",
-          "trackerMatching": "Gemini Flash Lite · Claude Haiku"
+          "trackerMatching": "Gemini Flash Lite · Claude Haiku",
+          "notificationParsing": "Gemini Flash Lite · Claude Haiku",
+          "duplicateMatching": "Gemini Flash Lite · Claude Haiku"
         },
         "verdict": {
           "fit": "Good fit",

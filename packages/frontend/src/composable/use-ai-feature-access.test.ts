@@ -72,6 +72,18 @@ describe('useAiFeatureAccess', () => {
     expect(access.isTrialAvailable.value).toBe(false);
   });
 
+  it.each([AI_FEATURE.notificationParsing, AI_FEATURE.duplicateMatching])(
+    'gates %s on operator_ai like any unlisted feature, with no day trial',
+    (aiFeature) => {
+      gate({ features: [FEATURES.operator_ai] });
+      const access = useAiFeatureAccess({ aiFeature });
+
+      expect(access.isPlanGated.value).toBe(true);
+      expect(access.trialDays).toBeNull();
+      expect(access.isTrialAvailable.value).toBe(false);
+    },
+  );
+
   it('reports a failed trial start instead of throwing', async () => {
     gate({ features: [FEATURES.smart_tracking] });
     userStore.startFeatureTrial.mockRejectedValueOnce(new Error('boom'));

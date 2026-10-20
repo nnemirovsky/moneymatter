@@ -1,5 +1,13 @@
 import { type AIFeatureStatus, AI_FEATURE } from '@bt/shared/types';
-import { FileTextIcon, LineChartIcon, ListChecksIcon, ReceiptIcon, TagIcon } from '@lucide/vue';
+import {
+  BellRingIcon,
+  FileTextIcon,
+  GitMergeIcon,
+  LineChartIcon,
+  ListChecksIcon,
+  ReceiptIcon,
+  TagIcon,
+} from '@lucide/vue';
 import type { Component } from 'vue';
 
 export type AIModelTier = 'light' | 'balanced' | 'smart';
@@ -114,6 +122,36 @@ const AI_FEATURE_DISPLAY_INFO: Record<ConfigurableAIFeature, AIFeatureDisplayInf
       needs: ['textOnly', 'runsOften', 'structuredAnswers'],
       whyKey: 'settings.ai.modelGuide.why.trackerMatching',
       picksKey: 'settings.ai.modelGuide.picks.trackerMatching',
+    },
+    howItWorksKeys: [],
+  },
+  [AI_FEATURE.notificationParsing]: {
+    nameKey: 'common.aiFeatures.notificationParsing.name',
+    descriptionKey: 'common.aiFeatures.notificationParsing.description',
+    icon: BellRingIcon,
+    // The notification text, a few payee candidates and the rules in; a few fields out
+    tokensPerUnit: { input: 450, output: 80 },
+    unitLabelKey: 'settings.ai.modelSelector.modelInfo.per100Transactions',
+    modelGuide: {
+      tier: 'light',
+      needs: ['textOnly', 'runsOften', 'structuredAnswers'],
+      whyKey: 'settings.ai.modelGuide.why.notificationParsing',
+      picksKey: 'settings.ai.modelGuide.picks.notificationParsing',
+    },
+    howItWorksKeys: [],
+  },
+  [AI_FEATURE.duplicateMatching]: {
+    nameKey: 'common.aiFeatures.duplicateMatching.name',
+    descriptionKey: 'common.aiFeatures.duplicateMatching.description',
+    icon: GitMergeIcon,
+    // One new payment and a short table of look-alike rows in, a few scored matches out
+    tokensPerUnit: { input: 300, output: 40 },
+    unitLabelKey: 'settings.ai.modelSelector.modelInfo.per100Transactions',
+    modelGuide: {
+      tier: 'light',
+      needs: ['textOnly', 'runsOften', 'structuredAnswers'],
+      whyKey: 'settings.ai.modelGuide.why.duplicateMatching',
+      picksKey: 'settings.ai.modelGuide.picks.duplicateMatching',
     },
     howItWorksKeys: [],
   },

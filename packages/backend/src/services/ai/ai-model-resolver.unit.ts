@@ -184,6 +184,32 @@ describe('resolveAIConfiguration', () => {
     });
   });
 
+  it.each([AI_FEATURE.notificationParsing, AI_FEATURE.duplicateMatching])(
+    'serves %s from the server key with operator_ai, and from the pinned connection without it',
+    async (feature) => {
+      expect(await resolveAIConfiguration({ userId: USER_ID, feature })).toBeNull();
+
+      grantEntitlements({ features: [FEATURES.operator_ai] });
+      expect(await resolveAIConfiguration({ userId: USER_ID, feature })).toMatchObject({
+        kind: 'server',
+        modelId: buildConnectionModelId(FALLBACK_SERVER_MODELS[feature]!),
+        usingUserKey: false,
+      });
+
+      grantEntitlements();
+      decryptConnectionKeyMock.mockReturnValue('user-key');
+      storeSettings({
+        connections: [OLLAMA, CLAUDE],
+        featureConfigs: [{ feature, connectionId: CLAUDE.id }],
+      });
+      expect(await resolveAIConfiguration({ userId: USER_ID, feature })).toMatchObject({
+        kind: 'connection',
+        connectionId: CLAUDE.id,
+        usingUserKey: true,
+      });
+    },
+  );
+
   it('dials a native connection with its decrypted key and a provider/model id', async () => {
     storeSettings({ connections: [CLAUDE] });
     decryptConnectionKeyMock.mockReturnValue('user-key');

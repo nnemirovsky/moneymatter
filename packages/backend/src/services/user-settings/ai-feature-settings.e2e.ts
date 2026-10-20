@@ -250,6 +250,36 @@ describe('AI feature settings', () => {
       expect(otherFeature).toMatchObject({ isConfigured: false, connectionId: first.id });
     });
 
+    it.each([AI_FEATURE.notificationParsing, AI_FEATURE.duplicateMatching])(
+      'lists, pins and resets %s like any other feature',
+      async (feature) => {
+        const userId = await getTestUserId();
+        const first = await createFirstConnection();
+        const second = await createSecondConnection();
+
+        expect(await helpers.getAiFeatureConfig({ feature, raw: true })).toMatchObject({
+          feature,
+          isConfigured: false,
+          servedBy: 'connection',
+          connectionId: first.id,
+        });
+
+        const pinned = await helpers.setAiFeatureConfig({ feature, connectionId: second.id, raw: true });
+        expect(pinned).toMatchObject({
+          feature,
+          isConfigured: true,
+          servedBy: 'connection',
+          connectionId: second.id,
+          modelId: SECOND_MODEL_ID,
+        });
+        expect(await readStoredFeatureConfigs({ userId })).toEqual([{ feature, connectionId: second.id }]);
+
+        const reset = await helpers.resetAiFeatureConfig({ feature, raw: true });
+        expect(reset).toMatchObject({ isConfigured: false, connectionId: first.id });
+        expect(await readStoredFeatureConfigs({ userId })).toEqual([]);
+      },
+    );
+
     it('makes no outbound call when a feature is pointed at a connection', async () => {
       await createFirstConnection();
       const second = await createSecondConnection();

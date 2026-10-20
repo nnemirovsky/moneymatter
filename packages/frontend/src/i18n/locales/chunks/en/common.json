@@ -141,6 +141,14 @@
       "trackerMatching": {
         "name": "Tracker matching",
         "description": "Scans new transactions and suggests the ones that belong to a smart tracker."
+      },
+      "notificationParsing": {
+        "name": "Payment notifications",
+        "description": "Reads bank notifications from your iPhone and logs the payments they describe."
+      },
+      "duplicateMatching": {
+        "name": "Duplicate matching",
+        "description": "Compares a new payment with similar transactions and suggests the ones that look like the same payment."
       }
     },
     "transactions": {
