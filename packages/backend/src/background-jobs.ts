@@ -35,6 +35,7 @@ import { chatTailHub } from './services/chat/runs/tail-hub';
 import { initializeHistoricalRates } from './services/exchange-rates/initialize-historical-rates.service';
 import { duplicateScanWorker } from './services/ingest/dedup/duplicate-scan-queue';
 import { notificationIngestWorker } from './services/ingest/event/notification-queue';
+import { ingestFollowUpWorker } from './services/ingest/follow-up-queue';
 
 const allEnvCrons = [demoCleanupCron, demoTemplateRefreshCron];
 
@@ -106,6 +107,7 @@ export async function shutdownBackgroundJobs() {
   await accountSyncWorker.close();
   await notificationIngestWorker.close();
   await duplicateScanWorker.close();
+  await ingestFollowUpWorker.close();
   await assistantPushWorker.close();
   // Flush remaining PostHog events before exit
   await shutdownPostHog();

@@ -16,12 +16,13 @@ const BASE = global.BASE_CURRENCY_CODE;
 
 const DEFAULT_TIMINGS = { ...notificationTimings };
 
-const push = ({ merchant }: { merchant: string }) => ({
+/** `amount` differs between two pushes of one test: the same text within seconds folds into one request. */
+const push = ({ merchant, amount = '43.60' }: { merchant: string; amount?: string }) => ({
   kind: 'notification',
   app: 'TBC Bank',
   title: 'TBC Bank',
   subtitle: '',
-  body: `Purchase ${BASE} 43.60, ${merchant}`,
+  body: `Purchase ${BASE} ${amount}, ${merchant}`,
   idempotencyKey: `key-${randomUUID()}`,
 });
 
@@ -75,7 +76,10 @@ describe('payee resolution of a notification', () => {
     const secret = await setUp();
 
     const first = await ingestHelpers.postIngestEvent({ secret, body: push({ merchant: 'WOLT.COM TBILISI' }) });
-    const second = await ingestHelpers.postIngestEvent({ secret, body: push({ merchant: 'WOLT.COM TBILISI' }) });
+    const second = await ingestHelpers.postIngestEvent({
+      secret,
+      body: push({ merchant: 'WOLT.COM TBILISI', amount: '44.60' }),
+    });
 
     expect(first.body.response.outcome).toBe('logged');
     expect(second.body.response.outcome).toBe('logged');

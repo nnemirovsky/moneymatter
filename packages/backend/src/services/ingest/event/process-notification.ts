@@ -1,22 +1,22 @@
 import type { RecordId } from '@bt/shared/types';
 import { NOTIFICATION_SOURCE_TRUSTED_MODES } from '@bt/shared/types';
-import { getCurrencyDecimals } from '@common/lib/currency-precision';
 import { ExchangeRateUnavailableError } from '@js/errors';
 import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
 import { isBaseCurrencyChangeLocked } from '@services/currencies/base-currency-lock';
 
-import { afterPaymentLogged } from '../after-payment-logged';
 import { categorizeAfterCommit } from '../card-payment/categorize-after-commit';
-import { formatSummary, type SummaryAmount } from '../card-payment/format-summary';
+import { formatSummary } from '../card-payment/format-summary';
 import { CardPaymentRateUnavailableError } from '../card-payment/rate-unavailable-error';
 import { readUserLocale } from '../card-payment/read-user-locale';
+import { enqueueAfterPaymentLogged } from '../follow-up-queue';
 import { listNonZeroCurrencies } from './balance-authority';
 import type { ClassifiedNotification, ParsedPayment } from './classify-notification';
 import { notificationTimings } from './constants';
 import { loadSiblingBalances } from './load-sibling-balances';
 import { logNotificationPayment } from './log-notification-payment';
 import type { PaymentOverride } from './log-notification-payment';
+import { buildNeedsOkSummary } from './needs-ok-summary';
 import { decryptNotificationText, type NotificationText } from './notification-text';
 import { parseNotificationWithAi } from './parse-notification-with-ai';
 import { parseWalletNotification } from './parse-wallet-notification';
@@ -47,41 +47,6 @@ const wordsOf = ({ value }: { value: string | null }) => (value ?? '').split(/\s
 const textOf = ({ text }: { text: NotificationText }) =>
   [text.title, text.subtitle, text.body, text.raw ?? ''].filter(Boolean).join('\n');
 
-/** The summary of a payment that needs the owner, which names the amount only when a currency is known. */
-const needsOkSummary = async ({
-  userId,
-  payment,
-  source,
-  locale,
-}: {
-  userId: number;
-  payment: ParsedPayment | null;
-  source: string;
-  locale: string;
-}) => {
-  let amount: SummaryAmount | null = null;
-  if (payment?.currencyCode) {
-    let decimals = 2;
-    try {
-      decimals = await getCurrencyDecimals({ userId, code: payment.currencyCode });
-    } catch {
-      // An unpriced code keeps the common two decimals in the line that names it.
-    }
-    amount = { amount: Number(payment.amount), currencyCode: payment.currencyCode, decimals };
-  }
-
-  return formatSummary({
-    summary: {
-      type: 'notificationParked',
-      reason: 'needsOk',
-      payment: amount,
-      merchant: payment?.merchant ?? null,
-      source,
-    },
-    locale,
-  });
-};
-
 /**
  * Reads the stored notification and settles everything that is not a payment to log: a source that
  * waits for approval, a non-payment, a payment that needs the owner. A payment comes back for the
@@ -98,7 +63,14 @@ const read = async ({
 }): Promise<Reading> => {
   const sourceLabel = describeSource({ source, payload: row.payload });
 
-  if (source && !NOTIFICATION_SOURCE_TRUSTED_MODES.includes(source.mode)) {
+  // A payment read earlier (a request parked on its account, or forced through by the owner) is not
+  // read again: the stored reading is the one the owner saw.
+  const stored = readStoredParse({ value: row.parsed });
+
+  // A request whose source was deleted has no approval to rely on, so it waits like an unapproved one;
+  // only a payment already read while the source was trusted carries on.
+  const trusted = source ? NOTIFICATION_SOURCE_TRUSTED_MODES.includes(source.mode) : Boolean(stored?.payment);
+  if (!trusted) {
     await parkNotification({
       requestId: row.id,
       reason: 'sourceNotApproved',
@@ -111,9 +83,6 @@ const read = async ({
     return { kind: 'done' };
   }
 
-  // A payment read earlier (a request parked on its account, or forced through by the owner) is not
-  // read again: the stored reading is the one the owner saw.
-  const stored = readStoredParse({ value: row.parsed });
   if (stored?.payment) {
     return {
       kind: 'payment',
@@ -215,7 +184,14 @@ const settleClassified = async ({
     await parkNotification({
       requestId: row.id,
       reason: classified.reason,
-      summary: await needsOkSummary({ userId: row.userId, payment: classified.payment, source: sourceLabel, locale }),
+      summary: await buildNeedsOkSummary({
+        userId: row.userId,
+        amount: classified.payment?.amount ?? null,
+        currencyCode: classified.payment?.currencyCode ?? null,
+        merchant: classified.payment?.merchant ?? null,
+        source: sourceLabel,
+        locale,
+      }),
       parsed,
       cardLabel: classified.payment?.cardName ?? null,
     });
@@ -238,15 +214,16 @@ const settleClassified = async ({
  *
  * 1. While a base-currency change holds the user's lock the job answers `locked`: the worker puts it
  *    back for later without using an attempt, and the request stays `received`.
- * 2. A source that was muted after the request arrived drops it; one that still waits for approval
- *    parks it as `sourceNotApproved` with no AI call.
+ * 2. A source that was muted after the request arrived drops it; one that still waits for approval,
+ *    or that was deleted, parks it as `sourceNotApproved` with no AI call.
  * 3. The text is read: a Wallet notification by its layout in code, anything else by the
  *    `notificationParsing` model. A non-payment is ignored and its text wiped; an own transfer or a
  *    doubtful read parks with the payment it read.
  * 4. A payment is logged (account, currency, payee, category) through the shared logging core in its
  *    own transaction. One that cannot be (an unknown account, no rate) parks.
  * 5. The row is handed to AI categorization for a moment, then the request is closed as `logged` with
- *    the line the shortcut shows.
+ *    the line the shortcut shows, and the follow-ups of the new row (short-balance correction,
+ *    conversion pair, AI duplicate judge) are queued.
  *
  * Every park and ignore is a returned outcome; only an unexpected failure throws, and the worker
  * retries it and parks the request as `processingFailed` when the attempts are spent. A request that
@@ -350,7 +327,9 @@ export const processNotification = async ({
     locale,
     waitBudgetMs: notificationTimings.categorizeWaitMs,
   });
-  await afterPaymentLogged({ userId: row.userId, transactionId: result.transactionId });
+  // Queued before the request is closed and run by a worker, so the answer to the shortcut never
+  // waits for the model calls among the follow-ups.
+  await enqueueAfterPaymentLogged({ userId: row.userId, transactionId: result.transactionId });
   await finishLoggedNotification({ requestId, summary: categorized?.summary, locale });
 
   return 'done';

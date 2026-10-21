@@ -5,6 +5,7 @@ import { API_PREFIX } from '@root/config';
 import request from 'supertest';
 
 import { createIngestToken } from './ingest';
+import { waitForIngestIdle } from './ingest-follow-ups';
 
 /**
  * Mints an ingest token for the suite's default user through `POST /user/settings/ingest-tokens`,
@@ -54,6 +55,14 @@ export function requestWithoutSession({
 
 export const bearer = ({ secret }: { secret: string }) => ({ Authorization: `Bearer ${secret}` });
 
+/** Answers with the response once the follow-ups of what it logged have run, so a test reads their result. */
+const afterFollowUps = async (response: request.Test): Promise<request.Response> => {
+  const result = await response;
+  await waitForIngestIdle();
+
+  return result;
+};
+
 /** What a machine client does: `POST /ingest/card-payment` with a bearer token and no session cookie. */
 export const postCardPayment = ({
   secret,
@@ -64,12 +73,14 @@ export const postCardPayment = ({
   body: object;
   headers?: Record<string, string>;
 }) =>
-  requestWithoutSession({
-    method: 'post',
-    url: '/ingest/card-payment',
-    headers: { ...bearer({ secret }), ...headers },
-    body,
-  });
+  afterFollowUps(
+    requestWithoutSession({
+      method: 'post',
+      url: '/ingest/card-payment',
+      headers: { ...bearer({ secret }), ...headers },
+      body,
+    }),
+  );
 
 /** `POST /ingest/event` the way the iOS 27 shortcut sends it: a bearer token and no session cookie. */
 export const postIngestEvent = ({
@@ -81,9 +92,11 @@ export const postIngestEvent = ({
   body: object;
   headers?: Record<string, string>;
 }) =>
-  requestWithoutSession({
-    method: 'post',
-    url: '/ingest/event',
-    headers: { ...bearer({ secret }), ...headers },
-    body,
-  });
+  afterFollowUps(
+    requestWithoutSession({
+      method: 'post',
+      url: '/ingest/event',
+      headers: { ...bearer({ secret }), ...headers },
+      body,
+    }),
+  );

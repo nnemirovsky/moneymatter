@@ -117,7 +117,8 @@ describe('process notification', () => {
   useSelfHostWithoutServerAiKeys();
 
   beforeEach(async () => {
-    notificationTimings.categorizeWaitMs = 50;
+    // Long enough for a categorization that has no model to answer under load; a hanging one is not tested here.
+    notificationTimings.categorizeWaitMs = 3000;
     notificationTimings.retryBackoffMs = 10;
     await resetLimits();
   });
@@ -169,9 +170,10 @@ describe('process notification', () => {
     it('is the same source whether it arrives by bundle id or by display name', async () => {
       const { secret } = await setUp();
 
-      await send({ secret, body: wallet({ app: 'Wallet' }) });
-      await send({ secret, body: wallet({ app: 'Кошелёк' }) });
-      await send({ secret, body: wallet({ app: undefined, bundleId: 'com.apple.Passbook' }) });
+      // Three amounts: the same text within seconds would fold into one request.
+      await send({ secret, body: wallet({ app: 'Wallet', body: `${BASE} 43.60` }) });
+      await send({ secret, body: wallet({ app: 'Кошелёк', body: `${BASE} 44.60` }) });
+      await send({ secret, body: wallet({ app: undefined, bundleId: 'com.apple.Passbook', body: `${BASE} 45.60` }) });
 
       expect(await helpers.listNotificationSources({ raw: true })).toHaveLength(1);
       expect(await helpers.getTransactions({ raw: true })).toHaveLength(3);
@@ -364,6 +366,27 @@ describe('process notification', () => {
 
         expect(await IngestRequests.findOne({ where: { id: other.body.response.requestId } })).toBeNull();
         expect(prompts).toHaveLength(1);
+      });
+
+      it('keeps a request parked when its source was deleted, and never reads or logs its text', async () => {
+        const prompts = mockNotificationParsing({ answer: () => wolt({ merchant: 'Wolt', cardName: null }) });
+        const { secret } = await setUp();
+        const parked = await send({ secret, body: telegram() });
+        expect(parked.body.response).toMatchObject({ outcome: 'parked', reason: 'sourceNotApproved' });
+
+        await helpers.deleteNotificationSource({ id: (await sourceOf({ app: 'Telegram' })).id, raw: true });
+        expect((await storedRequest({ requestId: parked.body.response.requestId })).sourceId).toBeNull();
+
+        const retried = await helpers.retryCardPaymentRequest({ id: parked.body.response.requestId, raw: true });
+
+        expect(retried).toMatchObject({ outcome: 'parked', reason: 'sourceNotApproved' });
+        expect(prompts).toEqual([]);
+        expect(await Transactions.count()).toBe(0);
+        expect(await storedRequest({ requestId: parked.body.response.requestId })).toMatchObject({
+          status: 'parked',
+          reason: 'sourceNotApproved',
+          transactionId: null,
+        });
       });
     });
 

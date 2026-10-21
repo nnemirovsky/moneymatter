@@ -1,5 +1,4 @@
 import type { RecordId } from '@bt/shared/types';
-import { getCurrencyDecimals } from '@common/lib/currency-precision';
 import { Money } from '@common/types/money';
 import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
@@ -10,7 +9,7 @@ import { resolveVisibleCurrencies } from '@services/currencies/assert-currency-c
 
 import { buildExternalReference } from '../card-payment/constants';
 import { convertToAccountCurrency } from '../card-payment/convert-to-account-currency';
-import { formatSummary, type SummaryAmount } from '../card-payment/format-summary';
+import { formatSummary } from '../card-payment/format-summary';
 import { pickHistoryCategory } from '../card-payment/pick-history-category';
 import { formatRateDate } from '../card-payment/rate-unavailable-error';
 import { resolveCurrency, resolveStatedCurrency } from '../card-payment/resolve-currency';
@@ -21,6 +20,7 @@ import { applyPayeeChoice } from './apply-payee-choice';
 import { resolveBalanceAuthority } from './balance-authority';
 import type { ParsedPayment } from './classify-notification';
 import { loadSiblingBalances } from './load-sibling-balances';
+import { buildNeedsOkSummary } from './needs-ok-summary';
 import {
   findUsableAccount,
   guessNotificationAccount,
@@ -46,25 +46,6 @@ export interface PaymentOverride {
   accountId: RecordId | null;
   direction: 'debit' | 'credit' | null;
 }
-
-const amountOf = async ({
-  userId,
-  amount,
-  currencyCode,
-}: {
-  userId: number;
-  amount: string;
-  currencyCode: string;
-}): Promise<SummaryAmount> => {
-  let decimals = 2;
-  try {
-    decimals = await getCurrencyDecimals({ userId, code: currencyCode });
-  } catch {
-    // A code the user cannot price keeps the common two decimals in the line that names it.
-  }
-
-  return { amount: Number(amount), currencyCode, decimals };
-};
 
 /**
  * A parsed time stated without a zone (`new Date("2026-10-20T18:40:00")`) read back as the wall clock
@@ -126,16 +107,12 @@ const logNotificationPaymentImpl = async ({
     reason,
     parsed: { ...base, ...extra },
     cardLabel,
-    summary: formatSummary({
-      summary: {
-        type: 'notificationParked',
-        reason: 'needsOk',
-        payment: statedCurrencyCode
-          ? await amountOf({ userId, amount: payment.amount, currencyCode: statedCurrencyCode })
-          : null,
-        merchant: payment.merchant,
-        source: sourceLabel,
-      },
+    summary: await buildNeedsOkSummary({
+      userId,
+      amount: payment.amount,
+      currencyCode: statedCurrencyCode,
+      merchant: payment.merchant,
+      source: sourceLabel,
       locale,
     }),
   });

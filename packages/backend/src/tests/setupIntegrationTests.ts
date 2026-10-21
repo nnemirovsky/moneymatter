@@ -35,6 +35,7 @@ import {
 import { ynabImportQueue, ynabImportWorker } from '@services/import-export/ynab-import';
 import { duplicateScanQueue, duplicateScanWorker } from '@services/ingest/dedup/duplicate-scan-queue';
 import { notificationIngestQueue, notificationIngestWorker } from '@services/ingest/event/notification-queue';
+import { ingestFollowUpQueue, ingestFollowUpWorker } from '@services/ingest/follow-up-queue';
 import {
   subscriptionReminderEmailQueue,
   subscriptionReminderEmailWorker,
@@ -533,6 +534,8 @@ async function closeAllE2eResources() {
     await notificationIngestQueue.close();
     await duplicateScanWorker.close();
     await duplicateScanQueue.close();
+    await ingestFollowUpWorker.close();
+    await ingestFollowUpQueue.close();
     await logoResolutionWorker.close();
     await logoResolutionQueue.close();
     await subscriptionReminderEmailWorker.close();
