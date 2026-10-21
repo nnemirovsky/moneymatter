@@ -627,18 +627,20 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - Modify: `packages/backend/src/services/stats/{stats-transactions,utils/index,utils/savings-transactions,get-cash-flow,get-expenses-history,get-cumulative-data}.ts`, `stats/get-pivot/{index,buckets}.ts`, `stats/get-spendings-by-categories/index.ts`, `stats/get-net-worth-history/index.ts`, `stats/get-net-worth-drivers/{index,investment-growth,savings}.ts`, `stats/get-investment-contributions/{index,derivations}.ts` (explicit `'UTC'`), `services/trackers/{spending-stats,stats,get-category-tracker-transactions}.ts`, `services/subscriptions/get-subscriptions-summary.ts`, `services/budget-plans/{activity/get-plan-activity,activity/get-plan-cash,get-scheduled,date-ranges}.ts`, `services/mcp/tools/{get-spending-by-categories,get-expenses-for-period,search-transactions,get-balance-history}.ts` (defaults)
 - Create: `packages/backend/src/services/stats/time-zone-buckets.e2e.ts`, `packages/backend/src/services/budget-plans/time-zone-activity.e2e.ts`
 
-- [ ] write failing unit tests:
+- [x] write failing unit tests:
   - month buckets for Tbilisi start at local midnight; New York's November bucket spans the 25-hour day;
   - an open-start window with `to=2026-10-21` ends at `zonedDayStart('2026-10-21')`, and with `zone: 'UTC'` every bound equals today's
-- [ ] write failing e2e:
+- [x] write failing e2e:
   - a Tbilisi user's expense at `2026-10-20T21:30Z` (01:30 local on the 21st) counts on Oct 21 in cash flow (daily), spending-by-categories for `from=to=2026-10-21`, pivot by day, tracker spending, and the October budget period when it is the first day;
   - a New York user's `2026-11-01T03:30Z` counts on Oct 31;
   - the same Tbilisi row counts in the first budget period's activity **and** cash (`get-plan-cash`), and a New York row at `2026-11-01T03:30Z` counts in October's last period;
   - `get_spending_by_categories` with no dates, called for a Tbilisi user at `2026-10-31T21:30Z` (01:30 on Nov 1 local), reports November;
   - net-worth history for a New York user keeps the October point on Oct 31 (UTC days);
   - a user without a zone keeps today's results (re-run the existing stats e2e unchanged)
-- [ ] implement with `{ in: tz(zone) }` on the date-fns calls and `AT TIME ZONE :zone` in the budget SQL; `Balances` untouched (comment why)
-- [ ] gate: unit `--testPathPattern='(time-zones/tz-options|stats/utils)'`; e2e `--testPathPattern='(stats/(time-zone-buckets|get-cash-flow|get-pivot|get-cumulative-data|get-net-worth-history|get-net-worth-drivers)|budget-plans/time-zone-activity|trackers/spending-stats|subscriptions/subscriptions)\.e2e'`
+- [x] implement with `{ in: tz(zone) }` on the date-fns calls and `AT TIME ZONE :zone` in the budget SQL; `Balances` untouched (comment why)
+- [x] gate: unit `--testPathPattern='(time-zones/tz-options|stats/utils)'`; e2e `--testPathPattern='(stats/(time-zone-buckets|get-cash-flow|get-pivot|get-cumulative-data|get-net-worth-history|get-net-worth-drivers)|budget-plans/time-zone-activity|trackers/spending-stats|subscriptions/subscriptions)\.e2e'`
+- ➕ Deviations: `findBucketIndex` compares instants, so it takes no `zone`; `generatePeriodBuckets`, `statsTransactions`' window and the pivot key/label helpers do. Report bounds go through `dayBoundStart` / `dayBoundEnd` (`common/lib/time-zones/day-bounds.ts`): a `yyyy-MM-dd` bound is read in the zone, any other string (the MCP tools' ISO defaults and explicit ISO args) keeps today's reading. The MCP report tools' default range is now `yyyy-MM-dd` days from `localDay` in the user's zone. A budget plan's days follow its owner's zone (`plan.userId`). Date-bounded tracker and subscription windows pass `zone: 'UTC'` since exact instants ignore it. The MCP handlers are not reachable from e2e (the SDK is mocked), so the `get_spending_by_categories` default-range case from the e2e list is covered by the unit suites only.
+- Gate: unit (`tz-options`, `stats/`, `budget-plans`, `mcp`, `trackers`) 1675 passed; e2e `time-zone-buckets` + `time-zone-activity` 10 passed; regression run of `services/(stats|budget-plans|trackers|subscriptions)` e2e: 63 suites, 947 tests passed, unchanged.
 
 ### Task 9: Frontend: zone and clock state, formatting helpers, auto sync
 
