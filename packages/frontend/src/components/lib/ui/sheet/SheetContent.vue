@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Button from '@/components/lib/ui/button/Button.vue';
 import { useDescribedByAttrs } from '@/components/lib/ui/dialog/described-by';
+import { keepOpenForToast } from '@/components/lib/ui/dialog/toast-interaction';
 import { cn } from '@/lib/utils';
 import { XIcon } from '@lucide/vue';
 import {
@@ -51,6 +52,7 @@ const describedByAttrs = useDescribedByAttrs();
     <DialogContent
       :class="cn(sheetVariants({ side }), props.class)"
       v-bind="{ ...forwarded, ...describedByAttrs, ...$attrs }"
+      @interact-outside="keepOpenForToast"
     >
       <slot />
 
