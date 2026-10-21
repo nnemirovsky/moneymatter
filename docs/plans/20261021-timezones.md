@@ -514,7 +514,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - Modify: tool unit tests (`transaction-read-tools.unit.ts`, `transaction-amount-inputs.unit.ts`, …)
 - Create: `packages/backend/src/services/mcp/tool-time-input.e2e.ts` (through the MCP HTTP endpoint, as `mcp-scope-gate.e2e.ts` does), `packages/backend/src/services/chat/proposals/time-args.e2e.ts`
 
-- [ ] write failing unit tests:
+- [x] write failing unit tests:
   - `resolveTimeInput`:
     - `2026-10-21T16:00` + user zone `Asia/Tbilisi` → `12:00Z`, zone Tbilisi, +240;
     - `+ timeZone: 'America/New_York'` → `20:00Z`, zone New York;
@@ -531,13 +531,13 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - `resolveRangeBound`: `2026-10-21` as start/end for a Tbilisi user → `2026-10-20T20:00Z` / `2026-10-21T19:59:59.999Z`; a `Z` bound passes through;
   - each tool's `validate…Args` refuses a bad zone;
   - `normalizeTimeArgs` rewrites only the known time keys of the transaction tools
-- [ ] write failing e2e:
+- [x] write failing e2e:
   - MCP `create_transaction` with `time: '2026-10-21T16:00'` for a user with `timeZone: 'Asia/Tbilisi'` stores `12:00Z` and the zone;
   - a chat card for the same call stores `time` as `12:00:00.000Z` with `timeZone`, and approving it creates that row;
   - a chat card for `update_transaction` on a New York row changes the time and keeps `America/New_York`;
   - `search_transactions` with `startDate=endDate=2026-10-21` for a Tbilisi user returns a row at `2026-10-20T21:30Z` and one at `2026-10-21T19:00Z`;
   - `create_tracker` with `startDate: '2026-10-01'` stores `2026-09-30T20:00Z` for a Tbilisi user
-- [ ] implement:
+- [x] implement:
   - the resolver;
   - the tools take `time` and `timeZone` through it and pass `{ timeZone, utcOffsetMinutes }` to the services Task 3 extended; update tools use update mode;
   - range-bound tools convert through `resolveRangeBound` before the REST schema parse;
@@ -545,8 +545,10 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - the descriptions as in Technical Details;
   - the proposal normalizer;
   - the guide paragraph on zones
-- [ ] update the agent SKILL.md text on times and its sha256 (the `add-mcp-tool` skill's drift checklist)
-- [ ] gate: unit `--testPathPattern='(time-zones/resolve-time-input|mcp/tools/.*|mcp/(agent-skills|server-card|tool-arg-validators)-drift|chat/proposals/normalize-time-args)'`; e2e `--testPathPattern='(mcp/tool-time-input|chat/proposals/(approve|time-args)|trackers/tracker-crud)\.e2e'`
+- [x] update the agent SKILL.md text on times and its sha256 (the `add-mcp-tool` skill's drift checklist)
+- [x] gate: unit `--testPathPattern='(time-zones/resolve-time-input|mcp/tools/.*|mcp/(agent-skills|server-card|tool-arg-validators)-drift|chat/proposals/normalize-time-args)'`; e2e `--testPathPattern='(mcp/tool-time-input|chat/proposals/(approve|time-args)|trackers/tracker-crud)\.e2e'`
+
+➕ Deviations (Task 4): the e2e for MCP and cards is one file, `chat/proposals/time-args.e2e.ts`, through chat cards: the MCP SDK is mocked in e2e, so the handlers run only through the chat approve path (no `mcp/tool-time-input.e2e.ts`). Unit coverage of the handlers is `mcp/tools/tool-time-input.unit.ts`. The unit setup mocks `get-user-time-zone` (a user with no setting). Chat field labels `timeZone`, `timeZoneSource`, `hourCycle` added to `CHAT_FIELD_LABEL_KEYS` and the `en`/`uk` chat chunks. Tool descriptions were trimmed to keep the core tool schemas under the 44 KB chat budget. `+00:00` is read like `Z` (no stated offset). Services that take only `timeZone` (`markPeriodPaid`, portfolio transfers, `updateTransaction`) lose an offset-only stated offset; the portfolio transfer tools gained an optional `timeZone` and record `timeZone ?? stored zone`. Tracker validators run the REST schema with `UTC` bounds so the chat can check a call without the user's zone; the handler cuts the bounds in the user's zone first.
 
 ### Task 5: Chat system prompt in the user's zone
 
@@ -555,11 +557,13 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - Modify: `packages/backend/src/services/chat/runners/prepare-turn.ts`, `packages/backend/src/services/chat/prompt/system-prompt.ts`, `system-prompt.unit.ts`
 - Modify: `packages/backend/src/services/chat/runs/run-stream.e2e.ts` (assert the system text the mocked model receives)
 
-- [ ] write failing tests:
+- [x] write failing tests:
   - unit: the context section carries the time rule and the user's zone;
   - e2e: a user with `timeZone: 'Asia/Tbilisi'` gets "Now: … (Asia/Tbilisi)" in the system prompt the mocked model receives, and a user without one gets `UTC`
-- [ ] implement: `getUserTimeZone` in `prepareChatTurn` (it already loads settings), the rule text
-- [ ] gate: unit `--testPathPattern='chat/prompt/system-prompt'`; e2e `--testPathPattern='chat/runs/run-stream\.e2e'`
+- [x] implement: `getUserTimeZone` in `prepareChatTurn` (it already loads settings), the rule text
+- [x] gate: unit `--testPathPattern='chat/prompt/system-prompt'`; e2e `--testPathPattern='chat/runs/run-stream\.e2e'`
+
+➕ Deviations (Task 5): `prepareChatTurn` reads `settings.timeZone ?? 'UTC'` from the settings it already loads instead of a second `getUserTimeZone` query; `CHAT_PROMPT_VERSION` is `chat-5`.
 
 ### Task 6: Ingest: zone from the device, offset fallback, bank wall clock
 

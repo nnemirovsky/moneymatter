@@ -3,7 +3,7 @@ import { LOCALE_NAMES, type SupportedLocale } from '@bt/shared/i18n/locales';
 import { FINANCIAL_DATA_GUIDE_CONTENT } from '../../mcp/prompts/financial-data-guide';
 
 /** Stored on every assistant message; bump it when the prompt changes in a way worth telling runs apart by. */
-export const CHAT_PROMPT_VERSION = 'chat-4';
+export const CHAT_PROMPT_VERSION = 'chat-5';
 
 const ROLE = `You are the assistant inside MoneyMatter, a personal finance app. You work in one of two modes, chosen by what the user asks.
 
@@ -83,6 +83,7 @@ function contextSection({
   return [
     '**Context**',
     `- Now: ${date} ${time} (${timeZone}); today is ${date}.`,
+    `- Times the user mentions are in ${timeZone} unless they name another place or zone. Pass transaction times and date ranges to tools as local wall time (2026-10-21T16:00) or dates, and add timeZone only for another zone. Never convert them to UTC. Tools whose description says UTC (security prices) take UTC.`,
     `- Interface locale: ${locale} (${language}).`,
     baseCurrency ? `- Base currency: ${baseCurrency}.` : '- Base currency: not set yet; the user has not chosen one.',
   ].join('\n');

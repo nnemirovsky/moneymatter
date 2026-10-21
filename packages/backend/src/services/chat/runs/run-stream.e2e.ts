@@ -123,6 +123,25 @@ describe('Chat runs', () => {
       expect(loaded.thread.usage).toEqual({ inputTokens: 40, outputTokens: 6, cachedInputTokens: 5 });
     });
 
+    it('states UTC in the system prompt for a user without a time zone setting', async () => {
+      const { script, threadId } = await arrange({ turns: [{ text: 'Hi.' }] });
+      await sendAndFinish({ threadId, text: 'What time is it?' });
+
+      const system = String(script.requests[0]!.messages![0]!.content);
+      expect(system).toMatch(/- Now: \d{4}-\d{2}-\d{2} \d{2}:\d{2} \(UTC\)/);
+      expect(system).toContain('Times the user mentions are in UTC');
+    });
+
+    it("states the user's time zone in the system prompt", async () => {
+      await helpers.patchUserSettings({ patch: { timeZone: 'Asia/Tbilisi', timeZoneSource: 'manual' }, raw: true });
+      const { script, threadId } = await arrange({ turns: [{ text: 'Hi.' }] });
+      await sendAndFinish({ threadId, text: 'What time is it?' });
+
+      const system = String(script.requests[0]!.messages![0]!.content);
+      expect(system).toMatch(/- Now: \d{4}-\d{2}-\d{2} \d{2}:\d{2} \(Asia\/Tbilisi\)/);
+      expect(system).toContain('Times the user mentions are in Asia/Tbilisi');
+    });
+
     it('carries the earlier turns to the model on the next message', async () => {
       const { script, threadId } = await arrange({ turns: [{ text: 'It is blue.' }, { text: 'Yes.' }] });
 
