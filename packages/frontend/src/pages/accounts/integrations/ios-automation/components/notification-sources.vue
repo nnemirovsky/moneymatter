@@ -21,7 +21,7 @@
       <li
         v-for="source in sources"
         :key="source.id"
-        class="border-border flex flex-col gap-3 rounded-lg border p-4 @lg/integrations:flex-row @lg/integrations:items-center @lg/integrations:justify-between"
+        class="border-border flex flex-col gap-3 rounded-lg border p-4 @lg/integrations:flex-row @lg/integrations:items-center"
         data-testid="notification-source-row"
       >
         <div class="min-w-0 flex-1">
@@ -38,23 +38,28 @@
           </p>
         </div>
 
-        <div class="w-full @lg/integrations:w-64 @lg/integrations:shrink-0" data-testid="notification-source-log-to">
+        <!-- The picker is named for assistive tech instead of a visible label: a label above it would push it
+             off the line the name and the buttons sit on. -->
+        <div
+          role="group"
+          :aria-label="$t(`${LABEL_ROOT}.logTo`)"
+          class="w-full @lg/integrations:w-64 @lg/integrations:shrink-0"
+          data-testid="notification-source-log-to"
+        >
           <AccountSelectField
             :model-value="defaultAccountOf({ source })"
             :accounts="mappableAccounts"
-            :label="$t(`${LABEL_ROOT}.logTo`)"
-            :placeholder="$t(`${LABEL_ROOT}.logToPlaceholder`)"
+            :none-label="$t(`${LABEL_ROOT}.logToPlaceholder`)"
+            :clearable="!!defaultAccountOf({ source })"
             :disabled="isBusy"
-            clearable
             @update:model-value="setDefaultAccount({ source, account: $event })"
           />
         </div>
 
-        <div class="flex gap-2 self-start @lg/integrations:self-center">
+        <div class="flex gap-2 @lg/integrations:shrink-0">
           <Button
             v-if="source.mode === 'muted'"
             variant="outline"
-            size="sm"
             :disabled="isBusy"
             :aria-label="$t(`${LABEL_ROOT}.approveAria`, { name: getSourceName({ source, fallback: '' }) })"
             data-testid="notification-source-approve"
@@ -65,7 +70,6 @@
           <Button
             v-else
             variant="outline"
-            size="sm"
             :disabled="isBusy"
             :aria-label="$t(`${LABEL_ROOT}.muteAria`, { name: getSourceName({ source, fallback: '' }) })"
             data-testid="notification-source-mute"
@@ -75,7 +79,6 @@
           </Button>
           <Button
             variant="soft-destructive"
-            size="sm"
             :disabled="isBusy"
             :aria-label="$t(`${LABEL_ROOT}.forgetAria`, { name: getSourceName({ source, fallback: '' }) })"
             data-testid="notification-source-forget"

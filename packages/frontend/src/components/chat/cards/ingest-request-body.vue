@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import AccountSelectField from '@/components/fields/account-select-field.vue';
+import InputField from '@/components/fields/input-field.vue';
 import type { ChatIngestRequestSummary } from '@bt/shared/types';
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { formatVisualDate, formatVisualValue } from '../visuals/format-visual-value';
@@ -15,10 +16,33 @@ const props = defineProps<{
   /** The account the card will log the payment on, `null` until one is chosen. */
   accountId: string | null;
   /** The account cannot change: the card is closed, or a change is being saved. */
+  /** The note the card holds; empty until the history or the owner fills it. */
+  note: string;
   disabled: boolean;
 }>();
 
-const emit = defineEmits<{ 'update:accountId': [value: string | null] }>();
+const emit = defineEmits<{
+  'update:accountId': [value: string | null];
+  /** The owner finished writing the note: store it on the card. */
+  'commit:note': [value: string];
+  /** Whether the text in the field differs from the note on the card, so Approve can wait for the save. */
+  'update:noteDirty': [value: boolean];
+}>();
+
+const draftNote = ref(props.note);
+watch(
+  () => props.note,
+  (note) => {
+    draftNote.value = note;
+  },
+);
+
+const isNoteDirty = computed(() => draftNote.value !== props.note);
+watch(isNoteDirty, (isDirty) => emit('update:noteDirty', isDirty), { immediate: true });
+
+const commitNote = () => {
+  if (isNoteDirty.value) emit('commit:note', draftNote.value);
+};
 
 const { t } = useI18n();
 
@@ -106,6 +130,15 @@ const lessonText = computed(() => {
     </dl>
 
     <p v-if="payment.summary" class="text-muted-foreground text-sm" data-testid="ingest-note">{{ payment.summary }}</p>
+
+    <div data-testid="ingest-note-field" @keydown.enter.prevent="commitNote" @focusout="commitNote">
+      <InputField
+        v-model="draftNote"
+        :label="$t(`${LABEL_ROOT}.noteLabel`)"
+        :placeholder="$t(`${LABEL_ROOT}.notePlaceholder`)"
+        :disabled="disabled"
+      />
+    </div>
 
     <div class="flex flex-col gap-1.5" data-testid="ingest-account">
       <AccountSelectField

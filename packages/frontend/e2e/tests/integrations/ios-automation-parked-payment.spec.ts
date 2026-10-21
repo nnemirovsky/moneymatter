@@ -120,6 +120,7 @@ test.describe('a notification payment parked on its account', () => {
         await expect(card.getByTestId('ingest-lesson')).toContainText(
           `Future payments on ${CARD_NAME} will go to ${GUESSED_ACCOUNT}`,
         );
+        await expect(card.getByTestId('ingest-note-field').locator('input')).toBeVisible();
         await expect(card.getByTestId('approve')).toBeEnabled();
         expect(await hasHorizontalScroll(page)).toBe(false);
 
@@ -164,28 +165,56 @@ test.describe('a notification payment parked on its account', () => {
         await card.screenshot({ path: `${SCREENSHOT_DIR}/card-links-${name}.png` });
       });
 
-      test('sets the account a source logs to', async ({ page }) => {
+      test('sets the account a source logs to, and clears it again from the picker', async ({ page }) => {
         await page.goto('/accounts/integrations/ios-automation');
         const row = page.getByTestId('notification-source-row').filter({ hasText: 'Wallet' });
         await row.scrollIntoViewIfNeeded();
+        const picker = row.getByTestId('notification-source-log-to');
+        const trigger = picker.locator('button[role="combobox"]');
+        await expect(trigger).toContainText('Ask me each time');
 
-        await row.getByTestId('notification-source-log-to').locator('button[role="combobox"]').click();
+        // The row sits on one line (desktop): the name, the picker and the buttons share a centre.
+        const centreOf = async (locator: ReturnType<Page['locator']>) => {
+          const box = (await locator.boundingBox())!;
+
+          return box.y + box.height / 2;
+        };
+        const centres = [
+          await centreOf(row.getByTestId('notification-source-name')),
+          await centreOf(trigger),
+          await centreOf(row.getByTestId('notification-source-mute')),
+        ];
+        if (name === 'desktop') expect(Math.max(...centres) - Math.min(...centres)).toBeLessThan(3);
+        const heights = [
+          (await trigger.boundingBox())!.height,
+          (await row.getByTestId('notification-source-mute').boundingBox())!.height,
+        ];
+        expect(Math.abs(heights[0]! - heights[1]!)).toBeLessThan(1);
+
+        await trigger.click();
+        await expect(page.getByRole('option').first()).toHaveText('Ask me each time');
         await page.getByRole('option', { name: new RegExp(OTHER_ACCOUNT) }).click();
 
-        await expect(row.getByTestId('notification-source-log-to')).toContainText(OTHER_ACCOUNT);
-        const sources = (await apiGet({ request: api, path: '/api/v1/user/settings/notification-sources' })) as {
-          response: Array<{ appName: string; defaultAccountId: string | null }>;
-        };
-        expect(sources.response.find((source) => source.appName === 'Wallet')?.defaultAccountId).toBe(otherAccountId);
+        await expect(picker).toContainText(OTHER_ACCOUNT);
+        const sourcesOf = async () =>
+          (await apiGet({ request: api, path: '/api/v1/user/settings/notification-sources' })) as {
+            response: Array<{ id: string; appName: string; defaultAccountId: string | null }>;
+          };
+        await expect
+          .poll(
+            async () => (await sourcesOf()).response.find((source) => source.appName === 'Wallet')?.defaultAccountId,
+          )
+          .toBe(otherAccountId);
         await row.screenshot({ path: `${SCREENSHOT_DIR}/source-log-to-${name}.png` });
 
-        // Back to no default, so the next viewport starts from the same place.
-        const source = sources.response.find((entry) => entry.appName === 'Wallet') as unknown as { id: string };
-        await apiPatch({
-          request: api,
-          path: `/api/v1/user/settings/notification-sources/${source.id}`,
-          data: { defaultAccountId: null },
-        });
+        // The clear button puts it back to asking, and that is saved.
+        await picker.getByRole('button', { name: /clear/i }).click();
+        await expect(trigger).toContainText('Ask me each time');
+        await expect
+          .poll(
+            async () => (await sourcesOf()).response.find((source) => source.appName === 'Wallet')?.defaultAccountId,
+          )
+          .toBeNull();
       });
     });
   }
@@ -196,8 +225,24 @@ test.describe('a notification payment parked on its account', () => {
     await page.getByTestId('payment-request-inbox-link').click();
 
     const card = page.getByTestId('proposal-card').first();
+    await card.getByTestId('ingest-note-field').locator('input').fill('Team coffee');
+    await card.getByTestId('ingest-note-field').locator('input').blur();
+    await expect(card.getByTestId('approve')).toBeEnabled();
     await card.getByTestId('approve').click();
     await expect(card).toContainText('Applied');
+
+    // The note written on the card is the note of the logged payment.
+    const requests = (await apiGet({
+      request: api,
+      path: '/api/v1/user/settings/card-payments/requests?status=recent',
+    })) as {
+      response: Array<{ transactionId: string | null }>;
+    };
+    const transactionId = requests.response.find((request) => request.transactionId)!.transactionId!;
+    const logged = (await apiGet({ request: api, path: `/api/v1/transactions/${transactionId}` })) as {
+      response: { note: string | null };
+    };
+    expect(logged.response.note).toBe('Team coffee');
 
     const links = (await apiGet({ request: api, path: '/api/v1/user/settings/card-mappings' })) as {
       response: Array<{ cardLabel: string; accountId: string }>;
