@@ -1,16 +1,17 @@
-import { CARD_PAYMENT_REQUEST_KEYS, encodeSetupCode } from '@bt/shared/types';
+import { API_ERROR_CODES, CARD_PAYMENT_REQUEST_KEYS, encodeSetupCode } from '@bt/shared/types';
 // @vitest-environment node
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
+import { KEY_TIME_FORMAT, buildCardPaymentShortcut, renderCardPaymentShortcutXml } from './build-card-payment-shortcut';
 import {
+  BUSY_ERROR_CODE,
+  BUSY_RETRY_WAIT_SECONDS,
   CONDITION_CODES,
   SHORTCUT_ACTIONS,
   SHORTCUT_PARAMS,
-  buildCardPaymentShortcut,
-  renderCardPaymentShortcutXml,
-} from './build-card-payment-shortcut';
+} from './shortcut-plist';
 
 type Dict = Record<string, any>;
 
@@ -100,10 +101,12 @@ describe('card-payment shortcut generator', () => {
 
   describe('the request', () => {
     const requests = byId(SHORTCUT_ACTIONS.downloadUrl);
-    const [paymentRequest, dryRunRequest] = requests;
+    // The payment, its single resend after a 423, then the dry run.
+    const paymentRequest = requests[0];
+    const dryRunRequest = requests[2];
 
-    it('has one request per branch, both POST with JSON', () => {
-      expect(requests).toHaveLength(2);
+    it('has one request per branch plus the resend, all POST with JSON', () => {
+      expect(requests).toHaveLength(3);
       for (const request of requests) {
         expect(params(request)[SHORTCUT_PARAMS.httpMethod]).toBe('POST');
         expect(params(request)[SHORTCUT_PARAMS.httpBodyType]).toBe('JSON');
@@ -164,8 +167,9 @@ describe('card-payment shortcut generator', () => {
         .map((action) => params(action)[SHORTCUT_PARAMS.condition])
         .filter((value) => value !== undefined);
 
-      expect(CONDITION_CODES).toEqual({ 'Has Any Value': 100, 'Does Not Have Any Value': 101 });
-      expect(conditions).toEqual([101, 101, 101, 100, 101]);
+      expect(CONDITION_CODES).toEqual({ Is: 4, Contains: 99, 'Has Any Value': 100, 'Does Not Have Any Value': 101 });
+      // Three setup guards, the input check, the 423 check (Is) and the summary fallback.
+      expect(conditions).toEqual([101, 101, 101, 100, 4, 101]);
     });
 
     it('guards the payment branch with a has-any-value check on the shortcut input', () => {
@@ -248,10 +252,9 @@ describe('card-payment shortcut generator', () => {
       expect(new Set(serialization(SHORTCUT_ACTIONS.setVariable, SHORTCUT_PARAMS.input))).toEqual(
         new Set(['WFTextTokenAttachment']),
       );
-      expect(serialization(SHORTCUT_ACTIONS.downloadUrl, SHORTCUT_PARAMS.url)).toEqual([
-        'WFTextTokenString',
-        'WFTextTokenString',
-      ]);
+      expect(serialization(SHORTCUT_ACTIONS.downloadUrl, SHORTCUT_PARAMS.url)).toEqual(
+        Array(3).fill('WFTextTokenString'),
+      );
       expect(serialization(SHORTCUT_ACTIONS.notification, SHORTCUT_PARAMS.notificationBody)).toEqual(
         Array(4).fill('WFTextTokenString'),
       );
@@ -343,7 +346,9 @@ describe('card-payment shortcut generator', () => {
 
       const timeAction = actions.find((action) => params(action).UUID === time!.OutputUUID)!;
       expect(id(timeAction)).toBe(SHORTCUT_ACTIONS.formatDate);
-      expect(params(timeAction)[SHORTCUT_PARAMS.dateFormat]).toBe("yyyy-MM-dd'T'HH:mmZZZZZ");
+      // To the second, so two identical taps inside one minute are not one request.
+      expect(params(timeAction)[SHORTCUT_PARAMS.dateFormat]).toBe("yyyy-MM-dd'T'HH:mm:ssZZZZZ");
+      expect(KEY_TIME_FORMAT).toContain(':ss');
     });
 
     it('is the idempotencyKey of the request body', () => {
@@ -353,6 +358,39 @@ describe('card-payment shortcut generator', () => {
 
       expect(tokenAttachments(item.WFValue)[0]!.OutputUUID).toBe(params(hash).UUID);
     });
+  });
+
+  describe('the 423 retry', () => {
+    const [paymentRequest, resendRequest] = byId(SHORTCUT_ACTIONS.downloadUrl);
+    const body = (request: Dict) => params(request)[SHORTCUT_PARAMS.jsonValues];
+
+    it('waits once and sends the same body again when a base-currency change answers', () => {
+      const waits = byId(SHORTCUT_ACTIONS.wait);
+      const paymentIndex = actions.indexOf(paymentRequest!);
+      const resendIndex = actions.indexOf(resendRequest!);
+
+      expect(waits).toHaveLength(1);
+      expect(params(waits[0]!)[SHORTCUT_PARAMS.waitTime]).toBe(BUSY_RETRY_WAIT_SECONDS);
+      expect(BUSY_RETRY_WAIT_SECONDS).toBe(20);
+      expect(actions.indexOf(waits[0]!)).toBeGreaterThan(paymentIndex);
+      expect(actions.indexOf(waits[0]!)).toBeLessThan(resendIndex);
+      // Same body, so the same idempotency key.
+      expect(body(resendRequest!)).toEqual(body(paymentRequest!));
+    });
+
+    it('only resends when the error code is the base-currency one', () => {
+      const check = actions.find((action) => params(action)[SHORTCUT_PARAMS.condition] === CONDITION_CODES.Is)!;
+
+      expect(params(check)[SHORTCUT_PARAMS.conditionString]).toBe(BUSY_ERROR_CODE);
+      expect(BUSY_ERROR_CODE).toBe(API_ERROR_CODES.baseCurrencyChangeInProgress);
+    });
+  });
+
+  it('names the iOS Automation page, not Apple Pay, in the text a user reads', () => {
+    const texts = JSON.stringify(actions) + JSON.stringify(shortcut.WFWorkflowImportQuestions);
+
+    expect(texts).toContain('iOS Automation');
+    expect(texts).not.toContain('Apple Pay page');
   });
 
   it('is deterministic', () => {

@@ -55,7 +55,7 @@ const answerFor = ({ prompt }: { prompt: string }) =>
         amount: '29.41',
         currency: 'GEL',
         merchant: 'WOLT.COM TBILISI',
-        cardLastDigits: '8543',
+        cardLastDigits: '0000',
         payee: WOLT_PAYEE,
       };
 
@@ -66,7 +66,7 @@ const setUp = async ({ withUsd = false, holdsUsd = false }: { withUsd?: boolean;
     payload: helpers.buildAccountPayload({ name: 'TBC GEL', currencyCode: 'GEL', initialBalance: 1000 }),
     raw: true,
   });
-  await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id, lastDigits: '8543' }, raw: true });
+  await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id, lastDigits: '0000' }, raw: true });
 
   let usd: { id: RecordId } | null = null;
   if (withUsd) {
@@ -136,7 +136,7 @@ const sendSource = ({ secret, noon, source }: { secret: string; noon: Date; sour
           app: 'Bank of Georgia',
           title: 'BOG',
           subtitle: '',
-          body: 'Purchase 29.41 GEL, WOLT.COM TBILISI, card *8543',
+          body: 'Purchase 29.41 GEL, WOLT.COM TBILISI, card *0000',
           time,
           idempotencyKey,
         },
@@ -218,7 +218,7 @@ describe('twin and settlement rules', () => {
           .map((source) => source.slot)
           .toSorted(),
       ).toEqual([TAP_SLOT, WALLET_NOTIFICATION_SLOT, `bank:${TBC_KEY}:payment`, `bank:${BOG_KEY}:payment`].toSorted());
-      expect((row.externalData.ingest as { cardLastDigits?: string }).cardLastDigits).toBe('8543');
+      expect((row.externalData.ingest as { cardLastDigits?: string }).cardLastDigits).toBe('0000');
       expect(row.payeeId).toEqual(expect.any(String));
 
       const payees = await helpers.listPayees({ raw: true });
@@ -251,7 +251,7 @@ describe('twin and settlement rules', () => {
 
       expect(walletSource!.slot).toBe(WALLET_NOTIFICATION_SLOT);
       expect(bankSource!.slot).toBe(`bank:${TBC_KEY}:payment`);
-      expect((row!.externalData.ingest as { cardLastDigits?: string }).cardLastDigits).toBe('8543');
+      expect((row!.externalData.ingest as { cardLastDigits?: string }).cardLastDigits).toBe('0000');
 
       // The push prints 18:40 on the wall and the phone stamped it 14:40:05 UTC, so the bank's time is 14:40 UTC.
       expect(row!.time.toISOString()).toBe(new Date(noon.getTime() + 2 * 60_000).toISOString());
@@ -340,7 +340,7 @@ describe('twin and settlement rules', () => {
   describe('what is not the same payment', () => {
     it('keeps another shop with the same amount apart', async () => {
       mockNotificationParsing({
-        answer: () => ({ kind: 'debit', amount: '29.41', currency: 'GEL', merchant: 'Glovo', cardLastDigits: '8543' }),
+        answer: () => ({ kind: 'debit', amount: '29.41', currency: 'GEL', merchant: 'Glovo', cardLastDigits: '0000' }),
       });
       const { secret, noon } = await setUp();
 
@@ -401,7 +401,7 @@ describe('twin and settlement rules', () => {
           originalAmount: '10.00',
           originalCurrency: 'USD',
           merchant: 'WOLT.COM TBILISI',
-          cardLastDigits: '8543',
+          cardLastDigits: '0000',
           payee: WOLT_PAYEE,
         }),
       });
@@ -444,7 +444,7 @@ describe('twin and settlement rules', () => {
           amount: '29.41',
           currency: 'GEL',
           merchant: 'Wolt Georgia',
-          cardLastDigits: '8543',
+          cardLastDigits: '0000',
         }),
       });
       await helpers.addIgnoredName({ rawName: 'Wolt Georgia' });
@@ -470,7 +470,7 @@ describe('twin and settlement rules', () => {
       amount: '29.41',
       currency: 'GEL',
       merchant,
-      cardLastDigits: '8543',
+      cardLastDigits: '0000',
       payee: WOLT_PAYEE,
     });
 

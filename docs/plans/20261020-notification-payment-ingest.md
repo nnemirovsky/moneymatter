@@ -645,7 +645,7 @@ Gate results (Task 5): e2e `ingest/event/(process-notification|payee-resolution|
   - the banner says "Already logged …"
 - [x] implement under `ingest-dedup:<userId>` in both paths; attach through `updateTransaction`
 - [x] gate: unit `--testPathPattern='ingest/dedup'`; e2e `--testPathPattern='ingest/(dedup/twin|card-payment/(ingest-card-payment|processing)|event/process-notification).e2e'`
-- [x] ➕ real-data twin fixtures (owner decision 2026-10-20, device fact): the twin and settlement tests use the formats of the owner's phone (`woltOnlinePayment` in `ingest/event/fixtures/notifications.ts`). The Wallet notification is title `TBC Bank`, subtitle `Wolt`, body `GEL 29.41`; the TBC push, about 2 minutes later, is title `TBC`, body `29.41 GEL\nTBC CARD VISA GOLD (***8543)\nWolt 20/10/26 18:40\nBalance: 3816.41 GEL`; the tap is card `TBC Bank`, merchant `Wolt`, amount `GEL 29.41`. Any of them, in any order, ends as ONE transaction; the push adds last digits 8543 and the bank's own time (read off the notification time, since the text prints no zone), and its balance stays non-authoritative on a multi-currency card
+- [x] ➕ real-data twin fixtures (owner decision 2026-10-20, device fact): the twin and settlement tests use the formats of the owner's phone (`woltOnlinePayment` in `ingest/event/fixtures/notifications.ts`). The Wallet notification is title `TBC Bank`, subtitle `Wolt`, body `GEL 29.41`; the TBC push, about 2 minutes later, is title `TBC`, body `29.41 GEL\nTBC CARD VISA GOLD (***0000)\nWolt 20/10/26 18:40\nBalance: 3816.41 GEL`; the tap is card `TBC Bank`, merchant `Wolt`, amount `GEL 29.41`. Any of them, in any order, ends as ONE transaction; the push adds last digits 0000 and the bank's own time (read off the notification time, since the text prints no zone), and its balance stays non-authoritative on a multi-currency card
 - [x] ➕ short-balance correction (owner decision 2026-10-20): a debit logged to an account of a card (a currency row or the default) whose balance before the payment was below the amount stores `externalData.ingest.correction` on the transaction. Candidates are the card's other accounts whose balance covers the payment converted at the day's rate, the default account first; the `duplicateMatching` connection ranks them and writes a one-line reason, and without a model (or on any failure, or a spent daily limit) the deterministic order stands with no reason. It holds the estimated converted amount (flagged `estimate`). `GET /user/settings/card-payments/unconfirmed` exposes it as `correction`; `POST /user/settings/card-payments/corrections/:transactionId/{approve,dismiss}` (guarded) move the transaction (balances follow, the charged amount stays as the original amount) or close the suggestion. E2E and unit tests; Task 10's single confirm card shows "Move it to <account>?" from this field and calls the two endpoints
 - [x] ➕ currency-conversion pair (owner decision 2026-10-20): a logged payment that has an opposite-direction row on another own account in a different currency within 1 hour, at ±3% of the day's rate, gets `externalData.ingestTransferSuggestion` on both legs. Nothing is linked: the owner links with the existing `PUT /transactions/link` and dismisses with the existing `POST /transactions/transfer-recommendations/dismiss` (which also keeps the pair from being suggested again); `INGEST_PAYMENT_LOGGED` is emitted again for each ingest leg. The unconfirmed list exposes it as `transferSuggestion`. E2E and unit tests (the real TBC pair: 300.00 USD out, 778.50 GEL in 6 minutes later)
 
@@ -822,20 +822,18 @@ Gate results (Task 14): frontend full vitest 5692 passed (33 skipped); root type
 
 ### Task 15: iOS 27 shortcut with built-in triggers
 
-⚠️ Blocked on a fuller device sample (XML) showing:
+The device capture (owner's iPhone, 2026-10-20/21) settled what was open:
 
-- the Wallet Transaction trigger;
-- the Notification trigger's App parameter (one app, several, "any app" if offered);
-- the input property names;
-- whether Run Immediately is stored;
-- whether `shortcuts sign` and the import keep `WFWorkflowTriggers`.
+- Triggers live in `WFWorkflowTriggers`: `WFWalletTransactionTrigger` (params `{}`) and `WFNotificationTrigger` with `SelectedApps`. An empty list disables the trigger and there is no "any app", so the shortcut ships Wallet and Messages selected and the user adds the bank and mail apps.
+- Whole trigger variables render the run's input whichever trigger fired; only typed properties tell them apart: `Transaction → Merchant` is a tap, else `Notification → App` is a notification. `Sender` and `Recipients` are never read (missing on non-chat notifications, they silently abort the step). Notifications have their own `Date`; taps have none, so they send the run time with `timeSource: run`.
+- Imported triggers arrive switched off. The macOS 26 signer drops `WFWorkflowTriggers`, so the generator writes an unsigned plist with the triggers and the signed file is exported from an iPhone (README, Post-Completion).
 
 **Files:**
 
 - Create: `packages/frontend/scripts/shortcuts/shortcut-plist.ts` (helpers moved out of `build-card-payment-shortcut.ts`), `build-payments-shortcut.ts` + spec, `fixtures/triggers-input.xml`, `packages/frontend/shortcuts/log-payments.plist`
 - Modify: `packages/frontend/package.json` (`shortcuts:build`), `packages/frontend/public/shortcuts/README.md`, the Task 4 fixtures, `packages/frontend/scripts/shortcuts/build-card-payment-shortcut.ts` + spec + `packages/frontend/shortcuts/log-card-payment.plist` (`KEY_TIME_FORMAT` to the second; one Wait-and-resend on 423, as in the new shortcut)
 
-- [ ] failing spec:
+- [x] failing spec:
   - XML drift;
   - `WFWorkflowTriggers` holds the Wallet Transaction trigger and a `WFNotificationTrigger` (any app, or the Wallet fallback);
   - the URL rewrite;
@@ -847,14 +845,16 @@ Gate results (Task 14): frontend full vitest 5692 passed (33 skipped); root type
   - no input → dry run;
   - a banner on `notify`, and `message` on a non-2xx answer;
   - on 423 exactly one **Wait** 20 s and a resend with the same body and key, then the busy banner
-- [ ] add the real samples to the parser fixtures and re-run Task 4
-- [ ] gate: `npm run test:unit -- --run scripts/shortcuts`; backend unit `--testPathPattern='(ingest/event|amount-gate)'`
+- [x] add the real samples to the parser fixtures and re-run Task 4
+- [x] gate: `npm run test:unit -- --run scripts/shortcuts`; backend unit `--testPathPattern='(ingest/event|amount-gate)'`
+
+Results (Task 15): `packages/frontend/tsconfig.json` gets `allowImportingTsExtensions` so the build scripts import each other with `.ts` under plain `node`. The generated shortcut has no `bundleId` (the Notification variable has no such property), so the own-output stop compares the app's display name ("Shortcuts", contains "MoneyMatter"); the server's `self` rule covers the rest. The unsigned plist carries the triggers; the signed `log-payments.shortcut` still has to be exported from an iPhone (Post-Completion). ⚠️ Not yet checked on a device: the Match Text, Wait and If-string keys (`SHORTCUT_PARAMS`), and `PropertyName` aggrandizements on `TriggerOutput` variables in a file import. The Task 17 iOS 27 steps match the shipped file (triggers off after import, Wallet and Messages preselected, bank apps added by hand).
 
 ### Task 16: Verify acceptance criteria
 
 - [x] tap, Wallet notification, push and SMS in any order → one row with every source, the bank's amount, the resolved payee and a new alias; the right banner each time; two identical payments → two rows
 - [x] an online Apple Pay payment is logged from the Wallet notification alone; a chat, an OTP request and a promo leave no stored text; a pending source's text is encrypted and expires after 7 days
-- [x] the limits hold; Wallet logs without AI; errors show a banner; our own banners and pushes never come back in as notifications (server side: 429/413/422 carry `message`, `notify` on every outcome; the on-device banner and own-output stop belong to the shortcut, ⚠️ pending Task 15)
+- [x] the limits hold; Wallet logs without AI; errors show a banner; our own banners and pushes never come back in as notifications (server side: 429/413/422 carry `message`, `notify` on every outcome; the on-device banner and own-output stop are in the shortcut, asserted by `build-payments-shortcut.spec.ts`)
 - [x] every AI-judged match is a suggestion; resolving it in the inbox or in Reconciliation resolves both; manual-account balances stay right
 - [x] sync and statement import create no duplicate rows (the plan is settled) or a suggestion
 - [x] multi-currency balances are informational
@@ -866,7 +866,7 @@ Gate results (Task 14): frontend full vitest 5692 passed (33 skipped); root type
 
 Results (Node 24.21.0): backend unit 384 suites, 6633 passed; lint-rules 18 passed; backend e2e full run 359 suites passed, 4 timing flakes under load (assistant-push presence, short-balance ranking, card-payment repeat window, ai-categorization status), all 72 tests of those 4 suites pass on a rerun alone; frontend vitest 401 files, 5692 passed; typecheck, lint, i18n keys OK; Playwright `integrations/`, `reconciliation/`, `chat/` 45 passed on the dev stack.
 
-Owner-decision audit (each checked against code and a test): no AI auto-merge (judge.e2e "merging nothing", inbox.e2e "never merges on its own"); one confirm card per transaction (inbox.e2e second source updates the card); logged now, confirm in the inbox (process-notification.e2e "confirm in the inbox"); banners incl. errors (ingest-event.e2e notify per outcome, 429/413/422 message; on-device banner ⚠️ pending Task 15); iOS Automation rename and redirects (ios-automation-routes.spec, Playwright); pinned inbox (inbox.e2e, suggestions.spec); no Apple Intelligence (setup note spec; ⚠️ the generator assertion that no Apple Intelligence action appears is pending Task 15); minimal text at rest (ingest-event.e2e, process-notification.e2e, cleanup e2e); fail-closed sources (notification-sources and process-notification e2e); two setup buttons, no UA parsing (shortcut-choice.spec); PWA-safe links (add-shortcut-button.spec, copy-text.spec); per-currency card links (card-mappings.e2e); short-balance correction (short-balance.e2e, inbox.e2e); conversion pair (conversion-pair.e2e, inbox.e2e); non-authoritative multi-currency balances (process-notification.e2e "the stated balance"); payee aliases (payee-resolution.e2e); assistant push group (assistant-push.e2e).
+Owner-decision audit (each checked against code and a test): no AI auto-merge (judge.e2e "merging nothing", inbox.e2e "never merges on its own"); one confirm card per transaction (inbox.e2e second source updates the card); logged now, confirm in the inbox (process-notification.e2e "confirm in the inbox"); banners incl. errors (ingest-event.e2e notify per outcome, 429/413/422 message; on-device banner in `build-payments-shortcut.spec.ts`); iOS Automation rename and redirects (ios-automation-routes.spec, Playwright); pinned inbox (inbox.e2e, suggestions.spec); no Apple Intelligence (setup note spec; `build-payments-shortcut.spec.ts` asserts that only built-in actions appear); minimal text at rest (ingest-event.e2e, process-notification.e2e, cleanup e2e); fail-closed sources (notification-sources and process-notification e2e); two setup buttons, no UA parsing (shortcut-choice.spec); PWA-safe links (add-shortcut-button.spec, copy-text.spec); per-currency card links (card-mappings.e2e); short-balance correction (short-balance.e2e, inbox.e2e); conversion pair (conversion-pair.e2e, inbox.e2e); non-authoritative multi-currency balances (process-notification.e2e "the stated balance"); payee aliases (payee-resolution.e2e); assistant push group (assistant-push.e2e).
 
 ### Task 17: [Final] Update documentation
 
@@ -888,7 +888,7 @@ Owner-decision audit (each checked against code and a test): no AI auto-merge (j
 - [x] `cd packages/docs && npm run build` with the link validator passing
 - [x] (deferred - orchestrator moves the plan after Task 15) move this plan to `docs/plans/completed/` after Task 16 passes (Task 15 may stay open under ⚠️)
 
-Results: docs build passes with the link validator (46 pages, anchors included). `/integrations/apple-pay/` redirects to `/integrations/ios-automation/` (`redirects` in `astro.config.mjs`); the page's manual-guide link (`MANUAL_GUIDE_DOCS_PATH`) and its spec follow. Also updated: `ai/ai-features.mdx` (Payment notifications, Duplicate matching), `ai/chat.mdx` (inbox card lifetime and thread), `settings/notifications.mdx` (Assistant group), `getting-started/self-hosting.mdx` and `self-hosting/docs/*` (both shortcut links, `INGEST_AI_DAILY_LIMIT`, `.env.example`), `integrations/ingest-tokens.mdx`, `.claude/docs/backend-conventions.md` (ingest rules). ⚠️ Screenshots not captured (the seed needs the dev stack and SimpleFIN's demo; skipped): `npm run screenshots:missing` lists `ios-automation-{setup,card-links,sources,waiting}`, `transactions/reconciliation-suggestions`, `transactions/automation-inbox` and the earlier gaps. ⚠️ The iOS 27 shortcut steps follow the page's own instructions; re-check them against the shipped file after Task 15.
+Results: docs build passes with the link validator (46 pages, anchors included). `/integrations/apple-pay/` redirects to `/integrations/ios-automation/` (`redirects` in `astro.config.mjs`); the page's manual-guide link (`MANUAL_GUIDE_DOCS_PATH`) and its spec follow. Also updated: `ai/ai-features.mdx` (Payment notifications, Duplicate matching), `ai/chat.mdx` (inbox card lifetime and thread), `settings/notifications.mdx` (Assistant group), `getting-started/self-hosting.mdx` and `self-hosting/docs/*` (both shortcut links, `INGEST_AI_DAILY_LIMIT`, `.env.example`), `integrations/ingest-tokens.mdx`, `.claude/docs/backend-conventions.md` (ingest rules). ⚠️ Screenshots not captured (the seed needs the dev stack and SimpleFIN's demo; skipped): `npm run screenshots:missing` lists `ios-automation-{setup,card-links,sources,waiting}`, `transactions/reconciliation-suggestions`, `transactions/automation-inbox` and the earlier gaps. ⚠️ The iOS 27 shortcut steps follow the page's own instructions; checked against the shipped file in Task 15.
 
 ## Post-Completion
 
