@@ -1,7 +1,22 @@
 import * as notificationsApi from '@/api/notifications';
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const';
+import { SSE_EVENT_TYPES, useSSE } from '@/composable/use-sse';
 import { NotificationModel } from '@bt/shared/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { onScopeDispose } from 'vue';
+
+/**
+ * Refreshes the bell when the server says it changed: a new entry, or entries read because the user
+ * opened what they were about (a chat thread). The interval of the count stays as the fallback.
+ */
+const useBellUpdates = () => {
+  const queryClient = useQueryClient();
+  const stopListening = useSSE().on(SSE_EVENT_TYPES.NOTIFICATIONS_CHANGED, () => {
+    queryClient.invalidateQueries({ queryKey: VUE_QUERY_CACHE_KEYS.notificationsList });
+    queryClient.invalidateQueries({ queryKey: VUE_QUERY_CACHE_KEYS.notificationsUnreadCount });
+  });
+  onScopeDispose(stopListening);
+};
 
 export const useNotifications = (queryOptions = {}) => {
   const queryClient = useQueryClient();
@@ -22,6 +37,7 @@ export const useNotifications = (queryOptions = {}) => {
 
 export const useUnreadNotificationsCount = (queryOptions = {}) => {
   const queryClient = useQueryClient();
+  useBellUpdates();
 
   const query = useQuery({
     queryKey: VUE_QUERY_CACHE_KEYS.notificationsUnreadCount,
