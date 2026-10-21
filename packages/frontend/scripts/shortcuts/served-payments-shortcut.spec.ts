@@ -35,8 +35,12 @@ const decodeSignedShortcut = ({ file }: { file: string }): Dict => {
     const authPath = join(dir, 'auth.bplist');
     writeFileSync(authPath, bytes.subarray(12, 12 + authLength));
 
-    const auth = JSON.parse(execFileSync('plutil', ['-convert', 'json', '-o', '-', authPath]).toString()) as Dict;
-    const leaf = Buffer.from(auth.SigningCertificateChain[0], 'base64');
+    // The certificate is a plist `<data>` value, which `-convert json` refuses; `-extract … raw`
+    // prints it as base64.
+    const leafBase64 = execFileSync('plutil', ['-extract', 'SigningCertificateChain.0', 'raw', '-o', '-', authPath])
+      .toString()
+      .trim();
+    const leaf = Buffer.from(leafBase64, 'base64');
     writeFileSync(join(dir, 'leaf.der'), leaf);
     const pub = execFileSync('openssl', ['x509', '-inform', 'der', '-in', join(dir, 'leaf.der'), '-pubkey', '-noout']);
     writeFileSync(join(dir, 'pub.pem'), pub);
