@@ -15,7 +15,7 @@ import { prepareNotificationRetry } from './prepare-notification-retry';
 import { readStoredParse } from './stored-parse';
 
 /** The park reasons whose payment the owner can log from the inbox card. */
-const APPROVABLE_REASONS = ['unknownAccount', 'ownTransfer', 'lowConfidence'];
+const APPROVABLE_REASONS = ['unknownAccount', 'ownTransfer', 'lowConfidence', 'unverifiedParse'];
 
 /**
  * The owner's yes on a parked payment: the account (and direction) they chose are stored with the

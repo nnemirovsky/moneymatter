@@ -311,10 +311,10 @@ A **source** is `NotificationSources`: the app (bundle id, else the normalized a
 3. The text is **read**:
    - a Wallet notification by its layout in code (title is the card, subtitle the merchant, body only an amount), with no AI;
    - anything else by the `notificationParsing` AI feature. The model returns the kind (`debit`, `credit`, `declined`, `security`, `promo`, `info`, `other`), the stage (`authorization`, `settlement` or `payment`), the amount and currency (and the original amount when the text states two), the merchant, the card's last digits and name, whether it is an own-account transfer, a stated balance, the time the text states, the payee and a confidence.
-4. A `debit` becomes an expense and a `credit` income. `declined`, `security`, `promo`, `info` and `other` are `ignored`. An own-account transfer (`ownTransfer`) and a confidence under 0.6 (`lowConfidence`) park for approval.
+4. A `debit` becomes an expense and a `credit` income. `declined`, `security`, `promo`, `info` and `other` are `ignored`. An own-account transfer (`ownTransfer`) and a confidence under 0.6 (`lowConfidence`) park for approval. What the model copied is checked against the text (title, subtitle, body): card digits the text does not print, on their own or after a mask (`*1258`, `•1258`, `**** 1258`) rather than inside a phone number, balance, date or reference, are dropped; an amount no number in the text equals, separators aside (`3 000,00` = `3000.00`), parks as `unverifiedParse`.
 5. The account is resolved and the payment is logged by the shared logging core (`logIngestedPayment`), the same one the tap uses.
 
-Park reasons of a notification: `sourceNotApproved`, `unknownAccount`, `ownTransfer`, `lowConfidence`, `rateUnavailable`, `aiUnavailable`, `aiCapReached`, `aiLimitReached` and `processingFailed`. `POST /user/settings/card-payments/requests/:id/retry` re-runs a parked request. Retrying `ownTransfer` or `lowConfidence` needs `force: true`, which is the approve action.
+Park reasons of a notification: `sourceNotApproved`, `unknownAccount`, `ownTransfer`, `lowConfidence`, `unverifiedParse`, `rateUnavailable`, `aiUnavailable`, `aiCapReached`, `aiLimitReached` and `processingFailed`. `POST /user/settings/card-payments/requests/:id/retry` re-runs a parked request. Retrying `ownTransfer`, `lowConfidence` or `unverifiedParse` needs `force: true`, which is the approve action.
 
 ### Account resolution
 

@@ -447,9 +447,11 @@ describe('process notification', () => {
 
     describe('a payment that needs the owner', () => {
       it.each([
-        ['ownTransfer', { isOwnAccountTransfer: true }],
-        ['lowConfidence', { confidence: 0.3 }],
-      ])('parks as %s, and only a forced retry logs it, without reading it again', async (reason, answer) => {
+        ['ownTransfer', { isOwnAccountTransfer: true }, '43.60'],
+        ['lowConfidence', { confidence: 0.3 }, '43.60'],
+        // The model read an amount the text does not print.
+        ['unverifiedParse', { amount: '436.00' }, '436.00'],
+      ])('parks as %s, and only a forced retry logs it, without reading it again', async (reason, answer, shown) => {
         const prompts = mockNotificationParsing({ answer: () => wolt(answer) });
         const { secret } = await setUp();
 
@@ -459,7 +461,7 @@ describe('process notification', () => {
         expect(parked.body.response).toMatchObject({
           outcome: 'parked',
           reason,
-          summary: `Needs your OK in MoneyMatter: 43.60 ${BASE} at WOLT.COM TBILISI`,
+          summary: `Needs your OK in MoneyMatter: ${shown} ${BASE} at WOLT.COM TBILISI`,
         });
         expect(await helpers.getTransactions({ raw: true })).toEqual([]);
 
@@ -564,7 +566,10 @@ describe('process notification', () => {
         });
         const secret = (await ingestHelpers.createTestIngestToken()).secret;
 
-        const res = await send({ secret, body: push() });
+        const res = await send({
+          secret,
+          body: push({ body: `Purchase ${BASE} 43.60, WOLT.COM TBILISI, card *4321` }),
+        });
 
         expect(res.body.response.outcome).toBe('logged');
         const request = await storedRequest({ requestId: res.body.response.requestId });

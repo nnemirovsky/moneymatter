@@ -90,7 +90,18 @@ const timeOf = ({ noon, seconds }: { noon: Date; seconds: number }) =>
   new Date(noon.getTime() + seconds * 1000).toISOString();
 
 /** Sends one source of the Wolt payment the way its channel does, with the time its device stamped. */
-const sendSource = ({ secret, noon, source }: { secret: string; noon: Date; source: Source }) => {
+const sendSource = ({
+  secret,
+  noon,
+  source,
+  bogBody = 'Purchase 29.41 GEL, WOLT.COM TBILISI, card *0000',
+}: {
+  secret: string;
+  noon: Date;
+  source: Source;
+  /** What the other bank's push prints. */
+  bogBody?: string;
+}) => {
   const time = timeOf({ noon, seconds: SOURCE_OFFSET_SECONDS[source] });
   const idempotencyKey = `key-${source}-${randomUUID()}`;
 
@@ -137,7 +148,7 @@ const sendSource = ({ secret, noon, source }: { secret: string; noon: Date; sour
           app: 'Bank of Georgia',
           title: 'BOG',
           subtitle: '',
-          body: 'Purchase 29.41 GEL, WOLT.COM TBILISI, card *0000',
+          body: bogBody,
           time,
           idempotencyKey,
         },
@@ -428,7 +439,12 @@ describe('twin and settlement rules', () => {
       expect(tap.status).toBe(200);
       expect((await allRows())[0]!.amount.toNumber()).toBe(20);
 
-      const bank = await sendSource({ secret, noon, source: 'bog' });
+      const bank = await sendSource({
+        secret,
+        noon,
+        source: 'bog',
+        bogBody: 'Purchase 20.50 GEL (10.00 USD), WOLT.COM TBILISI, card *0000',
+      });
       expect(bank.body.response.outcome).toBe('attached');
 
       const rows = await allRows();
@@ -501,12 +517,12 @@ describe('twin and settlement rules', () => {
       });
       const { secret, noon } = await setUp();
 
-      await sendBank({ secret, noon, seconds: 0, body: 'Hold 29.41 GEL, Wolt' });
+      await sendBank({ secret, noon, seconds: 0, body: 'Hold 29.41 GEL, Wolt, card *0000' });
       const settlement = await sendBank({
         secret,
         noon,
         seconds: 2 * 24 * 3600,
-        body: 'Settled 29.41 GEL, Wolt',
+        body: 'Settled 29.41 GEL, Wolt, card *0000',
       });
 
       expect(settlement.body.response.outcome).toBe('attached');
@@ -529,12 +545,12 @@ describe('twin and settlement rules', () => {
       });
       const { secret, noon } = await setUp();
 
-      await sendBank({ secret, noon, seconds: 0, body: 'Hold 29.41 GEL, Wolt' });
+      await sendBank({ secret, noon, seconds: 0, body: 'Hold 29.41 GEL, Wolt, card *0000' });
       const settlement = await sendBank({
         secret,
         noon,
         seconds: 2 * 24 * 3600,
-        body: 'Settled 29.41 GEL, Bolt Food',
+        body: 'Settled 29.41 GEL, Bolt Food, card *0000',
       });
 
       expect(settlement.body.response.outcome).toBe('logged');

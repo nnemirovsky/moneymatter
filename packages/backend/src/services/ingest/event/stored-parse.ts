@@ -42,7 +42,7 @@ export const UNCLASSIFIED_PARK_REASONS: readonly NotificationParkReason[] = [
 ];
 
 /** The reasons that need the owner's word before the payment is logged, so a retry must say `force`. */
-export const FORCE_PARK_REASONS: readonly string[] = ['ownTransfer', 'lowConfidence'];
+export const FORCE_PARK_REASONS: readonly string[] = ['ownTransfer', 'lowConfidence', 'unverifiedParse'];
 
 export const toStoredPayment = ({ payment }: { payment: ParsedPayment }): StoredPayment => ({
   ...payment,

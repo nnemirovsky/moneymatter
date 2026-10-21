@@ -30,10 +30,13 @@ const push = ({ merchant, amount = '43.60' }: { merchant: string; amount?: strin
 const answer = ({
   merchant,
   payee,
+  amount = '43.60',
 }: {
   merchant: string;
   payee: { candidateId: string | null; newName: string | null } | null;
-}) => ({ kind: 'debit' as const, amount: '43.60', currency: BASE, merchant, cardName: CARD, payee });
+  /** The amount the push prints: an amount it does not print parks the payment as unverified. */
+  amount?: string;
+}) => ({ kind: 'debit' as const, amount, currency: BASE, merchant, cardName: CARD, payee });
 
 const setUp = async () => {
   const account = await helpers.createAccount({ raw: true });
@@ -78,7 +81,11 @@ describe('payee resolution of a notification', () => {
       answer: ({ call }) =>
         call === 1
           ? answer({ merchant: 'WOLT.COM TBILISI', payee: { candidateId: 'p1', newName: null } })
-          : answer({ merchant: 'WOLT.COM TBILISI', payee: { candidateId: null, newName: 'Something' } }),
+          : answer({
+              merchant: 'WOLT.COM TBILISI',
+              payee: { candidateId: null, newName: 'Something' },
+              amount: '44.60',
+            }),
     });
     const secret = await setUp();
 
