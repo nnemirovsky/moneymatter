@@ -12,7 +12,7 @@ import type { StoredPayment } from './stored-parse';
 export type AccountLesson = 'card' | 'sourceDefault' | null;
 
 /** The name a card named only by its digits gets: the app and the digits, as the waiting list shows it. */
-export const digitsCardLabel = ({ appName, lastDigits }: { appName: string | null; lastDigits: string }): string =>
+const digitsCardLabel = ({ appName, lastDigits }: { appName: string | null; lastDigits: string }): string =>
   `${appName ?? 'Card'} •${lastDigits}`;
 
 const validDigits = ({ payment }: { payment: StoredPayment }): string | null =>

@@ -13,7 +13,7 @@ import { readStoredParse, type StoredPayment } from './stored-parse';
  * - a card, by the digits and/or the Wallet card name it names;
  * - a source, for the payments that name no card at all.
  */
-export type SiblingMatch =
+type SiblingMatch =
   | { kind: 'card'; lastDigits?: string | null; normalizedLabel?: string | null }
   | { kind: 'source'; sourceId: RecordId };
 
