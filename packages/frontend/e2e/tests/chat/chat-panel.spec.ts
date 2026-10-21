@@ -101,32 +101,30 @@ test.describe('Chat panel', () => {
     return { panel, selects };
   };
 
-  /** Whether the label inside a select shows in full, without an ellipsis. */
-  const showsFullLabel = ({ select }: { select: Locator }) =>
-    select.evaluate((element) => {
-      const label = element.querySelector('.truncate');
-      return label !== null && label.scrollWidth <= label.clientWidth;
-    });
+  /** The label inside a select, which truncates when the select is narrow. */
+  const selectLabel = ({ select }: { select: Locator }) => select.locator('.truncate');
 
-  test('stacks the connection and model selects in a panel at its minimum width', async ({ page }) => {
+  test('keeps the connection and model selects on one row in a panel at its minimum width', async ({ page }) => {
     const { panel, selects } = await openPanelWithModels({ page, width: 360 });
 
     const panelBox = (await panel.boundingBox())!;
     expect(panelBox.width).toBeLessThanOrEqual(360);
     const [connection, model] = await Promise.all([selects.nth(0).boundingBox(), selects.nth(1).boundingBox()]);
     for (const box of [connection!, model!]) {
-      expect(box.width).toBeGreaterThan(300);
       expect(box.x).toBeGreaterThanOrEqual(panelBox.x);
       expect(box.x + box.width).toBeLessThanOrEqual(panelBox.x + panelBox.width);
     }
-    // The model select sits on its own row under the connection select.
-    expect(model!.y).toBeGreaterThanOrEqual(connection!.y + connection!.height);
+    // One row, to save vertical space: the two selects share the width in equal halves.
+    expect(Math.abs(connection!.y - model!.y)).toBeLessThan(4);
+    expect(connection!.x + connection!.width).toBeLessThanOrEqual(model!.x);
+    expect(Math.abs(connection!.width - model!.width)).toBeLessThan(2);
+    expect(connection!.width).toBeGreaterThan(panelBox.width * 0.4);
     expect(await panel.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-    // The model select names the model, so the connection is named alone.
+    // The model select names the model, so the connection is named alone; a label cut short keeps its full text.
     await expect(selects.nth(0)).toHaveText('My Claude Account');
     await expect(selects.nth(1)).toContainText('Default (claude-haiku-5-5)');
-    expect(await showsFullLabel({ select: selects.nth(0) })).toBe(true);
-    expect(await showsFullLabel({ select: selects.nth(1) })).toBe(true);
+    await expect(selectLabel({ select: selects.nth(0) })).toHaveAttribute('title', 'My Claude Account');
+    await expect(selectLabel({ select: selects.nth(1) })).toHaveAttribute('title', /Default \(claude-haiku-5-5\)/);
 
     await panel.screenshot({ path: test.info().outputPath('panel-360.png') });
   });
