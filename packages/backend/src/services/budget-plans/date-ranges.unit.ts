@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { clipRange, rangesIntersect, subtractRanges } from './date-ranges';
+import { clipRange, rangesIntersect, subtractRanges, utcInstant, zonedInstant } from './date-ranges';
 
 describe('rangesIntersect', () => {
   it('treats the end as exclusive', () => {
@@ -108,5 +108,20 @@ describe('subtractRanges', () => {
         ],
       }),
     ).toEqual([range]);
+  });
+});
+
+describe('zonedInstant', () => {
+  it('is local midnight of the plan day in the zone', () => {
+    expect(zonedInstant({ date: '2026-10-01', zone: 'Asia/Tbilisi' }).toISOString()).toBe('2026-09-30T20:00:00.000Z');
+    expect(zonedInstant({ date: '2026-11-01', zone: 'America/New_York' }).toISOString()).toBe(
+      '2026-11-01T04:00:00.000Z',
+    );
+  });
+
+  it('equals utcInstant for UTC', () => {
+    expect(zonedInstant({ date: '2026-10-01', zone: 'UTC' }).getTime()).toBe(
+      utcInstant({ date: '2026-10-01' }).getTime(),
+    );
   });
 });

@@ -1,5 +1,5 @@
-import { zonedDayEnd, zonedDayStart } from '@bt/shared/time-zone';
 import type { CashFlowGranularity, NetWorthHistoryGranularity, PivotGranularity } from '@bt/shared/types';
+import { dayBoundEnd, dayBoundStart } from '@common/lib/time-zones/day-bounds';
 import { toInstant, tzOptions } from '@common/lib/time-zones/tz-options';
 import {
   addDays,
@@ -141,8 +141,8 @@ export const generatePeriodBuckets = ({
 }): PeriodBucket[] => {
   const spec = GRANULARITY_SPECS[granularity];
   const buckets: PeriodBucket[] = [];
-  const startDate = zonedDayStart({ date: from, zone });
-  const endDate = zonedDayEnd({ date: to, zone });
+  const startDate = dayBoundStart({ value: from, zone });
+  const endDate = dayBoundEnd({ value: to, zone });
 
   const withinRange = (date: Date): boolean => isBefore(date, endDate) || date.getTime() === endDate.getTime();
 

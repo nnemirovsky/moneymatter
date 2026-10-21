@@ -1,7 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 import { addMonths, startOfDay, startOfMonth, startOfWeek } from 'date-fns';
 
-import { toInstant, tzOptions } from './tz-options';
+import { dayBoundEnd, dayBoundStart } from './day-bounds';
+import { localDay, toInstant, tzOptions } from './tz-options';
 
 const startOfMonthIn = ({ iso, zone }: { iso: string; zone: string }) =>
   toInstant({ date: startOfMonth(new Date(iso), tzOptions({ zone })) }).toISOString();
@@ -32,5 +33,28 @@ describe('tzOptions', () => {
       ...tzOptions({ zone: 'Asia/Tbilisi' }),
     });
     expect(toInstant({ date: monday }).toISOString()).toBe('2026-10-18T20:00:00.000Z');
+  });
+});
+
+describe('localDay', () => {
+  it('names the calendar day of the zone, not of UTC', () => {
+    const now = new Date('2026-10-31T21:30:00Z');
+    expect(localDay({ zone: 'Asia/Tbilisi', now })).toBe('2026-11-01');
+    expect(localDay({ zone: 'UTC', now })).toBe('2026-10-31');
+    expect(localDay({ zone: 'America/New_York', now })).toBe('2026-10-31');
+  });
+
+  it('counts days back in the zone', () => {
+    expect(localDay({ zone: 'Asia/Tbilisi', daysAgo: 30, now: new Date('2026-10-31T21:30:00Z') })).toBe('2026-10-02');
+  });
+});
+
+describe('day bounds', () => {
+  it('reads a yyyy-MM-dd bound in the zone and an ISO bound as an exact instant', () => {
+    expect(dayBoundStart({ value: '2026-10-21', zone: 'Asia/Tbilisi' }).toISOString()).toBe('2026-10-20T20:00:00.000Z');
+    expect(dayBoundEnd({ value: '2026-10-21', zone: 'Asia/Tbilisi' }).toISOString()).toBe('2026-10-21T19:59:59.999Z');
+    expect(dayBoundStart({ value: '2026-10-21T05:00:00.000Z', zone: 'Asia/Tbilisi' }).toISOString()).toBe(
+      '2026-10-21T05:00:00.000Z',
+    );
   });
 });

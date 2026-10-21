@@ -11,7 +11,7 @@ import { getCreditLimitMinorByAccount } from '@services/stats/get-credit-limit-a
 import { getExchangeRate, resolveCustomRate } from '@services/user-exchange-rate/get-exchange-rate.service';
 import { QueryTypes } from 'sequelize';
 
-import { utcInstant } from '../date-ranges';
+import { utcInstant, zonedInstant } from '../date-ranges';
 
 /** Money columns and SUMs arrive from the raw query as DECIMAL strings in major units. */
 interface CashRow {
@@ -71,7 +71,7 @@ const storedRate = async ({
 
 /**
  * Base-currency minor units at `decimals` (converted from the DECIMAL columns at the query boundary) held in the plan's accounts just before the `opening` and
- * `closing` days start ('yyyy-MM-dd', UTC): the current balance minus every
+ * `closing` days start ('yyyy-MM-dd', local days of `zone`): the current balance minus every
  * transaction from then on, a card net of its credit limit. A foreign account's
  * opening is valued at the opening day's rate, so a later rate move shows as drift.
  *
@@ -83,14 +83,17 @@ export const getPlanCash = async ({
   opening,
   closing,
   decimals,
+  zone,
 }: {
   plan: BudgetPlans;
   opening: string;
   closing: string;
+  /** The viewing zone: the opening and closing days start at its local midnight. */
+  zone: string;
   /** The plan currency's decimals, which is the base currency's. */
   decimals: number;
 }): Promise<{ opening: number; closing: number }> => {
-  const openingUtc = utcInstant({ date: opening });
+  const openingUtc = zonedInstant({ date: opening, zone });
   const [limits, baseCurrency, rows] = await Promise.all([
     getCreditLimitMinorByAccount({ userId: plan.userId, accountScope: 'owned', decimals }),
     getBaseCurrency({ userId: plan.userId }),
@@ -120,7 +123,7 @@ export const getPlanCash = async ({
           planId: plan.id,
           ownerId: plan.userId,
           openingUtc,
-          closingUtc: utcInstant({ date: closing }),
+          closingUtc: zonedInstant({ date: closing, zone }),
         },
       },
     ) as Promise<CashRow[]>,
@@ -135,7 +138,8 @@ export const getPlanCash = async ({
         userId: plan.userId,
         baseCode: row.currencyCode,
         quoteCode: baseCurrency!.currencyCode,
-        date: openingUtc,
+        // Rates are daily, keyed on the UTC calendar day.
+        date: utcInstant({ date: opening }),
       });
       if (rate === null) {
         logger.warn('[Budget plans] No stored rate for an opening balance, using the current-rate value', {

@@ -1,9 +1,17 @@
+import { zonedDayStart } from '@bt/shared/time-zone';
 import { toUtcDateString } from '@common/utils/date';
 
 import { MS_PER_DAY } from './periods/period-enumerator';
 
 export const utcInstant = ({ date }: { date: string | Date }): Date =>
   new Date(`${toUtcDateString(date)}T00:00:00.000Z`);
+
+/**
+ * Local midnight of a plan day in `zone` as an instant. Plan days are calendar dates, and the
+ * transactions that fall in one are the ones the viewer's zone puts on it.
+ */
+export const zonedInstant = ({ date, zone }: { date: string | Date; zone: string }): Date =>
+  zonedDayStart({ date: toUtcDateString(date), zone });
 
 export const addUtcDays = ({ date, days }: { date: string; days: number }): string =>
   toUtcDateString(new Date(utcInstant({ date }).getTime() + days * MS_PER_DAY));

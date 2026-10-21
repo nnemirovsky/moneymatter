@@ -1,12 +1,14 @@
 import { SORT_DIRECTIONS, TRANSACTION_TYPES } from '@bt/shared/types';
 import { timeInputSchema } from '@common/lib/time-zones/resolve-time-input';
 import { resolveUserRangeBound } from '@common/lib/time-zones/resolve-user-time';
+import { localDay } from '@common/lib/time-zones/tz-options';
 import { recordId } from '@common/lib/zod/custom-types';
 import { Money } from '@common/types/money';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { serializeTransactions } from '@root/serializers/transactions.serializer';
 import { getTransactions } from '@services/transactions/get-transactions';
+import { getUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { z } from 'zod';
 
 import { getUserId, jsonContent } from './helpers';
@@ -64,12 +66,13 @@ export function registerSearchTransactions(server: McpServer) {
       trackMcpToolUsed({ userId, tool: 'search_transactions', clientId: extra.authInfo?.clientId });
 
       const now = new Date();
-      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       const limit = Math.min(args.limit ?? 50, 500);
+      // The default window is the last 30 days counted in the user's zone.
+      const zone = await getUserTimeZone({ userId });
 
       const startDate = args.startDate
         ? await resolveUserRangeBound({ userId, value: args.startDate, edge: 'start' })
-        : thirtyDaysAgo.toISOString();
+        : await resolveUserRangeBound({ userId, value: localDay({ zone, daysAgo: 30 }), edge: 'start' });
       const endDate = args.endDate
         ? await resolveUserRangeBound({ userId, value: args.endDate, edge: 'end' })
         : now.toISOString();

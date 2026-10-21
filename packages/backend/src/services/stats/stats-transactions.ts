@@ -1,5 +1,5 @@
-import { zonedDayEnd, zonedDayStart } from '@bt/shared/time-zone';
 import { TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES } from '@bt/shared/types';
+import { dayBoundEnd, dayBoundStart } from '@common/lib/time-zones/day-bounds';
 import Accounts from '@models/accounts.model';
 import { AccessPolicy, PlannedPolicy, findTransactions } from '@models/transactions-query';
 import Transactions from '@models/transactions.model';
@@ -80,7 +80,7 @@ const windowWhere = ({ window }: { window: StatsWindow }): WhereOptions | null =
 
   if (window.from)
     bounds[Op.gte] =
-      typeof window.from === 'string' ? zonedDayStart({ date: window.from, zone: window.zone }) : window.from;
+      typeof window.from === 'string' ? dayBoundStart({ value: window.from, zone: window.zone }) : window.from;
 
   if (window.to) {
     if (typeof window.to !== 'string') {
@@ -88,8 +88,8 @@ const windowWhere = ({ window }: { window: StatsWindow }): WhereOptions | null =
     } else {
       const closesRange = Boolean(window.from);
       bounds[Op.lte] = closesRange
-        ? zonedDayEnd({ date: window.to, zone: window.zone })
-        : zonedDayStart({ date: window.to, zone: window.zone });
+        ? dayBoundEnd({ value: window.to, zone: window.zone })
+        : dayBoundStart({ value: window.to, zone: window.zone });
     }
   }
 

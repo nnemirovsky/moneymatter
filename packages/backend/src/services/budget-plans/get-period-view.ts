@@ -17,6 +17,7 @@ import BudgetLineCategories from '@models/budget-line-categories.model';
 import BudgetLineGoals from '@models/budget-line-goals.model';
 import BudgetLines from '@models/budget-lines.model';
 import BudgetPlans from '@models/budget-plans.model';
+import { getUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { Op } from 'sequelize';
 
 import { getPlanActivity } from './activity/get-plan-activity';
@@ -74,8 +75,10 @@ const periodPool = async ({
 
   const poolViews = views.filter((entry) => entry.period.startDate >= poolFrom);
   const tomorrow = addUtcDays({ date: today, days: 1 });
+  const zone = await getUserTimeZone({ userId: plan.userId });
   const { opening, closing: cash } = await getPlanCash({
     plan,
+    zone,
     opening: poolFrom,
     closing: view.period.endDate < tomorrow ? view.period.endDate : tomorrow,
     decimals,
@@ -335,11 +338,13 @@ const loadGoals = async ({
 export const loadFoldInput = async ({ plan, today }: { plan: BudgetPlans; today: string }) => {
   const periods = await ensurePeriods({ plan, today });
   const decimals = await getCurrencyDecimals({ userId: plan.userId, code: plan.currencyCode });
+  // A plan belongs to its owner, so its days are the local days of the owner's zone.
+  const zone = await getUserTimeZone({ userId: plan.userId });
 
   const [lines, { categories }, activityRows] = await Promise.all([
     loadLines({ planId: plan.id }),
     ownerCategories({ userId: plan.userId }),
-    getPlanActivity({ plan, periods, decimals }),
+    getPlanActivity({ plan, periods, decimals, zone }),
   ]);
 
   const lineIds = lines.map((line) => line.id);
