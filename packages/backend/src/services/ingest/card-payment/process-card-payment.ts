@@ -4,23 +4,17 @@ import Accounts from '@models/accounts.model';
 import type CardAccountMappings from '@models/card-account-mappings.model';
 import { getUserDefaultCategory } from '@models/users.model';
 import { resolveVisibleCurrencies } from '@services/currencies/assert-currency-codes-visible';
-import { resolvePayeeForIncomingRow } from '@services/payees/resolve-payee-for-incoming-row';
 
 import { attachToExistingPayment } from '../dedup/attach-to-existing-payment';
 import { TAP_SLOT } from '../dedup/source-slots';
 import { logIngestedPayment } from '../log-ingested-payment';
+import { resolveIngestPayee } from '../payee/resolve-ingest-payee';
 import { buildExternalReference } from './constants';
 import { convertToAccountCurrency } from './convert-to-account-currency';
 import type { ParsedCardPayment } from './parse-payload';
 import { pickHistoryCategory } from './pick-history-category';
 import { formatRateDate } from './rate-unavailable-error';
 import { resolveCurrency } from './resolve-currency';
-
-/**
- * A merchant on a card payment is a deliberate merchant field, not a guess from a note, so its
- * first sighting already creates the payee.
- */
-const PAYEE_PROMOTION_THRESHOLD = 1;
 
 type ProcessCardPaymentResult =
   | { kind: 'logged'; transactionId: RecordId }
@@ -38,9 +32,10 @@ type ProcessCardPaymentResult =
  * - The payment's currency is resolved only now that the account's currency is known, and must be
  *   one the user can use. A payment in another currency than the account's is converted at the
  *   rate of its day; the amount as the card charged it stays on the row as the original amount.
- * - The merchant becomes a payee (found by name or alias, or created on first sight). The category
- *   is the payee's default (applied by `createTransaction`), else the payee's most frequent past
- *   category, else the user's default category.
+ * - The merchant becomes a payee (see `resolveIngestPayee`: its name or alias, the one payee its
+ *   core name matches, the AI's pick among equally close ones, else a new payee on first sight). The
+ *   category is the payee's default (applied by `createTransaction`), else the payee's most frequent
+ *   past category, else the user's default category.
  * - A payment another source already logged (the Wallet notification of the same payment, a bank
  *   push) is not logged twice: the tap joins that row (`attached`) and enriches it.
  * - On a bank-connected account the row is planned, the only kind of manual row such an account
@@ -57,6 +52,7 @@ export const processCardPayment = async ({
   payment,
   mapping,
   userCurrencyCodes,
+  pickedPayeeId = null,
 }: {
   requestId: RecordId;
   userId: number;
@@ -64,6 +60,8 @@ export const processCardPayment = async ({
   mapping: Pick<CardAccountMappings, 'accountId'>;
   /** The currencies the user holds, which narrow down a shared symbol such as `$`. */
   userCurrencyCodes: readonly string[];
+  /** The payee the AI chose among those the merchant is as close to (see `pickAmbiguousPayee`). */
+  pickedPayeeId?: string | null;
 }): Promise<ProcessCardPaymentResult> => {
   const account = await Accounts.findOne({
     where: { id: mapping.accountId, userId },
@@ -108,12 +106,12 @@ export const processCardPayment = async ({
     accountAmount = converted.amount;
   }
 
-  const payeeId = await resolvePayeeForIncomingRow({
-    ownerUserId: userId,
-    rawMerchantName: payment.merchant,
+  const payeeId = await resolveIngestPayee({
+    userId,
+    requestId,
+    rawMerchant: payment.merchant,
+    pickedPayeeId,
     failureLogMessage: 'Failed to resolve the payee of a card payment; continuing without link',
-    logContext: { requestId },
-    promotionThreshold: PAYEE_PROMOTION_THRESHOLD,
   });
   const historyCategoryId = payeeId
     ? await pickHistoryCategory({ ownerUserId: userId, payeeId, asOf: payment.time })

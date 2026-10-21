@@ -141,7 +141,8 @@ export function registerUpdateTransaction(server: McpServer) {
         transferNature: args.transferNature,
         categoryId: args.categoryId,
         time: args.time ? new Date(args.time) : undefined,
-        note: args.note,
+        // An emptied note (a card's Edit leaves "") clears it.
+        note: args.note?.trim() === '' ? null : args.note,
         destinationAccountId: args.destinationAccountId,
         destinationAmount: args.destinationAmount !== undefined ? Money.fromDecimal(args.destinationAmount) : undefined,
         destinationTransactionId: args.destinationTransactionId,

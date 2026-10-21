@@ -42,6 +42,8 @@ const makeRequest = (overrides: Partial<CardPaymentRequestDto> = {}): CardPaymen
   reason: 'unknownCard',
   summary: null,
   cardLabel: 'TBC Visa',
+  cardLastDigits: null,
+  accountGuessId: null,
   merchant: 'Cafe Heart of Batumi',
   amountText: '47,00 GEL',
   time: '2026-10-18T10:00:00.000Z',

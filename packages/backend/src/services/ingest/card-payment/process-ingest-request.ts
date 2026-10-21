@@ -191,6 +191,7 @@ const processIngestRequestImpl = async ({
   fingerprint,
   retry = false,
   locale,
+  pickedPayeeId = null,
 }: {
   requestId: RecordId;
   /** The fingerprint of the body that arrived now. Omitted when the stored payload is retried. */
@@ -201,6 +202,8 @@ const processIngestRequestImpl = async ({
    */
   retry?: boolean;
   locale: string;
+  /** The payee the AI chose among those the merchant is as close to, before this transaction. */
+  pickedPayeeId?: string | null;
 }): Promise<ProcessIngestResult> => {
   const row = await IngestRequests.findOne({ where: { id: requestId }, lock: true });
   if (!row) throw new Error(`Ingest request ${requestId} does not exist.`);
@@ -265,6 +268,7 @@ const processIngestRequestImpl = async ({
     payment: parsed,
     mapping,
     userCurrencyCodes,
+    pickedPayeeId,
   });
   if (processed.kind === 'rejected') return markRejected({ row, reason: processed.reason, locale });
   if (processed.kind === 'unlinked') return unknownCard();

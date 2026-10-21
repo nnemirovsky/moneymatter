@@ -162,12 +162,24 @@ A code and a symbol in the same text that disagree (`€47 USD`) are refused as 
 
 ### Payee and category
 
-The merchant text goes through the normal payee extraction: an exact name or alias match, then a fuzzy match, and otherwise a new payee is created on first sight. Then the category, in order:
+The merchant text resolves to a payee (`resolveIngestPayee`), in order:
+
+1. an exact alias or name match on the normalized spelling (case, whitespace, punctuation and accents folded; no fuzziness). An alias keeps the raw spelling verbatim in `rawName`;
+2. nothing for a name on the ignored list;
+3. a **core-name match**: case, punctuation and legal forms (`LTD`, `LLC`, `Company`, `Co`, `JSC`, `შპს`, `ООО`, …) are dropped from both names, and names with as many words that are equal or a small typo apart (no edit under 5 characters, 1 under 12, else 2) match. The one closest payee is suggested, so `NORD COFEE COMPANY LTD` goes to an existing "Nord Coffee";
+4. several payees as close: before the logging transaction, the `notificationParsing` model picks one of them (`pickAmbiguousPayee`), shown each candidate's known spellings and usual categories. A pick is suggested; no pick (or no AI) logs the payment **without a payee**, never a new look-alike payee;
+5. otherwise the closest fuzzy match is suggested, else a new payee is created at first sight, with the merchant as its own alias.
+
+Steps 3 to 5 write no alias: the payee is a suggestion on the row and its confirm card until the owner confirms or corrects it (see **Learning from the owner** below). Only then does the spelling become an alias, so the next identical merchant resolves at step 1 with no matcher and no model.
+
+The note is suggested from the payee's last 50 payments of the past 12 months (`suggestNoteFromHistory`), never from the merchant: notes that only repeat the payee's name, its spellings or the merchant don't count. With two or more past payments at the same part of the day (morning 5–11, midday 11–16, evening 16–22, night, at the payment's local time from the request's `time` offset) those decide, else the whole history does. A note on at least two of them and 60% of them is written at once. When most of them carry notes but none wins, the `afterPaymentLogged` follow-up asks the `notificationParsing` model to pick one of the past notes (with when and for how much each was used) or none, and refreshes the confirm card. Otherwise the note stays empty. A row without a payee keeps the merchant as its note. The raw spelling stays in `externalData.cardPayment.merchant`, which the automations' **Merchant** condition reads. Then the category, in order:
 
 1. the user's automations and the payee's default category (`enforce` or `hint` mode);
-2. the most frequent category the user used for that payee in the last 12 months;
-3. AI categorization, queued for every row that no rule or `enforce` payee settled, with a short wait for the answer when the row is still in the default category;
+2. the most frequent category the user used for that payee in the last 12 months (a tie goes to the latest). It is final: no AI job is queued for a row that still carries it;
+3. AI categorization, queued for every other row that no rule or `enforce` payee settled, with a short wait for the answer when the row is still in the default category;
 4. the user's default category.
+
+**Learning from the owner.** When the owner confirms an ingested row (approving its confirm card, with or without edits, or editing the transaction) or gives it another payee (also through the assistant), `learnPayeeCorrection` maps the raw merchant to the payee the row ends with: a spelling no payee holds becomes its alias; a payee the payment's own merchant created when it was logged (`externalData.ingest.createdPayeeId`) and nothing else uses is merged into the chosen one. A spelling held by any other payee, or on the ignored list, is left alone.
 
 ### Settlement on bank-connected accounts
 
@@ -299,10 +311,10 @@ A **source** is `NotificationSources`: the app (bundle id, else the normalized a
 3. The text is **read**:
    - a Wallet notification by its layout in code (title is the card, subtitle the merchant, body only an amount), with no AI;
    - anything else by the `notificationParsing` AI feature. The model returns the kind (`debit`, `credit`, `declined`, `security`, `promo`, `info`, `other`), the stage (`authorization`, `settlement` or `payment`), the amount and currency (and the original amount when the text states two), the merchant, the card's last digits and name, whether it is an own-account transfer, a stated balance, the time the text states, the payee and a confidence.
-4. A `debit` becomes an expense and a `credit` income. `declined`, `security`, `promo`, `info` and `other` are `ignored`. An own-account transfer (`ownTransfer`) and a confidence under 0.6 (`lowConfidence`) park for approval.
+4. A `debit` becomes an expense and a `credit` income. `declined`, `security`, `promo`, `info` and `other` are `ignored`. An own-account transfer (`ownTransfer`) and a confidence under 0.6 (`lowConfidence`) park for approval. What the model copied is checked against the text (title, subtitle, body): card digits the text does not print, on their own or after a mask (`*1258`, `•1258`, `**** 1258`) rather than inside a phone number, balance, date or reference, are dropped; an amount no number in the text equals, separators aside (`3 000,00` = `3000.00`), parks as `unverifiedParse`.
 5. The account is resolved and the payment is logged by the shared logging core (`logIngestedPayment`), the same one the tap uses.
 
-Park reasons of a notification: `sourceNotApproved`, `unknownAccount`, `ownTransfer`, `lowConfidence`, `rateUnavailable`, `aiUnavailable`, `aiCapReached`, `aiLimitReached` and `processingFailed`. `POST /user/settings/card-payments/requests/:id/retry` re-runs a parked request. Retrying `ownTransfer` or `lowConfidence` needs `force: true`, which is the approve action.
+Park reasons of a notification: `sourceNotApproved`, `unknownAccount`, `ownTransfer`, `lowConfidence`, `unverifiedParse`, `rateUnavailable`, `aiUnavailable`, `aiCapReached`, `aiLimitReached` and `processingFailed`. `POST /user/settings/card-payments/requests/:id/retry` re-runs a parked request. Retrying `ownTransfer`, `lowConfidence` or `unverifiedParse` needs `force: true`, which is the approve action.
 
 ### Account resolution
 
@@ -315,9 +327,9 @@ Archived accounts and loan or vehicle accounts don't count as found. With none, 
 
 The parse call resolves the payee with the model:
 
-1. An exact lookup first: when the raw merchant resolves through the normalized name, that payee is used and the model's payee answer is ignored.
-2. Otherwise up to 15 candidates go into the prompt: token matches on payee names and aliases (tokens of 3 or more characters that are not digits and not generic merchant words), fuzzy matches, and the source's 5 most recent payees. The model returns `{ candidateId }` or `{ newName }`.
-3. `applyPayeeChoice` applies it: a candidate becomes the payee and a differently normalized raw spelling is saved as an alias (unless the name is ignored or already belongs to another payee). For `newName` an existing payee with that normalized name is adopted rather than created, so a name clash can't fail the request.
+1. An exact lookup first: when the raw merchant resolves through the normalized name, that payee is used and the model's payee answer is ignored. A core-name match to exactly one payee (see [Payee and category](#payee-and-category)) wins over the model's answer too.
+2. Otherwise up to 15 candidates go into the prompt: token matches on payee names and aliases (tokens of 3 or more characters that are not digits and not generic merchant words), fuzzy matches, and the source's 5 most recent payees, each with its two most frequent categories of the last 12 months. The model returns `{ candidateId }` or `{ newName }`.
+3. `applyPayeeChoice` applies it: a candidate becomes the payee. For `newName` an existing payee with that normalized name is adopted rather than created, so a name clash can't fail the request. Either way it is a suggestion: the raw spelling becomes an alias only when the owner confirms the payment.
 
 ### AI limits
 
@@ -373,13 +385,13 @@ The inbox is a MoneyMatter-owned chat thread (`ChatThreads.kind = automationInbo
 - **No AI.** `startChatRun` refuses any inbox thread with `409`, which covers `sendMessage` and `commentOnProposal`.
 - **Cards.** Run-free `createSystemProposal` posts every item, with `storeProposal` shared with `createProposal`. They expire after 30 days (`inboxConfig.cardTtlDays`); expiry resolves nothing, and re-evaluates the thread (`reevaluateInboxThreads`).
 
-| Item                                          | Tool                            | Approve | Edit                             | Reject              |
-| --------------------------------------------- | ------------------------------- | ------- | -------------------------------- | ------------------- |
-| Payment logged                                | `confirm_ingest_payment`        | confirm | account, amount, payee, category | delete the payment  |
-| Unknown account, own transfer, low confidence | `log_ingest_request`            | log     | account, direction               | dismiss the request |
-| Pending source                                | `set_notification_source`       | approve | default account                  | mute                |
-| Duplicate suggestion                          | `merge_duplicate_transactions`  | merge   | survivor                         | dismiss             |
-| Conversion pair                               | the existing link-transfer tool | link    |                                  | dismiss             |
+| Item                                          | Tool                            | Approve | Edit                                   | Reject              |
+| --------------------------------------------- | ------------------------------- | ------- | -------------------------------------- | ------------------- |
+| Payment logged                                | `confirm_ingest_payment`        | confirm | account, amount, payee, category, note | delete the payment  |
+| Unknown account, own transfer, low confidence | `log_ingest_request`            | log     | account, direction                     | dismiss the request |
+| Pending source                                | `set_notification_source`       | approve | default account                        | mute                |
+| Duplicate suggestion                          | `merge_duplicate_transactions`  | merge   | survivor                               | dismiss             |
+| Conversion pair                               | the existing link-transfer tool | link    |                                        | dismiss             |
 
 **Two-way sync.** Records hold a nullable `proposalId` (`DuplicateSuggestions`, `IngestRequests`, `NotificationSources`). Rejecting a card calls `onInboxCardRejected` in its transaction. Settling the record elsewhere rejects the card with `statusReason: "resolvedElsewhere"`. A daily backstop in the ingest cleanup cron (`sweepOrphanedInboxCards`) closes cards whose record vanished through a path without a hook.
 

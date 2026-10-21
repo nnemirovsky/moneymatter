@@ -33,6 +33,18 @@ describe('buildNotificationSystemPrompt', () => {
     expect(prompt).toContain('{ newName }');
   });
 
+  it('asks for digits exactly as printed, never inferred from other numbers', () => {
+    expect(prompt).toContain(
+      'Copy digits exactly as printed; never infer card digits from phone numbers, balances, dates or reference numbers.',
+    );
+  });
+
+  it('ignores legal forms and typos, and tells look-alike candidates apart by their usual categories', () => {
+    expect(prompt).toContain('legal forms ("LTD", "LLC", "Company", "შპს", "ООО")');
+    expect(prompt).toContain('small typos');
+    expect(prompt).toContain('usual categories tell what kind of business it is');
+  });
+
   it('defines every kind the schema allows', () => {
     for (const kind of ['debit', 'credit', 'declined', 'security', 'promo', 'info', 'other']) {
       expect(prompt).toContain(`${kind}:`);
@@ -128,20 +140,29 @@ describe('buildNotificationUserMessage', () => {
   });
 
   describe('the payee candidates', () => {
-    it('lists each candidate under its short id with a few spellings', () => {
+    it('lists each candidate under its short id with a few spellings and its usual categories', () => {
       const result = message({
         candidates: [
           {
             alias: 'p1',
             name: 'Wolt',
             aliases: ['WOLT.COM TBILISI', 'wolt', 'WOLT GE', 'fourth one'],
+            usualCategories: ['Food delivery', 'Groceries'],
           },
           { alias: 'p2', name: 'Coffee Lab', aliases: [] },
         ],
       });
 
-      expect(result).toContain('id|name|known spellings\np1|Wolt|WOLT.COM TBILISI; wolt; WOLT GE\np2|Coffee Lab|');
+      expect(result).toContain(
+        'id|name|known spellings|usual categories\np1|Wolt|WOLT.COM TBILISI; wolt; WOLT GE|Food delivery; Groceries\np2|Coffee Lab||',
+      );
       expect(result).not.toContain('fourth one');
+    });
+
+    it('keeps a category name with a column separator on its row', () => {
+      expect(
+        message({ candidates: [{ alias: 'p1', name: 'Wolt', aliases: [], usualCategories: ['Bar|cafe\nnight'] }] }),
+      ).toContain('p1|Wolt||Bar cafe night');
     });
 
     it('keeps a name with a column separator on its row', () => {

@@ -253,6 +253,16 @@ describe('CardLinkDialog', () => {
     expect((labelInput(wrapper).element as HTMLInputElement).value).toBe('Revolut •••• 4242');
   });
 
+  it('pre-fills the digits of a link started from a notification that shows only digits', () => {
+    const wrapper = mountDialog({ initialLabel: 'Raiffeisen •1258', initialLastDigits: '1258' });
+
+    const input = wrapper.get(
+      '[data-testid="card-link-last-digits"] input, input[data-testid="card-link-last-digits"]',
+    );
+
+    expect((input.element as HTMLInputElement).value).toBe('1258');
+  });
+
   it('asks for a name and an account before it sends anything', async () => {
     const wrapper = mountDialog();
 
