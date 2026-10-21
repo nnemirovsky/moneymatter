@@ -13,7 +13,7 @@ In the chat this went wrong. Haiku logged a 16:00 local payment as 16:00 UTC, th
 This plan delivers:
 
 1. **One user setting, "Time zone":** "Automatic (device)", the default, or a manual IANA zone. The same zone is used for viewing and for saving. In automatic mode the device zone is written to the profile whenever it changes, so server-side paths (AI, ingest, imports, reports) know it. A second small setting, **"Clock"**, picks 24-hour or 12-hour time and defaults to the locale.
-2. **Every transaction records its zone:** two new nullable columns, `Transactions.timeZone` (IANA) and `Transactions.utcOffsetMinutes` (the offset at that instant). Each write path fills them from what it knows. Existing rows stay `null`, meaning "unknown".
+2. **Every transaction records its zone:** two new nullable columns, `Transactions.timeZone` (IANA) and `Transactions.utcOffsetMinutes` (the offset at that instant). Each write path fills them from what it knows. Existing rows stay `null`, meaning "Unknown": they display in the viewing zone exactly as today. Bank syncs record the user's current zone for rows dated within 3 days of the sync.
 3. **A zone-aware AI:**
    - the system prompt states the user's zone and local date and time;
    - the tools take a local wall time plus a zone, or an ISO time with an offset, and the server converts;
@@ -76,7 +76,7 @@ This plan delivers:
   | LunchFlow      | `lunchflow/lunchflow.provider.ts:375-379`                                  | `new Date(tx.date)`, a date string                                                                                      |
   | Walutomat      | `walutomat/walutomat.provider.ts:395-401`                                  | `new Date(item.ts)`                                                                                                     |
 
-  No provider sends a zone name.
+  No provider sends a zone name. A synced row records the user's setting zone when its time is within `BANK_SYNC_RECENT_ZONE_WINDOW_DAYS` (3) of the sync, else `null` (see Technical Details → Bank syncs).
 
 - **Imports:**
   - CSV, OFX, the statement parser, Microsoft Money, Budget Bakers and YNAB all call `createTransaction`;
@@ -156,7 +156,7 @@ This plan delivers:
   - a chat card holding an instant;
   - ingest with `timeZone`, with only an offset, and with neither;
   - CSV and statement imports stamping the anchor zone;
-  - a bank sync leaving `null`;
+  - a bank sync stamping the setting zone on a recent row and leaving a 90-day-old row `null`;
   - a bulk zone edit by ids and by filter selection, both transfer legs, per-row offsets across DST;
   - a backup round trip;
   - data-export columns;
@@ -306,7 +306,26 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - Each created row gets `resolveRecordedZone({ explicitZone: undefined, offsetMinutes: <cell offset if any>, candidateZone: anchorZone })`. A cell with an offset of its own keeps that offset, and the zone too when it matches.
 - MS Money, Budget Bakers and YNAB (no zone in the file, values parsed as UTC) store `null`.
 
-**Bank syncs:** store `null` for both columns. No provider gives a zone, and the user's current zone says nothing about where a card was used. Enable Banking's date-only times at UTC midnight are a separate bug; see the Decisions section.
+**Bank syncs** (owner's decision):
+
+- No provider gives a zone. A payment synced soon after it happened most likely happened where the user is now, so a recent row records the user's setting zone at sync time.
+- The rule, one helper for all five providers: `bankSyncRecordedZone({ time, syncedAt, userZone })` in `services/bank-data-providers/utils/recorded-zone.ts`.
+  - When `|syncedAt − time| ≤ BANK_SYNC_RECENT_ZONE_WINDOW_DAYS` (3 days, one exported constant in that file), the row gets `timeZone = getUserTimeZone(...)` and the offset at its `time`.
+  - Otherwise both columns stay `null`. This covers an initial or backfill sync (up to 90 days of history), when the user may have been elsewhere.
+  - `syncedAt` is the sync job's start time, read once per sync, so every row of one sync is judged against the same moment.
+- Call sites, each passing the pair to `createTransaction`:
+
+  | Provider       | Create site                                         | `time` the rule compares            |
+  | -------------- | --------------------------------------------------- | ----------------------------------- |
+  | Monobank       | `monobank/transaction-sync-queue.ts:561-566`        | Unix seconds, an exact instant      |
+  | SimpleFIN      | `simplefin/simplefin.provider.ts:882`               | `transacted_at ?? posted`           |
+  | Enable Banking | `enablebanking/enablebanking.provider.ts:1098-1103` | the date-only value as UTC midnight |
+  | LunchFlow      | `lunchflow/lunchflow.provider.ts:375-379`           | `new Date(tx.date)`                 |
+  | Walutomat      | `walutomat/walutomat.provider.ts:395-401`           | `new Date(item.ts)`                 |
+
+- A later sync that moves `time` (Enable Banking pending → booked, `:1040-1041`, which writes `updates.time` directly) also sets `utcOffsetMinutes` from the stored zone at the new time; a `null` zone stays `null`. The zone itself is not re-judged on that update.
+- A user without a zone setting gets `UTC` stamped, which is what they see today; the frontend writes a real zone on the first app open, so this only affects syncs before that.
+- Enable Banking's and LunchFlow's date-only times at UTC midnight are a separate bug; see the Decisions section.
 
 **Reports:**
 
@@ -329,17 +348,23 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - `formatZoneLabel({ date, zone })` uses Intl `timeZoneName: 'shortOffset'` and gives `GMT+4`;
   - `formatDateTime({ date, zone? })` gives `21 Oct 2026, 16:00 GMT+4`.
 - Patterns that used `p` take the hour cycle from the ref instead of the locale.
+- **`timeZone: null` means "Unknown" and is shown as if the feature did not exist.** Every display path formats the instant in the viewing zone and never converts to, labels, or compares with a recorded zone:
+  - the list and table tooltip show one line (`formatDateTime` in the viewing zone) and no second-zone line;
+  - the transaction dialog shows no "Recorded in" caption; the optional zone field, when the user has turned it on, shows its placeholder "Unknown" and stays empty;
+  - chat cards, edit inputs and data export behave the same for `null` and non-`null` rows (viewing zone only; export's `localTime` uses the user's zone).
+  - Chosen: no "Unknown" text in the detail view. Almost every existing row is `null`, so a label there would be noise on every old transaction.
+- A helper `hasDistinctRecordedZone({ timeZone, utcOffsetMinutes, viewingZone, instant })` is the only gate for the second line and the caption: `false` for `null`/`null`, `false` when the recorded offset equals the viewing zone's offset at that instant, `true` otherwise. An offset-only row shows its second line as `UTC+02:00`.
 
-## Decisions taken in this plan (owner to confirm)
+## Decisions (made by the owner on 2026-10-21)
 
 1. **One setting, not two.**
    - "Time zone" governs both viewing and saving.
    - Automatic follows the device, which covers the traveller who wants local times on the road. Each row's own zone then shows where it happened.
    - A separate "save in" zone would only matter for entering payments made elsewhere. The per-transaction zone picker in the form covers that.
    - Two settings would be needed for "view in my home zone while I travel, but record local zones". Add a second key later if wanted: the data model already supports it.
-2. **Backfill: `null` (unknown).**
+2. **Existing transactions: `null` ("Unknown").**
    - Existing rows came from several places and devices, and the current setting would assert a zone nobody knows.
-   - `null` displays exactly as today (viewing zone, no second zone) and costs no data rewrite.
+   - `null` displays exactly as today (viewing zone, no second zone, no conversion) and costs no data rewrite. The detail view shows nothing for it (Technical Details → Frontend display).
    - Not chosen: stamping the current setting on manual rows only.
    - A user who knows better sets zones afterwards with the bulk edit (Task 12): by ids, or by a filter selection such as an account and a date range. The owner's own backfill uses it (Post-Completion).
 3. **Day bucketing: the viewing zone (the setting).**
@@ -350,7 +375,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
    - CSV, OFX and statement imports stamp the zone they were anchored in, now the setting rather than the raw device zone;
    - a cell's own offset is kept;
    - MS Money, Budget Bakers and YNAB store `null`;
-   - bank syncs store `null`.
+   - bank syncs record the user's setting zone for rows dated within 3 days of the sync (`BANK_SYNC_RECENT_ZONE_WINDOW_DAYS`), and `null` for older rows such as an initial 90-day history.
 5. **12/24h: a new `hourCycle` setting**, default "Automatic (from language)", and the owner picks 24-hour.
    - Forcing 24-hour for everyone would change upstream English users' display.
    - The form input is already 24-hour (`is24hr`, `HH:mm`) and stays so under `h23`; under `h12` it shows AM/PM.
@@ -509,6 +534,8 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - Modify: `packages/backend/src/services/import-export/core/parse/anchor-import-date.ts` (also return the offset the cell carried, if any)
 - Modify: `packages/backend/src/services/data-export/transformers/transactions-transformer.ts`
 - Modify: `packages/frontend/src/stores/{statement-parser,import-export}.ts`, `packages/frontend/src/api/import-ofx.ts` (send `viewingTimeZone`) + `import-export.test.ts`
+- Create: `packages/backend/src/services/bank-data-providers/utils/recorded-zone.ts`, `.unit.ts`
+- Modify: the five provider create sites listed in Technical Details → Bank syncs
 - Modify: `detect-duplicates.e2e.ts`, `statement-parser/execute-import.e2e.ts`, `ai-extraction.e2e.ts`, `backup/restore/restore-backup.e2e.ts`, `data-export/export-data.e2e.ts`, one bank sync e2e (`bank-data-providers/connection/transaction-sync.e2e.ts`)
 
 - [ ] write failing e2e:
@@ -516,11 +543,12 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - the same import **without** `timezone` for a user whose setting is Montevideo anchors in Montevideo (today: UTC);
   - a statement import stamps the zone;
   - the statement AI's "today" uses the setting when the request has none;
-  - a bank sync row has `null`/`null`;
+  - a Tbilisi user's bank sync: a row dated 1 day before the sync gets `Asia/Tbilisi` and +240; a row dated 90 days back stays `null`/`null`; a user with no setting gets `UTC` on the recent row;
   - backup → restore keeps both columns, and restoring a fixture archive without the columns gives `null`;
   - data export adds `timeZone` and `localTime` (ISO with the row's offset, or the user's zone when `null`) and leaves `date`/`time` as they are
+- [ ] write failing unit tests for `bankSyncRecordedZone`: exactly 3 days → stamped; 3 days and 1 second → `null`; a future-dated row within the window → stamped
 - [ ] implement; frontend stores send the viewing zone (vitest updates the two existing expectations)
-- [ ] gate: e2e `--testPathPattern='(import-export/(csv-import/detect-duplicates|statement-parser/(execute-import|ai-extraction))|backup/restore/restore-backup|data-export/export-data|bank-data-providers/connection/transaction-sync)\.e2e'`; frontend `src/stores/import-export.test.ts`
+- [ ] gate: e2e `--testPathPattern='(import-export/(csv-import/detect-duplicates|statement-parser/(execute-import|ai-extraction))|backup/restore/restore-backup|data-export/export-data|bank-data-providers/connection/transaction-sync)\.e2e'`; unit `--testPathPattern='bank-data-providers/utils/recorded-zone'`; frontend `src/stores/import-export.test.ts`
 
 ### Task 8: Report day bucketing in the user's zone
 
@@ -586,7 +614,9 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - `prepareTxCreationParams` sends `timeZone`;
   - the optional-field visibility rule;
   - `formatVisualDate` shows a `Z` instant in the viewing zone with the hour cycle;
-  - the list tooltip text with and without a second zone
+  - the list tooltip text with and without a second zone;
+  - `hasDistinctRecordedZone` for `null`/`null`, a same-offset zone, a different zone and an offset-only row;
+  - a `null` row in the list, the table, the dialog and a chat card renders exactly what it renders today in the viewing zone (no caption, no second line, empty zone field with the "Unknown" placeholder)
 - [ ] implement; the dialog caption reads "Recorded in America/New_York: 08:00 GMT-4" when the row's zone differs
 - [ ] gate: frontend the changed spec files
 
