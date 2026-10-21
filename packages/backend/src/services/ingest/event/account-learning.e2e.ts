@@ -43,7 +43,7 @@ const push = () => ({
   app: 'TBC Bank',
   title: 'TBC Bank',
   subtitle: '',
-  body: `Incoming transfer ${BASE} ${printedAmount} to card *1258`,
+  body: `Incoming transfer from Salary ${BASE} ${printedAmount} to card *1258`,
   idempotencyKey: `key-${randomUUID()}`,
 });
 
