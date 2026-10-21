@@ -591,10 +591,21 @@ describe('process notification', () => {
         expect(readParsed({ row: stored }).accountGuessId).toBe(account.id);
 
         const source = await sourceOf({ app: 'TBC Bank' });
-        await helpers.updateNotificationSource({ id: source.id, payload: { defaultAccountId: account.id }, raw: true });
-        const retried = await helpers.retryCardPaymentRequest({ id: parked.body.response.requestId, raw: true });
+        // The default answers the payment that waited on it: the server puts it back through the pipeline.
+        const updated = await helpers.updateNotificationSource({
+          id: source.id,
+          payload: { defaultAccountId: account.id },
+          raw: true,
+        });
+        expect(updated.releasedCount).toBe(1);
+        await until(
+          async () => (await storedRequest({ requestId: parked.body.response.requestId })).status === 'logged',
+          {
+            timeout: 20_000,
+            interval: 150,
+          },
+        );
 
-        expect(retried).toMatchObject({ outcome: 'logged' });
         expect(prompts).toHaveLength(1);
         const request = await storedRequest({ requestId: parked.body.response.requestId });
         expect(await storedTransaction({ transactionId: request.transactionId! })).toMatchObject({

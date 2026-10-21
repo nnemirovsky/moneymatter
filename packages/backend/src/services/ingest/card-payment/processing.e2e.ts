@@ -428,7 +428,7 @@ describe('card payment processing', () => {
       expect(parked.body.response).toMatchObject({ outcome: 'parked', reason: 'unknownCard' });
       expect(stillLogged.status).toBe(200);
       // The card still needs a default for its other currencies, so it stays on the unlinked list.
-      expect(await helpers.listUnlinkedCards({ raw: true })).toEqual([{ cardLabel: CARD, count: 1 }]);
+      expect(await helpers.listUnlinkedCards({ raw: true })).toEqual([{ cardLabel: CARD, count: 1, lastDigits: null }]);
     });
 
     it('logs the parked payment on the default once the card has one', async () => {

@@ -213,7 +213,7 @@ A **source** is the app a notification came from. For messaging and mail apps it
 - **Everything else starts as waiting.** Its first notification puts a card in the inbox, "Treat this app as a payment source?", and the source shows under **Sources waiting for your OK** on the iOS Automation page. Its notifications are kept, encrypted, and are not sent to AI until you decide.
 - **Approve** reads what the source is holding. **Mute** deletes it and drops future notifications from that source. A source nobody decides on for 30 days is deleted with what it holds.
 - On the inbox card you can also pick a **Default account** for the source. It takes the payments whose text names no card.
-- **Notification sources** lists every source with its mode: **Trusted**, **Waiting**, **Approved** or **Muted**. **Forget** makes a source new again the next time it sends something.
+- **Notification sources** lists every source with its mode: **Trusted**, **Waiting**, **Approved** or **Muted**, and a **Log to** picker for its default account. Clear the picker to be asked each time. **Forget** makes a source new again the next time it sends something.
 
 <Screenshot
   src="/screenshots/integrations/ios-automation-sources.png"
@@ -228,7 +228,11 @@ A notification's payment goes to the first account that applies:
 1. the **card** the notification names (its Wallet card name, else its last digits), then the account for the payment's currency, else the card's default;
 2. the source's **default account**.
 
-If none applies, the payment waits for you. MoneyMatter never guesses an account, but when you have exactly one account in the payment's currency, the inbox card offers it pre-selected.
+If none applies, the payment waits for you and MoneyMatter never logs it on its own guess. The inbox card does suggest an account, pre-selected: the one account in the payment's currency whose name matches the app (an app called Raiffeisen suggests your "Raiffeisen" account, ignoring case and accents), else your only account in that currency. You still press **Approve**.
+
+A bank notification may show only the last digits of a card (`*1258`) and no card name. Such a payment waits under the card **Raiffeisen •1258** in **Cards without a link**, where you can link it like a Wallet card.
+
+When you approve a waiting payment on an account, MoneyMatter remembers it. If the payment named a card, the card is linked to that account, so the next payment of that card needs no question. If it named no card, the account becomes the source's default, when the source has none. The inbox card says which one will happen before you approve.
 
 The merchant becomes a **payee** the same way as for a tap. For a notification, the AI is shown your payees that look like the merchant and picks one, or gives a clean brand name for a new payee. The AI also sees the categories you usually give those payees, which helps it tell similar names apart. Once you confirm the payment, MoneyMatter saves the spelling as an **alias** of its payee, so the next one with the same spelling matches at once, without any AI. Names you told MoneyMatter to ignore in [Payees](/transactions/payees/) stay ignored.
 
@@ -479,7 +483,7 @@ A payment that can't be logged yet is kept, not dropped. The notification says w
 | `Not logged yet: today's limit of AI-read notifications …` | The daily limit is reached.      | **Retry** tomorrow.                                          |
 | `Needs your OK in MoneyMatter: …`       | A transfer between your own accounts, a text MoneyMatter isn't sure about, an amount the AI read that the notification doesn't print, or no matching account. | Open the [Automation inbox](/transactions/reconciliation/#the-automation-inbox), or press **Log it** under **Waiting payments**. |
 
-On the **iOS Automation** page, **Cards without a link** shows each card that has payments waiting. Click **Link**, choose the account, and MoneyMatter offers to log the waiting payments right away. **Waiting payments** lists everything else with **Retry** and **Dismiss**, and **Open in the inbox** when a card is waiting for you. **Show recent payments** lists what the shortcut sent lately, tap or notification, and what became of each one.
+On the **iOS Automation** page, **Cards without a link** shows each card that has payments waiting. Click **Link**, choose the account, and MoneyMatter offers to log the waiting payments right away. A bank notification that shows only digits is listed here too, as the source and the digits. **Waiting payments** lists everything else with **Retry** and **Dismiss**, and **Open in the inbox** when a card is waiting for you. **Show recent payments** lists what the shortcut sent lately, tap or notification, and what became of each one.
 
 <Screenshot
   src="/screenshots/integrations/ios-automation-waiting.png"

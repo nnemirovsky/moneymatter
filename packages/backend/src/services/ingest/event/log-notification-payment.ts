@@ -26,7 +26,7 @@ import {
   guessNotificationAccount,
   resolveNotificationAccount,
 } from './resolve-notification-account';
-import { describeSource } from './source-label';
+import { describeSource, sourceAppName } from './source-label';
 import { toStoredPayment, type StoredParse } from './stored-parse';
 
 /** What the job should do after the logging transaction. */
@@ -131,7 +131,13 @@ const logNotificationPaymentImpl = async ({
   if (!found) {
     return needsOk({
       reason: 'unknownAccount',
-      extra: { accountGuessId: await guessNotificationAccount({ userId, currencyCode: statedCurrencyCode }) },
+      extra: {
+        accountGuessId: await guessNotificationAccount({
+          userId,
+          currencyCode: statedCurrencyCode,
+          appName: sourceAppName({ source, payload: row.payload }),
+        }),
+      },
     });
   }
 

@@ -240,7 +240,8 @@ export const selectRequestsForCard = ({
   return requests.filter(
     (request) =>
       request.status === 'parked' &&
-      request.reason === 'unknownCard' &&
+      // A tap parks on its card, a notification on its account; both name the card they waited on.
+      (request.reason === 'unknownCard' || request.reason === 'unknownAccount') &&
       request.cardLabel !== null &&
       normalizeCardLabel({ label: request.cardLabel }) === target,
   );

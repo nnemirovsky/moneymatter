@@ -6,9 +6,11 @@ import {
   rejectChatProposal,
 } from '@/api/chat';
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const';
+import AccountSelectField from '@/components/fields/account-select-field.vue';
 import { ApiErrorResponseError } from '@/js/errors';
 import {
   API_ERROR_CODES,
+  type AccountModel,
   type ChatCardField,
   type ChatProposalCard,
   type ChatThreadWithMessages,
@@ -41,6 +43,7 @@ vi.mock('@/components/notification-center', () => ({
 vi.mock('./use-card-lookups', () => ({
   useCardLookups: () =>
     buildLookups({
+      accounts: [{ id: 'acc-raif', name: 'Raiffeisen', currencyCode: 'RUB' } as AccountModel],
       names: {
         'account:acc-1': 'Main card',
         'category:cat-1': 'Groceries',
@@ -153,6 +156,140 @@ describe('ProposalCard', () => {
       expect(text).toContain('Category');
       expect(text).toContain('Groceries');
       expect(text).toContain('Lunch');
+    });
+  });
+
+  describe('the card of a parked payment', () => {
+    const requestField = buildField({ path: 'requestId', value: 'req-1', editable: null });
+    const accountField = ({ value }: { value?: string } = {}) =>
+      buildField({
+        path: 'accountId',
+        value,
+        display: { kind: 'entity' },
+        editable: { type: 'entity', entity: 'account' },
+      });
+
+    const paymentCard = ({
+      account,
+      willLearn = 'card' as const,
+    }: { account?: string; willLearn?: 'card' | null } = {}) =>
+      buildCard({
+        toolName: 'log_ingest_request',
+        kind: 'action',
+        entity: 'ingestRequest',
+        title: { key: 'chat.cards.title.action', params: { entity: 'ingestRequest' } },
+        fields: [requestField, accountField({ value: account })],
+        canApply: account ? { ok: true } : { ok: false, reasonKey: 'chat.cards.ingestAccountRequired' },
+        ingestRequest: {
+          reason: 'unknownAccount',
+          counterparty: 'Salary',
+          sourceName: 'Raiffeisen',
+          amount: 3000,
+          currencyCode: 'RUB',
+          direction: 'credit',
+          cardName: null,
+          cardLastDigits: '1258',
+          time: '2026-10-21T09:30:00.000Z',
+          summary: 'Needs your OK in MoneyMatter: 3000 RUB at Salary',
+          willLearn,
+          alsoWaiting: 0,
+        },
+      });
+
+    it('shows the payment as a payment, not as a generic action', () => {
+      const wrapper = mountCard({ card: paymentCard(), inbox: true });
+      const text = wrapper.text();
+
+      expect(text).toContain('Log this payment?');
+      expect(text).not.toContain('Run action');
+      expect(text).not.toContain('Direction');
+      expect(wrapper.get('[data-testid="ingest-amount"]').text()).toContain('3,000');
+      expect(wrapper.get('[data-testid="ingest-amount"]').text()).toContain('RUB');
+      expect(wrapper.get('[data-testid="ingest-direction"]').text()).toBe('Income');
+      expect(wrapper.get('[data-testid="ingest-counterparty"]').text()).toContain('Salary');
+      expect(wrapper.get('[data-testid="ingest-source"]').text()).toContain('Raiffeisen');
+      expect(wrapper.get('[data-testid="ingest-card"]').text()).toContain('•1258');
+      expect(wrapper.get('[data-testid="ingest-note"]').text()).toContain('Needs your OK');
+    });
+
+    it('calls a debit an expense', () => {
+      const card = paymentCard();
+      card.ingestRequest!.direction = 'debit';
+
+      expect(mountCard({ card, inbox: true }).get('[data-testid="ingest-direction"]').text()).toBe('Expense');
+    });
+
+    it('keeps Approve disabled, with a hint, until an account is chosen', () => {
+      const wrapper = mountCard({ card: paymentCard(), inbox: true });
+
+      expect(approveButton(wrapper).attributes('disabled')).toBeDefined();
+      expect(wrapper.get('[data-testid="cannot-apply"]').text()).toBe('Choose the account to log this payment on.');
+      expect(wrapper.find('[data-testid="ingest-account-hint"]').exists()).toBe(true);
+    });
+
+    it('preselects the guessed account and says what approving will teach', () => {
+      const wrapper = mountCard({ card: paymentCard({ account: 'acc-raif' }), inbox: true });
+
+      expect(wrapper.findComponent(AccountSelectField).props('modelValue')).toMatchObject({ name: 'Raiffeisen' });
+      expect(approveButton(wrapper).attributes('disabled')).toBeUndefined();
+      expect(wrapper.get('[data-testid="ingest-lesson"]').text()).toBe(
+        'Future Raiffeisen payments ending 1258 will go to Raiffeisen.',
+      );
+    });
+
+    it('stores the chosen account on the card', async () => {
+      const edited = paymentCard({ account: 'acc-raif' });
+      vi.mocked(editChatProposal).mockResolvedValue(edited);
+      const wrapper = mountCard({ card: paymentCard(), inbox: true });
+
+      wrapper.findComponent(AccountSelectField).vm.$emit('update:modelValue', { id: 'acc-raif' });
+      await flushPromises();
+
+      expect(firstArgsOf(editChatProposal)).toEqual([
+        { proposalId: 'card-1', payload: { revision: 1, args: { requestId: 'req-1', accountId: 'acc-raif' } } },
+      ]);
+    });
+
+    it('opens Edit with the account field', async () => {
+      const wrapper = mountCard({ card: paymentCard(), inbox: true });
+
+      await wrapper.get('[data-testid="edit"]').trigger('click');
+
+      expect(wrapper.find('[data-testid="field-editor-accountId"]').exists()).toBe(true);
+    });
+
+    it('says how many other waiting payments are logged with it, each for the owner to confirm', () => {
+      const card = paymentCard({ account: 'acc-raif' });
+      card.ingestRequest!.alsoWaiting = 2;
+
+      const text = mountCard({ card, inbox: true }).get('[data-testid="ingest-siblings"]').text();
+
+      expect(text).toBe('2 other waiting payments will be logged on Raiffeisen too, and wait for your OK.');
+    });
+
+    it('lets a card that failed be fixed from its picker, without a new card', async () => {
+      const failed = {
+        ...paymentCard(),
+        status: 'failed' as const,
+        canApply: { ok: false as const, reasonKey: 'chat.cards.notPending' },
+      };
+      vi.mocked(editChatProposal).mockResolvedValue(paymentCard({ account: 'acc-raif' }));
+      const wrapper = mountCard({ card: failed, inbox: true });
+
+      const picker = wrapper.findComponent(AccountSelectField);
+      expect(picker.props('disabled')).toBe(false);
+      picker.vm.$emit('update:modelValue', { id: 'acc-raif' });
+      await flushPromises();
+
+      expect(firstArgsOf(editChatProposal)).toEqual([
+        { proposalId: 'card-1', payload: { revision: 1, args: { requestId: 'req-1', accountId: 'acc-raif' } } },
+      ]);
+    });
+
+    it('says nothing about learning when approving teaches nothing', () => {
+      const wrapper = mountCard({ card: paymentCard({ account: 'acc-raif', willLearn: null }), inbox: true });
+
+      expect(wrapper.find('[data-testid="ingest-lesson"]').exists()).toBe(false);
     });
   });
 

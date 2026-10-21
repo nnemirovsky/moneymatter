@@ -80,7 +80,12 @@
 
   <SetupCodeDialog :code="setupCode" @close="clear" />
 
-  <CardLinkDialog v-model:open="isLinkOpen" :initial-label="linkTarget?.cardLabel ?? ''" @saved="handleLinked" />
+  <CardLinkDialog
+    v-model:open="isLinkOpen"
+    :initial-label="linkTarget?.cardLabel ?? ''"
+    :initial-last-digits="linkTarget?.lastDigits ?? null"
+    @saved="handleLinked"
+  />
 
   <ResponsiveAlertDialog
     v-model:open="isOfferOpen"
@@ -138,11 +143,13 @@ const MANUAL_GUIDE_DOCS_PATH = '/integrations/ios-automation/';
 interface LinkOffer {
   cardLabel: string;
   count: number;
+  /** The digits a waiting notification shows for the card, to pre-fill the link. */
+  lastDigits?: string | null;
 }
 
 const { t } = useI18n({ useScope: 'global' });
 const router = useRouter();
-const { addErrorNotification } = useNotificationCenter();
+const { addErrorNotification, addSuccessNotification } = useNotificationCenter();
 
 const { generate, isGenerating, setupCode, clear } = useGenerateSetupCode();
 const { logWaitingPayments, isLogging } = useLogWaitingPayments();
@@ -178,8 +185,14 @@ const handleLinked = (mapping: CardMappingDto) => {
   const target = linkTarget.value;
   linkTarget.value = null;
 
+  // Waiting notification payments of the card are logged by the server as soon as the card has a default
+  // account; only the rest (a tap's payments) are offered here.
+  const released = mapping.releasedCount ?? 0;
+  if (released) addSuccessNotification(t(`${LABEL_ROOT}.unlinked.released`, { count: released }, released));
+
   if (target && normalizeCardLabel({ label: mapping.cardLabel }) === normalizeCardLabel({ label: target.cardLabel })) {
-    offer.value = { cardLabel: mapping.cardLabel, count: target.count };
+    const remaining = target.count - released;
+    if (remaining > 0) offer.value = { cardLabel: mapping.cardLabel, count: remaining };
   }
 };
 

@@ -171,6 +171,7 @@
           "noDefault": "No default account. Payments in a currency without an account of its own wait until you add one."
         },
         "unlinked": {
+          "released": "{count} waiting payment is being logged. | {count} waiting payments are being logged.",
           "title": "Cards without a link",
           "description": "These cards sent payments that are waiting for a link.",
           "loadError": "Could not load the unlinked cards.",
@@ -329,6 +330,9 @@
           "empty": "No sources yet. They appear after the first notification arrives.",
           "unknownApp": "Unknown app",
           "sender": "From {sender}",
+          "logTo": "Log to",
+          "released": "{count} waiting payment is being logged on this account. | {count} waiting payments are being logged on this account.",
+          "logToPlaceholder": "Ask me each time",
           "modes": {
             "auto": "Trusted",
             "pending": "Waiting",

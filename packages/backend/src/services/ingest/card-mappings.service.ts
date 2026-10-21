@@ -15,6 +15,8 @@ import CardAccountMappings from '@models/card-account-mappings.model';
 import { withTransaction } from '@services/common/with-transaction';
 import { Op, UniqueConstraintError, literal } from 'sequelize';
 
+import { rerunWaitingSiblings } from './event/waiting-siblings';
+
 export const CARD_LABEL_MAX_LENGTH = 100;
 
 const toCardMappingDto = ({
@@ -100,6 +102,29 @@ const resolveLastDigits = ({ lastDigits }: { lastDigits: string | null }): strin
   return digits;
 };
 
+/**
+ * A card's default row takes every payment of the card, so the notification payments that waited on the
+ * card go through the pipeline now. A row for one currency does not: the other currencies still need an answer.
+ */
+const releaseCardPayments = async ({
+  userId,
+  mapping,
+  releaseWaiting,
+}: {
+  userId: number;
+  mapping: Pick<CardAccountMappings, 'currencyCode' | 'lastDigits' | 'normalizedLabel'>;
+  releaseWaiting: boolean;
+}): Promise<{ releasedCount?: number }> => {
+  if (!releaseWaiting || mapping.currencyCode !== null) return {};
+
+  const releasedCount = await rerunWaitingSiblings({
+    userId,
+    match: { kind: 'card', lastDigits: mapping.lastDigits, normalizedLabel: mapping.normalizedLabel },
+  });
+
+  return releasedCount ? { releasedCount } : {};
+};
+
 /** The rows of one card: every row of the user that shares the normalized label. */
 const findCardGroup = ({ userId, normalizedLabel }: { userId: number; normalizedLabel: string }) =>
   CardAccountMappings.findAll({ where: { userId, normalizedLabel }, order: [['createdAt', 'ASC']] });
@@ -182,12 +207,15 @@ const createCardMappingImpl = async ({
   accountId,
   currencyCode: requestedCurrency,
   lastDigits: requestedDigits,
+  releaseWaiting = true,
 }: {
   userId: number;
   cardLabel: string;
   accountId: RecordId;
   currencyCode?: string | null;
   lastDigits?: string | null;
+  /** Put the card's waiting notification payments back through the pipeline; off for a caller that does it itself. */
+  releaseWaiting?: boolean;
 }): Promise<CardMappingDto> => {
   const normalizedLabel = resolveNormalizedLabel({ cardLabel });
   const currencyCode = resolveCurrencyCode({ currencyCode: requestedCurrency });
@@ -220,7 +248,7 @@ const createCardMappingImpl = async ({
       accountId,
     });
 
-    return toCardMappingDto({ mapping });
+    return { ...toCardMappingDto({ mapping }), ...(await releaseCardPayments({ userId, mapping, releaseWaiting })) };
   } catch (error) {
     return rethrowConflict({ error, currencyCode });
   }
@@ -281,7 +309,10 @@ const updateCardMappingImpl = async ({
     return rethrowConflict({ error, currencyCode });
   }
 
-  return toCardMappingDto({ mapping });
+  return {
+    ...toCardMappingDto({ mapping }),
+    ...(await releaseCardPayments({ userId, mapping, releaseWaiting: true })),
+  };
 };
 
 export const updateCardMapping = withTransaction(updateCardMappingImpl);
