@@ -71,8 +71,8 @@ describe('editing a card that is still pending', () => {
           return {
             toolCalls: [
               {
-                name: 'update_category',
-                arguments: { id: ref, name: 'Cabs', _chat: { replaces: ref.slice('$proposal:'.length) } },
+                name: 'delete_transaction',
+                arguments: { id: ref, _chat: { replaces: ref.slice('$proposal:'.length) } },
               },
             ],
           };
