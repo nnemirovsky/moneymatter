@@ -102,7 +102,7 @@ export const buildCardPaymentShortcut = (): Dict => {
     WFWorkflowClientVersion: '4711',
     WFWorkflowHasOutputFallback: false,
     WFWorkflowHasShortcutInputVariables: true,
-    WFWorkflowIcon: { WFWorkflowIconGlyphNumber: 61440, WFWorkflowIconStartColor: -23508481 },
+    WFWorkflowIcon: { WFWorkflowIconGlyphNumber: 62322, WFWorkflowIconStartColor: 2071128575 },
     WFWorkflowImportQuestions: [importQuestion({ text: IMPORT_QUESTION })],
     WFWorkflowInputContentItemClasses: INPUT_CONTENT_ITEM_CLASSES,
     WFWorkflowMinimumClientVersion: 900,
