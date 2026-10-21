@@ -137,7 +137,7 @@ import { useAiSettings } from '@/composable/data-queries/ai-settings';
 import { useAiConnectionsList } from '@/composable/data-queries/use-ai-connections';
 import { extractApiErrorMessage } from '@/js/errors';
 import { ROUTES_NAMES } from '@/routes';
-import { AIFeatureStatus, AIModelPricing, getModelNameFromModelId } from '@bt/shared/types';
+import { AIFeatureStatus, AIModelPricing } from '@bt/shared/types';
 import { BrainIcon, ChevronRightIcon, PlusIcon, TriangleAlertIcon } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -145,6 +145,7 @@ import { useI18n } from 'vue-i18n';
 import {
   type FeatureModelOption,
   buildFeatureModelOptions,
+  formatAnsweringModel,
   readFeatureSelectValue,
   resolveCostDisplay,
 } from './feature-model-options';
@@ -245,12 +246,12 @@ const formatOptionLabel = (option: FeatureModelOption) => {
 };
 
 const collapsedModelLabel = computed(() => {
-  const { servedBy, connectionName, modelId } = props.featureStatus;
+  const { servedBy, connectionName } = props.featureStatus;
   if (servedBy === 'server') return serverLabel.value;
   if (servedBy === 'connection' && connectionName) {
     return t('settings.ai.modelSelector.connectionOption', {
       name: connectionName,
-      model: getModelNameFromModelId({ modelId }),
+      model: formatAnsweringModel({ status: props.featureStatus, connections: connections.value }),
     });
   }
   return '';
