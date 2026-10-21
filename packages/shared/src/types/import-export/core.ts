@@ -95,6 +95,8 @@ export interface ParsedTransactionRow {
    * `execute-import` reconstructs it with `new Date(row.date)`.
    */
   date: string;
+  /** The UTC offset the source cell wrote about local time (`+04:00` is 240), when it wrote one. */
+  utcOffsetMinutes?: number;
   /** Absolute API decimal at the digits the source wrote; the sign stays in `transactionType`. */
   amount: number;
   description: string;

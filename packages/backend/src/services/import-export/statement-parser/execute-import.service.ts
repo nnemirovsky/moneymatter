@@ -24,7 +24,8 @@ import { CATEGORIZATION_SCOPE, queueCategorizationJob } from '@services/ai-categ
 import { resolveVisibleCurrencies } from '@services/currencies/assert-currency-codes-visible';
 import { assertImportTargetNotBankLinked } from '@services/import-export/core/assert-import-target-not-bank-linked';
 import { type OpenImportBatch, withImportBatchRecord } from '@services/import-export/core/import-batch-record';
-import { anchorImportDate } from '@services/import-export/core/parse/anchor-import-date';
+import { anchorImportDateWithOffset } from '@services/import-export/core/parse/anchor-import-date';
+import { recordedZoneOfImportedRow, resolveImportZones } from '@services/import-export/core/resolve-import-zones';
 import { enqueueDuplicateScan } from '@services/ingest/dedup/duplicate-scan-queue';
 import { createTransaction } from '@services/transactions';
 import { accountHasPlannedRows } from '@services/transactions/planned-matching';
@@ -65,6 +66,7 @@ async function executeImportImpl({
   onProgress,
   openImportBatch,
 }: ExecuteImportParams & { openImportBatch: OpenImportBatch }): Promise<StatementImportSummary> {
+  const { anchorZone, candidateZone } = await resolveImportZones({ userId, timezone });
   const batchId = uuidv4();
   const importDetails: TransactionImportDetails = {
     batchId,
@@ -146,7 +148,10 @@ async function executeImportImpl({
         errors.push({ transactionIndex: i, code: 'INVALID_DATE', params: { date: tx.date } });
         continue;
       }
-      const txDate = anchorImportDate({ parsed: parsedDate, timezone });
+      const { instant: txDate, offsetMinutes: cellOffsetMinutes } = anchorImportDateWithOffset({
+        parsed: parsedDate,
+        timezone: anchorZone,
+      });
 
       // Validate: no future dates (with 1-day tolerance for timezone differences)
       const tomorrow = new Date();
@@ -192,6 +197,7 @@ async function executeImportImpl({
         commissionRate: Money.zero(),
         note: tx.description,
         time: txDate,
+        ...recordedZoneOfImportedRow({ instant: txDate, offsetMinutes: cellOffsetMinutes, candidateZone }),
         transactionType: tx.type === 'income' ? TRANSACTION_TYPES.income : TRANSACTION_TYPES.expense,
         paymentType: PAYMENT_TYPES.creditCard,
         accountId,

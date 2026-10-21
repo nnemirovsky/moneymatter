@@ -11,9 +11,10 @@ import { Money } from '@common/types/money';
 import { t } from '@i18n/index';
 import { ValidationError } from '@js/errors';
 import * as Accounts from '@models/accounts.model';
-import { anchorImportDate } from '@services/import-export/core/parse/anchor-import-date';
+import { anchorImportDateWithOffset } from '@services/import-export/core/parse/anchor-import-date';
 import { parseAmount } from '@services/import-export/core/parse/parse-amount';
 import { splitTagCell } from '@services/import-export/core/parse/split-tag-cell';
+import { resolveImportZones } from '@services/import-export/core/resolve-import-zones';
 
 import { MAX_CSV_ROWS } from './csv-parser.service';
 import { parseCsvRecords } from './parse-csv-records';
@@ -26,7 +27,7 @@ interface ParseValidRowsParams {
   /**
    * IANA timezone of the importing user's browser (e.g. `America/Montevideo`).
    * Anchors date-only and zone-less datetime cells to the correct calendar day.
-   * Optional — absent/invalid values fall back to UTC anchoring.
+   * Optional — absent/invalid values fall back to the user's time zone setting, else UTC.
    */
   timezone?: string;
 }
@@ -55,6 +56,8 @@ export async function parseValidRows({
   columnMapping,
   timezone,
 }: ParseValidRowsParams): Promise<ParseValidRowsResult> {
+  const { anchorZone } = await resolveImportZones({ userId, timezone });
+
   // Parse full CSV
   const records = parseCsvRecords({ fileContent, delimiter });
 
@@ -195,10 +198,11 @@ export async function parseValidRows({
     } else {
       // `row.date` carries the resolved absolute instant as an ISO string, so
       // `execute-import`'s `new Date(row.date)` reconstructs the exact moment.
-      const instant = anchorImportDate({ parsed: parsedDate!, timezone });
+      const { instant, offsetMinutes } = anchorImportDateWithOffset({ parsed: parsedDate!, timezone: anchorZone });
       validRows.push({
         rowIndex,
         date: instant.toISOString(),
+        ...(offsetMinutes !== null && { utcOffsetMinutes: offsetMinutes }),
         amount: amount!.abs().toNumber(), // Absolute decimal, sign determined by transactionType
         description,
         payeeName,

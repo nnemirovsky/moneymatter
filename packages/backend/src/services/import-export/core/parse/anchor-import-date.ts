@@ -30,6 +30,25 @@ interface AnchorImportDateParams {
  * `localDateTime`, rather than throwing.
  */
 export function anchorImportDate({ parsed, timezone }: AnchorImportDateParams): Date {
+  return anchorImportDateWithOffset({ parsed, timezone }).instant;
+}
+
+/**
+ * `anchorImportDate` plus the offset the cell carried about local time: set only for a datetime
+ * written with a `±hh:mm` offset, `null` for a date, a zone-less datetime or a `Z` instant.
+ */
+export function anchorImportDateWithOffset({ parsed, timezone }: AnchorImportDateParams): {
+  instant: Date;
+  offsetMinutes: number | null;
+} {
+  return { instant: anchorToInstant({ parsed, timezone }), offsetMinutes: statedOffsetOf({ parsed }) };
+}
+
+function statedOffsetOf({ parsed }: { parsed: ParsedImportDate }): number | null {
+  return parsed.kind === 'instant' ? (parsed.offsetMinutes ?? null) : null;
+}
+
+function anchorToInstant({ parsed, timezone }: AnchorImportDateParams): Date {
   if (parsed.kind === 'instant') {
     return parsed.instant;
   }

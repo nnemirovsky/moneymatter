@@ -1,3 +1,4 @@
+import { zoneOffsetMinutes } from '@bt/shared/time-zone';
 import { RecordId, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES } from '@bt/shared/types';
 import { logger } from '@js/utils';
 import Accounts from '@models/accounts.model';
@@ -11,6 +12,7 @@ import TransactionSplits from '@models/transaction-splits.model';
 import TransactionTags from '@models/transaction-tags.model';
 import { findTransactions } from '@models/transactions-query';
 import Transactions from '@models/transactions.model';
+import { getUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { Op } from 'sequelize';
 
 import type { ExportDateRange, TransactionRow } from '../types';
@@ -48,6 +50,27 @@ function describeTransaction({ tx, accountName }: { tx: Transactions; accountNam
   return `${date} ${accountName} ${signed} ${tx.currencyCode}`;
 }
 
+const pad = (value: number) => String(value).padStart(2, '0');
+
+/** The instant as ISO 8601 with an offset: the row's own offset when it has one, else the user's zone at that instant. */
+function formatLocalTime({
+  tx,
+  userZone,
+}: {
+  tx: { time: Date | string; utcOffsetMinutes: number | null };
+  userZone: string;
+}): string {
+  const instant = new Date(tx.time);
+  if (Number.isNaN(instant.getTime())) return '';
+
+  const offsetMinutes = tx.utcOffsetMinutes ?? zoneOffsetMinutes({ zone: userZone, instant });
+  const local = new Date(instant.getTime() + offsetMinutes * 60_000);
+  const sign = offsetMinutes < 0 ? '-' : '+';
+  const abs = Math.abs(offsetMinutes);
+
+  return `${local.toISOString().slice(0, 19)}${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
+}
+
 export async function transformTransactions({
   userId,
   dateRange,
@@ -72,6 +95,8 @@ export async function transformTransactions({
     order: [['time', 'ASC']],
   });
   if (transactions.length === 0) return [];
+
+  const userZone = await getUserTimeZone({ userId });
 
   const txIds = transactions.map((t) => t.id);
   const accountIds = [...new Set(transactions.map((t) => t.accountId).filter((id): id is RecordId => Boolean(id)))];
@@ -358,6 +383,8 @@ export async function transformTransactions({
       linkedTransfer,
       subscription: subNameByTxId.get(tx.id) ?? '',
       isPlanned: tx.isPlanned,
+      timeZone: tx.timeZone ?? '',
+      localTime: formatLocalTime({ tx, userZone }),
     };
   });
 }

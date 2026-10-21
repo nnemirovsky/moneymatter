@@ -109,6 +109,7 @@ describe('Execute Import endpoint (async)', () => {
     skipUnpriceableIndices?: number[];
     defaultAccountId?: string;
     defaultCategoryId?: string;
+    timezone?: string;
   }) => {
     const { jobId } = await helpers.executeImport({
       payload: {
@@ -122,6 +123,7 @@ describe('Execute Import endpoint (async)', () => {
         skipUnpriceableIndices: payload.skipUnpriceableIndices,
         defaultAccountId: payload.defaultAccountId,
         defaultCategoryId: payload.defaultCategoryId,
+        timezone: payload.timezone,
       },
       raw: true,
     });
@@ -1800,6 +1802,63 @@ describe('Execute Import endpoint (async)', () => {
 
       const transactions = await helpers.getTransactions({ raw: true });
       expect(transactions.find((tx) => tx.note === 'Row 12.345')?.amount).toBe(12.35);
+    });
+  });
+
+  describe('recorded time zone', () => {
+    const importOne = async ({ date, timezone }: { date: string; timezone?: string }) => {
+      const { progress } = await runImport({
+        fileContent: buildCsv([
+          {
+            date,
+            amount: '10',
+            description: 'Zone row',
+            category: 'Food',
+            account: 'CSV Account',
+            currency: 'USD',
+            type: 'expense',
+          },
+        ]),
+        accountMapping: { 'CSV Account': { action: 'create-new', currentBalance: null } },
+        timezone,
+      });
+      expectCsvImportCompleted(progress);
+
+      return (await helpers.getTransactions({ raw: true })).find((tx) => tx.note === 'Zone row')!;
+    };
+
+    it('stamps the request zone and anchors the wall clock in it', async () => {
+      const tx = await importOne({ date: '2026-06-01 23:30', timezone: 'America/Montevideo' });
+
+      expect(tx).toMatchObject({ timeZone: 'America/Montevideo', utcOffsetMinutes: -180 });
+      expect(new Date(tx.time).toISOString()).toBe('2026-06-02T02:30:00.000Z');
+    });
+
+    it('anchors in the zone setting when the request sends none', async () => {
+      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'America/Montevideo' } });
+
+      const tx = await importOne({ date: '2026-06-01 23:30' });
+
+      expect(tx).toMatchObject({ timeZone: 'America/Montevideo', utcOffsetMinutes: -180 });
+      expect(new Date(tx.time).toISOString()).toBe('2026-06-02T02:30:00.000Z');
+    });
+
+    it('records nothing for a user with no setting and no request zone', async () => {
+      const tx = await importOne({ date: '2026-06-01 23:30' });
+
+      expect(tx).toMatchObject({ timeZone: null, utcOffsetMinutes: null });
+      expect(new Date(tx.time).toISOString()).toBe('2026-06-01T23:30:00.000Z');
+    });
+
+    it('keeps the offset a cell wrote and the zone when it matches', async () => {
+      const matching = await importOne({ date: '2026-06-01T23:30:00+04:00', timezone: 'Asia/Tbilisi' });
+      expect(matching).toMatchObject({ timeZone: 'Asia/Tbilisi', utcOffsetMinutes: 240 });
+    });
+
+    it('keeps only the offset when the cell offset does not match the request zone', async () => {
+      const tx = await importOne({ date: '2026-06-01T23:30:00+02:00', timezone: 'Asia/Tbilisi' });
+
+      expect(tx).toMatchObject({ timeZone: null, utcOffsetMinutes: 120 });
     });
   });
 });

@@ -1648,4 +1648,50 @@ describe('Data export (POST /user/data-export)', () => {
       }
     });
   });
+
+  describe('Transaction time zone columns', () => {
+    const exportedRows = async () => {
+      const response = await helpers.exportData({ format: 'csv' });
+      const archive = helpers.parseExportArchive({ buffer: response.body });
+      return helpers.parseExportCsv({ buffer: archive.files.get('transactions.csv')! });
+    };
+
+    it('exports the recorded zone and the time with the row offset, leaving Date and Time as they are', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({
+          accountId: account.id,
+          time: '2026-07-15T12:00:00.000Z',
+          timeZone: 'Asia/Tbilisi',
+          note: 'Zoned row',
+        }),
+        raw: true,
+      });
+
+      const row = (await exportedRows()).find((r) => r.Note === 'Zoned row')!;
+
+      expect(row.Date).toBe('2026-07-15');
+      expect(row.Time).toBe('12:00:00');
+      expect(row.TimeZone).toBe('Asia/Tbilisi');
+      expect(row.LocalTime).toBe('2026-07-15T16:00:00+04:00');
+    });
+
+    it("reads a row with no zone in the user's zone setting", async () => {
+      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'America/New_York' } });
+      const account = await helpers.createAccount({ raw: true });
+      await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({
+          accountId: account.id,
+          time: '2026-07-15T12:00:00.000Z',
+          note: 'Unzoned row',
+        }),
+        raw: true,
+      });
+
+      const row = (await exportedRows()).find((r) => r.Note === 'Unzoned row')!;
+
+      expect(row.TimeZone).toBe('');
+      expect(row.LocalTime).toBe('2026-07-15T08:00:00-04:00');
+    });
+  });
 });

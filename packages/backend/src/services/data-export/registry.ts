@@ -97,6 +97,8 @@ export const EXPORT_DOMAINS: { readonly [N in ExportFileName]: ExportDomain<N> }
       { header: 'LinkedTransfer', field: 'linkedTransfer', kind: 'text' },
       { header: 'Subscription', field: 'subscription', kind: 'text' },
       { header: 'Planned', field: 'isPlanned', kind: 'boolean' },
+      { header: 'TimeZone', field: 'timeZone', kind: 'text' },
+      { header: 'LocalTime', field: 'localTime', kind: 'text' },
     ],
   },
   accounts: {

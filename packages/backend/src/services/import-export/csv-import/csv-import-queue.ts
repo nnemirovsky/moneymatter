@@ -93,6 +93,7 @@ const {
       defaultAccountId: resolvedDefaultAccountId,
       defaultCategoryId: resolvedDefaultCategoryId,
       recalculateBalance,
+      timezone,
       onProgress,
     });
   },

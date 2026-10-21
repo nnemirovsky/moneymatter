@@ -1,7 +1,7 @@
 import { type ParsedImportDate } from '@bt/shared/import-export/date-engine';
 import { describe, expect, it } from '@jest/globals';
 
-import { anchorImportDate } from './anchor-import-date';
+import { anchorImportDate, anchorImportDateWithOffset } from './anchor-import-date';
 
 describe('anchorImportDate', () => {
   describe('instant', () => {
@@ -156,5 +156,31 @@ describe('anchorImportDate', () => {
 
       expect(instant.toISOString()).toBe('2026-03-08T07:30:00.000Z');
     });
+  });
+});
+
+describe('anchorImportDateWithOffset', () => {
+  it('returns the offset a zoned cell wrote', () => {
+    const parsed: ParsedImportDate = {
+      kind: 'instant',
+      instant: new Date('2026-06-16T16:17:19.587Z'),
+      offsetMinutes: 120,
+    };
+
+    expect(anchorImportDateWithOffset({ parsed, timezone: 'Asia/Tokyo' })).toEqual({
+      instant: new Date('2026-06-16T16:17:19.587Z'),
+      offsetMinutes: 120,
+    });
+  });
+
+  it.each([
+    ['a Z instant', { kind: 'instant', instant: new Date('2026-06-16T18:17:19.587Z') }],
+    ['a date', { kind: 'dateOnly', year: 2026, month: 6, day: 1 }],
+    [
+      'a zone-less datetime',
+      { kind: 'localDateTime', year: 2026, month: 6, day: 1, hour: 10, minute: 0, second: 0, ms: 0 },
+    ],
+  ] satisfies [string, ParsedImportDate][])('has no offset for %s', (_name, parsed) => {
+    expect(anchorImportDateWithOffset({ parsed, timezone: 'America/Montevideo' }).offsetMinutes).toBeNull();
   });
 });

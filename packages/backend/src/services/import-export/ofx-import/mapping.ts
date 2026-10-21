@@ -4,7 +4,7 @@ import { Money } from '@common/types/money';
 import { createHash } from 'node:crypto';
 
 import { parseOfxAmount } from './amount';
-import { parseOfxDate } from './date';
+import { parseOfxDate, parseOfxDateWithOffset } from './date';
 import type { OfxNode } from './syntax';
 import {
   OFX_MAX_ROWS,
@@ -158,6 +158,7 @@ function mapTransaction({
   if (!stringValue({ node: raw, key: 'DTPOSTED' })) {
     warnings.set('date-user-fallback', (warnings.get('date-user-fallback') ?? 0) + 1);
   }
+  const postedDate = parseOfxDateWithOffset({ value: dateText, timezone });
   const transactionType = (stringValue({ node: raw, key: 'TRNTYPE' }) ?? 'OTHER').toUpperCase();
   const fitId = stringValue({ node: raw, key: 'FITID' });
   if (!fitId) warnings.set('fitid-missing', (warnings.get('fitid-missing') ?? 0) + 1);
@@ -181,7 +182,8 @@ function mapTransaction({
   return {
     amount: amount.toBig().toString(),
     checkNumber: stringValue({ node: raw, key: 'CHECKNUM' }),
-    date: parseOfxDate({ value: dateText, timezone }),
+    date: postedDate.iso,
+    ...(postedDate.offsetMinutes !== null && { utcOffsetMinutes: postedDate.offsetMinutes }),
     note: memo ?? name ?? '',
     payeeName: name ?? null,
     referenceNumber: stringValue({ node: raw, key: 'REFNUM' }),

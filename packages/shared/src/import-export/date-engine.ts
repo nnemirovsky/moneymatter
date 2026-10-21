@@ -13,7 +13,8 @@ import type { DateFieldOrder } from '../types/import-export/core';
  * grammar is how they drift apart.
  */
 export type ParsedImportDate =
-  | { kind: 'instant'; instant: Date }
+  /** `offsetMinutes` is the `±hh:mm` the cell wrote about local time; absent for `Z`. */
+  | { kind: 'instant'; instant: Date; offsetMinutes?: number }
   | {
       kind: 'localDateTime';
       year: number;
@@ -107,7 +108,12 @@ export function isIntrinsicallyOrdered({ value }: { value: string }): boolean {
 
 export function parseImportDate({ value, format }: ParseImportDateParams): ParsedImportDate | null {
   if (ISO_ZONED_DATETIME.test(value)) {
-    return { kind: 'instant', instant: new Date(value) };
+    const offset = /([+-])(\d{2}):(\d{2})$/.exec(value);
+    const offsetMinutes = offset
+      ? (Number(offset[2]) * 60 + Number(offset[3])) * (offset[1] === '-' ? -1 : 1)
+      : undefined;
+
+    return { kind: 'instant', instant: new Date(value), ...(offsetMinutes !== undefined && { offsetMinutes }) };
   }
 
   const localMatch = value.match(ISO_LOCAL_DATETIME);
