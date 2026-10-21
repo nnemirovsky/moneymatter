@@ -1489,7 +1489,7 @@ describe('Transactions reconciliation', () => {
   });
 
   describe('ingest rows', () => {
-    it('merges two ingest rows whose merchant spellings differ, keeping the survivor note and category', async () => {
+    it('merges two ingest rows whose merchant spellings differ, with no note conflict', async () => {
       const account = await manualAccount();
       const secret = await linkTapCard({ accountId: account.id });
       const first = await tap({ secret, merchant: 'Wolt', minutes: -20 });
@@ -1503,7 +1503,8 @@ describe('Transactions reconciliation', () => {
       });
 
       expect(merged.removedIds).toEqual([second]);
-      expect((await storedTx({ id: first })).note).toBe('Wolt');
+      // A payee names the merchant, so neither row carries a note to conflict over.
+      expect((await storedTx({ id: first })).note ?? null).toBeNull();
       expect(await accountBalance({ accountId: account.id })).toBe(953);
       expect(await hiddenIds()).toEqual([second]);
     });

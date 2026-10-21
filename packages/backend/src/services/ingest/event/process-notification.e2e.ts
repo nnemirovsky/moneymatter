@@ -157,7 +157,8 @@ describe('process notification', () => {
         transactionType: TRANSACTION_TYPES.expense,
         paymentType: 'mobilePayment',
         isPlanned: false,
-        note: 'Wolt',
+        // The payee names the merchant, so the note stays empty.
+        note: null,
         externalReference: `ios-notification:${request.idempotencyKey}`,
       });
       expect(tx.amount.toNumber()).toBe(43.6);

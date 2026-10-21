@@ -93,11 +93,11 @@ const payeeWithHistory = async ({
   return payee;
 };
 
-const noteRule = ({ keyword, categoryId }: { keyword: string; categoryId: RecordId }) =>
+const merchantRule = ({ keyword, categoryId }: { keyword: string; categoryId: RecordId }) =>
   helpers.createAutomation({
     payload: {
       name: 'Heart is a treat',
-      conditions: { match: 'all', items: [{ field: 'note', operator: 'contains_any', value: [keyword] }] },
+      conditions: { match: 'all', items: [{ field: 'merchant', operator: 'contains_any', value: [keyword] }] },
       actions: [{ type: 'set_category', categoryId }],
     },
     raw: true,
@@ -323,7 +323,7 @@ describe('card payment processing', () => {
         payload: { defaultCategoryId: fixed.id, categorizationMode: CATEGORIZATION_MODE.enforce },
         raw: true,
       });
-      await noteRule({ keyword: 'heart', categoryId: ruled.id });
+      await merchantRule({ keyword: 'heart', categoryId: ruled.id });
 
       const logged = await ingest({ secret });
       const tx = await storedTransaction(logged);
@@ -550,7 +550,7 @@ describe('card payment processing', () => {
       const account = await connectedAccount();
       const { secret } = await linkCard({ account });
       const ruled = await createCategory('Treats');
-      await noteRule({ keyword: 'heart', categoryId: ruled.id });
+      await merchantRule({ keyword: 'heart', categoryId: ruled.id });
 
       const [userPlan] = await helpers.createPlannedTransaction({
         payload: { accountId: account.id, note: 'Heart of the matter' },

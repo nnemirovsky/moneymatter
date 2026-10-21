@@ -248,7 +248,7 @@ describe('card payment AI categorization', () => {
     await helpers.createAutomation({
       payload: {
         name: 'Heart is a treat',
-        conditions: { match: 'all', items: [{ field: 'note', operator: 'contains_any', value: ['heart'] }] },
+        conditions: { match: 'all', items: [{ field: 'merchant', operator: 'contains_any', value: ['heart'] }] },
         actions: [{ type: 'set_category', categoryId: ruled.id }],
       },
       raw: true,

@@ -40,7 +40,10 @@ interface LogIngestedPaymentParams {
   originalAmount?: Money;
   originalCurrencyCode?: string;
   time: Date;
-  /** The merchant or counterparty as the payment printed it: the note and the marker's merchant. */
+  /**
+   * The merchant or counterparty as the payment printed it: the marker's merchant, and the note of a
+   * row without a payee.
+   */
   merchant: string;
   payeeId: string | null;
   /** The pipeline's own pick: the payee's history category, else the user's default category. */
@@ -65,6 +68,9 @@ interface LogIngestedPaymentParams {
  * - `ingest.balanceBefore` is what a debit's account held before it (the correction suggestion for a
  *   short per-currency balance starts from it); `ingest.sources[]` lists every request that told of
  *   the payment, each with the dedup slot it fills.
+ * - The note is empty when a payee names the merchant: the payee says it already, and the raw spelling
+ *   stays in the `cardPayment` marker. A row without a payee keeps the merchant as its note, so the
+ *   owner still sees where the money went.
  * - `ingest.systemNote` is the note the pipeline wrote and `ingest.systemCategoryId` the category it
  *   ended up with when no rule or AI stamped one, so a later merge can tell the pipeline's own values
  *   from the owner's edits.
@@ -109,6 +115,7 @@ export const logIngestedPayment = async ({
   // What the account held before this payment: a short balance on a per-currency account is what the
   // correction suggestion starts from.
   const accountBefore = await Accounts.findOne({ where: { id: account.id }, attributes: ['currentBalance'] });
+  const note = payeeId ? null : merchant;
 
   let transaction: Awaited<ReturnType<typeof createTransaction>>[0];
   try {
@@ -124,7 +131,7 @@ export const logIngestedPayment = async ({
       transferNature: TRANSACTION_TRANSFER_NATURE.not_transfer,
       categoryId,
       payeeId: payeeId ?? undefined,
-      note: merchant,
+      note: note ?? undefined,
       applyAutomations: true,
       isPlanned: account.type !== ACCOUNT_TYPES.system,
       externalReference,
@@ -134,7 +141,7 @@ export const logIngestedPayment = async ({
           requestId,
           pipeline,
           unconfirmed: true,
-          systemNote: merchant,
+          systemNote: note ?? '',
           sources: [source],
           ...(cardLastDigits && { cardLastDigits }),
           ...(direction === 'debit' &&
