@@ -52,6 +52,12 @@ const noticePart = ({ key }: { key: string }): ChatMessagePart => ({
   params: {},
 });
 
+/** What counts as an answer: words, a card, a question or a visual. Lookups and notices alone are not one. */
+const ANSWER_PART_TYPES: ReadonlySet<ChatMessagePart['type']> = new Set(['proposal', 'clarification', 'visual']);
+
+const hasAnswer = ({ parts }: { parts: ChatMessagePart[] }) =>
+  parts.some((part) => ANSWER_PART_TYPES.has(part.type) || (part.type === 'text' && part.text.trim().length > 0));
+
 const UNKNOWN_FAILURE = { code: 'unknown', messageKey: 'chat.errors.unknown' };
 
 /** The line a stopped run ends with; a run that completes or fails on its own has none. */
@@ -188,7 +194,9 @@ async function finishRun({
 }) {
   const { runId, messageId, threadId, userId } = input;
 
-  const notice = NOTICE_KEY_BY_STATUS[end.status];
+  // A run that ends with lookups and nothing to show would otherwise leave the user with a blank reply.
+  const silent = end.status === 'complete' && !hasAnswer({ parts: recorder.parts() });
+  const notice = silent ? 'chat.notices.noAnswer' : NOTICE_KEY_BY_STATUS[end.status];
   if (notice)
     await attempt({ label: 'notice', step: () => emit({ type: 'part.started', part: noticePart({ key: notice }) }) });
 

@@ -655,6 +655,7 @@
       "stepLimit": "Stopped after {limit} steps. Ask again to continue.",
       "cancelled": "Stopped at your request.",
       "waitingForCli": "Waiting for a free Claude Code or Codex slot on this server. Your message will start as soon as one is free.",
+      "noAnswer": "The assistant finished without an answer or a proposal. Ask again, or say what you want done.",
       "interrupted": "The server restarted, so this answer was cut short.",
       "toolCallLimit": "This message reached its limit of {limit} tool calls.",
       "proposalLimit": "This message reached its limit of {limit} proposed changes.",
