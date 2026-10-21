@@ -204,7 +204,7 @@ describe('waiting card payments', () => {
       expect(unlinked).toHaveLength(2);
       expect(unlinked[0]).toMatchObject({ count: 2 });
       expect(unlinked[0]!.cardLabel.trim().toLowerCase()).toBe(OTHER_CARD.toLowerCase());
-      expect(unlinked[1]).toEqual({ cardLabel: 'Amex Gold', count: 1 });
+      expect(unlinked[1]).toEqual({ cardLabel: 'Amex Gold', count: 1, lastDigits: null });
 
       await linkCard({ card: OTHER_CARD, accountId: account.id });
 

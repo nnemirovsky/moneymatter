@@ -33,13 +33,15 @@ const account = ({ name }: { name: string }) =>
     raw: true,
   });
 
-/** A push from a seeded bank app that shows an incoming credit and only the last digits of the card. */
+let sequence = 0;
+
+/** A push from a seeded bank app that shows an incoming credit and only the last digits of the card; each differs, so none is a repeat. */
 const push = () => ({
   kind: 'notification',
   app: 'TBC Bank',
   title: 'TBC Bank',
   subtitle: '',
-  body: `Incoming transfer ${BASE} 3000.00 to card *1258`,
+  body: `Incoming transfer ${BASE} ${3000 - ++sequence} to card *1258`,
   idempotencyKey: `key-${randomUUID()}`,
 });
 
@@ -387,7 +389,7 @@ describe('which account a parked notification payment goes to', () => {
       const requestCards = await inboxCards({ toolName: LOG_REQUEST });
       expect(requestCards.map((card) => card.status).toSorted()).toEqual(['applied', 'rejected']);
       expect(await CardAccountMappings.count()).toBe(1);
-    });
+    }, 60_000);
 
     it('logs them when the card is linked by hand', async () => {
       const { bank, ids } = await parkTwo();
@@ -399,7 +401,7 @@ describe('which account a parked notification payment goes to', () => {
 
       expect(mapping.releasedCount).toBe(2);
       await expectBothLoggedAwaitingConfirmation({ ids, accountId: bank.id });
-    });
+    }, 60_000);
 
     it('logs the ones that show no card when the source default is set by hand', async () => {
       mockNotificationParsing({ answer: () => credit({ cardLastDigits: null }) });

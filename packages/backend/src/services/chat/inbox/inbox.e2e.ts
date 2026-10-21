@@ -9,6 +9,7 @@ import {
 import { until } from '@common/helpers';
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
+import CardAccountMappings from '@models/card-account-mappings.model';
 import ChatMessages from '@models/chat-messages.model';
 import ChatProposals from '@models/chat-proposals.model';
 import ChatThreads from '@models/chat-threads.model';
@@ -711,7 +712,15 @@ describe('Automation inbox', () => {
 
     it('closes the card as resolvedElsewhere when the payment is logged from the waiting list', async () => {
       const { main, card, requestId } = await parkOnUnknownCard();
-      await helpers.createCardMapping({ payload: { cardLabel: 'Unlinked Mastercard', accountId: main.id }, raw: true });
+      // Written behind the service: linking the card through it would log the payment by itself.
+      await CardAccountMappings.create({
+        userId: (await helpers.getUserInfo({ raw: true })).id,
+        cardLabel: 'Unlinked Mastercard',
+        normalizedLabel: 'unlinked mastercard',
+        lastDigits: null,
+        currencyCode: null,
+        accountId: main.id,
+      });
 
       const retried = await helpers.retryCardPaymentRequest({ id: requestId, raw: true });
 
