@@ -574,19 +574,21 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - Modify: `packages/backend/docs/card-payment-ingest.md`
 - Modify: `parse-payload.unit.ts`, `twin-rule` unit, `ingest-card-payment.e2e.ts`, `ingest-event.e2e.ts`
 
-- [ ] write failing unit tests:
+- [x] write failing unit tests:
   - `resolvePayloadTime` returns the offset (`+04:00` → 240, `Z` → 0, blank → none);
   - an invalid `timeZone` is a rejection reason (`invalidTimeZone`, added to `CARD_PAYMENT_REJECTION_REASONS`);
   - the wall clock read in the request zone wins when within the residual
-- [ ] write failing e2e:
+- [x] write failing e2e:
   - a tap with `time: …+04:00` and `timeZone: 'Asia/Tbilisi'` → row zone Tbilisi, +240;
   - the same without `timeZone` for a Tbilisi user → Tbilisi;
   - for a Kyiv user → zone `null`, +240;
   - blank time → the setting's zone;
   - a notification row gets the same treatment
-- [ ] implement the request key, the resolver change and `resolveRecordedZone` at `logIngestedPayment` (`pipeline`-independent)
-- [ ] shortcut: add the `Format Date` (Custom `VV`) action and the `timeZone` key to both bodies; specs assert the action and the key
-- [ ] gate: unit `--testPathPattern='ingest/(card-payment/parse-payload|dedup/.*|event/parse-notification-payload)'`; e2e `--testPathPattern='ingest/(card-payment/ingest-card-payment|event/ingest-event)\.e2e'`; frontend `scripts/shortcuts`
+- [x] implement the request key, the resolver change and `resolveRecordedZone` at `logIngestedPayment` (`pipeline`-independent)
+- [x] shortcut: add the `Format Date` (Custom `VV`) action and the `timeZone` key to both bodies; specs assert the action and the key
+- [x] gate: unit `--testPathPattern='ingest/(card-payment/parse-payload|dedup/.*|event/parse-notification-payload)'`; e2e `--testPathPattern='ingest/(card-payment/ingest-card-payment|event/ingest-event)\.e2e'`; frontend `scripts/shortcuts`
+
+➕ Deviations (Task 6): `resolvePayloadTime` returns `offsetMinutes` (`Z` is 0) plus `offsetStated`, true only for a numeric offset, so a `Z` time never records an offset (the rule in Solution Overview). The notification payload now stores `timeZone` and `timeOffsetMinutes` (its `time` is kept as a `Z` string), and `logIngestedPayment` reads the request row to decide the pair. `placeBankTime` (in `twin-rule.ts`) carries the wall-clock rule: the request zone first, within `inferBankTime`'s 5-minute residual, else the inferred offset. ⚠️ `scripts/shortcuts/served-payments-shortcut.spec.ts` compares the signed `public/shortcuts/log-payments.shortcut` with the generated plist and fails until the regenerated plist is re-signed (Post-Completion): the generated shortcut now has two more Format Date actions.
 
 ### Task 7: Imports, bank syncs, backups and data export
 
@@ -600,7 +602,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - Modify: the five provider create sites listed in Technical Details → Bank syncs
 - Modify: `detect-duplicates.e2e.ts`, `statement-parser/execute-import.e2e.ts`, `ai-extraction.e2e.ts`, `backup/restore/restore-backup.e2e.ts`, `data-export/export-data.e2e.ts`, one bank sync e2e (`bank-data-providers/connection/transaction-sync.e2e.ts`)
 
-- [ ] write failing e2e:
+- [x] write failing e2e:
   - a CSV row `2026-06-01 23:30` imported with `timezone: 'America/Montevideo'` stores that zone and -180;
   - the same import **without** `timezone` for a user whose setting is Montevideo anchors in Montevideo (today: UTC);
   - a statement import stamps the zone;
@@ -610,9 +612,11 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - a planned row without a zone, matched by that recent synced row with `Asia/Tbilisi`, takes the incoming pair (`planned-matching/merge-on-sync.e2e.ts` setup);
   - backup → restore keeps both columns, and restoring a fixture archive without the columns gives `null`;
   - data export adds `timeZone` and `localTime` (ISO with the row's offset, or the user's zone when `null`) and leaves `date`/`time` as they are
-- [ ] write failing unit tests for `bankSyncRecordedZone`: exactly 3 days → stamped; 3 days and 1 second → `null`; a future-dated row within the window → stamped; `userZone: null` inside the window → `null`/`null`
-- [ ] implement (backend only; the frontend starts sending the viewing zone in Task 13, once Task 9's `viewingTimeZone` exists; until then the backend's fallback to the stored setting covers a request without `timezone`)
-- [ ] gate: e2e `--testPathPattern='(import-export/(csv-import/detect-duplicates|statement-parser/(execute-import|ai-extraction))|backup/restore/restore-backup|data-export/export-data|import-export/ofx-import/.*|bank-data-providers/connection/transaction-sync|transactions/planned-matching/merge-on-sync)\.e2e'`; unit `--testPathPattern='(bank-data-providers/utils/recorded-zone|ofx-import/date)'`
+- [x] write failing unit tests for `bankSyncRecordedZone`: exactly 3 days → stamped; 3 days and 1 second → `null`; a future-dated row within the window → stamped; `userZone: null` inside the window → `null`/`null`
+- [x] implement (backend only; the frontend starts sending the viewing zone in Task 13, once Task 9's `viewingTimeZone` exists; until then the backend's fallback to the stored setting covers a request without `timezone`)
+- [x] gate: e2e `--testPathPattern='(import-export/(csv-import/detect-duplicates|statement-parser/(execute-import|ai-extraction))|backup/restore/restore-backup|data-export/export-data|import-export/ofx-import/.*|bank-data-providers/connection/transaction-sync|transactions/planned-matching/merge-on-sync)\.e2e'`; unit `--testPathPattern='(bank-data-providers/utils/recorded-zone|ofx-import/date)'`
+
+➕ Deviations (Task 7): the CSV and statement stamping e2e live in `csv-import/execute-import.e2e.ts` and `statement-parser/execute-import.e2e.ts` (a preview endpoint stores nothing); `transaction-sync.e2e.ts` is `describe.skip`, so the bank-sync e2e are a new `describe('Bank sync – recorded time zone')` in `planned-matching/merge-on-sync.e2e.ts` (Monobank, with the planned-merge case). Shared helper `import-export/core/resolve-import-zones.ts` (`resolveImportZones`, `recordedZoneOfImportedRow`); the importers resolve the zones themselves, so the `timezone` request field stays optional. The date engine's `instant` result carries `offsetMinutes` for a `±hh:mm` cell, and `ParsedTransactionRow` / `OfxParseTransaction` carry `utcOffsetMinutes`. SimpleFIN judges "within 3 days" against the start of each account's persist pass, not the whole connection sync. Data export columns `TimeZone` and `LocalTime` are appended after `Planned`.
 
 ### Task 8: Report day bucketing in the user's zone
 
