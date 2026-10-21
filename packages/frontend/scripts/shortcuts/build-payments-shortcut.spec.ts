@@ -73,7 +73,11 @@ const propertiesOf = ({ trigger }: { trigger: string }): string[] => [
   ...new Set(
     attachmentsIn(actions)
       .filter((record) => record.Type === 'TriggerOutput' && record.TriggerIdentifier === trigger)
-      .flatMap((record) => (record.Aggrandizements ?? []).map((aggr: Dict) => aggr.PropertyName as string)),
+      .flatMap((record) =>
+        (record.Aggrandizements ?? [])
+          .filter((aggr: Dict) => aggr.Type === 'WFPropertyVariableAggrandizement')
+          .map((aggr: Dict) => aggr.PropertyName as string),
+      ),
   ),
 ];
 
@@ -82,6 +86,32 @@ const requests = byId(SHORTCUT_ACTIONS.downloadUrl);
 const [tapRequest, tapResend, notificationRequest, notificationResend, dryRunRequest] = requests;
 
 describe('payments shortcut generator', () => {
+  it('reads the subject of every text comparison as text', () => {
+    const textConditions: number[] = [CONDITION_CODES.Is, CONDITION_CODES.Contains];
+    const comparisons = byId(SHORTCUT_ACTIONS.conditional).filter((action) =>
+      textConditions.includes(params(action)[SHORTCUT_PARAMS.condition]),
+    );
+
+    expect(comparisons.length).toBeGreaterThan(0);
+    for (const comparison of comparisons) {
+      const subject = params(comparison)[SHORTCUT_PARAMS.input].Variable.Value;
+      const chain: Dict[] = subject.Aggrandizements ?? [];
+
+      // iOS offers `Is` and `Contains` only for text, so the property read comes first and the coercion last.
+      expect(chain.at(-1)).toEqual({
+        CoercionItemClass: 'WFStringContentItem',
+        Type: 'WFCoercionVariableAggrandizement',
+      });
+    }
+  });
+
+  it('coerces the app of a notification and the busy code, which are not text on their own', () => {
+    const subjects = byId(SHORTCUT_ACTIONS.conditional)
+      .filter((action) => params(action)[SHORTCUT_PARAMS.condition] === CONDITION_CODES.Is)
+      .map((action) => params(action)[SHORTCUT_PARAMS.input].Variable.Value.Aggrandizements.map((a: Dict) => a.Type));
+
+    for (const types of subjects) expect(types.at(-1)).toBe('WFCoercionVariableAggrandizement');
+  });
   it('matches the committed XML (run `npm run shortcuts:build` after a change)', () => {
     expect(readFileSync(COMMITTED_XML, 'utf8')).toBe(renderPaymentsShortcutXml());
   });

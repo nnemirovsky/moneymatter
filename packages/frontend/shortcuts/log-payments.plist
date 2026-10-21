@@ -1456,6 +1456,15 @@
 						<dict>
 							<key>Value</key>
 							<dict>
+								<key>Aggrandizements</key>
+								<array>
+									<dict>
+										<key>CoercionItemClass</key>
+										<string>WFStringContentItem</string>
+										<key>Type</key>
+										<string>WFCoercionVariableAggrandizement</string>
+									</dict>
+								</array>
 								<key>OutputName</key>
 								<string>Dictionary Value</string>
 								<key>OutputUUID</key>
@@ -2084,6 +2093,12 @@
 										<key>Type</key>
 										<string>WFPropertyVariableAggrandizement</string>
 									</dict>
+									<dict>
+										<key>CoercionItemClass</key>
+										<string>WFStringContentItem</string>
+										<key>Type</key>
+										<string>WFCoercionVariableAggrandizement</string>
+									</dict>
 								</array>
 								<key>TriggerIdentifier</key>
 								<string>WFNotificationTrigger</string>
@@ -2148,6 +2163,12 @@
 										<string>App</string>
 										<key>Type</key>
 										<string>WFPropertyVariableAggrandizement</string>
+									</dict>
+									<dict>
+										<key>CoercionItemClass</key>
+										<string>WFStringContentItem</string>
+										<key>Type</key>
+										<string>WFCoercionVariableAggrandizement</string>
 									</dict>
 								</array>
 								<key>TriggerIdentifier</key>
@@ -3117,6 +3138,15 @@
 						<dict>
 							<key>Value</key>
 							<dict>
+								<key>Aggrandizements</key>
+								<array>
+									<dict>
+										<key>CoercionItemClass</key>
+										<string>WFStringContentItem</string>
+										<key>Type</key>
+										<string>WFCoercionVariableAggrandizement</string>
+									</dict>
+								</array>
 								<key>OutputName</key>
 								<string>Dictionary Value</string>
 								<key>OutputUUID</key>

@@ -124,11 +124,20 @@ export const TRIGGER_IDENTIFIERS = {
 } as const satisfies Record<TriggerName, string>;
 
 /** One attachment of a text token: an action output, a named variable, a trigger variable or the Shortcut Input. */
-type Reference =
+type Reference = (
   | { kind: 'output'; output: Output; property?: string }
   | { kind: 'variable'; name: string }
   | { kind: 'trigger'; trigger: TriggerName; property?: string }
-  | { kind: 'input'; property?: string; userInfo?: string };
+  | { kind: 'input'; property?: string; userInfo?: string }
+) & {
+  /** Reads the value as text ("... as Text"), the only type iOS offers `Is` and `Contains` for. */
+  asText?: boolean;
+};
+
+/** The conditions that compare against text, and so need a text subject. */
+export const STRING_CONDITIONS = ['Is', 'Contains'] as const satisfies ReadonlyArray<keyof typeof CONDITION_CODES>;
+
+const TEXT_COERCION: Dict = { CoercionItemClass: 'WFStringContentItem', Type: 'WFCoercionVariableAggrandizement' };
 
 export const uuidFor = ({ seed, index }: { seed: string; index: number }): string => {
   const hex = createHash('sha256').update(`${seed}:${index}`).digest('hex').slice(0, 32).split('');
@@ -139,26 +148,41 @@ export const uuidFor = ({ seed, index }: { seed: string; index: number }): strin
   return `${flat.slice(0, 8)}-${flat.slice(8, 12)}-${flat.slice(12, 16)}-${flat.slice(16, 20)}-${flat.slice(20)}`;
 };
 
-const aggrandizements = ({ property, userInfo }: { property?: string; userInfo?: string }): Dict[] | undefined =>
-  property
-    ? [
-        {
-          ...(userInfo ? { PropertyUserInfo: userInfo } : {}),
-          PropertyName: property,
-          Type: 'WFPropertyVariableAggrandizement',
-        },
-      ]
-    : undefined;
+/** The property read comes first, the coercion to text after it, as iOS writes "App as Text". */
+const aggrandizements = ({
+  property,
+  userInfo,
+  asText,
+}: {
+  property?: string;
+  userInfo?: string;
+  asText?: boolean;
+}): Dict[] | undefined => {
+  const chain: Dict[] = [
+    ...(property
+      ? [
+          {
+            ...(userInfo ? { PropertyUserInfo: userInfo } : {}),
+            PropertyName: property,
+            Type: 'WFPropertyVariableAggrandizement',
+          },
+        ]
+      : []),
+    ...(asText ? [TEXT_COERCION] : []),
+  ];
+
+  return chain.length ? chain : undefined;
+};
 
 const attachment = ({ reference }: { reference: Reference }): Dict => {
-  if (reference.kind === 'variable') return { Type: 'Variable', VariableName: reference.name };
-
   const aggr = aggrandizements({
-    property: reference.property,
+    property: reference.kind === 'variable' ? undefined : reference.property,
     userInfo: reference.kind === 'input' ? reference.userInfo : undefined,
+    asText: reference.asText,
   });
   const withAggr = aggr ? { Aggrandizements: aggr } : {};
 
+  if (reference.kind === 'variable') return { ...withAggr, Type: 'Variable', VariableName: reference.name };
   if (reference.kind === 'input') return { ...withAggr, Type: 'ExtensionInput' };
   if (reference.kind === 'trigger') {
     return { ...withAggr, TriggerIdentifier: TRIGGER_IDENTIFIERS[reference.trigger], Type: 'TriggerOutput' };
@@ -266,6 +290,16 @@ export const createShortcutKit = ({ seed, name }: { seed: string; name: string }
   /** Each If ... End If block shares one grouping identifier; `openGroup` hands out the next one. */
   const openGroup = (): number => 10_000 + nextGroup++;
 
+  /** A text comparison reads its subject as text: iOS offers `Is` and `Contains` only for text, and a dictionary value or an app is not. */
+  const subjectFor = ({
+    subject,
+    condition,
+  }: {
+    subject: Reference;
+    condition: keyof typeof CONDITION_CODES;
+  }): Reference =>
+    (STRING_CONDITIONS as ReadonlyArray<string>).includes(condition) ? { ...subject, asText: true } : subject;
+
   const conditional = ({
     group,
     mode,
@@ -288,7 +322,10 @@ export const createShortcutKit = ({ seed, name }: { seed: string; name: string }
         ...(condition && subject
           ? {
               [SHORTCUT_PARAMS.condition]: CONDITION_CODES[condition],
-              [SHORTCUT_PARAMS.input]: { Type: 'Variable', Variable: tokenAttachment({ reference: subject }) },
+              [SHORTCUT_PARAMS.input]: {
+                Type: 'Variable',
+                Variable: tokenAttachment({ reference: subjectFor({ subject, condition }) }),
+              },
               ...(value === undefined ? {} : { [SHORTCUT_PARAMS.conditionString]: value }),
             }
           : {}),
