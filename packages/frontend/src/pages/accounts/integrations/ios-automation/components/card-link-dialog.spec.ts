@@ -256,7 +256,9 @@ describe('CardLinkDialog', () => {
   it('pre-fills the digits of a link started from a notification that shows only digits', () => {
     const wrapper = mountDialog({ initialLabel: 'Raiffeisen •1258', initialLastDigits: '1258' });
 
-    const input = wrapper.get('[data-testid="card-link-last-digits"] input, input[data-testid="card-link-last-digits"]');
+    const input = wrapper.get(
+      '[data-testid="card-link-last-digits"] input, input[data-testid="card-link-last-digits"]',
+    );
 
     expect((input.element as HTMLInputElement).value).toBe('1258');
   });

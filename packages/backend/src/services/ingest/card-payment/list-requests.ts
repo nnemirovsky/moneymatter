@@ -72,7 +72,8 @@ const toRequestDto = ({ row, now }: { row: IngestRequests; now: Date }): CardPay
     reason: interrupted ? 'interrupted' : ((row.reason as IngestRequestReason | null) ?? null),
     summary: row.summary,
     ...readCard({ row }),
-    accountGuessId: row.pipeline === 'notification' ? (readStoredParse({ value: row.parsed })?.accountGuessId ?? null) : null,
+    accountGuessId:
+      row.pipeline === 'notification' ? (readStoredParse({ value: row.parsed })?.accountGuessId ?? null) : null,
     ...readShownPayment({ row }),
     time: readPayloadTime({ value: row.payload.time, fallback: row.createdAt }),
     transactionId: row.transactionId,
@@ -141,7 +142,10 @@ export const listUnlinkedCards = async ({ userId }: { userId: number }): Promise
       },
       order: [['createdAt', 'DESC']],
     }),
-    CardAccountMappings.findAll({ where: { userId, currencyCode: null }, attributes: ['normalizedLabel', 'lastDigits'] }),
+    CardAccountMappings.findAll({
+      where: { userId, currencyCode: null },
+      attributes: ['normalizedLabel', 'lastDigits'],
+    }),
   ]);
   const linked = new Set(mappings.map((mapping) => mapping.normalizedLabel));
   const linkedDigits = new Set(mappings.flatMap((mapping) => (mapping.lastDigits ? [mapping.lastDigits] : [])));

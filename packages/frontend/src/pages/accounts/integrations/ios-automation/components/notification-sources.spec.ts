@@ -42,15 +42,17 @@ vi.mock('@/components/fields/account-select-field.vue', () => ({
     name: 'AccountSelectFieldStub',
     props: { modelValue: { type: Object, default: null }, accounts: { type: Array, default: () => [] } },
     emits: ['update:modelValue'],
-    setup: (props, { emit }) => () =>
-      h('div', { 'data-testid': 'account-select' }, [
-        h('span', { 'data-testid': 'account-select-value' }, (props.modelValue as AccountModel | null)?.name ?? ''),
-        h('span', { 'data-testid': 'account-select-count' }, String(props.accounts.length)),
-        ...(props.accounts as AccountModel[]).map((account) =>
-          h('button', { 'data-testid': `pick-${account.id}`, onClick: () => emit('update:modelValue', account) }),
-        ),
-        h('button', { 'data-testid': 'clear-account', onClick: () => emit('update:modelValue', null) }),
-      ]),
+    setup:
+      (props, { emit }) =>
+      () =>
+        h('div', { 'data-testid': 'account-select' }, [
+          h('span', { 'data-testid': 'account-select-value' }, (props.modelValue as AccountModel | null)?.name ?? ''),
+          h('span', { 'data-testid': 'account-select-count' }, String(props.accounts.length)),
+          ...(props.accounts as AccountModel[]).map((account) =>
+            h('button', { 'data-testid': `pick-${account.id}`, onClick: () => emit('update:modelValue', account) }),
+          ),
+          h('button', { 'data-testid': 'clear-account', onClick: () => emit('update:modelValue', null) }),
+        ]),
   }),
 }));
 vi.mock('@/components/common/responsive-alert-dialog.vue', async () => ({

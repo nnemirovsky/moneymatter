@@ -213,6 +213,7 @@
             "aiLimitReached": "The daily limit for reading notifications is reached. Retry tomorrow.",
             "ownTransfer": "This looks like a transfer between your own accounts. Log it anyway, or settle it in the inbox.",
             "lowConfidence": "MoneyMatter is not sure this is a payment. Log it if it is, or dismiss it.",
+            "holdReleased": "A hold and its release cancelled each other out, so nothing was logged.",
             "unverifiedParse": "The amount MoneyMatter read is not in the notification text. Check it, then log it or dismiss it.",
             "ignored": {
               "declined": "Read as a declined payment, so nothing was logged.",

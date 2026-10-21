@@ -86,6 +86,11 @@ export default class IngestRequests extends Model {
   @Column({ type: DataType.UUID, allowNull: true })
   duplicateOfId!: RecordId | null;
 
+  /** The request this one cancelled out against: a hold and its release drop each other. */
+  @ForeignKey(() => IngestRequests)
+  @Column({ type: DataType.UUID, allowNull: true })
+  pairedRequestId!: RecordId | null;
+
   @Column({ type: DataType.TEXT, allowNull: true })
   summary!: string | null;
 

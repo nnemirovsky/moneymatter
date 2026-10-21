@@ -71,12 +71,7 @@ export const resolveNotificationAccount = async ({
 
 /** A name for comparison: diacritics, case and surrounding space ignored. */
 const comparableName = ({ value }: { value: string }): string =>
-  value
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
+  value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim();
 
 /** The shortest name that may stand for the other as a prefix: "Raiffeisen" for "Raiffeisen Bank", not "R". */
 const MIN_PREFIX_NAME_LENGTH = 3;

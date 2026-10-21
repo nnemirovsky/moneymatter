@@ -10,6 +10,7 @@ import { formatSummary } from '../card-payment/format-summary';
 import { CardPaymentRateUnavailableError } from '../card-payment/rate-unavailable-error';
 import { readUserLocale } from '../card-payment/read-user-locale';
 import { enqueueAfterPaymentLogged } from '../follow-up-queue';
+import { dropParkedHoldRelease } from '../hold-release/drop-hold-release';
 import { listNonZeroCurrencies } from './balance-authority';
 import type { ClassifiedNotification, ParsedPayment } from './classify-notification';
 import { notificationTimings } from './constants';
@@ -299,9 +300,18 @@ export const processNotification = async ({
     return 'done';
   }
 
-  if (result.kind === 'skipped') return 'done';
+  if (result.kind === 'skipped' || result.kind === 'dropped') return 'done';
 
   if (result.kind === 'park') {
+    // Before the park, so a dropped notification never gets an inbox card.
+    if (
+      result.reason === 'unknownAccount' &&
+      result.parsed.payment &&
+      (await dropParkedHoldRelease({ userId: row.userId, requestId, payment: result.parsed.payment }))
+    ) {
+      return 'done';
+    }
+
     await parkNotification({
       requestId,
       reason: result.reason,
