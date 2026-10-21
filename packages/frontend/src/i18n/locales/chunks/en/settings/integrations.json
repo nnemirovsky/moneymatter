@@ -68,6 +68,7 @@
           "revokePreviousHint": "The shortcut that uses the old token stops working until you set it up again with the new code.",
           "generate": "Generate setup code",
           "generateError": "Could not generate the setup code",
+          "shareShortcutError": "Could not hand the shortcut to the share sheet. Try again or open this page in Safari.",
           "payments": {
             "addShortcut": "Add shortcut — iOS 27 or later"
           },

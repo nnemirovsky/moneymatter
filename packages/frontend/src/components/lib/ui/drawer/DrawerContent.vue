@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { useDescribedByAttrs } from '@/components/lib/ui/dialog/described-by';
+import { keepOpenForToast } from '@/components/lib/ui/dialog/toast-interaction';
 import { cn } from '@/lib/utils';
 import type { DialogContentEmits, DialogContentProps } from 'reka-ui';
 import { useForwardPropsEmits } from 'reka-ui';
@@ -39,6 +40,7 @@ const describedByAttrs = useDescribedByAttrs();
           props.class,
         )
       "
+      @interact-outside="keepOpenForToast"
     >
       <template v-if="!customIndicator">
         <DrawerIndicator />

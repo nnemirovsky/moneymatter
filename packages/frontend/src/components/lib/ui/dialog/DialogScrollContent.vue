@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { keepOpenForToast } from '@/components/lib/ui/dialog/toast-interaction';
 import { cn } from '@/lib/utils';
 import { X } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
@@ -44,6 +45,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
           )
         "
         v-bind="forwarded"
+        @interact-outside="keepOpenForToast"
         @pointer-down-outside="
           (event) => {
             const originalEvent = event.detail.originalEvent;

@@ -17,6 +17,7 @@ vi.mock('../composables/use-shortcut-link', () => ({
     mockUseShortcutLink(args);
     return mockLinks[args.filePath];
   },
+  useShortcutFile: () => ({ file: ref(null) }),
 }));
 
 const PAYMENTS_FILE = '/shortcuts/log-payments.shortcut';

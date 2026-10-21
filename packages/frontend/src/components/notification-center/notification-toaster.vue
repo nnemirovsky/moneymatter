@@ -335,6 +335,13 @@ ol[data-sonner-toaster] {
   interpolate-size: allow-keywords;
 }
 
+/* A modal dialog sets `pointer-events: none` on the body, which the toaster inherits as a sibling of the
+   dialog's portal, so its close button and swipe would be dead while any dialog is open. A live toast
+   takes pointer events back; sonner's own hidden-toast rule and the removal rule below keep theirs. */
+ol[data-sonner-toaster] li[data-sonner-toast]:not([data-visible='false']):not([data-removed='true']) {
+  pointer-events: auto;
+}
+
 li[data-sonner-toast] {
   transition:
     transform 300ms,

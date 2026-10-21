@@ -12,12 +12,14 @@
     <div v-if="code" class="grid gap-4">
       <Callout variant="warning">{{ $t(`${LABEL_ROOT}.warning`) }}</Callout>
 
-      <div class="mx-auto aspect-square w-full max-w-56 overflow-hidden rounded-lg">
-        <SetupCodeQr :text="code" :label="$t(`${LABEL_ROOT}.qrLabel`)" />
-      </div>
-
       <div class="grid gap-1.5">
-        <span class="text-sm font-medium">{{ $t(`${LABEL_ROOT}.codeLabel`) }}</span>
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-sm font-medium">{{ $t(`${LABEL_ROOT}.codeLabel`) }}</span>
+          <Button type="button" variant="outline" size="sm" data-testid="setup-code-copy" @click="copyCode">
+            <CopyIcon class="size-4" />
+            {{ $t(`${LABEL_ROOT}.copy`) }}
+          </Button>
+        </div>
         <code
           ref="codeElement"
           :class="[
@@ -32,17 +34,22 @@
           {{ $t(`${LABEL_ROOT}.manualCopy`) }}
         </p>
       </div>
+
+      <div class="mx-auto aspect-square w-full max-w-56 overflow-hidden rounded-lg">
+        <SetupCodeQr :text="code" :label="$t(`${LABEL_ROOT}.qrLabel`)" />
+      </div>
     </div>
 
     <template #footer>
-      <div class="flex w-full flex-wrap justify-end gap-2">
-        <Button type="button" variant="outline" data-testid="setup-code-copy" @click="copyCode">
-          <CopyIcon class="size-4" />
-          {{ $t(`${LABEL_ROOT}.copy`) }}
-        </Button>
-        <AddShortcutButton shortcut="payments" />
-        <AddShortcutButton shortcut="tap" />
-        <Button type="button" data-testid="setup-code-done" @click="emit('close')">
+      <div class="@container/setup-actions grid w-full gap-2">
+        <AddShortcutButton shortcut="payments" class="w-full" />
+        <AddShortcutButton shortcut="tap" class="w-full" />
+        <Button
+          type="button"
+          class="w-full @sm/setup-actions:w-auto @sm/setup-actions:justify-self-end"
+          data-testid="setup-code-done"
+          @click="emit('close')"
+        >
           {{ $t(`${LABEL_ROOT}.done`) }}
         </Button>
       </div>

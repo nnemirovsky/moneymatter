@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/lib/ui/button';
 import { useDescribedByAttrs } from '@/components/lib/ui/dialog/described-by';
+import { keepOpenForToast } from '@/components/lib/ui/dialog/toast-interaction';
 import { cn } from '@/lib/utils';
 import { X } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
@@ -55,6 +56,7 @@ const describedByAttrs = useDescribedByAttrs();
           props.class,
         )
       "
+      @interact-outside="keepOpenForToast"
     >
       <slot />
 
