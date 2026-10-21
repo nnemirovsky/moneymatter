@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import type { ToolCatalogEntry } from '../../mcp/tool-catalog';
 import { resolveToolPolicy } from '../policies';
 import { createProposal } from '../proposals/create-proposal';
+import { assertKnownRecords } from '../proposals/known-records';
 import { proposalRef, ToolInputError } from '../proposals/placeholders';
 import { parseWriteInput } from './model-schema';
 import { errorMessage, toolFailure, toolSuccess } from './result-text';
@@ -56,6 +57,8 @@ export async function proposeToolCall({
 
     const policy = resolveToolPolicy({ name: entry.name, args });
     if (!policy) throw new ToolInputError(`${entry.name} is not available in the chat`);
+
+    await assertKnownRecords({ userId: ctx.run.user.id, policy, args });
 
     const taken = ctx.state.limits.take({ kind: 'proposals' });
     if (!taken.ok) {

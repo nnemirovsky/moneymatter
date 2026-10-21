@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/lib/ui/button';
 import { cn } from '@/lib/utils';
-import type { ChatCardDependency, ChatCardField, ChatUncertaintyReason } from '@bt/shared/types';
+import type { ChatCardDependency, ChatCardField, ChatEntityKind, ChatUncertaintyReason } from '@bt/shared/types';
 import { TriangleAlertIcon } from '@lucide/vue';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -31,6 +31,16 @@ const { keyText, entityLabel, titleText, enumValueText } = useChatText();
 
 const LOOKS_LIKE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Kinds the app names from lists it holds: an id among them that has no name there points at nothing. */
+const NAMED_FROM_APP_LISTS: ReadonlySet<ChatEntityKind> = new Set([
+  'account',
+  'category',
+  'tag',
+  'payee',
+  'userCurrency',
+  'customCurrency',
+]);
+
 interface ValuePart {
   text: string;
   to?: ReturnType<typeof chatEntityRoute>;
@@ -42,7 +52,7 @@ const displayKind = computed(() => props.field.display?.kind ?? 'text');
 /** A list of records longer than this shows its first ones and the count of the rest. */
 const NAMED_RECORDS_LIMIT = 5;
 
-const entityParts = ({ value }: { value: unknown }): ValuePart[] => {
+const entityParts = ({ value, current }: { value: unknown; current: boolean }): ValuePart[] => {
   const kind = entityKind.value;
   const ids = Array.isArray(value) ? value : [value];
   const hidden = Math.max(0, ids.length - NAMED_RECORDS_LIMIT);
@@ -59,16 +69,21 @@ const entityParts = ({ value }: { value: unknown }): ValuePart[] => {
     // A model may offer an alternative by its name; that name reads better than the kind of record.
     const written = typeof id === 'string' && !LOOKS_LIKE_ID.test(id) ? id : null;
     const to = chatEntityRoute({ entity: { kind, id: String(id) } });
+    // The kind's own name stands in for a record only where the server names it; an id the app's lists do not know is no record.
+    const unknown = current && !name && !written && NAMED_FROM_APP_LISTS.has(kind) && LOOKS_LIKE_ID.test(String(id));
+    if (unknown) return { text: t('chat.cards.noValue') };
+
     return { text: name ?? written ?? entityLabel({ kind }), ...(to && !(written && !name) ? { to } : {}) };
   });
 
   return hidden > 0 ? [...parts, { text: t('chat.cards.affected.more', { count: hidden }) }] : parts;
 };
 
-const partsOf = ({ value }: { value: unknown }): ValuePart[] => {
+/** `current` is the value the card holds now; an alternative on offer is named by its kind when nothing names it. */
+const partsOf = ({ value, current = false }: { value: unknown; current?: boolean }): ValuePart[] => {
   if (value === null || value === undefined || value === '') return [{ text: t('chat.cards.noValue') }];
 
-  if (displayKind.value === 'entity') return entityParts({ value });
+  if (displayKind.value === 'entity') return entityParts({ value, current });
   if (displayKind.value === 'boolean' && typeof value === 'boolean') {
     return [{ text: t(value ? 'chat.cards.yes' : 'chat.cards.no') }];
   }
@@ -110,7 +125,7 @@ const partsOf = ({ value }: { value: unknown }): ValuePart[] => {
 };
 
 const label = computed(() => keyText({ key: props.field.labelKey }) ?? props.field.path);
-const valueParts = computed(() => partsOf({ value: props.field.value }));
+const valueParts = computed(() => partsOf({ value: props.field.value, current: true }));
 const beforeText = computed(() =>
   props.field.before === undefined
     ? null
