@@ -598,6 +598,23 @@ describe('Patch user settings – notification push groups', () => {
       expect(fetched.hourCycle).toBe('h23');
     });
 
+    it('removes hourCycle when it is patched to null', async () => {
+      await helpers.patchUserSettings({ raw: true, patch: { hourCycle: 'h12', locale: 'uk' } });
+
+      const patched = await helpers.patchUserSettings({ raw: true, patch: { hourCycle: null } });
+
+      expect(patched.hourCycle).toBeUndefined();
+      expect(patched.locale).toBe('uk');
+
+      const fetched = await helpers.getUserSettings({ raw: true });
+      expect(fetched.hourCycle).toBeUndefined();
+    });
+
+    it('rejects null for keys that cannot be cleared', async () => {
+      const res = await helpers.patchUserSettings({ patch: { timeZone: null } as never });
+      expect(res.statusCode).toBe(ERROR_CODES.ValidationError);
+    });
+
     it('rejects an invalid zone', async () => {
       const res = await helpers.patchUserSettings({ patch: { timeZone: '+04:00' } });
       expect(res.statusCode).toBe(ERROR_CODES.ValidationError);

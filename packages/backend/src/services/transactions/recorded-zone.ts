@@ -1,6 +1,6 @@
 import { zoneOffsetMinutes } from '@bt/shared/time-zone';
 
-export interface StoredZonePair {
+interface StoredZonePair {
   timeZone: string | null;
   utcOffsetMinutes: number | null;
 }

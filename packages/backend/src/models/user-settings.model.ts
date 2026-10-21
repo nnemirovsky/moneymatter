@@ -34,6 +34,7 @@ import {
   type SidebarSectionsConfig,
   TRANSACTION_DATE_PRESETS,
   HOUR_CYCLES,
+  type HourCycle,
   TIME_ZONE_SOURCES,
   TRANSACTION_OPTIONAL_FIELDS,
   TRANSACTION_SORT_FIELD,
@@ -528,7 +529,8 @@ export const ZodSettingsPatchSchema = z.object({
   fire: ZodFireSettingsSchema.optional(),
   timeZone: ianaTimeZone().optional(),
   timeZoneSource: z.enum(TIME_ZONE_SOURCES).optional(),
-  hourCycle: z.enum(HOUR_CYCLES).optional(),
+  /** `null` removes the key, which returns the clock to the language's convention. */
+  hourCycle: z.enum(HOUR_CYCLES).nullable().optional(),
 });
 
 export type SettingsPatchSchema = z.infer<typeof ZodSettingsPatchSchema>;
@@ -542,7 +544,8 @@ type DeepPartial<T> = {
       : T[K];
 };
 
-type PatchableSettings = Omit<SettingsSchema, 'onboarding' | 'ai'> & {
+type PatchableSettings = Omit<SettingsSchema, 'onboarding' | 'ai' | 'hourCycle'> & {
+  hourCycle?: HourCycle | null;
   ai?: Omit<NonNullable<SettingsSchema['ai']>, 'connections' | 'featureConfigs' | 'chat'>;
 };
 

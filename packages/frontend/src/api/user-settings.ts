@@ -208,7 +208,8 @@ type DeepPartial<T> = {
       : T[K];
 };
 
-type UserSettingsPatch = DeepPartial<UserSettingsSchema>;
+/** `hourCycle: null` removes the key, which returns the clock to the language's convention. */
+type UserSettingsPatch = Omit<DeepPartial<UserSettingsSchema>, 'hourCycle'> & { hourCycle?: HourCycle | null };
 
 /**
  * Partial settings update: only the keys present in `patch` change, the server

@@ -669,9 +669,12 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - Create: `packages/frontend/src/components/fields/time-zone-select-field.vue`, `.test.ts` (searchable, built on the existing combobox; options from `Intl.supportedValuesOf('timeZone')` labelled `GMT+4 · Asia/Tbilisi`, with "Automatic (device): Asia/Tbilisi" first)
 - i18n `en` + `uk` via `i18n-editor`
 
-- [ ] write failing vitest: choosing Automatic patches `{ timeZoneSource: 'device', timeZone: <device> }`; choosing a zone patches `{ timeZoneSource: 'manual', timeZone }`; the clock control patches `hourCycle` and "Automatic" removes it (patch with the locale default, or a `null` the schema allows; pick one and test it)
-- [ ] implement with a placeholder, sentence case, a success toast
-- [ ] gate: frontend `src/components/fields/time-zone-select-field.test.ts` and the page test if one exists
+- [x] write failing vitest: choosing Automatic patches `{ timeZoneSource: 'device', timeZone: <device> }`; choosing a zone patches `{ timeZoneSource: 'manual', timeZone }`; the clock control patches `hourCycle` and "Automatic" removes it (patch with the locale default, or a `null` the schema allows; pick one and test it)
+- [x] implement with a placeholder, sentence case, a success toast
+- [x] gate: frontend `src/components/fields/time-zone-select-field.test.ts` and the page test if one exists
+- ➕ clock "Automatic" patches `hourCycle: null`. The patch schema (and so MCP `update_user_settings`) accepts `null` for `hourCycle` only; `mergeIntoStoredSettings` deletes the key on `null` for the allowlisted `NULL_CLEARS_KEY` keys (other nullable settings keep a stored `null`). The `SettingsPatchSchemaIsInSync` guard types `hourCycle` as `HourCycle | null` in `PatchableSettings`. Covered by e2e (`patch-settings.e2e`) and the MCP validator unit test.
+- ➕ the picker is `components/fields/time-zone-select-field.vue` with `specialOptions` (value/label entries pinned above the zones, emitted as their own value) so Task 12 can add "Clear"; option building lives in `components/fields/utils/time-zone-options.ts`. The settings section is `pages/settings/subpages/language/time-zone-section.vue`. Keys: `settings.language.timeZone.*`, `fields.timeZoneSelect.*` (en + uk).
+- gate: frontend `src/pages/settings/subpages/language`, `time-zone-select-field.test.ts`, `utils/time-zone-options.test.ts` (13 tests pass); e2e `user-settings/(patch-settings|settings-service-owned-slices)` 46 pass; backend unit `mcp/tools/time-zone-settings|user-settings` 70 pass; both typechecks clean
 
 ### Task 11: Frontend: display and the transaction form
 

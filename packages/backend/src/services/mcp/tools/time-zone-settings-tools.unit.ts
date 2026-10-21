@@ -15,6 +15,11 @@ describe('update_user_settings time zone keys', () => {
     expect(patch).toStrictEqual({ timeZone: 'Asia/Tbilisi', timeZoneSource: 'manual', hourCycle: 'h23' });
   });
 
+  it('accepts hourCycle null to return to the language default', () => {
+    const patch = validateUpdateUserSettingsArgs({ args: { hourCycle: null } as never });
+    expect(patch).toStrictEqual({ hourCycle: null });
+  });
+
   it('refuses an offset as a time zone', () => {
     expect(() => validateUpdateUserSettingsArgs({ args: { timeZone: '+04:00' } as never })).toThrow();
   });
