@@ -53,15 +53,18 @@ If the CLI refuses the XML, convert it first: `plutil -convert binary1 -o /tmp/l
 
 ### iOS 27 or later (an iPhone)
 
-macOS 26 `shortcuts sign` rewrites the client version and drops `WFWorkflowTriggers`, so a file signed there arrives without its triggers, and iOS refuses an unsigned one. The triggers survive an export from an iOS 27 iPhone, so the iPhone makes the final file:
+The iOS 27 Shortcut ships as this file, served from our own server; the page's iOS 27 button downloads `/shortcuts/log-payments.shortcut`. `PAYMENTS_SHORTCUT_ICLOUD_URL` is an optional override that wins when set; nothing depends on it.
 
-1. `npm run shortcuts:build`, then sign the plist on the Mac as above (`--input shortcuts/log-payments.plist --output /tmp/log-payments.shortcut`) and AirDrop it to the iOS 27 iPhone.
-2. Import it with the setup code left empty. Open the Shortcut and add the two triggers by hand, as the generated plist describes: a **Transaction** trigger (no card filter) and a **Notification** trigger with **Wallet** and **Messages** selected. Leave **Automation** off if the file is only for distribution.
-3. Share → **Save to Files** (or **AirDrop**) to export it as a file. The phone signs the export and keeps the triggers.
-4. Put the exported file at `public/shortcuts/log-payments.shortcut`. Check what the signature exposes about the signing identity before committing it to a public repository.
-5. Optionally share an iCloud link from the same Shortcut and set `PAYMENTS_SHORTCUT_ICLOUD_URL` on the frontend container (read at start, no rebuild). A link shared from the iPhone carries the triggers, which makes it the preferred delivery.
+macOS 26 `shortcuts sign` rewrites the client version and drops `WFWorkflowTriggers`, and iOS refuses an unsigned file. The triggers survive an export from an iOS 27 iPhone, so the regeneration loop is:
 
-Until the iPhone-signed file exists, `log-payments.shortcut` is missing and the page hides the iOS 27 button.
+1. Generate: `npm run shortcuts:build` writes `shortcuts/log-payments.plist`.
+2. Sign on the Mac only to get a file the iPhone will import: `shortcuts sign --mode anyone --input shortcuts/log-payments.plist --output /tmp/log-payments.shortcut`. The result has no triggers.
+3. AirDrop it to the iOS 27 iPhone and import it with the setup code left empty. Add or verify both triggers: a **Transaction** trigger (no card filter) and a **Notification** trigger with **Wallet** and **Messages** selected. Export the Shortcut as a file (Share → Save to Files). The phone signs the export and keeps the triggers.
+4. Save that file as `public/shortcuts/log-payments.shortcut` and check what its signature exposes about the signing identity before committing it to a public repository.
+
+`scripts/shortcuts/served-payments-shortcut.spec.ts` decodes the served file (macOS only: `aea`, `aa`, `plutil`, `openssl`) and compares its actions and triggers with the generated plist, not its bytes, so the iPhone's re-signature does not trip it. It skips when the file is missing or the tools are. Regenerate the file whenever the generator changes the actions.
+
+Until the file exists the page hides the iOS 27 button (the HEAD probe fails), exactly as for the iOS 26 file.
 
 ## Verifying
 
