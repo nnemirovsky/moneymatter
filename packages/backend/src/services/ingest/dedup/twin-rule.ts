@@ -1,3 +1,4 @@
+import { wallClockToInstant } from '@bt/shared/time-zone';
 import type { RecordId } from '@bt/shared/types';
 import type { Money } from '@common/types/money';
 import { normalizePayeeName } from '@services/payees/normalize-name';
@@ -154,4 +155,37 @@ export const inferBankTime = ({
   if (Math.abs(delta - offset) > MAX_RESIDUAL_MS) return null;
 
   return new Date(wallClock.getTime() - offset);
+};
+
+/**
+ * Places a bank's wall-clock text when the request named the device's zone: the wall clock read in
+ * that zone is accepted when it lies within the same residual `inferBankTime` allows around the
+ * notification time. Otherwise (no zone, or a clock the zone does not explain) the offset is inferred.
+ */
+export const placeBankTime = ({
+  wallClock,
+  reference,
+  zone,
+}: {
+  wallClock: Date;
+  reference: Date;
+  zone: string | null;
+}): Date | null => {
+  if (zone) {
+    const instant = wallClockToInstant({
+      wall: {
+        year: wallClock.getUTCFullYear(),
+        month: wallClock.getUTCMonth() + 1,
+        day: wallClock.getUTCDate(),
+        hour: wallClock.getUTCHours(),
+        minute: wallClock.getUTCMinutes(),
+        second: 0,
+        ms: 0,
+      },
+      zone,
+    });
+    if (Math.abs(instant.getTime() - reference.getTime()) <= MAX_RESIDUAL_MS) return instant;
+  }
+
+  return inferBankTime({ wallClock, reference });
 };

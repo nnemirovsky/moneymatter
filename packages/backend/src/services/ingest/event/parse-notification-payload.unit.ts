@@ -55,6 +55,8 @@ describe('parseNotificationPayload', () => {
         raw: null,
         time: RECEIVED_AT,
         timeProvided: false,
+        timeZone: null,
+        timeOffsetMinutes: null,
       },
     });
   });
@@ -169,6 +171,24 @@ describe('parseNotificationPayload', () => {
       expect(parse({ overrides: { time: '  ' } })).toMatchObject({
         notification: { time: RECEIVED_AT, timeProvided: false },
       });
+    });
+  });
+
+  describe('timeZone', () => {
+    it('keeps a valid zone and the offset the time wrote', () => {
+      expect(parse({ overrides: { time: '2026-10-20T15:59:50+04:00', timeZone: 'Asia/Tbilisi' } })).toMatchObject({
+        notification: { timeZone: 'Asia/Tbilisi', timeOffsetMinutes: 240 },
+      });
+    });
+
+    it('has none for a blank zone or a Z time', () => {
+      expect(parse({ overrides: { time: '2026-10-20T11:59:50Z' } })).toMatchObject({
+        notification: { timeZone: null, timeOffsetMinutes: null },
+      });
+    });
+
+    it('refuses an invalid zone', () => {
+      expect(parse({ overrides: { timeZone: '+04:00' } })).toEqual({ ok: false, reason: 'invalidTimeZone' });
     });
   });
 });

@@ -1,3 +1,4 @@
+import { isValidTimeZone } from '@bt/shared/time-zone';
 import type { CardPaymentRejectionReason, CardPaymentRequestKey, CardPaymentTimeSource } from '@bt/shared/types';
 
 import { cleanText } from './clean-text';
@@ -40,6 +41,8 @@ export interface ParsedCardPayment {
   /** The payment time: the request's own when it sent one, the receive time otherwise. */
   time: Date;
   timeProvided: boolean;
+  /** The request's `timeZone` (IANA), when it sent a valid one. */
+  timeZone: string | null;
   /** What `time` stands for; `run` unless the request says the time belongs to the transaction. */
   timeSource: CardPaymentTimeSource;
 }
@@ -68,7 +71,11 @@ const isBlank = ({ value }: { value: unknown }): boolean =>
  * Reads an ISO 8601 timestamp with an offset. `Date.parse` is not used: it rolls `02-30` over to
  * March and accepts offset-less local times, and both would store a wrong payment time.
  */
-const parseTime = ({ value }: { value: string }): Date | null => {
+const parseTimeDetail = ({
+  value,
+}: {
+  value: string;
+}): { date: Date; offsetMinutes: number; offsetStated: boolean } | null => {
   const match = TIME_PATTERN.exec(value.trim());
   if (!match) return null;
 
@@ -98,14 +105,22 @@ const parseTime = ({ value }: { value: string }): Date | null => {
     wallClock.getUTCMonth() === month - 1 &&
     wallClock.getUTCDate() === day;
 
-  return isRealDate ? new Date(wallClock.getTime() - offsetMinutes * 60_000) : null;
+  return isRealDate
+    ? { date: new Date(wallClock.getTime() - offsetMinutes * 60_000), offsetMinutes, offsetStated: offset !== 'Z' }
+    : null;
 };
+
+const parseTime = ({ value }: { value: string }): Date | null => parseTimeDetail({ value })?.date ?? null;
 
 type ResolvePayloadTimeResult =
   | {
       ok: true;
       time: Date;
       /** The request sent its own time, rather than leaving it to the receive time. */ provided: boolean;
+      /** The UTC offset of the time as sent (`Z` is 0); `null` for a blank time. */
+      offsetMinutes: number | null;
+      /** The time wrote a numeric offset about local time; `Z` and a blank time state none. */
+      offsetStated: boolean;
     }
   | { ok: false; reason: Extract<CardPaymentRejectionReason, 'invalidTime' | 'timeInFuture' | 'timeTooOld'> };
 
@@ -120,10 +135,12 @@ export const resolvePayloadTime = ({
   value: unknown;
   receivedAt: Date;
 }): ResolvePayloadTimeResult => {
-  if (isBlank({ value })) return { ok: true, time: receivedAt, provided: false };
+  if (isBlank({ value }))
+    return { ok: true, time: receivedAt, provided: false, offsetMinutes: null, offsetStated: false };
 
-  const parsedTime = typeof value === 'string' ? parseTime({ value }) : null;
-  if (!parsedTime) return { ok: false, reason: 'invalidTime' };
+  const detail = typeof value === 'string' ? parseTimeDetail({ value }) : null;
+  if (!detail) return { ok: false, reason: 'invalidTime' };
+  const parsedTime = detail.date;
   if (parsedTime.getTime() - receivedAt.getTime() > CARD_PAYMENT_TIME_AHEAD_MS) {
     return { ok: false, reason: 'timeInFuture' };
   }
@@ -131,7 +148,39 @@ export const resolvePayloadTime = ({
     return { ok: false, reason: 'timeTooOld' };
   }
 
-  return { ok: true, time: parsedTime, provided: true };
+  return {
+    ok: true,
+    time: parsedTime,
+    provided: true,
+    offsetMinutes: detail.offsetMinutes,
+    offsetStated: detail.offsetStated,
+  };
+};
+
+type ResolvePayloadTimeZoneResult = { ok: true; timeZone: string | null } | { ok: false; reason: 'invalidTimeZone' };
+
+/** The IANA zone a request's `timeZone` names: `null` for a blank one, refused when it is not a zone. */
+export const resolvePayloadTimeZone = ({ value }: { value: unknown }): ResolvePayloadTimeZoneResult => {
+  if (isBlank({ value })) return { ok: true, timeZone: null };
+  if (typeof value !== 'string' || !isValidTimeZone({ zone: value.trim() })) {
+    return { ok: false, reason: 'invalidTimeZone' };
+  }
+
+  return { ok: true, timeZone: value.trim() };
+};
+
+/** The offset a stored payload's `time` states about local time (`+04:00` is 240), `null` for `Z`, blank or malformed. */
+export const readPayloadTimeOffset = ({ value }: { value: unknown }): number | null => {
+  const detail = typeof value === 'string' ? parseTimeDetail({ value }) : null;
+
+  return detail?.offsetStated ? detail.offsetMinutes : null;
+};
+
+/** The zone a stored payload's `timeZone` names, `null` when it holds none (or an invalid one). */
+export const readPayloadTimeZone = ({ value }: { value: unknown }): string | null => {
+  const resolved = resolvePayloadTimeZone({ value });
+
+  return resolved.ok ? resolved.timeZone : null;
 };
 
 /**
@@ -215,6 +264,9 @@ export const parsePayload = ({ body, receivedAt }: { body: unknown; receivedAt: 
   if (!resolvedTime.ok) return reject({ reason: resolvedTime.reason, field: 'time' });
   const { time, provided: timeProvided } = resolvedTime;
 
+  const resolvedZone = resolvePayloadTimeZone({ value: fields.timeZone });
+  if (!resolvedZone.ok) return reject({ reason: resolvedZone.reason, field: 'timeZone' });
+
   return {
     ok: true,
     kind: 'payment',
@@ -230,6 +282,7 @@ export const parsePayload = ({ body, receivedAt }: { body: unknown; receivedAt: 
     name: name || null,
     time,
     timeProvided,
+    timeZone: resolvedZone.timeZone,
     timeSource: fields.timeSource === 'transaction' ? 'transaction' : 'run',
   };
 };

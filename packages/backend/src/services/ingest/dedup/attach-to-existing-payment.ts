@@ -43,6 +43,8 @@ interface IncomingPayment {
   balanceAfter: StoredBalanceAfter | null;
   /** The wall-clock time the bank's text prints, read as UTC, when it prints one. */
   bankWallClock: Date | null;
+  /** The zone the request named (`timeZone`), when it did. */
+  requestTimeZone: string | null;
 }
 
 /**
@@ -108,6 +110,7 @@ export const attachToExistingPayment = async ({
       payeeId: payment.payeeId,
       time: payment.time,
       bankWallClock: payment.bankWallClock,
+      requestTimeZone: payment.requestTimeZone,
       cardLastDigits: payment.cardLastDigits,
     },
   });

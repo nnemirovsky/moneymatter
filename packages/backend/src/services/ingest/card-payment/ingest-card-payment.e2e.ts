@@ -35,6 +35,17 @@ const send = ({ secret, body }: { secret: string; body: object }) => ingestHelpe
 
 const transactionsOf = () => helpers.getTransactions({ raw: true });
 
+/** An ISO 8601 time an hour ago, written with a numeric offset (`+04:00`), as the shortcut writes it. */
+const hourAgoWithOffset = ({ offsetMinutes }: { offsetMinutes: number }) => {
+  const instant = new Date(Date.now() - 60 * 60_000);
+  const wall = new Date(instant.getTime() + offsetMinutes * 60_000).toISOString().slice(0, 19);
+  const sign = offsetMinutes < 0 ? '-' : '+';
+  const abs = Math.abs(offsetMinutes);
+  const offset = `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+
+  return `${wall}${offset}`;
+};
+
 afterEach(() => {
   cardPaymentTimings.repeatWindowMs = DEFAULT_REPEAT_WINDOW_MS;
 });
@@ -88,6 +99,66 @@ describe('POST /ingest/card-payment', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.response.summary).toContain(' at Cafe → ');
+    });
+  });
+
+  describe('the recorded time zone', () => {
+    const loggedRow = async ({ res }: { res: { body: { response: { transactionId: string } } } }) =>
+      (await transactionsOf()).find((tx) => tx.id === res.body.response.transactionId)!;
+
+    it('records the request zone and its offset', async () => {
+      const { secret } = await setUp();
+
+      const res = await send({
+        secret,
+        body: payment({ time: hourAgoWithOffset({ offsetMinutes: 240 }), timeZone: 'Asia/Tbilisi' }),
+      });
+
+      expect(res.status).toBe(200);
+      expect(await loggedRow({ res })).toMatchObject({ timeZone: 'Asia/Tbilisi', utcOffsetMinutes: 240 });
+    });
+
+    it('records the setting zone when only an offset that matches it is sent', async () => {
+      const { secret } = await setUp();
+      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Tbilisi' } });
+
+      const res = await send({ secret, body: payment({ time: hourAgoWithOffset({ offsetMinutes: 240 }) }) });
+
+      expect(await loggedRow({ res })).toMatchObject({ timeZone: 'Asia/Tbilisi', utcOffsetMinutes: 240 });
+    });
+
+    it('keeps only the offset when the setting zone has another one', async () => {
+      const { secret } = await setUp();
+      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Tbilisi' } });
+
+      const res = await send({ secret, body: payment({ time: hourAgoWithOffset({ offsetMinutes: 120 }) }) });
+
+      expect(await loggedRow({ res })).toMatchObject({ timeZone: null, utcOffsetMinutes: 120 });
+    });
+
+    it('records the setting zone for a blank time', async () => {
+      const { secret } = await setUp();
+      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Tbilisi' } });
+
+      const res = await send({ secret, body: payment() });
+
+      expect(await loggedRow({ res })).toMatchObject({ timeZone: 'Asia/Tbilisi', utcOffsetMinutes: 240 });
+    });
+
+    it('records the request zone for a blank time even without a setting', async () => {
+      const { secret } = await setUp();
+
+      const res = await send({ secret, body: payment({ timeZone: 'America/Montevideo' }) });
+
+      expect(await loggedRow({ res })).toMatchObject({ timeZone: 'America/Montevideo', utcOffsetMinutes: -180 });
+    });
+
+    it('records nothing for a user with no setting and no zone to go by', async () => {
+      const { secret } = await setUp();
+
+      const res = await send({ secret, body: payment() });
+
+      expect(await loggedRow({ res })).toMatchObject({ timeZone: null, utcOffsetMinutes: null });
     });
   });
 
@@ -255,6 +326,7 @@ describe('POST /ingest/card-payment', () => {
       { label: 'an unreadable amount', overrides: { amount: 'abc' }, reason: 'invalidAmount' },
       { label: 'a blank merchant', overrides: { merchant: '   ' }, reason: 'blankMerchant' },
       { label: 'a currency that does not exist', overrides: { currency: 'ZZZ' }, reason: 'invalidCurrency' },
+      { label: 'a time zone that is an offset', overrides: { timeZone: '+04:00' }, reason: 'invalidTimeZone' },
       { label: 'a time in the future', overrides: { time: '2999-01-01T00:00:00Z' }, reason: 'timeInFuture' },
     ])('answers 422 for $label and keeps the request as rejected', async ({ overrides, reason }) => {
       const { secret } = await setUp();

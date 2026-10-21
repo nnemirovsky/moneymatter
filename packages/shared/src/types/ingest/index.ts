@@ -140,6 +140,7 @@ export const CARD_PAYMENT_REJECTION_REASONS = [
   'cardTooLong',
   'nameTooLong',
   'invalidTime',
+  'invalidTimeZone',
   'timeInFuture',
   'timeTooOld',
 ] as const;
