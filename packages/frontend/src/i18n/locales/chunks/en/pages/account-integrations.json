@@ -8,7 +8,7 @@
         "betaBadge": "Beta",
         "iosAutomation": {
           "name": "iOS Automation",
-          "description": "Log Apple Pay taps and bank notifications (app pushes, SMS, email) automatically with an iOS shortcut.",
+          "description": "Log payments automatically from your iPhone",
           "worldwideTooltip": "Works with any bank: the shortcut runs on your iPhone, so no bank connection is needed.",
           "modes": {
             "taps": "Apple Pay taps",
