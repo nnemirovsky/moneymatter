@@ -47,8 +47,13 @@ This plan delivers:
   - the Language page (`pages/settings/subpages/language/index.vue`) holds the locale picker.
 - `setDefaultOptions({ locale })` (`src/main.ts:31`) makes date-fns `p` and `PPp` follow the UI locale: 12-hour in English, 24-hour in Ukrainian.
 
-**The transaction column and its write paths.** `Transactions.time` is `DataType.DATE` (`models/transactions.model.ts:199-203`). Every path ends in `createTransaction` (`services/transactions/create-transaction.ts`), which defaults `time` to `new Date()` (`:504`, `:564`, `:650`) and copies `time` onto the opposite transfer leg (`:325-333`). The callers:
+**The transaction column and its write paths.** `Transactions.time` is `DataType.DATE` (`models/transactions.model.ts:199-203`). Almost every path ends in `createTransaction` (`services/transactions/create-transaction.ts`); account↔portfolio transfers call the model-level `Transactions.createTransaction` directly (`services/investments/portfolios/transfers/{account-to-portfolio,portfolio-to-account}-transfer.service.ts`). `createTransaction` defaults `time` to `new Date()` (`:504`, `:564`, `:650`) and copies `time` onto the opposite transfer leg (`:325-333`). The callers:
 
+- **Services between a caller and `createTransaction` that take only `time` today**, so the pair must be threaded through them:
+  - balance adjustment: `services/accounts/balance-adjustment.ts` (`adjustAccountBalance` → `createBalanceAdjustmentTransaction`), reached by REST, MCP `adjust_account_balance` and import balance reconciliation (`services/import-export/core/reconcile-account-balances.ts`);
+  - subscription payments: `services/subscriptions/mark-period-paid.ts` → `build-transaction-from-subscription.ts`, reached by REST, MCP `pay_subscription_period` and the auto-record cron (`services/subscriptions/process-auto-record.ts:83`);
+  - account↔portfolio transfers (above), reached by REST and MCP `transfer_account_to_portfolio` / `transfer_portfolio_to_account`.
+- **Planned merge:** `createTransaction` may merge an incoming row into a planned one (`create-transaction.ts:497-519` → `services/transactions/planned-matching/merge-into-planned.ts:145-151`), which writes `planned.update({ time: incoming.time, … })` directly.
 - **Manual form:**
   - create sends `time.toUTCString()` (`frontend/src/components/dialogs/manage-transaction/utils/prepare-tx-creation-params.ts:54`);
   - update sends `time.toISOString()` (`prepare-tx-updation-params.ts:160`);
@@ -225,13 +230,18 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 
 - `Transactions.timeZone VARCHAR(64) NULL`;
 - `Transactions.utcOffsetMinutes SMALLINT NULL` (-840 to 840, CHECK constraint);
-- no index, no backfill.
+- no index, no backfill;
+- the `real_transactions` view is re-created at the end of `up` with its SQL written inline (keeping `"deletedAt" IS NULL`), because a `SELECT *` view freezes its column list (`models/transactions-query/real-transactions-view-columns.e2e.ts` guards it; `20261016010000-custom-currencies.ts` is the precedent). `down` re-creates the view without the columns, so it drops the view before dropping the columns.
 
 **Shared helpers** (`packages/shared/src/time-zone/`, Intl only, no dependencies):
 
 - `isValidTimeZone({ zone })`;
 - `zoneOffsetMinutes({ zone, instant })`;
-- `wallClockToInstant({ wall, zone })`: moved out of `anchor-import-date.ts` (`zonedWallClockToInstant` / `timezoneOffsetMs`), which then imports it;
+- `wallClockToInstant({ wall, zone })`: replaces `zonedWallClockToInstant` / `timezoneOffsetMs` in `anchor-import-date.ts`, which then imports it. It resolves DST edge cases by one rule, independent of the zone's side of UTC (Temporal's `compatible` disambiguation):
+  - a wall clock in a spring-forward gap moves forward by the gap (New York 2026-03-08 02:30 → 03:30 EDT = `07:30Z`);
+  - a wall clock in a fall-back overlap takes the earlier instant (New York 2026-11-01 01:30 → 01:30 EDT = `05:30Z`; Kyiv 2026-10-25 03:30 → `00:30Z`).
+  - The existing two-pass algorithm does not follow one rule (New York's gap resolves backward to `06:30Z`, Kyiv's overlap takes the later instant). `anchor-import-date.unit.ts:128-171` pins New York's `06:30Z`; Task 1 changes that expectation to `07:30Z` and fixes its comment. It is an intended change for one nonexistent hour a year.
+- `zonedDayStart({ date, zone })` / `zonedDayEnd({ date, zone })`: local 00:00 of a `YYYY-MM-DD` day as an instant, and the instant just before the next day's 00:00 (23- and 25-hour days included). Used by tool range bounds (Task 4) and reports (Task 8);
 - `resolveRecordedZone({ instant, offsetMinutes, candidateZone, explicitZone })` → `{ timeZone, utcOffsetMinutes }`;
 - `formatOffset({ minutes })` → `UTC+04:00`.
 
@@ -246,6 +256,12 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - `timeZone: null` clears both;
   - a zone change leaves `time` alone.
 - `timeZone` is editable on bank-synced rows, because it is an annotation. `time` stays locked.
+- **Planned merge** (`merge-into-planned.ts:145-151`): when the incoming row has a zone, the planned row takes the incoming pair; when it has none, the planned row keeps its zone and its offset is recomputed at the new `time`. The incoming pair is never silently dropped.
+- **Intermediate services** (Context → write paths) gain the same two optional params and pass them through: `adjustAccountBalance` / `createBalanceAdjustmentTransaction`, `markPeriodPaid` / `buildTransactionFromSubscription`, and both portfolio transfer services (which set them on the model-level create).
+- Who records what on those paths:
+  - REST callers send `timeZone` (the frontend sends the viewing zone); MCP callers go through `resolveTimeInput`;
+  - the auto-record cron records `getStoredUserTimeZone` (the payment is happening now, the same reasoning as recent bank-synced rows; `null` for a user with no setting);
+  - import balance reconciliation records the import's anchor zone, like the imported rows.
 
 **REST:**
 
@@ -257,7 +273,8 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 
 - `bulkUpdate` (`services/transactions/bulk-update.ts`), `PUT /transactions/bulk` (`controllers/transactions.controller/bulk-update.ts`) and MCP `bulk_update_transactions` take `timeZone?: string | null`. `null` clears both columns.
 - The target is the existing bulk target: `transactionIds`, or a filter `selection` with `excludedIds` (`resolveBulkTargetIds`, `services/transactions/matching-transactions.ts:86`). An account and a date range select a whole trip in one call.
-- `resolveBulkTargetIds` keeps one leg per transfer (`dedupeTransferLegs`). For a zone change the service adds the opposite legs back, so both legs carry the same zone.
+- Transfer legs: `resolveBulkTargetIds` keeps one leg per transfer on the `selection` path (`dedupeTransferLegs`), and `transactionIds` pass through as given. For a zone change the service adds, on both paths, the opposite legs **the caller owns** (same `transferId`, same `userId`), so an own-accounts transfer carries one zone on both legs.
+- A leg owned by another user (a transfer into a shared account, `destOwnerUserId`) is left unchanged: `bulkUpdate` writes only the caller's rows (`where: { id, userId }`), as it already does for payees. The two legs then may differ; each owner annotates their own row.
 - One `UPDATE` sets the zone and computes each row's offset at its own `time`:
   `"utcOffsetMinutes" = EXTRACT(EPOCH FROM (("time" AT TIME ZONE :zone) - ("time" AT TIME ZONE 'UTC'))) / 60`.
   An e2e test compares the SQL result with `zoneOffsetMinutes` across a DST switch, so Postgres's tz database and Node's ICU agree on the rows tested.
@@ -272,20 +289,33 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - ISO with `Z` or an offset: an exact instant;
   - `YYYY-MM-DD`: noon in `timeZone`, the same rule imports use.
 - `timeZone?` (IANA) is the zone the wall clock is read in and the zone the row records. A wall clock without it is read in `getUserTimeZone`; the row records `timeZone` when given, else `getStoredUserTimeZone` (so a user with no setting records `null`).
-- An ISO offset that disagrees with an explicit `timeZone` at that instant is refused with a message telling the model to send the wall clock and the zone. It is not silently re-zoned.
+- A **non-zero** ISO offset that disagrees with an explicit `timeZone` at that instant is refused with a message telling the model to send the wall clock and the zone. `Z` is never refused: it names an instant and claims nothing about local time, so `{ time: '…Z', timeZone }` (what the proposal normalizer and the card editor produce) is always accepted, and the row records `timeZone`.
+- **Create tools vs update tools.** The recording rule above is for tools that create a row (`create_transaction`, `adjust_account_balance`, `pay_subscription_period`, the portfolio transfer tools). Tools that change an existing row's time (`update_transaction`, `confirm_planned_transaction`) never change its zone unless `timeZone` is passed:
+  - a wall clock is read in `timeZone` when given, else in the viewing zone (`getUserTimeZone`), as the form reads its input;
+  - without `timeZone` the row keeps its stored zone (`null` stays `null`) and only the offset is recomputed at the new time, the same rule as `updateTransaction`;
+  - with `timeZone` the row records it, as the dialog's zone field does.
 - Descriptions say:
   - "Prefer the user's local wall time without an offset, plus timeZone when the payment happened elsewhere";
   - "never convert to UTC yourself".
-- `search_transactions` and `transaction-filter-input` bounds accept a date or a wall clock read in the user's zone, and the descriptions drop "in UTC".
+- **Range bounds are a separate resolver**, `resolveRangeBound({ value, edge: 'start' | 'end', zone })` in the same file, never the point-in-time resolver (whose date-only rule is noon):
+  - `YYYY-MM-DD` at `start` → `zonedDayStart`, at `end` → `zonedDayEnd`;
+  - a wall clock → that instant in the user's zone; ISO with `Z` or an offset → as is.
+  - Users: `search_transactions` (`startDate`/`endDate`), `transaction-filter-input` (`from`/`to`, also the `selection` of `bulk_update_transactions` / `bulk_delete_transactions`), `list_transfer_suggestions`, `create_tracker` / `update_tracker` (`startDate`/`endDate`, Z-only today through `dateBound({ precision: 'datetime' })`, `controllers/trackers/shared-schemas.ts:24-25`).
+  - The tool converts every bound to a `Z` string **before** the REST schemas parse it (`parseTransactionFilters` re-validates through `dateRange({ precision: 'datetime' })`, `controllers/transactions.controller/transaction-filters.ts:29`, which accepts `Z` only), so the REST contract stays unchanged.
+  - The descriptions drop "in UTC" and their `Z` examples.
+- Out of scope, and their descriptions keep saying UTC: `get_security_prices` and the investment-transaction tools (market data and trades, not ledger times).
 
 **Chat:**
 
 - `prepareChatTurn` passes `getUserTimeZone(...)` instead of the server zone.
 - `contextSection` adds a rule:
 
-  > "Times the user mentions are in <zone> unless they name another place or zone. Pass them to tools as local wall time (2026-10-21T16:00) and add timeZone only for another zone. Never convert times to UTC."
+  > "Times the user mentions are in <zone> unless they name another place or zone. Pass transaction times and date ranges to tools as local wall time (2026-10-21T16:00) or dates, and add timeZone only for another zone. Never convert them to UTC. Tools whose description says UTC (security prices) take UTC."
 
-- `propose.ts` normalizes the time arguments of a proposed call before storing the card: `{ time, timeZone? }` becomes `{ time: '<UTC ISO Z>', timeZone: '<zone>' }`. The card therefore shows the instant in the viewing zone, and the editor writes an instant back.
+- `propose.ts` normalizes the time arguments of a proposed call before storing the card, with the same resolvers the handlers use:
+  - create tools: `{ time, timeZone? }` becomes `{ time: '<UTC ISO Z>', timeZone: '<recorded zone or null>' }`;
+  - update tools: `time` becomes `'<UTC ISO Z>'`, and `timeZone` is kept only when the model passed it (so approval does not re-zone the row).
+  - The card shows the instant in the viewing zone, the editor writes an instant (`Z`) back, and on approval `resolveTimeInput` accepts `Z` with any `timeZone` (see above).
 
 **Ingest:**
 
@@ -304,6 +334,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - The anchor zone is the request's `timezone` when sent, else `getUserTimeZone`. The recorded zone's candidate is the request's `timezone`, else `getStoredUserTimeZone`, so a user with no setting and no request zone records `null`.
 - The frontend sends the viewing zone instead of the raw device zone.
 - Each created row gets `resolveRecordedZone({ explicitZone: undefined, offsetMinutes: <cell offset if any>, candidateZone: anchorZone })`. A cell with an offset of its own keeps that offset, and the zone too when it matches.
+- OFX: the upload parses dates (`ofx-import/date.ts`, zone from `X-Timezone`) and a separate execute request creates the rows (`ofx-import/execute-import.service.ts:230`, `time: new Date(tx.date)`). `parseOfxDate` also returns the offset the cell carried (`[±h:TZ]`), which the parsed transaction keeps as `utcOffsetMinutes`; the execute request (`controllers/import-export/ofx/execute-ofx.controller.ts`) gains `timezone`, which the frontend sends as for CSV; execute-import applies `resolveRecordedZone` per row.
 - MS Money, Budget Bakers and YNAB (no zone in the file, values parsed as UTC) store `null`.
 
 **Bank syncs** (owner's decision):
@@ -329,15 +360,18 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 
 **Reports:**
 
-- `from`/`to` (`YYYY-MM-DD`) become instants at the start of `from` and the end of `to` **in the user's zone**: `zonedDayStart({ date, zone })`.
+- `from`/`to` (`YYYY-MM-DD`) become instants **in the user's zone**, keeping today's window semantics (`stats-transactions.ts:69-86`, `stats/utils/index.ts:36-50`): `from` → `zonedDayStart`; `to` → `zonedDayEnd` only when `from` is also given, and `zonedDayStart(to)` for an open-start window. With `zone = 'UTC'` every bound equals today's.
 - Period buckets use date-fns v4 with `@date-fns/tz` (`startOfDay(d, { in: tz(zone) })`, likewise for week, month, quarter and year).
-- Budget SQL takes `AT TIME ZONE :zone`.
+- Budgets: every `utcInstant` bound becomes a zoned bound: the `fromUtc` / `toUtc` / `poolFromUtc` pre-filter and the period JOIN (`AT TIME ZONE :zone`) in `activity/get-plan-activity.ts:94-107`, `activity/get-plan-cash.ts`, `get-scheduled.ts:104`. `fold/goal-schedule.ts` (calendar arithmetic on dates, no instants) stays as is.
+- `zone` is a **required** parameter of `generatePeriodBuckets`, `findBucketIndex`, `getWhereConditionForTime` and the `statsTransactions` window, so the compiler lists every caller and each one decides:
+  - zoned (`getUserTimeZone`): cash flow, expenses history, cumulative, spending by categories, pivot (`get-pivot/{index,buckets}.ts`), tracker stats (`trackers/{spending-stats,stats,get-category-tracker-transactions}.ts`), subscriptions summary (`subscriptions/get-subscriptions-summary.ts`);
+  - `'UTC'`, with a comment pointing at Decision 3: net-worth history (`get-net-worth-history/index.ts`, whose snapshot dates come from `format(bucket.periodEnd, 'yyyy-MM-dd')` at `:224` and must match UTC `Balances` days), net-worth drivers (`get-net-worth-drivers/{index,investment-growth,savings}.ts`, `stats/utils/savings-transactions.ts`), investment contributions (`get-investment-contributions/{index,derivations}.ts`).
+- MCP report tools take their default range in the user's zone: `get_spending_by_categories` (`:35-41`) and `get_expenses_for_period` (`:28-33`) default to the current month **as dates** (`YYYY-MM-DD` of the first of the month and today in the user's zone), not server-time datetimes; `search_transactions` and `get_balance_history` compute "30 days ago" from today's date in the user's zone. Explicit bounds go through `resolveRangeBound`.
 - Sites:
   - `stats/stats-transactions.ts` `windowWhere`;
-  - `stats/utils/index.ts` (`getWhereConditionForTime`, `generatePeriodBuckets`, `findBucketIndex`);
-  - `stats/get-pivot/buckets.ts`, `stats/get-spendings-by-categories`, `stats/get-cash-flow.ts`;
-  - `trackers/spending-stats.ts`;
-  - `budget-plans/activity/get-plan-activity.ts`, `budget-plans/date-ranges.ts`.
+  - `stats/utils/index.ts` (`getWhereConditionForTime`, `generatePeriodBuckets`, `findBucketIndex`) and every caller listed above;
+  - `budget-plans/{activity/get-plan-activity,activity/get-plan-cash,get-scheduled,date-ranges}.ts`;
+  - the MCP report tools above.
 - A user with no zone gets `UTC`, which is today's behavior.
 
 **Frontend display:**
@@ -400,18 +434,19 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 
 **Files:**
 
-- Create: `packages/shared/src/time-zone/{index,zone-offset,wall-clock,recorded-zone,format-offset}.ts`
+- Create: `packages/shared/src/time-zone/{index,zone-offset,wall-clock,zoned-days,recorded-zone,format-offset}.ts`
 - Modify: `packages/shared/src/types/user-settings.ts` (`TIME_ZONE_SOURCES`, `HOUR_CYCLES`, `TRANSACTION_OPTIONAL_FIELDS` += `timeZone`), `packages/shared/src/types/transactions/transactions.ts` (`TransactionModel.timeZone`, `utcOffsetMinutes`; `CreateTransactionBody` / update body `timeZone?`), `packages/shared/src/types/ingest/index.ts` (`timeZone` request key)
-- Modify: `packages/backend/src/services/import-export/core/parse/anchor-import-date.ts` (import the moved helpers)
+- Modify: `packages/backend/src/services/import-export/core/parse/anchor-import-date.ts` (import the moved helpers), `anchor-import-date.unit.ts` (the New York gap expectation)
 - Create: `packages/backend/src/services/import-export/core/parse/time-zone-helpers.unit.ts`
 
 - [ ] write failing unit tests:
   - `isValidTimeZone`: `Asia/Tbilisi`, `Europe/Kiev`, `UTC` pass; `+04:00`, `Mars/Base`, `''` fail;
   - `zoneOffsetMinutes`: Kathmandu +345; New York -300 / -240 around both 2026 DST switches;
-  - `wallClockToInstant`: spring-forward gap resolves forward, fall-back overlap takes the earlier instant, Kiritimati +14;
+  - `wallClockToInstant`: New York and Kyiv gaps both resolve forward (`2026-03-08T02:30` NY → `07:30Z`), New York and Kyiv overlaps both take the earlier instant, Kiritimati +14;
+  - `zonedDayStart` / `zonedDayEnd`: Tbilisi `2026-10-21` → `2026-10-20T20:00Z` / `2026-10-21T19:59:59.999Z`; New York's 23- and 25-hour days; Kiritimati, Pago Pago;
   - `resolveRecordedZone`, each branch (explicit zone; offset matching the candidate; offset not matching; nothing);
   - `formatOffset` for ±, zero and 45-minute offsets;
-  - `anchor-import-date.unit.ts` still passes unchanged
+  - `anchor-import-date.unit.ts` passes with one change: the New York gap case expects `2026-03-08T07:30:00.000Z` and its comment says forward by the gap
 - [ ] implement the helpers with `Intl.DateTimeFormat` only; move the wall-clock code out of `anchor-import-date.ts`
 - [ ] add the shared constants and fields; `typecheck` stays green (frontend and backend compile with the new optional fields)
 - [ ] gate: unit `--testPathPattern='import-export/core/parse/(anchor-import-date|time-zone-helpers)'`; root `typecheck`
@@ -443,6 +478,8 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 
 - Create: `packages/backend/src/migrations/20261021000000-add-time-zone-to-transactions.ts`
 - Modify: `packages/backend/src/models/transactions.model.ts`, `packages/backend/src/serializers/transactions.serializer.ts`, `packages/backend/src/controllers/transactions.controller/{create-transaction,update-transaction}.ts`, `packages/backend/src/services/transactions/{create-transaction,types}.ts`, `packages/backend/src/services/transactions/update-transaction/update-transaction.ts`, `packages/backend/src/services/mcp/serializers.ts` (output fields)
+- Modify: `packages/backend/src/services/transactions/planned-matching/merge-into-planned.ts`
+- Modify: `packages/backend/src/services/accounts/balance-adjustment.ts`, `packages/backend/src/services/subscriptions/{mark-period-paid,build-transaction-from-subscription,process-auto-record}.ts`, `packages/backend/src/services/investments/portfolios/transfers/{account-to-portfolio,portfolio-to-account}-transfer.service.ts` and their REST controllers' bodies (`timeZone?`)
 - Create: `packages/backend/src/services/transactions/time-zone.e2e.ts`
 
 - [ ] write failing e2e:
@@ -453,16 +490,18 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - updating `timeZone: null` clears both;
   - updating `timeZone` on a bank-synced row (helper-made external account) succeeds while `time` stays refused;
   - an invalid zone → 422;
-  - `GET /transactions` and the by-id route return both fields
-- [ ] implement the migration (both columns, CHECK on the offset range, `down` removes them), the model fields, `createTransaction` / `updateTransaction` params and derivation, and the opposite-leg copy (`create-transaction.ts:325-333`) plus its update twin
-- [ ] gate: e2e `--testPathPattern='transactions/(time-zone|get-by-id|get-transactions)\.e2e'`
+  - `GET /transactions` and the by-id route return both fields;
+  - a balance adjustment, a subscription mark-paid and an account→portfolio transfer, each through REST with `timeZone`, record it; an auto-recorded subscription payment records the user's stored zone (`null` without a setting);
+  - a planned row with a zone merged by an incoming zone-less row across a DST switch keeps its zone and gets the new offset; merged by an incoming row with a zone, it takes the incoming pair
+- [ ] implement the migration (both columns, CHECK on the offset range, the `real_transactions` view rebuild; `down` reverses it), the model fields, `createTransaction` / `updateTransaction` params and derivation, and the opposite-leg copy (`create-transaction.ts:325-333`) plus its update twin
+- [ ] gate: e2e `--testPathPattern='(transactions/(time-zone|get-by-id|get-transactions|planned-matching/merge-on-sync)|transactions-query/real-transactions-view-columns)\.e2e'`
 
 ### Task 4: Tool time input for MCP and the chat cards
 
 **Files:**
 
 - Create: `packages/backend/src/common/lib/time-zones/resolve-time-input.ts`, `.unit.ts`
-- Modify: `packages/backend/src/services/mcp/tools/{create-transaction,update-transaction,adjust-account-balance,confirm-planned-transaction,pay-subscription-period,search-transactions,transaction-filter-input}.ts`, `packages/backend/src/services/mcp/tool-arg-validators.ts`, `packages/backend/src/services/mcp/prompts/financial-data-guide.ts`
+- Modify: `packages/backend/src/services/mcp/tools/{create-transaction,update-transaction,adjust-account-balance,confirm-planned-transaction,pay-subscription-period,transfer-account-to-portfolio,transfer-portfolio-to-account,search-transactions,transaction-filter-input,list-transfer-suggestions,create-tracker,update-tracker}.ts`, `packages/backend/src/services/mcp/tool-arg-validators.ts`, `packages/backend/src/services/mcp/prompts/financial-data-guide.ts`
 - Modify: `packages/backend/src/services/chat/toolkit/propose.ts` (+ `services/chat/proposals/normalize-time-args.ts`, `.unit.ts`)
 - Modify: `packages/frontend/public/skills/connect-moneymatter/SKILL.md`, `packages/frontend/public/.well-known/agent-skills/index.json` (sha256)
 - Modify: tool unit tests (`transaction-read-tools.unit.ts`, `transaction-amount-inputs.unit.ts`, …)
@@ -477,18 +516,27 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
     - `…+02:00` with `timeZone: 'Asia/Tbilisi'` → refused;
     - `2026-10-21` → local noon;
     - garbage → refused;
+    - `2026-10-21T12:00:00Z` + `timeZone: 'Asia/Tbilisi'` → accepted, `12:00Z`, zone Tbilisi;
+  - update mode: no `timeZone` on a New York row → the zone stays New York, the wall clock is read in the viewing zone, the offset is recomputed; a `null` row stays `null`; `timeZone` given → recorded;
+  - `resolveRangeBound`: `2026-10-21` as start/end for a Tbilisi user → `2026-10-20T20:00Z` / `2026-10-21T19:59:59.999Z`; a `Z` bound passes through;
   - each tool's `validate…Args` refuses a bad zone;
   - `normalizeTimeArgs` rewrites only the known time keys of the transaction tools
-- [ ] write failing e2e: MCP `create_transaction` with `time: '2026-10-21T16:00'` for a user with `timeZone: 'Asia/Tbilisi'` stores `12:00Z` and the zone; a chat card for the same call stores `time` as `12:00:00.000Z` with `timeZone`, and approving it creates that row
+- [ ] write failing e2e:
+  - MCP `create_transaction` with `time: '2026-10-21T16:00'` for a user with `timeZone: 'Asia/Tbilisi'` stores `12:00Z` and the zone;
+  - a chat card for the same call stores `time` as `12:00:00.000Z` with `timeZone`, and approving it creates that row;
+  - a chat card for `update_transaction` on a New York row changes the time and keeps `America/New_York`;
+  - `search_transactions` with `startDate=endDate=2026-10-21` for a Tbilisi user returns a row at `2026-10-20T21:30Z` and one at `2026-10-21T19:00Z`;
+  - `create_tracker` with `startDate: '2026-10-01'` stores `2026-09-30T20:00Z` for a Tbilisi user
 - [ ] implement:
   - the resolver;
-  - the tools take `time` and `timeZone` through it (the handlers pass `{ timeZone, utcOffsetMinutes }` on);
+  - the tools take `time` and `timeZone` through it and pass `{ timeZone, utcOffsetMinutes }` to the services Task 3 extended; update tools use update mode;
+  - range-bound tools convert through `resolveRangeBound` before the REST schema parse;
   - `adjust_account_balance` stops requiring `Z`;
   - the descriptions as in Technical Details;
   - the proposal normalizer;
   - the guide paragraph on zones
 - [ ] update the agent SKILL.md text on times and its sha256 (the `add-mcp-tool` skill's drift checklist)
-- [ ] gate: unit `--testPathPattern='(time-zones/resolve-time-input|mcp/tools/.*|mcp/(agent-skills|server-card|tool-arg-validators)-drift|chat/proposals/normalize-time-args)'`; e2e `--testPathPattern='(mcp/tool-time-input|chat/proposals/(approve|time-args))\.e2e'`
+- [ ] gate: unit `--testPathPattern='(time-zones/resolve-time-input|mcp/tools/.*|mcp/(agent-skills|server-card|tool-arg-validators)-drift|chat/proposals/normalize-time-args)'`; e2e `--testPathPattern='(mcp/tool-time-input|chat/proposals/(approve|time-args)|trackers/tracker-crud)\.e2e'`
 
 ### Task 5: Chat system prompt in the user's zone
 
@@ -508,7 +556,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 **Files:**
 
 - Modify: `packages/backend/src/services/ingest/card-payment/{parse-payload,sanitize-payload,process-card-payment}.ts`, `packages/backend/src/services/ingest/event/{parse-notification-payload,log-notification-payment}.ts`, `packages/backend/src/services/ingest/log-ingested-payment.ts`, `packages/backend/src/services/ingest/dedup/{enrich-twin,twin-rule}.ts`
-- Modify: `packages/frontend/scripts/shortcuts/{build-payments-shortcut,build-card-payment-shortcut}.ts` + specs; regenerate `packages/frontend/public/shortcuts/*.plist` (unsigned; signing is Post-Completion)
+- Modify: `packages/frontend/scripts/shortcuts/{build-payments-shortcut,build-card-payment-shortcut}.ts` + specs; regenerate `packages/frontend/shortcuts/{log-payments,log-card-payment}.plist` with `npm run shortcuts:build` (unsigned; the signed `.shortcut` files in `public/shortcuts/` are Post-Completion)
 - Modify: `packages/backend/docs/card-payment-ingest.md`
 - Modify: `parse-payload.unit.ts`, `twin-rule` unit, `ingest-card-payment.e2e.ts`, `ingest-event.e2e.ts`
 
@@ -533,7 +581,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - Modify: `packages/backend/src/services/import-export/{csv-import/parse-valid-rows,csv-import/execute-import/index,statement-parser/execute-import.service,statement-parser/ai-extraction.service,ofx-import/date}.ts` and the controllers that read `timezone` / `X-Timezone` (fallback to `getUserTimeZone`)
 - Modify: `packages/backend/src/services/import-export/core/parse/anchor-import-date.ts` (also return the offset the cell carried, if any)
 - Modify: `packages/backend/src/services/data-export/transformers/transactions-transformer.ts`
-- Modify: `packages/frontend/src/stores/{statement-parser,import-export}.ts`, `packages/frontend/src/api/import-ofx.ts` (send `viewingTimeZone`) + `import-export.test.ts`
+- Modify: `packages/backend/src/services/import-export/ofx-import/{date,execute-import.service}.ts`, `packages/backend/src/controllers/import-export/ofx/execute-ofx.controller.ts`, `ofx-import/date.unit.ts`
 - Create: `packages/backend/src/services/bank-data-providers/utils/recorded-zone.ts`, `.unit.ts`
 - Modify: the five provider create sites listed in Technical Details → Bank syncs
 - Modify: `detect-duplicates.e2e.ts`, `statement-parser/execute-import.e2e.ts`, `ai-extraction.e2e.ts`, `backup/restore/restore-backup.e2e.ts`, `data-export/export-data.e2e.ts`, one bank sync e2e (`bank-data-providers/connection/transaction-sync.e2e.ts`)
@@ -542,33 +590,36 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - a CSV row `2026-06-01 23:30` imported with `timezone: 'America/Montevideo'` stores that zone and -180;
   - the same import **without** `timezone` for a user whose setting is Montevideo anchors in Montevideo (today: UTC);
   - a statement import stamps the zone;
+  - an OFX import executed with `timezone: 'America/Montevideo'` stamps that zone on an offset-free row, and a row with `[+2:EET]` keeps +120;
   - the statement AI's "today" uses the setting when the request has none;
   - a Tbilisi user's bank sync: a row dated 1 day before the sync gets `Asia/Tbilisi` and +240; a row dated 90 days back stays `null`/`null`; a user with no setting gets `null`/`null` on the recent row too;
   - backup → restore keeps both columns, and restoring a fixture archive without the columns gives `null`;
   - data export adds `timeZone` and `localTime` (ISO with the row's offset, or the user's zone when `null`) and leaves `date`/`time` as they are
 - [ ] write failing unit tests for `bankSyncRecordedZone`: exactly 3 days → stamped; 3 days and 1 second → `null`; a future-dated row within the window → stamped; `userZone: null` inside the window → `null`/`null`
-- [ ] implement; frontend stores send the viewing zone (vitest updates the two existing expectations)
-- [ ] gate: e2e `--testPathPattern='(import-export/(csv-import/detect-duplicates|statement-parser/(execute-import|ai-extraction))|backup/restore/restore-backup|data-export/export-data|bank-data-providers/connection/transaction-sync)\.e2e'`; unit `--testPathPattern='bank-data-providers/utils/recorded-zone'`; frontend `src/stores/import-export.test.ts`
+- [ ] implement (backend only; the frontend starts sending the viewing zone in Task 13, once Task 9's `viewingTimeZone` exists; until then the backend's fallback to the stored setting covers a request without `timezone`)
+- [ ] gate: e2e `--testPathPattern='(import-export/(csv-import/detect-duplicates|statement-parser/(execute-import|ai-extraction))|backup/restore/restore-backup|data-export/export-data|import-export/ofx-import/.*|bank-data-providers/connection/transaction-sync)\.e2e'`; unit `--testPathPattern='(bank-data-providers/utils/recorded-zone|ofx-import/date)'`
 
 ### Task 8: Report day bucketing in the user's zone
 
 **Files:**
 
 - Modify: `packages/backend/package.json` (`@date-fns/tz`, pinned)
-- Create: `packages/backend/src/common/lib/time-zones/zoned-days.ts`, `.unit.ts` (`zonedDayStart`, `zonedDayEnd`, `tzOptions({ zone })`)
-- Modify: `packages/backend/src/services/stats/{stats-transactions,utils/index,get-cash-flow,get-expenses-history,get-cumulative-data}.ts`, `stats/get-pivot/buckets.ts`, `stats/get-spendings-by-categories/index.ts`, `services/trackers/spending-stats.ts`, `services/budget-plans/{activity/get-plan-activity,date-ranges}.ts` (thread `zone` from `getUserTimeZone`)
+- Create: `packages/backend/src/common/lib/time-zones/tz-options.ts`, `.unit.ts` (`tzOptions({ zone })` for date-fns; the day bounds come from Task 1)
+- Modify: `packages/backend/src/services/stats/{stats-transactions,utils/index,utils/savings-transactions,get-cash-flow,get-expenses-history,get-cumulative-data}.ts`, `stats/get-pivot/{index,buckets}.ts`, `stats/get-spendings-by-categories/index.ts`, `stats/get-net-worth-history/index.ts`, `stats/get-net-worth-drivers/{index,investment-growth,savings}.ts`, `stats/get-investment-contributions/{index,derivations}.ts` (explicit `'UTC'`), `services/trackers/{spending-stats,stats,get-category-tracker-transactions}.ts`, `services/subscriptions/get-subscriptions-summary.ts`, `services/budget-plans/{activity/get-plan-activity,activity/get-plan-cash,get-scheduled,date-ranges}.ts`, `services/mcp/tools/{get-spending-by-categories,get-expenses-for-period,search-transactions,get-balance-history}.ts` (defaults)
 - Create: `packages/backend/src/services/stats/time-zone-buckets.e2e.ts`, `packages/backend/src/services/budget-plans/time-zone-activity.e2e.ts`
 
 - [ ] write failing unit tests:
-  - `zonedDayStart('2026-10-21', 'Asia/Tbilisi')` = `2026-10-20T20:00Z`;
-  - Kiritimati, Pago Pago, a DST day in New York (23 and 25-hour days);
-  - month buckets for Tbilisi start at local midnight
+  - month buckets for Tbilisi start at local midnight; New York's November bucket spans the 25-hour day;
+  - an open-start window with `to=2026-10-21` ends at `zonedDayStart('2026-10-21')`, and with `zone: 'UTC'` every bound equals today's
 - [ ] write failing e2e:
   - a Tbilisi user's expense at `2026-10-20T21:30Z` (01:30 local on the 21st) counts on Oct 21 in cash flow (daily), spending-by-categories for `from=to=2026-10-21`, pivot by day, tracker spending, and the October budget period when it is the first day;
   - a New York user's `2026-11-01T03:30Z` counts on Oct 31;
+  - the same Tbilisi row counts in the first budget period's activity **and** cash (`get-plan-cash`), and a New York row at `2026-11-01T03:30Z` counts in October's last period;
+  - `get_spending_by_categories` with no dates, called for a Tbilisi user at `2026-10-31T21:30Z` (01:30 on Nov 1 local), reports November;
+  - net-worth history for a New York user keeps the October point on Oct 31 (UTC days);
   - a user without a zone keeps today's results (re-run the existing stats e2e unchanged)
 - [ ] implement with `{ in: tz(zone) }` on the date-fns calls and `AT TIME ZONE :zone` in the budget SQL; `Balances` untouched (comment why)
-- [ ] gate: unit `--testPathPattern='(time-zones/zoned-days|stats/utils)'`; e2e `--testPathPattern='(stats/(time-zone-buckets|get-cash-flow|get-pivot|get-cumulative-data)|budget-plans/time-zone-activity|trackers/spending-stats)\.e2e'`
+- [ ] gate: unit `--testPathPattern='(time-zones/tz-options|stats/utils)'`; e2e `--testPathPattern='(stats/(time-zone-buckets|get-cash-flow|get-pivot|get-cumulative-data|get-net-worth-history|get-net-worth-drivers)|budget-plans/time-zone-activity|trackers/spending-stats|subscriptions/subscriptions)\.e2e'`
 
 ### Task 9: Frontend: zone and clock state, formatting helpers, auto sync
 
@@ -631,7 +682,8 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - [ ] write failing e2e:
   - `PUT /transactions/bulk` with `transactionIds` and `timeZone: 'Asia/Makassar'` sets the zone on each row and the offset at each row's own time (+480);
   - the same by a filter `selection` (one account, a date range) with one `excludedIds` row left untouched;
-  - a transfer selected by one leg gets the zone on both legs;
+  - an own-accounts transfer selected by one leg gets the zone on both legs, by ids and by selection;
+  - a transfer into another user's shared account: the caller's leg is updated, the other user's leg is unchanged;
   - New York rows on both sides of the 2026 DST switch get -240 and -300, equal to `zoneOffsetMinutes`;
   - `timeZone: null` clears both columns;
   - a bank-synced row is updated, and its `time` is unchanged;
@@ -646,27 +698,28 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 
 **Files:**
 
+- Modify: `packages/frontend/src/stores/{statement-parser,import-export}.ts`, `packages/frontend/src/api/import-ofx.ts` (send `viewingTimeZone`; OFX also on execute) + `src/stores/import-export.test.ts`
 - Modify: `packages/frontend/src/components/records-filters/use-filters-from-query.ts`, `packages/frontend/src/api/stats.ts` (`formatDate` in the viewing zone), the date-preset helpers (`components/lib/ui/date-selector`, `TRANSACTION_DATE_PRESETS` consumers), `components/widgets/{spending-pace-widget/index.vue,balance-trend.vue,latest-records.vue}`
 - Specs beside each
 
-- [ ] write failing vitest: "today" for a Tbilisi viewer at `2026-10-20T21:30Z` is Oct 21; the end bound of `end=2026-10-21` is `2026-10-21T19:59:59.999Z` in Tbilisi; `api/stats` sends the viewing-zone calendar day
+- [ ] write failing vitest: "today" for a Tbilisi viewer at `2026-10-20T21:30Z` is Oct 21; the end bound of `end=2026-10-21` is `2026-10-21T19:59:59.999Z` in Tbilisi; `api/stats` sends the viewing-zone calendar day; the import stores send `viewingTimeZone` (the two existing expectations change)
 - [ ] implement with `tz(viewingTimeZone)`
 - [ ] gate: frontend the changed spec files
 
 ### Task 14: Verify acceptance criteria
 
-- [ ] the Haiku scenario end to end against a mocked model: a Tbilisi user says "coffee 5 GEL at 16:00"; the model calls `create_transaction` with `time: '<today>T16:00'`; the card shows 16:00; approval stores `12:00Z`, `Asia/Tbilisi`, +240; the list tooltip shows 16:00 GMT+4
+- [ ] the Haiku scenario end to end against a mocked model: the clock is fixed at `2026-07-15T10:00Z` (summer in Kyiv, so the offsets below hold on any run date); a Tbilisi user says "coffee 5 GEL at 16:00"; the model calls `create_transaction` with `time: '2026-07-15T16:00'`; the card shows 16:00; approval stores `2026-07-15T12:00Z`, `Asia/Tbilisi`, +240; the list tooltip shows 16:00 GMT+4
 - [ ] the same chat after switching the setting to manual `Europe/Kyiv`: the list shows 15:00 GMT+3 and a second line "Recorded in Asia/Tbilisi: 16:00 GMT+4"
 - [ ] a user without a zone sees no change in reports (the existing stats and budgets e2e suites pass untouched)
 - [ ] Playwright flow from the Testing Strategy
-- [ ] full backend unit suite, the e2e patterns of Tasks 2–8 and 12 in one serial run, the frontend suite, root `typecheck`, `lint`, `format:check`, `knip`
+- [ ] full backend unit suite, the e2e patterns of Tasks 2–8 and 12 in one serial run (including `real-transactions-view-columns.e2e`), the frontend suite, root `typecheck`, `lint`, `format:check`, `knip`
 
 ### Task 15: Documentation
 
 - [ ] user docs (`packages/docs`, via `user-docs`): a "Time zone and clock" settings page; how each source records a zone; the note that balance history uses UTC days
 - [ ] `packages/docs/.../integrations/ios-automation.mdx` and `packages/backend/docs/card-payment-ingest.md`: the `timeZone` key and the offset fallback
 - [ ] MCP: the guide paragraph and SKILL.md (done in Task 4), checked against the final tool descriptions
-- [ ] `.claude/docs/backend-conventions.md`: a short "Times and zones" section (instants in `time`, `resolveRecordedZone` for the zone, `getUserTimeZone` for day bounds, tools never take UTC-only input)
+- [ ] `.claude/docs/backend-conventions.md`: a short "Times and zones" section (instants in `time`, `resolveRecordedZone` for the zone, `getUserTimeZone` for day bounds, `getStoredUserTimeZone` for recording, ledger-time and range tools never take UTC-only input, update tools never re-zone a row)
 - [ ] move this plan to `docs/plans/completed/`
 
 ## Post-Completion
