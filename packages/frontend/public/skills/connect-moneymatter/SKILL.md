@@ -134,11 +134,11 @@ Duplicate cleanup and bank rows stuck in pending.
 
 Payments the iOS Shortcut logs on its own from Apple Pay taps and bank notifications, and the questions it leaves for the owner.
 
-| Tool                      | Purpose                                                                                                             |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `confirm_ingest_payment`  | Confirm an automatically logged payment, optionally correcting account, amount, payee or category (`finance:write`) |
-| `log_ingest_request`      | Log a notification payment that parked for an account or an approval (`finance:write`)                              |
-| `set_notification_source` | Approve or mute a source of notifications and set its default account (`finance:write`)                             |
+| Tool                      | Purpose                                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `confirm_ingest_payment`  | Confirm an automatically logged payment, optionally correcting account, amount, payee, category or note (`finance:write`) |
+| `log_ingest_request`      | Log a notification payment that parked for an account or an approval (`finance:write`)                                    |
+| `set_notification_source` | Approve or mute a source of notifications and set its default account (`finance:write`)                                   |
 
 ### Categories and tags
 

@@ -1,16 +1,27 @@
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const/vue-query';
-import type { NotificationSourceDto, RecordId } from '@bt/shared/types';
+import {
+  ACCOUNT_CATEGORIES,
+  ACCOUNT_STATUSES,
+  ACCOUNT_TYPES,
+  type AccountModel,
+  type NotificationSourceDto,
+  type RecordId,
+} from '@bt/shared/types';
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { defineComponent, h } from 'vue';
 
 import { createGlobalPlugins } from '../test-support';
 import NotificationSources from './notification-sources.vue';
 
-const { mockGet, mockUpdate, mockDelete } = vi.hoisted(() => ({
+const { mockGet, mockUpdate, mockDelete, mockAccountsStore } = vi.hoisted(() => ({
   mockGet: vi.fn(),
   mockUpdate: vi.fn(),
   mockDelete: vi.fn(),
+  mockAccountsStore: { accounts: [] as unknown[] },
 }));
+
+vi.mock('@/stores/accounts', () => ({ useAccountsStore: () => mockAccountsStore }));
 
 vi.mock('@/api/ingest', () => ({
   getNotificationSources: mockGet,
@@ -25,9 +36,42 @@ vi.mock('@/components/notification-center', () => ({
     addNotification: vi.fn(),
   }),
 }));
+// The real picker is a popover list; here only the account it shows and the one it reports matter.
+vi.mock('@/components/fields/account-select-field.vue', () => ({
+  default: defineComponent({
+    name: 'AccountSelectFieldStub',
+    props: { modelValue: { type: Object, default: null }, accounts: { type: Array, default: () => [] } },
+    emits: ['update:modelValue'],
+    setup:
+      (props, { emit }) =>
+      () =>
+        h('div', { 'data-testid': 'account-select' }, [
+          h('span', { 'data-testid': 'account-select-value' }, (props.modelValue as AccountModel | null)?.name ?? ''),
+          h('span', { 'data-testid': 'account-select-count' }, String(props.accounts.length)),
+          ...(props.accounts as AccountModel[]).map((account) =>
+            h('button', { 'data-testid': `pick-${account.id}`, onClick: () => emit('update:modelValue', account) }),
+          ),
+          h('button', { 'data-testid': 'clear-account', onClick: () => emit('update:modelValue', null) }),
+        ]),
+  }),
+}));
 vi.mock('@/components/common/responsive-alert-dialog.vue', async () => ({
   default: (await import('../test-support')).createResponsiveAlertDialogStub(),
 }));
+
+const makeAccount = (overrides: Partial<AccountModel>): AccountModel =>
+  ({
+    id: 'account-1' as RecordId,
+    name: 'Raiffeisen',
+    type: ACCOUNT_TYPES.system,
+    status: ACCOUNT_STATUSES.active,
+    accountCategory: ACCOUNT_CATEGORIES.general,
+    currencyCode: 'RUB',
+    ...overrides,
+  }) as AccountModel;
+
+const RAIFFEISEN = makeAccount({});
+const LOAN = makeAccount({ id: 'loan' as RecordId, name: 'Car loan', accountCategory: ACCOUNT_CATEGORIES.loan });
 
 const makeSource = (overrides: Partial<NotificationSourceDto> = {}): NotificationSourceDto => ({
   id: 'source-1' as RecordId,
@@ -55,6 +99,7 @@ const mountSources = async ({ sources }: { sources: NotificationSourceDto[] }) =
 describe('NotificationSources', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAccountsStore.accounts = [RAIFFEISEN, LOAN];
     mockUpdate.mockResolvedValue(makeSource());
     mockDelete.mockResolvedValue({ success: true });
   });
@@ -148,5 +193,42 @@ describe('NotificationSources', () => {
     await flushPromises();
 
     expect(wrapper.get('[data-testid="notification-sources-error"]').text()).toContain('Could not load');
+  });
+
+  describe('the account a source logs to', () => {
+    it('shows the current default and offers only accounts that take a manual payment', async () => {
+      const { wrapper } = await mountSources({ sources: [makeSource({ defaultAccountId: RAIFFEISEN.id })] });
+
+      expect(wrapper.get('[data-testid="account-select-value"]').text()).toBe('Raiffeisen');
+      expect(wrapper.get('[data-testid="account-select-count"]').text()).toBe('1');
+    });
+
+    it('saves the chosen account as the default and refreshes the sources', async () => {
+      const { wrapper, invalidate } = await mountSources({ sources: [makeSource()] });
+
+      await wrapper.get(`[data-testid="pick-${RAIFFEISEN.id}"]`).trigger('click');
+      await flushPromises();
+
+      expect(mockUpdate).toHaveBeenCalledWith({ id: 'source-1', defaultAccountId: RAIFFEISEN.id });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: VUE_QUERY_CACHE_KEYS.notificationSources });
+    });
+
+    it('clears the default when the choice is cleared', async () => {
+      const { wrapper } = await mountSources({ sources: [makeSource({ defaultAccountId: RAIFFEISEN.id })] });
+
+      await wrapper.get('[data-testid="clear-account"]').trigger('click');
+      await flushPromises();
+
+      expect(mockUpdate).toHaveBeenCalledWith({ id: 'source-1', defaultAccountId: null });
+    });
+
+    it('does not save when the choice is the account it already has', async () => {
+      const { wrapper } = await mountSources({ sources: [makeSource({ defaultAccountId: RAIFFEISEN.id })] });
+
+      await wrapper.get(`[data-testid="pick-${RAIFFEISEN.id}"]`).trigger('click');
+      await flushPromises();
+
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
   });
 });

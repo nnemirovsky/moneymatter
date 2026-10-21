@@ -2,6 +2,7 @@ import {
   CHAT_FIELD_LABEL_KEYS,
   chatCardTitleKey,
   type ChatCardTitle,
+  type ChatIngestRequestSummary,
   type ChatProposalCard,
   type ChatCardWarning,
 } from '@bt/shared/types';
@@ -51,6 +52,9 @@ const nonZeroCountsOf = ({ counts }: { counts: Record<string, number> | undefine
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 };
 
+/** The tool of the card a parked notification payment gets. */
+const LOG_INGEST_REQUEST_TOOL_NAME = 'log_ingest_request';
+
 const titleOf = ({ row }: { row: Pick<ChatProposalRow, 'cardKind' | 'entity'> }): ChatCardTitle => ({
   key: chatCardTitleKey({ kind: row.cardKind }),
   params: { entity: row.entity },
@@ -72,8 +76,49 @@ function canApplyOf({
   if (needsPreview && row.preview === null) {
     return { ok: false, reasonKey: row.error ? 'chat.cards.previewFailed' : 'chat.cards.previewPending' };
   }
+  // A payment parked on its account is logged on an account the owner names; nothing is guessed.
+  if (needsIngestAccount({ row })) return { ok: false, reasonKey: 'chat.cards.ingestAccountRequired' };
   return { ok: true };
 }
+
+const textOf = ({ value }: { value: unknown }): string | null => (typeof value === 'string' && value ? value : null);
+
+/**
+ * What the card of a parked notification payment shows of the payment, read from the preview: the
+ * amount, direction, counterparty, source, card and the line saying why it waits.
+ */
+const ingestRequestOf = ({
+  row,
+}: {
+  row: Pick<ChatProposalRow, 'toolName' | 'preview'>;
+}): ChatIngestRequestSummary | undefined => {
+  const before = row.preview?.before;
+  if (row.toolName !== LOG_INGEST_REQUEST_TOOL_NAME || !before) return undefined;
+
+  const direction = before.direction === 'credit' || before.direction === 'debit' ? before.direction : null;
+  const lesson = before.willLearn === 'card' || before.willLearn === 'sourceDefault' ? before.willLearn : null;
+
+  return {
+    reason: textOf({ value: before.reason }),
+    counterparty: textOf({ value: before.name }),
+    sourceName: textOf({ value: before.sourceName }),
+    amount: typeof before.amount === 'number' ? before.amount : null,
+    currencyCode: textOf({ value: before.currencyCode }),
+    direction,
+    cardName: textOf({ value: before.cardName }),
+    cardLastDigits: textOf({ value: before.cardLastDigits }),
+    time: textOf({ value: before.time }),
+    summary: textOf({ value: before.summary }),
+    willLearn: lesson,
+    alsoWaiting: typeof before.alsoWaiting === 'number' ? before.alsoWaiting : 0,
+  };
+};
+
+/** The card of a payment parked on its account, which has no account chosen yet. */
+const needsIngestAccount = ({ row }: { row: Pick<ChatProposalRow, 'toolName' | 'args' | 'preview'> }): boolean =>
+  row.toolName === LOG_INGEST_REQUEST_TOOL_NAME &&
+  row.preview?.before?.reason === 'unknownAccount' &&
+  !row.args.accountId;
 
 /**
  * The card the API and the run stream return for a proposal row. Text on it is never the model's:
@@ -94,7 +139,10 @@ export function toChatProposalCard({
 
   const rowBefore = row.preview?.before ?? null;
 
-  const fields = Object.entries(row.args).map(([path, value]) => {
+  const fields = Object.entries(
+    // The account is the one thing the owner must supply on this card, so its picker is always there.
+    needsIngestAccount({ row }) ? { ...row.args, accountId: undefined } : row.args,
+  ).map(([path, value]) => {
     const unsure = uncertain.get(path);
     return {
       path,
@@ -115,6 +163,7 @@ export function toChatProposalCard({
     ...(row.preview?.warnings ?? []),
   ];
 
+  const ingestRequest = ingestRequestOf({ row });
   const nonZeroCounts = nonZeroCountsOf({ counts: row.preview?.counts });
 
   const card: ChatProposalCard = {
@@ -132,6 +181,7 @@ export function toChatProposalCard({
     title: titleOf({ row }),
     fields,
     ...(target.length > 0 ? { target } : {}),
+    ...(ingestRequest ? { ingestRequest } : {}),
     ...(row.preview?.affected ? { affected: row.preview.affected } : {}),
     ...(nonZeroCounts ? { counts: nonZeroCounts } : {}),
     ...(row.preview?.labels ? { labels: row.preview.labels } : {}),
