@@ -8,6 +8,7 @@ import { QueryTypes } from 'sequelize';
 
 import { FUZZY_MIN_MATCH_CHAR_LENGTH, fuzzyFuseOptions } from '../../payees/fuzzy-matcher';
 import { normalizePayeeName } from '../../payees/normalize-name';
+import { loadUsualCategoryNames } from '../payee/usual-categories';
 
 /** How many candidates the prompt may carry. */
 export const PAYEE_CANDIDATES_LIMIT = 15;
@@ -23,6 +24,8 @@ export interface PayeeCandidate {
   payeeId: RecordId;
   name: string;
   aliases: string[];
+  /** The categories the owner usually gives the payee, the most frequent first; filled by `loadPayeeCandidates`. */
+  usualCategories?: string[];
 }
 
 /**
@@ -285,7 +288,9 @@ const loadRecentPayeeIds = async ({
 };
 
 /**
- * The payees the parser may pick from for one notification: the candidate list of the prompt.
+ * The payees the parser may pick from for one notification: the candidate list of the prompt, each
+ * with the categories the owner usually gives it, so the model can tell similar names apart by the
+ * kind of business.
  *
  * @public called by the processing job. It
  * reads the user's payees once and ranks them in memory, because the fuzzy match needs all of them
@@ -321,9 +326,18 @@ export const loadPayeeCandidates = async ({
   const byId = new Map<string, PayeeEntry>(payees.map((payee) => [payee.id, payee]));
   const recentIds = sourceId ? await loadRecentPayeeIds({ userId, sourceId }) : [];
 
-  return mergePayeeCandidates({
+  const candidates = mergePayeeCandidates({
     tokenMatches: findTokenMatches({ payees, tokens }),
     fuzzyMatches: findFuzzyMatches({ payees, tokens }),
     recent: recentIds.flatMap((id) => byId.get(id) ?? []),
   });
+  const usualCategories = await loadUsualCategoryNames({
+    ownerUserId: userId,
+    payeeIds: candidates.map((candidate) => candidate.payeeId),
+  });
+
+  return candidates.map((candidate) => ({
+    ...candidate,
+    usualCategories: usualCategories.get(candidate.payeeId) ?? [],
+  }));
 };

@@ -371,6 +371,8 @@ describe('hasInboxCard', () => {
     reason: 'unknownAccount',
     summary: null,
     cardLabel: null,
+    cardLastDigits: null,
+    accountGuessId: null,
     merchant: 'Wolt',
     amountText: '43.60 GEL',
     time: '2026-10-18T10:00:00.000Z',
@@ -408,6 +410,8 @@ describe('selectRequestsForCard', () => {
     reason: 'unknownCard',
     summary: null,
     cardLabel: 'TBC Visa',
+    cardLastDigits: null,
+    accountGuessId: null,
     merchant: 'Cafe',
     amountText: '47,00 GEL',
     time: '2026-10-18T10:00:00.000Z',
@@ -429,6 +433,23 @@ describe('selectRequestsForCard', () => {
     ];
 
     expect(selectRequestsForCard({ requests, cardLabel: 'TBC Visa' }).map(({ id }) => id)).toEqual(['a', 'b']);
+  });
+
+  it('picks a notification parked on its account under the card its digits name', () => {
+    const requests = [
+      makeRequest({
+        id: 'raiffeisen' as RecordId,
+        pipeline: 'notification',
+        reason: 'unknownAccount',
+        cardLabel: 'Raiffeisen •1258',
+        cardLastDigits: '1258',
+      }),
+      makeRequest({ id: 'tap' as RecordId }),
+    ];
+
+    expect(selectRequestsForCard({ requests, cardLabel: 'Raiffeisen •1258' }).map(({ id }) => id)).toEqual([
+      'raiffeisen',
+    ]);
   });
 
   it('leaves out other cards, other reasons and other statuses', () => {

@@ -15,6 +15,7 @@ import { formatRateDate } from '../card-payment/rate-unavailable-error';
 import { resolveCurrency, resolveStatedCurrency } from '../card-payment/resolve-currency';
 import { attachToExistingPayment } from '../dedup/attach-to-existing-payment';
 import { slotOfNotification } from '../dedup/source-slots';
+import { dropHoldRelease } from '../hold-release/drop-hold-release';
 import { logIngestedPayment } from '../log-ingested-payment';
 import { applyPayeeChoice } from './apply-payee-choice';
 import { resolveBalanceAuthority } from './balance-authority';
@@ -26,7 +27,7 @@ import {
   guessNotificationAccount,
   resolveNotificationAccount,
 } from './resolve-notification-account';
-import { describeSource } from './source-label';
+import { describeSource, sourceAppName } from './source-label';
 import { toStoredPayment, type StoredParse } from './stored-parse';
 
 /** What the job should do after the logging transaction. */
@@ -39,7 +40,9 @@ type LogNotificationResult =
       parsed: StoredParse;
       cardLabel: string | null;
     }
-  | { kind: 'skipped' };
+  | { kind: 'skipped' }
+  /** The payment cancelled out the opposite one (a hold and its release): both rows are gone. */
+  | { kind: 'dropped' };
 
 /** What the owner chose on the inbox card of a parked payment. */
 export interface PaymentOverride {
@@ -131,7 +134,13 @@ const logNotificationPaymentImpl = async ({
   if (!found) {
     return needsOk({
       reason: 'unknownAccount',
-      extra: { accountGuessId: await guessNotificationAccount({ userId, currencyCode: statedCurrencyCode }) },
+      extra: {
+        accountGuessId: await guessNotificationAccount({
+          userId,
+          currencyCode: statedCurrencyCode,
+          appName: sourceAppName({ source, payload: row.payload }),
+        }),
+      },
     });
   }
 
@@ -291,6 +300,9 @@ const logNotificationPaymentImpl = async ({
     cardLabel,
     parsed: balanceStored as unknown as Record<string, unknown>,
   });
+
+  // A hold and its release drop each other. Inside this transaction, so the dropped row never gets a card.
+  if ((await dropHoldRelease({ userId, requestId, transactionId })) === 'dropped') return { kind: 'dropped' };
 
   return { kind: 'logged', transactionId, attached: false };
 };

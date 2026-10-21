@@ -5,6 +5,7 @@ import Transactions from '@models/transactions.model';
 import { RateLimitService } from '@services/common/rate-limit.service';
 import * as helpers from '@tests/helpers';
 import { enableServerModel, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
+import { approveCardAsIs, confirmCardOf } from '@tests/helpers/ingest-cards';
 import * as ingestHelpers from '@tests/helpers/ingest-tokens';
 import { mockNotificationParsing } from '@tests/helpers/notification-ai';
 import { addMinutes, format, startOfDay, subDays } from 'date-fns';
@@ -89,7 +90,18 @@ const timeOf = ({ noon, seconds }: { noon: Date; seconds: number }) =>
   new Date(noon.getTime() + seconds * 1000).toISOString();
 
 /** Sends one source of the Wolt payment the way its channel does, with the time its device stamped. */
-const sendSource = ({ secret, noon, source }: { secret: string; noon: Date; source: Source }) => {
+const sendSource = ({
+  secret,
+  noon,
+  source,
+  bogBody = 'Purchase 29.41 GEL, WOLT.COM TBILISI, card *0000',
+}: {
+  secret: string;
+  noon: Date;
+  source: Source;
+  /** What the other bank's push prints. */
+  bogBody?: string;
+}) => {
   const time = timeOf({ noon, seconds: SOURCE_OFFSET_SECONDS[source] });
   const idempotencyKey = `key-${source}-${randomUUID()}`;
 
@@ -136,7 +148,7 @@ const sendSource = ({ secret, noon, source }: { secret: string; noon: Date; sour
           app: 'Bank of Georgia',
           title: 'BOG',
           subtitle: '',
-          body: 'Purchase 29.41 GEL, WOLT.COM TBILISI, card *0000',
+          body: bogBody,
           time,
           idempotencyKey,
         },
@@ -223,10 +235,15 @@ describe('twin and settlement rules', () => {
 
       const payees = await helpers.listPayees({ raw: true });
       expect(payees.map((payee) => payee.name)).toEqual(['Wolt']);
-      // The other bank's spelling is learned as an alias of the one payee.
-      const aliases = (await helpers.getPayeeById({ id: payees[0]!.id, raw: true })).aliases ?? [];
-      expect(aliases.map((alias) => alias.normalizedName)).toContain('wolt com tbilisi');
       expect(await helpers.listUnconfirmedCardPayments({ raw: true })).toHaveLength(1);
+      // Every source's spelling becomes an alias of the one payee once the owner confirms the payment.
+      const aliasesOfWolt = async () =>
+        ((await helpers.getPayeeById({ id: payees[0]!.id, raw: true })).aliases ?? []).map(
+          (alias) => alias.normalizedName,
+        );
+      expect(await aliasesOfWolt()).not.toContain('wolt com tbilisi');
+      await approveCardAsIs({ card: await confirmCardOf({ transactionId: row.id }) });
+      expect(await aliasesOfWolt()).toContain('wolt com tbilisi');
 
       const account = await helpers.getAccount({ id: gel.id, raw: true });
       expect(account.currentBalance).toBe(1000 - 29.41);
@@ -422,7 +439,12 @@ describe('twin and settlement rules', () => {
       expect(tap.status).toBe(200);
       expect((await allRows())[0]!.amount.toNumber()).toBe(20);
 
-      const bank = await sendSource({ secret, noon, source: 'bog' });
+      const bank = await sendSource({
+        secret,
+        noon,
+        source: 'bog',
+        bogBody: 'Purchase 20.50 GEL (10.00 USD), WOLT.COM TBILISI, card *0000',
+      });
       expect(bank.body.response.outcome).toBe('attached');
 
       const rows = await allRows();
@@ -495,12 +517,12 @@ describe('twin and settlement rules', () => {
       });
       const { secret, noon } = await setUp();
 
-      await sendBank({ secret, noon, seconds: 0, body: 'Hold 29.41 GEL, Wolt' });
+      await sendBank({ secret, noon, seconds: 0, body: 'Hold 29.41 GEL, Wolt, card *0000' });
       const settlement = await sendBank({
         secret,
         noon,
         seconds: 2 * 24 * 3600,
-        body: 'Settled 29.41 GEL, Wolt',
+        body: 'Settled 29.41 GEL, Wolt, card *0000',
       });
 
       expect(settlement.body.response.outcome).toBe('attached');
@@ -523,12 +545,12 @@ describe('twin and settlement rules', () => {
       });
       const { secret, noon } = await setUp();
 
-      await sendBank({ secret, noon, seconds: 0, body: 'Hold 29.41 GEL, Wolt' });
+      await sendBank({ secret, noon, seconds: 0, body: 'Hold 29.41 GEL, Wolt, card *0000' });
       const settlement = await sendBank({
         secret,
         noon,
         seconds: 2 * 24 * 3600,
-        body: 'Settled 29.41 GEL, Bolt Food',
+        body: 'Settled 29.41 GEL, Bolt Food, card *0000',
       });
 
       expect(settlement.body.response.outcome).toBe('logged');

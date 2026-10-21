@@ -8,7 +8,7 @@ const { mockGetUnlinked } = vi.hoisted(() => ({ mockGetUnlinked: vi.fn() }));
 
 vi.mock('@/api/ingest', () => ({ getUnlinkedCards: mockGetUnlinked }));
 
-const mountUnlinked = async (cards: Array<{ cardLabel: string; count: number }>) => {
+const mountUnlinked = async (cards: Array<{ cardLabel: string; count: number; lastDigits?: string | null }>) => {
   mockGetUnlinked.mockResolvedValue(cards);
   const wrapper = mount(UnlinkedCards, { global: { plugins: createGlobalPlugins().plugins } });
   await flushPromises();
@@ -38,7 +38,15 @@ describe('UnlinkedCards', () => {
 
     await wrapper.get('[data-testid="unlinked-card-link"]').trigger('click');
 
-    expect(wrapper.emitted('link')).toEqual([[{ cardLabel: 'TBC Visa', count: 3 }]]);
+    expect(wrapper.emitted('link')).toEqual([[{ cardLabel: 'TBC Visa', count: 3, lastDigits: undefined }]]);
+  });
+
+  it('passes the digits of a card a notification names, to pre-fill the link', async () => {
+    const wrapper = await mountUnlinked([{ cardLabel: 'Raiffeisen •1258', count: 1, lastDigits: '1258' }]);
+
+    await wrapper.get('[data-testid="unlinked-card-link"]').trigger('click');
+
+    expect(wrapper.emitted('link')).toEqual([[{ cardLabel: 'Raiffeisen •1258', count: 1, lastDigits: '1258' }]]);
   });
 
   it('renders nothing when no card is waiting', async () => {

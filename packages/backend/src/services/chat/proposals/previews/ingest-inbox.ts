@@ -3,9 +3,11 @@ import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
 import { findOneTransaction } from '@models/transactions-query';
 import { correctionOf } from '@services/ingest/corrections/read-ingest-suggestions';
+import { previewAccountLesson } from '@services/ingest/event/learn-account-choice';
 import { decryptNotificationText } from '@services/ingest/event/notification-text';
-import { describeSource } from '@services/ingest/event/source-label';
+import { describeSource, sourceAppName } from '@services/ingest/event/source-label';
 import { readStoredParse } from '@services/ingest/event/stored-parse';
+import { findWaitingSiblings, siblingMatchOf } from '@services/ingest/event/waiting-siblings';
 import { isUnconfirmedIngest } from '@services/ingest/ingest-markers';
 
 import { hashTargetIds } from '../snapshot';
@@ -89,23 +91,40 @@ export const resolveIngestRequest: PreviewResolver = async ({ userId, args, lock
   }
 
   const payment = readStoredParse({ value: request.parsed })?.payment;
+  const source = request.sourceId
+    ? await NotificationSources.findOne({ where: { id: request.sourceId, userId } })
+    : null;
+  const willLearn =
+    payment && request.reason === 'unknownAccount' ? await previewAccountLesson({ userId, payment, source }) : null;
+
+  // The other waiting payments the same lesson resolves: they are logged with this one, each for the owner's OK.
+  const match = willLearn && payment ? siblingMatchOf({ payment, sourceId: request.sourceId }) : null;
+  const alsoWaiting = match ? (await findWaitingSiblings({ userId, match, excludeRequestId: request.id })).length : 0;
 
   return {
     preview: {
       before: {
         id: request.id,
         reason: request.reason,
+        alsoWaiting,
         name: payment?.merchant ?? describeSource({ source: null, payload: request.payload }),
+        sourceName: sourceAppName({ source, payload: request.payload }),
+        summary: request.summary,
+        willLearn,
         ...(payment && {
           amount: Number(payment.amount),
           currencyCode: payment.currencyCode,
           direction: payment.kind,
           cardName: payment.cardName,
+          cardLastDigits: payment.cardLastDigits,
         }),
         time: typeof request.payload.time === 'string' ? request.payload.time : request.createdAt.toISOString(),
       },
     },
-    snapshot: snapshotOf({ id: request.id, updatedAt: request.updatedAt }),
+    // No `updatedAt`: posting the card links it to the request (`proposalId`), which moves the request's
+    // clock, so a card pinned to it would be stale on the owner's first tap. A request that settles is
+    // caught by the status check above.
+    snapshot: snapshotOf({ id: request.id }),
   };
 };
 

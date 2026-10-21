@@ -34,7 +34,9 @@ const PRIOR_UNMATCHED_SCAN_LIMIT = 2000;
 
 /**
  * Pulls the historical raw merchant text from a Transactions row, falling
- * through the provider-specific JSONB keys in priority order, then `note`.
+ * through the provider-specific JSONB keys in priority order, then the
+ * merchant a payment ingest recorded (`cardPayment.merchant`, the only place
+ * it keeps the merchant once a payee names it), then `note`.
  * Mirrors the `coalesce(...)` in the PRD pseudocode.
  */
 export function extractRawFromTransaction({
@@ -50,6 +52,11 @@ export function extractRawFromTransaction({
       if (typeof value === 'string' && value.trim().length > 0) {
         return value;
       }
+    }
+
+    const ingestMerchant = (externalData.cardPayment as { merchant?: unknown } | null | undefined)?.merchant;
+    if (typeof ingestMerchant === 'string' && ingestMerchant.trim().length > 0) {
+      return ingestMerchant;
     }
   }
   return note ?? '';

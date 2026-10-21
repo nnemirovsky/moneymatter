@@ -87,6 +87,7 @@ export const parseNotificationWithAi = async ({
       alias: shortIds.aliasOf({ id: candidate.payeeId }) ?? '',
       name: candidate.name,
       aliases: candidate.aliases,
+      usualCategories: candidate.usualCategories ?? [],
     })),
   });
 
@@ -120,6 +121,6 @@ export const parseNotificationWithAi = async ({
 
   return {
     status: 'parsed',
-    classified: classifyNotification({ output, candidateIds: shortIds.idByAlias }),
+    classified: classifyNotification({ output, candidateIds: shortIds.idByAlias, text }),
   };
 };

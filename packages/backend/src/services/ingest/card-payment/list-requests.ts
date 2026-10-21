@@ -50,6 +50,17 @@ const readShownPayment = ({ row }: { row: IngestRequests }): { merchant: string 
   };
 };
 
+/** The card a request names: its card name, else the source and digits of a notification that shows only digits. */
+const readCard = ({ row }: { row: IngestRequests }): { cardLabel: string | null; cardLastDigits: string | null } => {
+  const payment = row.pipeline === 'notification' ? readStoredParse({ value: row.parsed })?.payment : undefined;
+  const cardLastDigits = payment?.cardLastDigits ?? null;
+  if (row.cardLabel || !cardLastDigits) return { cardLabel: row.cardLabel, cardLastDigits };
+
+  const app = typeof row.payload.app === 'string' ? row.payload.app.trim() : '';
+
+  return { cardLabel: `${app || 'Card'} •${cardLastDigits}`, cardLastDigits };
+};
+
 const toRequestDto = ({ row, now }: { row: IngestRequests; now: Date }): CardPaymentRequestDto => {
   // A `received` request that outlived its processing pass reads as interrupted.
   const interrupted = row.status === 'received' && isWaitingRequest({ row, now });
@@ -60,7 +71,9 @@ const toRequestDto = ({ row, now }: { row: IngestRequests; now: Date }): CardPay
     status: row.status,
     reason: interrupted ? 'interrupted' : ((row.reason as IngestRequestReason | null) ?? null),
     summary: row.summary,
-    cardLabel: row.cardLabel,
+    ...readCard({ row }),
+    accountGuessId:
+      row.pipeline === 'notification' ? (readStoredParse({ value: row.parsed })?.accountGuessId ?? null) : null,
     ...readShownPayment({ row }),
     time: readPayloadTime({ value: row.payload.time, fallback: row.createdAt }),
     transactionId: row.transactionId,
@@ -121,27 +134,36 @@ export const listCardPaymentRequests = async ({
 export const listUnlinkedCards = async ({ userId }: { userId: number }): Promise<UnlinkedCardDto[]> => {
   const [waiting, mappings] = await Promise.all([
     IngestRequests.findAll({
-      where: { userId, status: 'parked', reason: 'unknownCard', cardLabel: { [Op.ne]: null } },
-      attributes: ['cardLabel'],
+      where: {
+        userId,
+        status: 'parked',
+        // A tap parks on its card; a notification parks on its account, and names a card by its name or digits.
+        reason: { [Op.in]: ['unknownCard', 'unknownAccount'] },
+      },
       order: [['createdAt', 'DESC']],
     }),
-    CardAccountMappings.findAll({ where: { userId, currencyCode: null }, attributes: ['normalizedLabel'] }),
+    CardAccountMappings.findAll({
+      where: { userId, currencyCode: null },
+      attributes: ['normalizedLabel', 'lastDigits'],
+    }),
   ]);
   const linked = new Set(mappings.map((mapping) => mapping.normalizedLabel));
+  const linkedDigits = new Set(mappings.flatMap((mapping) => (mapping.lastDigits ? [mapping.lastDigits] : [])));
 
   const cards = new Map<string, UnlinkedCardDto>();
-  for (const { cardLabel } of waiting) {
+  for (const row of waiting) {
+    const { cardLabel, cardLastDigits } = readCard({ row });
     if (!cardLabel) continue;
 
     const key = normalizeCardLabel({ label: cardLabel });
-    if (linked.has(key)) continue;
+    if (linked.has(key) || (cardLastDigits && linkedDigits.has(cardLastDigits))) continue;
 
     // Newest first, so the label shown is the latest spelling.
     const card = cards.get(key);
     if (card) {
       card.count += 1;
     } else {
-      cards.set(key, { cardLabel, count: 1 });
+      cards.set(key, { cardLabel, count: 1, lastDigits: cardLastDigits });
     }
   }
 

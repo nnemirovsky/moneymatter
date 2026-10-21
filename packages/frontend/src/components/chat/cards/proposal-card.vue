@@ -37,6 +37,7 @@ import CardDependencies from './card-dependencies.vue';
 import CardFieldEditor from './card-field-editor.vue';
 import CardField from './card-field.vue';
 import CardSources from './card-sources.vue';
+import IngestRequestBody from './ingest-request-body.vue';
 import {
   collectPendingParents,
   confirmationFor,
@@ -132,7 +133,16 @@ const cannotApplyText = computed(() =>
   props.card.canApply.ok ? null : keyText({ key: props.card.canApply.reasonKey, fallbackKey: 'chat.cards.notPending' }),
 );
 
-const title = computed(() => titleText({ title: props.card.title }));
+const title = computed(() =>
+  props.card.ingestRequest ? t('chat.cards.ingest.title') : titleText({ title: props.card.title }),
+);
+
+/** The card of a parked payment shows the payment and an account picker instead of a list of arguments. */
+const ingestAccountId = computed(() => {
+  const value = props.card.fields.find((field) => field.path === 'accountId')?.value;
+
+  return typeof value === 'string' ? value : null;
+});
 const statusText = computed(() => keyText({ key: `chat.cards.status.${props.card.status}` }) ?? props.card.status);
 // A card whose record was settled outside it says so, instead of claiming the owner rejected it.
 const statusDetail = computed(() =>
@@ -362,7 +372,7 @@ const isDetailsOpen = ref(false);
     />
 
     <section
-      v-if="card.target && card.target.length > 0"
+      v-if="card.target && card.target.length > 0 && !card.ingestRequest"
       class="bg-muted/40 flex flex-col gap-1 rounded-md px-1 py-1.5"
       data-testid="card-target"
     >
@@ -380,7 +390,15 @@ const isDetailsOpen = ref(false);
       </dl>
     </section>
 
-    <dl v-if="!isEditing" class="flex flex-col gap-0.5">
+    <IngestRequestBody
+      v-if="!isEditing && card.ingestRequest"
+      :payment="card.ingestRequest"
+      :lookups="lookups"
+      :account-id="ingestAccountId"
+      :disabled="!isOpen || isBusy"
+      @update:account-id="chooseAlternative({ path: 'accountId', value: $event })"
+    />
+    <dl v-else-if="!isEditing" class="flex flex-col gap-0.5">
       <CardField
         v-for="field in card.fields"
         :key="field.path"

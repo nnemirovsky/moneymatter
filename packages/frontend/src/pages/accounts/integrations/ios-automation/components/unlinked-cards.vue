@@ -28,7 +28,7 @@
           class="self-start @lg/integrations:self-center"
           :aria-label="$t(`${LABEL_ROOT}.linkAria`, { name: card.cardLabel })"
           data-testid="unlinked-card-link"
-          @click="emit('link', { cardLabel: card.cardLabel, count: card.count })"
+          @click="emit('link', { cardLabel: card.cardLabel, count: card.count, lastDigits: card.lastDigits })"
         >
           <LinkIcon class="size-4" />
           {{ $t(`${LABEL_ROOT}.link`) }}
@@ -53,7 +53,7 @@ defineOptions({
 
 const LABEL_ROOT = 'settings.integrations.iosAutomation.unlinked';
 
-const emit = defineEmits<{ link: [card: { cardLabel: string; count: number }] }>();
+const emit = defineEmits<{ link: [card: { cardLabel: string; count: number; lastDigits: string | null }] }>();
 
 const { data, isError } = useQuery({
   queryKey: VUE_QUERY_CACHE_KEYS.unlinkedCards,
