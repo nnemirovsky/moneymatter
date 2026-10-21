@@ -232,14 +232,16 @@ test.describe('a notification payment parked on its account', () => {
     await expect(card).toContainText('Applied');
 
     // The note written on the card is the note of the logged payment.
-    const requests = (await apiGet({
-      request: api,
-      path: '/api/v1/user/settings/card-payments/requests?status=recent',
-    })) as {
-      response: Array<{ transactionId: string | null }>;
+    const loggedTransactionId = async () => {
+      const requests = (await apiGet({
+        request: api,
+        path: '/api/v1/user/settings/card-payments/requests?status=recent',
+      })) as { response: Array<{ transactionId: string | null }> };
+
+      return requests.response.find((request) => request.transactionId)?.transactionId ?? null;
     };
-    const transactionId = requests.response.find((request) => request.transactionId)!.transactionId!;
-    const logged = (await apiGet({ request: api, path: `/api/v1/transactions/${transactionId}` })) as {
+    await expect.poll(loggedTransactionId, { timeout: 20_000 }).not.toBeNull();
+    const logged = (await apiGet({ request: api, path: `/api/v1/transactions/${await loggedTransactionId()}` })) as {
       response: { note: string | null };
     };
     expect(logged.response.note).toBe('Team coffee');
