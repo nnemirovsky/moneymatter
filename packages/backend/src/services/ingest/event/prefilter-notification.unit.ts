@@ -125,7 +125,7 @@ describe('prefilterNotification', () => {
       'Noted 43.60 GEL at Wolt → Food; the bank sync will confirm it',
       'Needs your OK in MoneyMatter: 43.60 GEL at Wolt',
       'Queued, will appear shortly',
-      'Not logged yet: link the card "TBC Visa" in MoneyMatter → Accounts → Apple Pay',
+      'Not logged yet: link the card "TBC Visa" in MoneyMatter → Accounts → iOS Automation',
     ])('drops our own banner "%s" before it is read as a payment', (body) => {
       expect(filter({ title: '', body, bundleId: null, appName: null })).toEqual({ pass: false, reason: 'self' });
     });
