@@ -1,5 +1,7 @@
 import { PAYMENT_TYPES, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES } from '@bt/shared/types';
-import { currencyCode, recordId } from '@common/lib/zod/custom-types';
+import { timeInputSchema } from '@common/lib/time-zones/resolve-time-input';
+import { resolveUserTimeInput } from '@common/lib/time-zones/resolve-user-time';
+import { currencyCode, ianaTimeZone, recordId } from '@common/lib/zod/custom-types';
 import {
   nonNegativeAmountSchema,
   payeeIdSchema,
@@ -48,7 +50,14 @@ const inputSchema = {
     ])
     .describe('Transfer type. Use not_transfer for regular income/expense'),
   categoryId: recordId().optional().describe('Category ID to assign to this transaction'),
-  time: z.string().optional().describe('Transaction date/time as ISO 8601 string. Defaults to now'),
+  time: timeInputSchema()
+    .optional()
+    .describe(
+      "Default now. Send the user's local wall time with no offset (2026-10-21T16:00); Z or an offset marks an exact instant. Never convert to UTC",
+    ),
+  timeZone: ianaTimeZone()
+    .optional()
+    .describe("IANA zone of the wall time, recorded on the row. Default: the user's zone"),
   note: z.string().optional().describe('Optional note or description for the transaction'),
   destinationAccountId: recordId().optional().describe('For transfers: destination account ID'),
   destinationAmount: positiveAmountSchema()
@@ -140,7 +149,6 @@ export function registerCreateTransaction(server: McpServer) {
           amount: args.amount,
           // An emptied note (a card's Edit leaves "") means none.
           note: args.note?.trim() || undefined,
-          time: args.time,
           transactionType: args.transactionType,
           paymentType: args.paymentType,
           accountId: args.accountId,
@@ -164,7 +172,15 @@ export function registerCreateTransaction(server: McpServer) {
         userId,
       );
 
-      const result = await createTransaction({ ...params, rawMerchantName: args.merchantName });
+      const when = await resolveUserTimeInput({ userId, mode: 'create', value: args.time, timeZone: args.timeZone });
+
+      const result = await createTransaction({
+        ...params,
+        time: when.time,
+        timeZone: when.timeZone,
+        utcOffsetMinutes: when.utcOffsetMinutes,
+        rawMerchantName: args.merchantName,
+      });
       return jsonContent({ data: serializeTransactionTuple(result) });
     },
   );

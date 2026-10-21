@@ -12,3 +12,13 @@ export const getStoredUserTimeZone = async ({ userId }: { userId: number }): Pro
  */
 export const getUserTimeZone = async ({ userId }: { userId: number }): Promise<string> =>
   (await getStoredUserTimeZone({ userId })) ?? 'UTC';
+
+/** Both zones from one read: the viewing zone (`UTC` fallback) and the stored one (`null` when nobody chose). */
+export const getUserTimeZones = async ({
+  userId,
+}: {
+  userId: number;
+}): Promise<{ viewingZone: string; storedZone: string | null }> => {
+  const storedZone = await getStoredUserTimeZone({ userId });
+  return { viewingZone: storedZone ?? 'UTC', storedZone };
+};

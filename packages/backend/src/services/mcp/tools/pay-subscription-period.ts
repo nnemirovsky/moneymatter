@@ -1,6 +1,7 @@
+import { timeInputSchema } from '@common/lib/time-zones/resolve-time-input';
+import { resolveUserTimeInput } from '@common/lib/time-zones/resolve-user-time';
 import { recordId } from '@common/lib/zod/custom-types';
 import { markPeriodPaidBodySchema } from '@controllers/subscriptions/shared-schemas';
-import { transactionTimeSchema } from '@controllers/transactions.controller/schemas';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { markPeriodPaid } from '@services/subscriptions/mark-period-paid';
@@ -9,8 +10,8 @@ import { assertBaseCurrencyUnlocked, getUserId, jsonContent, requireScope, type 
 
 const bodyShape = markPeriodPaidBodySchema.shape;
 
-// The REST body takes `time` as any date string; the tool takes an ISO 8601 one, and the full
-// body schema below still parses it into the Date the service wants.
+// The REST body takes `time` as a UTC date string; the tool takes the wall-clock forms of
+// `timeInputSchema`, which the handler turns into the instant, so the body schema parses the rest.
 const inputSchema = {
   subscriptionId: recordId().describe('ID of the subscription'),
   periodId: recordId().describe('ID of the period to pay (from get_subscription_periods)'),
@@ -23,11 +24,13 @@ const inputSchema = {
   amount: bodyShape.amount.describe(
     'Decimal amount of the created transaction, in the account’s currency. Default: the subscription’s expected amount. Only with createTransaction',
   ),
-  time: transactionTimeSchema()
+  time: timeInputSchema()
     .optional()
-    .describe('When the payment happened (ISO 8601). Default: now. Only with createTransaction'),
+    .describe(
+      "When the payment happened. Default: now. Prefer the user's local wall time without an offset (e.g. 2026-10-21T16:00), plus timeZone when elsewhere; never convert to UTC yourself. Only with createTransaction",
+    ),
   timeZone: bodyShape.timeZone.describe(
-    'IANA zone to record on the created transaction, e.g. Asia/Tbilisi. Only with createTransaction',
+    "IANA zone the wall time is read in and the created transaction records, e.g. Asia/Tbilisi. Default: the user's own zone. Only with createTransaction",
   ),
   accountId: bodyShape.accountId.describe(
     'Account to book the created transaction on. It is also saved on the subscription, so give it for a subscription that has no account yet. Only with createTransaction',
@@ -37,8 +40,9 @@ const inputSchema = {
 
 /** The either-or rule spans fields, so it runs on the REST body schema, not on the shape. */
 export function validatePaySubscriptionPeriodArgs({ args }: { args: ToolArgs<typeof inputSchema> }) {
-  const { subscriptionId, periodId, ...rest } = args;
-  return { subscriptionId, periodId, ...markPeriodPaidBodySchema.parse(rest) };
+  const { subscriptionId, periodId, time, ...rest } = args;
+  // `time` is resolved against the user's zones by the handler, so the body schema does not read it.
+  return { subscriptionId, periodId, ...markPeriodPaidBodySchema.parse(rest), time };
 }
 
 export function registerPaySubscriptionPeriod(server: McpServer) {
@@ -57,6 +61,11 @@ export function registerPaySubscriptionPeriod(server: McpServer) {
 
       const { subscriptionId, periodId, ...body } = validatePaySubscriptionPeriodArgs({ args });
 
+      // The time and zone only matter for the transaction this call books.
+      const when = body.createTransaction
+        ? await resolveUserTimeInput({ userId, mode: 'create', value: body.time, timeZone: body.timeZone })
+        : undefined;
+
       const result = await markPeriodPaid({
         userId,
         subscriptionId,
@@ -65,7 +74,8 @@ export function registerPaySubscriptionPeriod(server: McpServer) {
         notes: body.notes,
         createTransaction: body.createTransaction,
         amount: body.amount,
-        time: body.time,
+        time: when?.time,
+        timeZone: when?.timeZone,
         accountId: body.accountId,
       });
 

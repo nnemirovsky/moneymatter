@@ -1,3 +1,4 @@
+import { resolveUserRangeBounds } from '@common/lib/time-zones/resolve-user-time';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getTransactionsSummary } from '@services/transactions/matching-transactions';
@@ -17,7 +18,8 @@ export function registerGetTransactionsSummary(server: McpServer) {
       const userId = getUserId({ extra });
       trackMcpToolUsed({ userId, tool: 'get_transactions_summary', clientId: extra.authInfo?.clientId });
 
-      const summary = await getTransactionsSummary({ ...parseTransactionFilters({ filters: args }), userId });
+      const filters = await resolveUserRangeBounds({ userId, args, startKey: 'from', endKey: 'to' });
+      const summary = await getTransactionsSummary({ ...parseTransactionFilters({ filters }), userId });
 
       return jsonContent({ data: summary });
     },

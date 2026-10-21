@@ -1,4 +1,6 @@
 import { TRACKER_AI_DESCRIPTION_MAX_LENGTH, TRACKER_AI_PRE_WINDOW_DAYS } from '@bt/shared/types';
+import { normalizeRangeBounds, timeInputSchema } from '@common/lib/time-zones/resolve-time-input';
+import { resolveUserRangeBounds } from '@common/lib/time-zones/resolve-user-time';
 import { recordId } from '@common/lib/zod/custom-types';
 import { editTrackerBodySchema, editTrackerBodyShape } from '@controllers/trackers/shared-schemas';
 import { smartTrackingFieldsShape } from '@controllers/trackers/smart-tracking-fields.schema';
@@ -13,10 +15,18 @@ import { assertBaseCurrencyUnlocked, getUserId, jsonContent, requireScope, type 
 const inputSchema = {
   trackerId: recordId().describe('ID of the tracker to update'),
   name: editTrackerBodyShape.name.describe('New tracker name, 1-200 characters'),
-  startDate: editTrackerBodyShape.startDate.describe(
-    'New start, UTC datetime (e.g. "2026-10-01T00:00:00Z"); null clears it',
-  ),
-  endDate: editTrackerBodyShape.endDate.describe('New end, UTC datetime, not before the start; null clears it'),
+  startDate: timeInputSchema()
+    .nullable()
+    .optional()
+    .describe(
+      "New start: a date (2026-10-01, from the start of that day in the user's zone), a local wall time or an ISO time with Z or an offset; null clears it",
+    ),
+  endDate: timeInputSchema()
+    .nullable()
+    .optional()
+    .describe(
+      "New end: a date (2026-10-31, through the end of that day in the user's zone), a local wall time or an ISO time with Z or an offset; not before the start; null clears it",
+    ),
   limitAmount: z
     .number()
     .positive()
@@ -53,7 +63,13 @@ const inputSchema = {
 /** The date-order and logo either-or rules span fields, so they run on the REST body schema. */
 export function validateUpdateTrackerArgs({ args }: { args: ToolArgs<typeof inputSchema> }) {
   const { trackerId, ...fields } = args;
-  return { trackerId, ...editTrackerBodySchema.parse(fields) };
+  // The handler cuts the bounds in the user's zone first; on `UTC` that pass is a no-op.
+  return {
+    trackerId,
+    ...editTrackerBodySchema.parse(
+      normalizeRangeBounds({ args: fields, startKey: 'startDate', endKey: 'endDate', zone: 'UTC' }),
+    ),
+  };
 }
 
 export function registerUpdateTracker(server: McpServer) {
@@ -70,7 +86,8 @@ export function registerUpdateTracker(server: McpServer) {
       await assertBaseCurrencyUnlocked({ userId });
       trackMcpToolUsed({ userId, tool: 'update_tracker', clientId: extra.authInfo?.clientId });
 
-      const { trackerId, ...body } = validateUpdateTrackerArgs({ args });
+      const bounded = await resolveUserRangeBounds({ userId, args, startKey: 'startDate', endKey: 'endDate' });
+      const { trackerId, ...body } = validateUpdateTrackerArgs({ args: bounded });
 
       const tracker = await editTracker({ id: trackerId, userId, ...body });
 

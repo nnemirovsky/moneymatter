@@ -4,6 +4,8 @@ import {
   TRACKER_AI_DESCRIPTION_MAX_LENGTH,
   TRACKER_AI_PRE_WINDOW_DAYS,
 } from '@bt/shared/types';
+import { normalizeRangeBounds, timeInputSchema } from '@common/lib/time-zones/resolve-time-input';
+import { resolveUserRangeBounds } from '@common/lib/time-zones/resolve-user-time';
 import { createTrackerBodySchema, createTrackerBodyShape } from '@controllers/trackers/shared-schemas';
 import { smartTrackingFieldsShape } from '@controllers/trackers/smart-tracking-fields.schema';
 import { trackMcpToolUsed } from '@js/utils/posthog';
@@ -26,8 +28,18 @@ const inputSchema = {
   categoryIds: createTrackerBodyShape.categoryIds.describe(
     'Category IDs to link. Required (at least one) when type is "category"',
   ),
-  startDate: createTrackerBodyShape.startDate.describe('Tracker start, UTC datetime (e.g. "2026-10-01T00:00:00Z")'),
-  endDate: createTrackerBodyShape.endDate.describe('Tracker end, UTC datetime; not before startDate'),
+  startDate: timeInputSchema()
+    .nullable()
+    .optional()
+    .describe(
+      "Tracker start: a date (2026-10-01, from the start of that day in the user's zone), a local wall time or an ISO time with Z or an offset",
+    ),
+  endDate: timeInputSchema()
+    .nullable()
+    .optional()
+    .describe(
+      "Tracker end: a date (2026-10-31, through the end of that day in the user's zone), a local wall time or an ISO time with Z or an offset; not before startDate",
+    ),
   autoInclude: createTrackerBodyShape.autoInclude.describe(
     'Auto-include transactions in the date range when creating (manual trackers only)',
   ),
@@ -63,7 +75,13 @@ const inputSchema = {
 /** The category, date-order and logo either-or rules span fields, so they run on the REST body schema. */
 export function validateCreateTrackerArgs({ args }: { args: ToolArgs<typeof inputSchema> }) {
   const { status, ...fields } = args;
-  return { status, ...createTrackerBodySchema.parse(fields) };
+  // The handler cuts the bounds in the user's zone first; on `UTC` that pass is a no-op.
+  return {
+    status,
+    ...createTrackerBodySchema.parse(
+      normalizeRangeBounds({ args: fields, startKey: 'startDate', endKey: 'endDate', zone: 'UTC' }),
+    ),
+  };
 }
 
 export function registerCreateTracker(server: McpServer) {
@@ -80,7 +98,8 @@ export function registerCreateTracker(server: McpServer) {
       await assertBaseCurrencyUnlocked({ userId });
       trackMcpToolUsed({ userId, tool: 'create_tracker', clientId: extra.authInfo?.clientId });
 
-      const { status, ...body } = validateCreateTrackerArgs({ args });
+      const bounded = await resolveUserRangeBounds({ userId, args, startKey: 'startDate', endKey: 'endDate' });
+      const { status, ...body } = validateCreateTrackerArgs({ args: bounded });
 
       const tracker = await createTracker({
         userId,

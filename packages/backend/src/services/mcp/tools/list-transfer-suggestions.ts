@@ -1,3 +1,5 @@
+import { timeInputSchema } from '@common/lib/time-zones/resolve-time-input';
+import { resolveUserRangeBounds } from '@common/lib/time-zones/resolve-user-time';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { serializeTransaction } from '@root/serializers/transactions.serializer';
@@ -15,8 +17,12 @@ import { presentTransactions } from './transaction-output';
 // Restates the REST body fields so the SDK can publish them; the handler validates with the REST
 // schema, and a unit test keeps the two key sets equal.
 const inputSchema = {
-  from: z.string().describe('Start of the period (ISO 8601 datetime, e.g. 2026-09-01T00:00:00Z)'),
-  to: z.string().describe('End of the period (ISO 8601 datetime). Must not precede from'),
+  from: timeInputSchema().describe(
+    "Start of the period: a date (2026-09-01, the start of that day in the user's zone), a local wall time or an ISO time with Z or an offset",
+  ),
+  to: timeInputSchema().describe(
+    "End of the period: a date (2026-09-30, through the end of that day in the user's zone), a local wall time or an ISO time with Z or an offset. Must not precede from",
+  ),
   limit: z
     .number()
     .int()
@@ -46,7 +52,9 @@ export function registerListTransferSuggestions(server: McpServer) {
       await assertBaseCurrencyUnlocked({ userId });
       trackMcpToolUsed({ userId, tool: 'list_transfer_suggestions', clientId: extra.authInfo?.clientId });
 
-      const body = bulkScanBodySchema.parse(args);
+      const body = bulkScanBodySchema.parse(
+        await resolveUserRangeBounds({ userId, args, startKey: 'from', endKey: 'to' }),
+      );
       const { total, items } = await bulkScanTransferRecommendations({ userId, ...body });
 
       const serialized = items.map((item) => ({

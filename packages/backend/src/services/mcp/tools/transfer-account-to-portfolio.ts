@@ -1,7 +1,8 @@
-import { dateString, positiveAmountString, recordId } from '@common/lib/zod/custom-types';
+import { dateString, ianaTimeZone, positiveAmountString, recordId } from '@common/lib/zod/custom-types';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { accountToPortfolioTransfer } from '@services/investments/portfolios/transfers';
+import { getStoredUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { z } from 'zod';
 
 import { slimPortfolioTransferForMcp } from '../serializers';
@@ -13,6 +14,9 @@ const inputSchema = {
   amount: positiveAmountString().describe('Amount as a positive decimal string (e.g. "500.00")'),
   date: dateString().describe('Transfer date in YYYY-MM-DD format'),
   description: z.string().optional().describe('Optional note for the transfer'),
+  timeZone: ianaTimeZone()
+    .optional()
+    .describe("IANA zone to record on the transfer's transaction. Default: the user's own zone"),
 };
 
 export function registerTransferAccountToPortfolio(server: McpServer) {
@@ -36,6 +40,7 @@ export function registerTransferAccountToPortfolio(server: McpServer) {
         amount: args.amount,
         date: args.date,
         description: args.description ?? null,
+        timeZone: args.timeZone ?? (await getStoredUserTimeZone({ userId })),
       });
 
       return jsonContent({ data: slimPortfolioTransferForMcp(transfer) });

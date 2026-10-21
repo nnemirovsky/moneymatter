@@ -1,4 +1,6 @@
 import { SORT_DIRECTIONS, TRANSACTION_TYPES } from '@bt/shared/types';
+import { timeInputSchema } from '@common/lib/time-zones/resolve-time-input';
+import { resolveUserRangeBound } from '@common/lib/time-zones/resolve-user-time';
 import { recordId } from '@common/lib/zod/custom-types';
 import { Money } from '@common/types/money';
 import { trackMcpToolUsed } from '@js/utils/posthog';
@@ -11,12 +13,13 @@ import { getUserId, jsonContent } from './helpers';
 import { presentTransactions } from './transaction-output';
 
 const inputSchema = {
-  startDate: z.string().optional().describe('Start date (ISO 8601). Default: 30 days ago'),
-  endDate: z
-    .string()
+  startDate: timeInputSchema()
+    .optional()
+    .describe('Range start: a date, a local wall time or an ISO time. Default: 30 days ago'),
+  endDate: timeInputSchema()
     .optional()
     .describe(
-      'End date (ISO 8601). Default: now, which hides planned (future-dated) transactions. Set it to a future date to see upcoming plans',
+      'Range end: same forms; a date runs through its end. Default: now, which hides planned (future-dated) transactions. Set it to a future date to see upcoming plans',
     ),
   accountIds: z.array(recordId()).optional().describe('Filter by account IDs'),
   categoryIds: z.array(recordId()).optional().describe('Filter by category IDs'),
@@ -64,8 +67,12 @@ export function registerSearchTransactions(server: McpServer) {
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       const limit = Math.min(args.limit ?? 50, 500);
 
-      const startDate = args.startDate ?? thirtyDaysAgo.toISOString();
-      const endDate = args.endDate ?? now.toISOString();
+      const startDate = args.startDate
+        ? await resolveUserRangeBound({ userId, value: args.startDate, edge: 'start' })
+        : thirtyDaysAgo.toISOString();
+      const endDate = args.endDate
+        ? await resolveUserRangeBound({ userId, value: args.endDate, edge: 'end' })
+        : now.toISOString();
 
       const filterParams = {
         userId,
