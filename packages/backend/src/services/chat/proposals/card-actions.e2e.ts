@@ -297,6 +297,71 @@ describe('Chat card actions', () => {
       });
     });
 
+    it('clears the note when the edit empties it', async () => {
+      const { transaction, card } = await proposeNoteUpdate();
+
+      const edited = await helpers.editChatProposal({
+        proposalId: card.id,
+        payload: { revision: 1, args: { id: transaction.id, note: '' } },
+        raw: true,
+      });
+      const approved = await helpers.approveChatProposal({
+        proposalId: card.id,
+        payload: { revision: edited.revision },
+      });
+
+      expect(approved.statusCode).toBe(200);
+      expect((await helpers.getTransactionById({ id: transaction.id, raw: true }))!.note ?? null).toBeNull();
+    });
+
+    it('applies the note the user edited on a new transaction, and none when they emptied it', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const proposed = await proposeCards({
+        turns: [
+          {
+            toolCalls: [
+              {
+                id: 'call_a',
+                name: 'create_transaction',
+                arguments: transactionArgs({ accountId: account.id, note: 'From chat' }),
+              },
+              {
+                id: 'call_b',
+                name: 'create_transaction',
+                arguments: transactionArgs({ accountId: account.id, amount: 7, note: 'Drop me' }),
+              },
+            ],
+          },
+          { text: 'Done.' },
+        ],
+      });
+      const [first, second] = proposed.cards.filter((card) => card.toolName === 'create_transaction');
+      const argsOf = (card: ChatProposalCard) =>
+        Object.fromEntries(card.fields.map((field) => [field.path, field.value]));
+
+      for (const [card, note] of [
+        [first!, 'Breakfast'],
+        [second!, ''],
+      ] as const) {
+        const edited = await helpers.editChatProposal({
+          proposalId: card.id,
+          payload: { revision: card.revision, args: { ...argsOf(card), note } },
+          raw: true,
+        });
+        const approved = await helpers.approveChatProposal({
+          proposalId: card.id,
+          payload: { revision: edited.revision },
+        });
+        expect(approved.statusCode).toBe(200);
+      }
+
+      const notes = (await helpers.getTransactions({ raw: true }))
+        .filter((tx) => tx.accountId === account.id)
+        .map((tx) => tx.note ?? null)
+        .toSorted();
+      expect(notes).toEqual(['Breakfast', null]);
+    });
+
     it('answers 409 with the current card when the edit starts from an old revision', async () => {
       const { transaction, card } = await proposeNoteUpdate();
       await helpers.editChatProposal({

@@ -29,6 +29,8 @@ import {
 } from '@services/ai';
 import { trackAiUsage } from '@services/ai/track-ai-usage';
 import { applyCategoryDefaultTagsOnAiCategorization } from '@services/categories/default-tags';
+import { DOMAIN_EVENTS, eventBus, type TransactionsAiCategorizedPayload } from '@services/common/event-bus';
+import { runAfterCommit } from '@services/common/run-after-commit';
 import { sseManager } from '@services/common/sse';
 import { withTransaction } from '@services/common/with-transaction';
 import { markConnectionValid } from '@services/user-settings/ai-connections';
@@ -303,6 +305,12 @@ const applyCategorizationResults = withTransaction(async function ({
   );
 
   await applyCategoryDefaultTagsOnAiCategorization({ userId, assignments });
+
+  const transactionIds = assignments.flatMap((assignment) => assignment.transactionIds);
+  if (transactionIds.length) {
+    const payload: TransactionsAiCategorizedPayload = { userId, transactionIds };
+    await runAfterCommit({ fn: () => eventBus.emit(DOMAIN_EVENTS.TRANSACTIONS_AI_CATEGORIZED, payload) });
+  }
 });
 
 /**

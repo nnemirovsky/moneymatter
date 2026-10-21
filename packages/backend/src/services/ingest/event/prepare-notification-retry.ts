@@ -41,7 +41,7 @@ const prepareNotificationRetryImpl = async ({
       kind: 'conflict',
       result: {
         outcome: 'conflict',
-        reason: row.reason as 'ownTransfer' | 'lowConfidence',
+        reason: row.reason as 'ownTransfer' | 'lowConfidence' | 'unverifiedParse',
         message: t({ key: 'ingest.requestNeedsApproval', locale }),
       },
     };

@@ -98,12 +98,14 @@ const props = withDefaults(
     mapping?: CardMappingDto | null;
     /** Pre-fills the card name of a new link, e.g. from an unlinked card. */
     initialLabel?: string;
+    /** Pre-fills the last digits of a new link, e.g. from a notification that shows only the digits. */
+    initialLastDigits?: string | null;
     /** The other rows of the card being extended: their currencies are taken. */
     siblings?: CardMappingDto[];
     /** The card the new row joins; its name cannot change here. */
     lockLabel?: boolean;
   }>(),
-  { mapping: null, initialLabel: '', siblings: () => [], lockLabel: false },
+  { mapping: null, initialLabel: '', initialLastDigits: null, siblings: () => [], lockLabel: false },
 );
 
 const emit = defineEmits<{
@@ -184,7 +186,7 @@ watch(selectedCurrencyCode, () => {
 /** Starts from the edited link, or from the pre-filled label of a new one. */
 const resetForm = () => {
   form.cardLabel = props.mapping?.cardLabel ?? props.initialLabel;
-  form.lastDigits = props.mapping?.lastDigits ?? '';
+  form.lastDigits = props.mapping?.lastDigits ?? props.initialLastDigits ?? '';
   form.currency = currencyOptions.value[0] ?? null;
   form.account = mappableAccounts.value.find((account) => account.id === props.mapping?.accountId) ?? null;
   labelError.value = null;

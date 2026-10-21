@@ -157,7 +157,8 @@ describe('process notification', () => {
         transactionType: TRANSACTION_TYPES.expense,
         paymentType: 'mobilePayment',
         isPlanned: false,
-        note: 'Wolt',
+        // The payee names the merchant, so the note stays empty.
+        note: null,
         externalReference: `ios-notification:${request.idempotencyKey}`,
       });
       expect(tx.amount.toNumber()).toBe(43.6);
@@ -446,9 +447,11 @@ describe('process notification', () => {
 
     describe('a payment that needs the owner', () => {
       it.each([
-        ['ownTransfer', { isOwnAccountTransfer: true }],
-        ['lowConfidence', { confidence: 0.3 }],
-      ])('parks as %s, and only a forced retry logs it, without reading it again', async (reason, answer) => {
+        ['ownTransfer', { isOwnAccountTransfer: true }, '43.60'],
+        ['lowConfidence', { confidence: 0.3 }, '43.60'],
+        // The model read an amount the text does not print.
+        ['unverifiedParse', { amount: '436.00' }, '436.00'],
+      ])('parks as %s, and only a forced retry logs it, without reading it again', async (reason, answer, shown) => {
         const prompts = mockNotificationParsing({ answer: () => wolt(answer) });
         const { secret } = await setUp();
 
@@ -458,7 +461,7 @@ describe('process notification', () => {
         expect(parked.body.response).toMatchObject({
           outcome: 'parked',
           reason,
-          summary: `Needs your OK in MoneyMatter: 43.60 ${BASE} at WOLT.COM TBILISI`,
+          summary: `Needs your OK in MoneyMatter: ${shown} ${BASE} at WOLT.COM TBILISI`,
         });
         expect(await helpers.getTransactions({ raw: true })).toEqual([]);
 
@@ -563,7 +566,10 @@ describe('process notification', () => {
         });
         const secret = (await ingestHelpers.createTestIngestToken()).secret;
 
-        const res = await send({ secret, body: push() });
+        const res = await send({
+          secret,
+          body: push({ body: `Purchase ${BASE} 43.60, WOLT.COM TBILISI, card *4321` }),
+        });
 
         expect(res.body.response.outcome).toBe('logged');
         const request = await storedRequest({ requestId: res.body.response.requestId });
@@ -585,10 +591,21 @@ describe('process notification', () => {
         expect(readParsed({ row: stored }).accountGuessId).toBe(account.id);
 
         const source = await sourceOf({ app: 'TBC Bank' });
-        await helpers.updateNotificationSource({ id: source.id, payload: { defaultAccountId: account.id }, raw: true });
-        const retried = await helpers.retryCardPaymentRequest({ id: parked.body.response.requestId, raw: true });
+        // The default answers the payment that waited on it: the server puts it back through the pipeline.
+        const updated = await helpers.updateNotificationSource({
+          id: source.id,
+          payload: { defaultAccountId: account.id },
+          raw: true,
+        });
+        expect(updated.releasedCount).toBe(1);
+        await until(
+          async () => (await storedRequest({ requestId: parked.body.response.requestId })).status === 'logged',
+          {
+            timeout: 20_000,
+            interval: 150,
+          },
+        );
 
-        expect(retried).toMatchObject({ outcome: 'logged' });
         expect(prompts).toHaveLength(1);
         const request = await storedRequest({ requestId: parked.body.response.requestId });
         expect(await storedTransaction({ transactionId: request.transactionId! })).toMatchObject({

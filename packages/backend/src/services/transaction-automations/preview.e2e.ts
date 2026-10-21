@@ -369,7 +369,8 @@ describe('POST /automations/preview', () => {
     });
 
     expect(result.scannedCount).toBe(2);
-    expect(result.matches.map((match) => match.note)).toEqual(['Cafe Heart of Batumi', 'Synced one']);
+    // The card payment's payee names its merchant, so its note is empty.
+    expect(result.matches.map((match) => match.note ?? null)).toEqual([null, 'Synced one']);
   });
 
   it('hides a saved rule match that already carries its result and lists it again once the rule changes', async () => {

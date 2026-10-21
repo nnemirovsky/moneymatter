@@ -69,25 +69,62 @@ export const resolveNotificationAccount = async ({
   return null;
 };
 
+/** A name for comparison: diacritics, case and surrounding space ignored. */
+const comparableName = ({ value }: { value: string }): string =>
+  value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+/** The shortest name that may stand for the other as a prefix: "Raiffeisen" for "Raiffeisen Bank", not "R". */
+const MIN_PREFIX_NAME_LENGTH = 3;
+
 /**
- * A guess for the inbox card of a payment whose account is unknown: the user's only usable account in
- * the payment's currency. It pre-fills the card and is never used to log the payment.
+ * The account whose name matches the app a notification came from: equal, or one a prefix of the
+ * other ("Raiffeisen" and "Raiffeisen Bank"), case and diacritics ignored. `null` unless exactly one
+ * account matches.
+ */
+export const pickAccountByName = <T extends { id: RecordId; name: string }>({
+  accounts,
+  appName,
+}: {
+  accounts: readonly T[];
+  appName: string | null;
+}): T | null => {
+  const app = appName ? comparableName({ value: appName }) : '';
+  if (app.length < MIN_PREFIX_NAME_LENGTH) return null;
+
+  const matches = accounts.filter((account) => {
+    const name = comparableName({ value: account.name });
+
+    return name.length >= MIN_PREFIX_NAME_LENGTH && (name.startsWith(app) || app.startsWith(name));
+  });
+
+  return matches.length === 1 ? matches[0]! : null;
+};
+
+/**
+ * A guess for the inbox card of a payment whose account is unknown, never used to log the payment:
+ *
+ * 1. the one account in the payment's currency whose name matches the app the notification came from;
+ * 2. else the user's only usable account in that currency.
  */
 export const guessNotificationAccount = async ({
   userId,
   currencyCode,
+  appName = null,
 }: {
   userId: number;
   currencyCode: string | null;
+  appName?: string | null;
 }): Promise<RecordId | null> => {
   if (!currencyCode) return null;
 
   const accounts = await Accounts.findAll({
     where: { userId, currencyCode, status: { [Op.ne]: ACCOUNT_STATUSES.archived } },
-    attributes: ['id', 'accountCategory'],
-    limit: 3,
+    attributes: ['id', 'name', 'accountCategory'],
   });
   const usable = accounts.filter((account) => !isDedicatedFlowAccountCategory(account.accountCategory));
+
+  const named = pickAccountByName({ accounts: usable, appName });
+  if (named) return named.id;
 
   return usable.length === 1 ? usable[0]!.id : null;
 };

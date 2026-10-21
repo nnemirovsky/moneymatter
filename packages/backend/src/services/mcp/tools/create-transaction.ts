@@ -138,7 +138,8 @@ export function registerCreateTransaction(server: McpServer) {
       const params = deserializeCreateTransaction(
         {
           amount: args.amount,
-          note: args.note,
+          // An emptied note (a card's Edit leaves "") means none.
+          note: args.note?.trim() || undefined,
           time: args.time,
           transactionType: args.transactionType,
           paymentType: args.paymentType,

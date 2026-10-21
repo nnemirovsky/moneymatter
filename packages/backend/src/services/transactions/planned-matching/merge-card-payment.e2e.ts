@@ -79,11 +79,11 @@ const readExternalData = async ({ id }: { id: RecordId }) => {
 
 const createCategory = (name: string) => helpers.addCustomCategory({ name, color: '#336699', raw: true });
 
-const noteRule = ({ keyword, categoryId }: { keyword: string; categoryId: RecordId }) =>
+const merchantRule = ({ keyword, categoryId }: { keyword: string; categoryId: RecordId }) =>
   helpers.createAutomation({
     payload: {
       name: 'Heart is a treat',
-      conditions: { match: 'all', items: [{ field: 'note', operator: 'contains_any', value: [keyword] }] },
+      conditions: { match: 'all', items: [{ field: 'merchant', operator: 'contains_any', value: [keyword] }] },
       actions: [{ type: 'set_category', categoryId }],
     },
     raw: true,
@@ -218,7 +218,7 @@ describe('Card-payment plans – settlement on bank sync', () => {
     it('merges a tipped booking from the same merchant, keeping the plan payee and category', async () => {
       const { connectionId, accountId, secret } = await setup();
       const treats = await createCategory('Treats');
-      await noteRule({ keyword: 'heart', categoryId: treats.id });
+      await merchantRule({ keyword: 'heart', categoryId: treats.id });
       const planId = await ingestPlan({ secret });
       const plan = await readRow({ id: planId });
       expect(plan).toMatchObject({ categoryId: treats.id, refAmount: 47 * AED_PER_UAH });
@@ -508,7 +508,7 @@ describe('Card-payment plans – settlement on bank sync', () => {
       it('keeps the category a rule set at ingest and queues no AI job', async () => {
         const { connectionId, accountId, secret } = await setup();
         const treats = await createCategory('Treats');
-        await noteRule({ keyword: 'heart', categoryId: treats.id });
+        await merchantRule({ keyword: 'heart', categoryId: treats.id });
         const planId = await ingestPlan({ secret });
 
         process.env.GEMINI_API_KEY = VALID_GEMINI_API_KEY;

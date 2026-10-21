@@ -1,5 +1,14 @@
 import type NotificationSources from '@models/notification-sources.model';
 
+/** The app a notification came from, without any sender: what an account named after the bank is matched against. */
+export const sourceAppName = ({
+  source,
+  payload,
+}: {
+  source: Pick<NotificationSources, 'appName' | 'bundleId'> | null;
+  payload: Record<string, unknown>;
+}): string | null => (source?.appName ?? (typeof payload.app === 'string' ? payload.app : null))?.trim() || null;
+
 /**
  * How a source is named to the owner: the app, with the sender for a messaging or mail app. It is
  * what a banner says when no payment could be read.

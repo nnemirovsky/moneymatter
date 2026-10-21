@@ -12,9 +12,11 @@ import { withTransaction } from '@services/common/with-transaction';
 import { correctionOf, transferSuggestionOf } from '@services/ingest/corrections/read-ingest-suggestions';
 import { chooseSurvivor } from '@services/ingest/dedup/choose-survivor';
 import { readStoredParse } from '@services/ingest/event/stored-parse';
+import { findWaitingSiblings, siblingMatchOf } from '@services/ingest/event/waiting-siblings';
 import { isUnconfirmedIngest, type ConfirmBaseline } from '@services/ingest/ingest-markers';
 import { Op, QueryTypes } from 'sequelize';
 
+import { refreshProposal } from '../proposals/refresh';
 import { createSystemProposal, refreshSystemProposal } from './create-system-proposal';
 import { findCardsOfTransactions, resolveCardsElsewhere } from './inbox-resolution';
 import { lockInbox } from './inbox-thread';
@@ -28,7 +30,7 @@ import {
 } from './inbox-transitions';
 
 /** Park reasons whose request gets a card of its own; the others have no action the owner can take. */
-const REQUEST_CARD_REASONS = ['unknownAccount', 'ownTransfer', 'lowConfidence'];
+const REQUEST_CARD_REASONS = ['unknownAccount', 'ownTransfer', 'lowConfidence', 'unverifiedParse'];
 
 /**
  * Whether a parked notification request gets an inbox card for `reason`: its own card, or the card of
@@ -59,7 +61,13 @@ const buildConfirmArgs = ({
   const correction = openCorrectionOf({ tx });
   const accountId = correction ? correction.suggestedAccountId : tx.accountId;
   const amount = correction ? correction.estimatedAmount.amount : tx.amount.toNumber();
-  const baseline: ConfirmBaseline = { accountId, amount, payeeId: tx.payeeId ?? null, categoryId: tx.categoryId };
+  const baseline: ConfirmBaseline = {
+    accountId,
+    amount,
+    payeeId: tx.payeeId ?? null,
+    categoryId: tx.categoryId,
+    note: tx.note ?? '',
+  };
 
   return {
     args: {
@@ -68,6 +76,7 @@ const buildConfirmArgs = ({
       amount: baseline.amount,
       ...(baseline.payeeId && { payeeId: baseline.payeeId }),
       categoryId: baseline.categoryId,
+      note: baseline.note,
     },
     baseline,
   };
@@ -232,6 +241,21 @@ const postRequestCardInTransaction = async ({
     },
   });
   if (proposal) await request.update({ proposalId: proposal.proposalId });
+
+  // The cards of the other payments this one resolves with show how many wait with them: tell them.
+  const match =
+    proposal && stored?.payment ? siblingMatchOf({ payment: stored.payment, sourceId: request.sourceId }) : null;
+  if (!match) return;
+
+  for (const sibling of await findWaitingSiblings({ userId, match, excludeRequestId: request.id })) {
+    if (!sibling.proposalId) continue;
+
+    try {
+      await refreshProposal({ userId, proposalId: sibling.proposalId });
+    } catch {
+      // A card that is settled or gone has nothing to refresh.
+    }
+  }
 };
 
 /**

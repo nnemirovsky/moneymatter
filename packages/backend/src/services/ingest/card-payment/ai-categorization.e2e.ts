@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals
 import { categorizationQueue } from '@services/ai-categorization/categorization-queue';
 import { CATEGORIZATION_SCOPE } from '@services/ai-categorization/categorization-scope';
 import * as helpers from '@tests/helpers';
+import { confirmCardOf } from '@tests/helpers/ingest-cards';
 import * as ingestHelpers from '@tests/helpers/ingest-tokens';
 import { VALID_GEMINI_API_KEY, createGeminiMock } from '@tests/mocks/gemini/mock-api';
 import { getLunchFlowBalanceMock, getLunchFlowTransactionsMock } from '@tests/mocks/lunchflow/mock-api';
@@ -160,6 +161,23 @@ describe('card payment AI categorization', () => {
     expect(replay.summary).toMatch(/ → Coffee$/);
   }, 60_000);
 
+  it('brings the confirm card up to date when the AI category lands after the card was posted', async () => {
+    enableAi();
+    cardPaymentTimings.aiWaitBudgetMs = 400;
+    const coffee = await createCategory(AI_CATEGORY);
+    aiAnswers({ delayMs: 2_500 });
+    const { secret } = await linkCard();
+
+    const logged = await ingest({ secret });
+    const categoryOnCard = async () =>
+      (await confirmCardOf({ transactionId: logged.transactionId })).fields.find((field) => field.path === 'categoryId')
+        ?.value;
+    expect(await categoryOnCard()).toBe(await userDefaultCategoryId());
+
+    await waitForAiCategory(logged);
+    await until(async () => (await categoryOnCard()) === coffee.id, { timeout: 20_000, interval: 200 });
+  }, 60_000);
+
   it('queues nothing and answers "Uncategorized" when no AI is configured', async () => {
     delete process.env.GEMINI_API_KEY;
     const { secret } = await linkCard();
@@ -196,10 +214,10 @@ describe('card payment AI categorization', () => {
     expect((await storedTransaction(logged)).categoryId).toBe(coffee.id);
   }, 60_000);
 
-  it('queues a history-categorized row without waiting and lets the AI override it later', async () => {
+  it("keeps the category the payee's history gives and queues no AI job", async () => {
     enableAi();
-    const [history, coffee] = await Promise.all([createCategory('Lunch'), createCategory(AI_CATEGORY)]);
-    aiAnswers({ delayMs: 1_500 });
+    const [history] = await Promise.all([createCategory('Lunch'), createCategory(AI_CATEGORY)]);
+    aiAnswers();
     const { account, secret } = await linkCard();
     const payee = await helpers.createPayee({ payload: helpers.buildPayeePayload({ name: MERCHANT }), raw: true });
     await helpers.createTransaction({
@@ -216,10 +234,10 @@ describe('card payment AI categorization', () => {
 
     expect(logged.categoryPending).toBe(false);
     expect(logged.summary).toMatch(/ → Lunch$/);
-    expect(queueAdd).toHaveBeenCalledTimes(1);
-
-    await waitForAiCategory(logged);
-    expect((await storedTransaction(logged)).categoryId).toBe(coffee.id);
+    expect(queueAdd).not.toHaveBeenCalled();
+    const tx = await storedTransaction(logged);
+    expect(tx.categoryId).toBe(history.id);
+    expect(tx.categorizationMeta ?? null).toBeNull();
   }, 60_000);
 
   it('queues nothing for an enforce payee category', async () => {
@@ -248,7 +266,7 @@ describe('card payment AI categorization', () => {
     await helpers.createAutomation({
       payload: {
         name: 'Heart is a treat',
-        conditions: { match: 'all', items: [{ field: 'note', operator: 'contains_any', value: ['heart'] }] },
+        conditions: { match: 'all', items: [{ field: 'merchant', operator: 'contains_any', value: ['heart'] }] },
         actions: [{ type: 'set_category', categoryId: ruled.id }],
       },
       raw: true,
