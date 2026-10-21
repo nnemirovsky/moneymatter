@@ -225,6 +225,8 @@ export const NOTIFICATION_PARK_REASONS = [
   'aiLimitReached',
   'ownTransfer',
   'lowConfidence',
+  /** The model read an amount the notification does not print. */
+  'unverifiedParse',
 ] as const;
 
 export type NotificationParkReason = (typeof NOTIFICATION_PARK_REASONS)[number];

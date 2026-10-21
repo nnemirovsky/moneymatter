@@ -193,7 +193,8 @@ const inboxThreadId = computed(
 
 /** A payment parked for the owner's OK is logged with `force`; the card in the inbox does the same. */
 const needsApproval = ({ request }: { request: CardPaymentRequestDto }) =>
-  request.pipeline === 'notification' && (request.reason === 'ownTransfer' || request.reason === 'lowConfidence');
+  request.pipeline === 'notification' &&
+  (request.reason === 'ownTransfer' || request.reason === 'lowConfidence' || request.reason === 'unverifiedParse');
 
 const merchantName = ({ request }: { request: CardPaymentRequestDto }) =>
   request.merchant ?? t(`${LABEL_ROOT}.unknownMerchant`);

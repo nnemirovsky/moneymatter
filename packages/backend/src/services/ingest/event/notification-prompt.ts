@@ -71,7 +71,7 @@ AMOUNTS
 
 MERCHANT, CARD AND ACCOUNT
 9. merchant is the merchant or the counterparty exactly as the text prints it, including descriptors such as "WOLT.COM TBILISI" or "SP *COFFEE LAB". For a cash withdrawal use the ATM or place named; null when the text names none.
-10. cardLastDigits is the last 4 to 8 digits of the card or account, without the mask ("*1234" gives "1234"); null when none is shown. cardName is a card or product name the text prints ("Visa Classic"); null when none.
+10. cardLastDigits is the last 4 to 8 digits of the card or account, without the mask ("*1234" gives "1234"); null when none is shown. Copy digits exactly as printed; never infer card digits from phone numbers, balances, dates or reference numbers. cardName is a card or product name the text prints ("Visa Classic"); null when none.
 11. isOwnAccountTransfer is true when the user moves money between their own accounts, cards, wallets or currencies (a conversion inside the bank included), and false for a payment to anyone else.
 
 BALANCE

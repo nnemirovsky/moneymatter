@@ -255,6 +255,74 @@ describe('the schema', () => {
   });
 });
 
+describe('verbatim checks against the notification text', () => {
+  const text = ({ body, title = 'TBC Bank', subtitle = '' }: { body: string; title?: string; subtitle?: string }) => ({
+    title,
+    subtitle,
+    body,
+    raw: null,
+  });
+
+  const classifyWithText = ({ body, ...overrides }: { body: string } & Partial<NotificationParseOutput>) =>
+    classifyNotification({ output: baseOutput(overrides), candidateIds, text: text({ body }) });
+
+  const digitsOf = ({ body, cardLastDigits }: { body: string; cardLastDigits: string }) => {
+    const result = classifyWithText({ body, cardLastDigits });
+    if (result.verdict === 'ignore' || !result.payment) throw new Error('expected a payment');
+
+    return result.payment.cardLastDigits;
+  };
+
+  it('keeps card digits the text prints, after a mask or on their own', () => {
+    expect(digitsOf({ body: 'Purchase 43.60 GEL, WOLT.COM TBILISI, card *1258', cardLastDigits: '1258' })).toBe('1258');
+    expect(digitsOf({ body: 'Card •1258: 43.60 GEL at Wolt', cardLastDigits: '1258' })).toBe('1258');
+    expect(digitsOf({ body: 'VISA **** 1258 purchase 43.60 GEL Wolt', cardLastDigits: '*1258' })).toBe('1258');
+    expect(digitsOf({ body: 'Card ending 1258, 43.60 GEL, Wolt', cardLastDigits: '1258' })).toBe('1258');
+  });
+
+  it('drops card digits the text does not print', () => {
+    expect(digitsOf({ body: 'Purchase 43.60 GEL, WOLT.COM TBILISI', cardLastDigits: '1258' })).toBeNull();
+  });
+
+  it('drops card digits that only appear inside a phone number, a balance, a date or a reference', () => {
+    expect(digitsOf({ body: 'Purchase 43.60 GEL Wolt. Questions: +995 577 1258', cardLastDigits: '1258' })).toBeNull();
+    expect(digitsOf({ body: 'Purchase 43.60 GEL Wolt. Call 0322551258', cardLastDigits: '1258' })).toBeNull();
+    expect(digitsOf({ body: 'Purchase 43.60 GEL Wolt. Balance: 1258.40 GEL', cardLastDigits: '1258' })).toBeNull();
+    expect(digitsOf({ body: 'Purchase 43.60 GEL Wolt. Balance 1 258,40 GEL', cardLastDigits: '1258' })).toBeNull();
+    expect(digitsOf({ body: 'Purchase 43.60 GEL Wolt, ref 99412587', cardLastDigits: '1258' })).toBeNull();
+  });
+
+  it('logs a payment whose amount the text prints, whatever its separators', () => {
+    expect(classifyWithText({ body: 'Purchase 43.60 GEL, Wolt' }).verdict).toBe('payment');
+    expect(
+      classifyWithText({ body: 'Списание 3 000,00 RUB, Salary', amount: '3000.00', currency: 'RUB' }).verdict,
+    ).toBe('payment');
+    expect(classifyWithText({ body: 'Paid 1,234.50 USD at Store', amount: '1234.5', currency: 'USD' }).verdict).toBe(
+      'payment',
+    );
+    expect(classifyWithText({ body: 'Paid 1.234,50 EUR at Store', amount: '1234.50', currency: 'EUR' }).verdict).toBe(
+      'payment',
+    );
+    expect(classifyWithText({ body: 'Paid GEL48 at Nord', amount: '48' }).verdict).toBe('payment');
+    expect(classifyWithText({ body: 'Card *1258 3 000,00 RUB, Salary', amount: '3000', currency: 'RUB' }).verdict).toBe(
+      'payment',
+    );
+  });
+
+  it('parks a payment whose amount the text does not print, keeping what was read', () => {
+    const result = classifyWithText({ body: 'Purchase 43.60 GEL, Wolt. Balance 1200.00 GEL', amount: '436.00' });
+
+    expect(result).toMatchObject({ verdict: 'park', reason: 'unverifiedParse', payment: { amount: '436' } });
+  });
+
+  it('checks nothing without the text', () => {
+    expect(classify({ cardLastDigits: '1258' })).toMatchObject({
+      verdict: 'payment',
+      payment: { cardLastDigits: '1258' },
+    });
+  });
+});
+
 describe('the fixtures', () => {
   beforeAll(async () => {
     await i18nextReady;
@@ -277,7 +345,11 @@ describe('the fixtures', () => {
   );
 
   it.each(notificationFixtures)('$id: the model answer classifies as a verdict', (fixture) => {
-    const result = classifyNotification({ output: fixture.answer, candidateIds });
+    const result = classifyNotification({
+      output: fixture.answer,
+      candidateIds,
+      text: { title: fixture.title, subtitle: fixture.subtitle, body: fixture.body, raw: null },
+    });
 
     if (fixture.answer.kind === 'debit' || fixture.answer.kind === 'credit') {
       expect(result.verdict).toBe(fixture.answer.isOwnAccountTransfer ? 'park' : 'payment');

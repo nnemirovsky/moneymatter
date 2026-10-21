@@ -28,7 +28,7 @@ import {
 } from './inbox-transitions';
 
 /** Park reasons whose request gets a card of its own; the others have no action the owner can take. */
-const REQUEST_CARD_REASONS = ['unknownAccount', 'ownTransfer', 'lowConfidence'];
+const REQUEST_CARD_REASONS = ['unknownAccount', 'ownTransfer', 'lowConfidence', 'unverifiedParse'];
 
 /**
  * Whether a parked notification request gets an inbox card for `reason`: its own card, or the card of
