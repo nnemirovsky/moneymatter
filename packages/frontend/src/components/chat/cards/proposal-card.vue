@@ -140,6 +140,7 @@ const approveDisabled = computed(
   () =>
     !props.card.canApply.ok ||
     isBusy.value ||
+    isIngestNoteDirty.value ||
     !isTypedConfirmationMet({ requirement: requirement.value, typed: typed.value }),
 );
 
@@ -150,6 +151,15 @@ const cannotApplyText = computed(() =>
 const title = computed(() =>
   props.card.ingestRequest ? t('chat.cards.ingest.title') : titleText({ title: props.card.title }),
 );
+
+/** The note typed on the card of a parked payment and not saved to it yet: Approve waits for the save. */
+const isIngestNoteDirty = ref(false);
+
+const ingestNote = computed(() => {
+  const value = props.card.fields.find((field) => field.path === 'note')?.value;
+
+  return typeof value === 'string' ? value : '';
+});
 
 /** The card of a parked payment shows the payment and an account picker instead of a list of arguments. */
 const ingestAccountId = computed(() => {
@@ -360,6 +370,7 @@ const summaryText = computed(() => {
       valueParts({
         field,
         value: field.value,
+        current: true,
         lookups,
         currencyCode: currencyOf({ path: field.path }),
         dependsOn: props.card.dependsOn,
@@ -470,8 +481,11 @@ const summaryText = computed(() => {
         :payment="card.ingestRequest"
         :lookups="lookups"
         :account-id="ingestAccountId"
+        :note="ingestNote"
         :disabled="!isOpen || isBusy"
         @update:account-id="chooseAlternative({ path: 'accountId', value: $event })"
+        @commit:note="chooseAlternative({ path: 'note', value: $event })"
+        @update:note-dirty="isIngestNoteDirty = $event"
       />
       <dl v-else-if="!isEditing" class="flex flex-col gap-0.5">
         <CardField

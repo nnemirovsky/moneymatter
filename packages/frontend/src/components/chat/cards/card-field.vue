@@ -25,17 +25,18 @@ const emit = defineEmits<{ choose: [value: unknown] }>();
 const { keyText } = useChatText();
 const { valueParts: partsOfValue } = useCardFieldText();
 
-const partsOf = ({ value }: { value: unknown }) =>
+const partsOf = ({ value, current = false }: { value: unknown; current?: boolean }) =>
   partsOfValue({
     field: props.field,
     value,
+    current,
     lookups: props.lookups,
     currencyCode: props.currencyCode,
     dependsOn: props.dependsOn,
   });
 
 const label = computed(() => keyText({ key: props.field.labelKey }) ?? props.field.path);
-const valueParts = computed(() => partsOf({ value: props.field.value }));
+const valueParts = computed(() => partsOf({ value: props.field.value, current: true }));
 const beforeText = computed(() =>
   props.field.before === undefined
     ? null

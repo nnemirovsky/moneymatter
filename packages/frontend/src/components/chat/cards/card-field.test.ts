@@ -67,6 +67,19 @@ describe('CardField', () => {
     expect(wrapper.text()).toContain('Groceries');
   });
 
+  it('shows no record for an id the app has no category under, never the field name as the value', () => {
+    const wrapper = mountField({
+      field: buildField({
+        path: 'categoryId',
+        value: '0d9c8b7a-6f5e-4d3c-8b2a-1f0e9d8c7b6a',
+        display: { kind: 'entity' },
+        editable: { type: 'entity', entity: 'category' },
+      }),
+    });
+
+    expect(wrapper.get('[data-testid="field-value"]').text()).toBe('Not set');
+  });
+
   it('names every entity of a list', () => {
     const wrapper = mountField({
       field: buildField({

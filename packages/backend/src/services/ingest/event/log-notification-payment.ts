@@ -48,6 +48,8 @@ type LogNotificationResult =
 export interface PaymentOverride {
   accountId: RecordId | null;
   direction: 'debit' | 'credit' | null;
+  /** The note the owner wrote on the card; `''` is no note, `null` leaves the note to the pipeline. */
+  note: string | null;
 }
 
 /**
@@ -293,6 +295,7 @@ const logNotificationPaymentImpl = async ({
     slot,
     balanceAfter,
     cardLastDigits: payment.cardLastDigits,
+    ...(override?.note != null && { noteOverride: override.note.trim() || null }),
   });
 
   await row.update({

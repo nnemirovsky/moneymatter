@@ -43,7 +43,7 @@ const push = () => ({
   app: 'TBC Bank',
   title: 'TBC Bank',
   subtitle: '',
-  body: `Incoming transfer ${BASE} ${printedAmount} to card *1258`,
+  body: `Incoming transfer from Salary ${BASE} ${printedAmount} to card *1258`,
   idempotencyKey: `key-${randomUUID()}`,
 });
 
@@ -420,6 +420,81 @@ describe('which account a parked notification payment goes to', () => {
 
       expect(updated.releasedCount).toBe(1);
       expect((await waitUntilLogged({ requestId: ids[0]! })).accountId).toBe(bank.id);
+    });
+  });
+
+  describe('the note on the card', () => {
+    const noteOf = async ({ requestId }: { requestId: RecordId }) =>
+      (await helpers.getTransactionById({
+        id: (await waitUntilLogged({ requestId })).id,
+        raw: true,
+      }))!.note ?? null;
+
+    it('is empty without history, and the owner can write one that lands on the transaction', async () => {
+      mockNotificationParsing({ answer: () => credit() });
+      const { bank, secret } = await setUp();
+      const first = await send({ secret });
+      const card = await waitForCard();
+      expect(card.fields.map((field) => field.path)).toContain('note');
+      expect(card.fields.find((field) => field.path === 'note')?.value).toBeUndefined();
+
+      const edited = await helpers.editChatProposal({
+        proposalId: card.id,
+        payload: {
+          revision: card.revision,
+          args: {
+            ...Object.fromEntries(
+              card.fields.flatMap((field) => (field.value === undefined ? [] : [[field.path, field.value]])),
+            ),
+            accountId: bank.id,
+            note: '  October salary  ',
+          },
+        },
+        raw: true,
+      });
+      expect((await approve({ card: edited })).statusCode).toBe(200);
+
+      expect(await noteOf({ requestId: first.body.response.requestId })).toBe('October salary');
+    });
+
+    it("is the owner's usual note for the payee, and clearing it logs the payment without one", async () => {
+      mockNotificationParsing({
+        answer: () => ({ ...credit(), merchant: 'Salary', payee: { candidateId: 'p1', newName: null } }),
+      });
+      const { bank, secret } = await setUp();
+      const payee = await helpers.createPayee({ payload: helpers.buildPayeePayload({ name: 'Salary' }), raw: true });
+      for (const daysAgo of [10, 20, 30]) {
+        await helpers.createTransaction({
+          payload: helpers.buildTransactionPayload({
+            accountId: bank.id,
+            payeeId: payee.id,
+            amount: 3000,
+            time: new Date(Date.now() - daysAgo * 86_400_000).toISOString(),
+            note: 'Monthly salary',
+          }),
+          raw: true,
+        });
+      }
+      const first = await send({ secret });
+      const card = await waitForCard();
+      expect(card.fields.find((field) => field.path === 'note')?.value).toBe('Monthly salary');
+
+      const cleared = await helpers.editChatProposal({
+        proposalId: card.id,
+        payload: {
+          revision: card.revision,
+          args: {
+            requestId: first.body.response.requestId,
+            accountId: bank.id,
+            direction: 'credit',
+            note: '',
+          },
+        },
+        raw: true,
+      });
+      expect((await approve({ card: cleared })).statusCode).toBe(200);
+
+      expect(await noteOf({ requestId: first.body.response.requestId })).toBeNull();
     });
   });
 });

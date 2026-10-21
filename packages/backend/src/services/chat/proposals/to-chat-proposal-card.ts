@@ -114,6 +114,9 @@ const ingestRequestOf = ({
   };
 };
 
+const isIngestRequestCard = ({ row }: { row: Pick<ChatProposalRow, 'toolName'> }): boolean =>
+  row.toolName === LOG_INGEST_REQUEST_TOOL_NAME;
+
 /** The card of a payment parked on its account, which has no account chosen yet. */
 const needsIngestAccount = ({ row }: { row: Pick<ChatProposalRow, 'toolName' | 'args' | 'preview'> }): boolean =>
   row.toolName === LOG_INGEST_REQUEST_TOOL_NAME &&
@@ -141,7 +144,14 @@ export function toChatProposalCard({
 
   const fields = Object.entries(
     // The account is the one thing the owner must supply on this card, so its picker is always there.
-    needsIngestAccount({ row }) ? { ...row.args, accountId: undefined } : row.args,
+    isIngestRequestCard({ row })
+      ? {
+          ...row.args,
+          ...(needsIngestAccount({ row }) && { accountId: undefined }),
+          // The note is always there to write, empty until the owner (or the history) fills it.
+          ...(!('note' in row.args) && { note: undefined }),
+        }
+      : row.args,
   ).map(([path, value]) => {
     const unsure = uncertain.get(path);
     return {

@@ -125,9 +125,9 @@ describe('ChatConnectionPicker', () => {
       const wrapper = mountPicker({ connectionId: 'c1' });
 
       expect(wrapper.findAll('[data-testid="select"]')).toHaveLength(2);
-      expect(modelSelect(wrapper)!.text()).toContain('Default (llama3.2)');
+      expect(modelSelect(wrapper)!.text()).toContain('llama3.2');
       expect(modelSelect(wrapper)!.text()).toContain('llama3.2:70b');
-      expect(modelSelect(wrapper)!.attributes('data-selected')).toBe('Default (llama3.2)');
+      expect(modelSelect(wrapper)!.attributes('data-selected')).toBe('llama3.2');
     });
 
     it('shows the model the thread was set to as selected', () => {

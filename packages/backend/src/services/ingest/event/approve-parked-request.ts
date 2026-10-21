@@ -37,11 +37,14 @@ export const approveParkedRequest = withTransaction(
     requestId,
     accountId,
     direction,
+    note,
   }: {
     userId: number;
     requestId: RecordId;
     accountId?: RecordId;
     direction?: 'debit' | 'credit';
+    /** The note the owner wrote on the card; `''` logs the payment without one. */
+    note?: string;
   }): Promise<{ requestId: RecordId; queued: true; learned: AccountLesson; alsoQueued: number }> => {
     const row = await findOrThrowNotFound({
       query: IngestRequests.findOne({ where: { id: requestId, userId, pipeline: 'notification' }, lock: true }),
@@ -83,6 +86,7 @@ export const approveParkedRequest = withTransaction(
         ...stored,
         ...(accountId && { accountOverrideId: accountId }),
         ...(direction && { directionOverride: direction }),
+        ...(note !== undefined && { noteOverride: note }),
       } as unknown as Record<string, unknown>,
     });
 

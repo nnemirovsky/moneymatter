@@ -14,10 +14,11 @@
     :clearable="clearable"
     :required="required"
     :option-disabled="optionDisabled"
-    @update:model-value="emit('update:modelValue', $event)"
+    @update:model-value="emit('update:modelValue', $event?._isNone ? null : ($event as AccountModel | null))"
   >
     <template #trigger="{ item, label: rowLabel }">
-      <span class="flex w-full min-w-0 items-center gap-2">
+      <span v-if="item._isNone" class="min-w-0 truncate">{{ rowLabel }}</span>
+      <span v-else class="flex w-full min-w-0 items-center gap-2">
         <AccountOptionRow :account="item" :label="rowLabel" variant="trigger" />
         <StarIcon
           v-if="!item._isOutOfWallet && item.id === defaultAccountId"
@@ -28,7 +29,8 @@
     </template>
 
     <template #item="{ item, label: rowLabel }">
-      <span class="flex w-full min-w-0 items-center gap-2">
+      <span v-if="item._isNone" class="min-w-0 truncate">{{ rowLabel }}</span>
+      <span v-else class="flex w-full min-w-0 items-center gap-2">
         <AccountOptionRow :account="item" :label="rowLabel" />
         <StarIcon
           v-if="!item._isOutOfWallet && item.id === defaultAccountId"
@@ -63,7 +65,7 @@ import { AccountModel } from '@bt/shared/types';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-type AccountOption = AccountModel & { _isOutOfWallet?: boolean };
+type AccountOption = AccountModel & { _isOutOfWallet?: boolean; _isNone?: boolean };
 
 const SEARCH_KEYS: ['name', 'currencyCode'] = ['name', 'currencyCode'];
 const CURRENCY_CHIP_CLASSES =
@@ -82,6 +84,8 @@ const props = withDefaults(
     errorMessage?: string;
     disabled?: boolean;
     clearable?: boolean;
+    /** Adds a first option with this label that stands for no account: choosing it emits `null`. */
+    noneLabel?: string;
     required?: boolean;
     withSearch?: boolean;
     optionDisabled?: (account: AccountModel) => boolean;
@@ -104,13 +108,16 @@ const { showArchivedInDropdowns, defaultAccountId } = useAccountDropdownPrefs();
 
 // The mock's `name` is an i18n key, real accounts keep their "(archived)"/"(shared by @owner)" suffixes.
 const getLabel = (account: AccountOption) =>
-  account._isOutOfWallet ? t(account.name) : getAccountDisplayLabel(account);
+  account._isNone ? account.name : account._isOutOfWallet ? t(account.name) : getAccountDisplayLabel(account);
 
 const selectFieldRef = ref<{ open: () => void } | null>(null);
 defineExpose({ open: () => selectFieldRef.value?.open() });
 
 // Widen the selection to the option type so select-field's generic resolves to AccountOption.
-const selected = computed<AccountOption | null>(() => props.modelValue);
+const noneOption = computed<AccountOption | null>(() =>
+  props.noneLabel ? ({ id: '__none__', name: props.noneLabel, _isNone: true } as unknown as AccountOption) : null,
+);
+const selected = computed<AccountOption | null>(() => props.modelValue ?? noneOption.value);
 
 const visibleAccounts = computed<AccountOption[]>(() => {
   const accounts = filterDropdownAccounts({
@@ -118,6 +125,8 @@ const visibleAccounts = computed<AccountOption[]>(() => {
     showArchived: props.includeArchived || showArchivedInDropdowns.value,
     selectedId: props.modelValue?.id,
   });
-  return props.includeOutOfWallet ? [OUT_OF_WALLET_ACCOUNT_MOCK, ...accounts] : accounts;
+  const withMock: AccountOption[] = props.includeOutOfWallet ? [OUT_OF_WALLET_ACCOUNT_MOCK, ...accounts] : accounts;
+
+  return noneOption.value ? [noneOption.value, ...withMock] : withMock;
 });
 </script>

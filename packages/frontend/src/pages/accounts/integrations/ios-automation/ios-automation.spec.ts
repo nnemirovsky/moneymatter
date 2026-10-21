@@ -502,13 +502,11 @@ describe('the Add integration row', () => {
     expect(dialog.modes.notifications).toContain('iOS 27');
   });
 
-  it('names the row iOS Automation and says bank notifications are logged too', () => {
+  it('names the row iOS Automation with a short iPhone description', () => {
     const dialog = integrationsEn.pages.integrations.addDialog.iosAutomation;
 
     expect(dialog.name).toBe('iOS Automation');
     expect(dialog.modes.notifications).toBe('Notifications (iOS 27+)');
-    expect(dialog.description).toContain('bank notifications');
-    expect(dialog.description).toContain('SMS');
-    expect(dialog.description).toContain('email');
+    expect(dialog.description).toBe('Log payments automatically from your iPhone');
   });
 });

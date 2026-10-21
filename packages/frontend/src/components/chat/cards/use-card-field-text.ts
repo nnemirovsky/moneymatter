@@ -1,4 +1,4 @@
-import type { ChatCardDependency, ChatCardField } from '@bt/shared/types';
+import type { ChatCardDependency, ChatCardField, ChatEntityKind } from '@bt/shared/types';
 import { useI18n } from 'vue-i18n';
 
 import { useChatText } from '../chat-text';
@@ -15,6 +15,16 @@ interface CardValuePart {
 
 const LOOKS_LIKE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Kinds the app names from lists it holds: an id among them that has no name there points at nothing. */
+const NAMED_FROM_APP_LISTS: ReadonlySet<ChatEntityKind> = new Set([
+  'account',
+  'category',
+  'tag',
+  'payee',
+  'userCurrency',
+  'customCurrency',
+]);
+
 /** A list of records longer than this shows its first ones and the count of the rest. */
 const NAMED_RECORDS_LIMIT = 5;
 
@@ -26,11 +36,13 @@ export const useCardFieldText = () => {
   const entityParts = ({
     field,
     value,
+    current,
     lookups,
     dependsOn,
   }: {
     field: ChatCardField;
     value: unknown;
+    current: boolean;
     lookups: CardLookups;
     dependsOn: ChatCardDependency[];
   }): CardValuePart[] => {
@@ -50,6 +62,10 @@ export const useCardFieldText = () => {
       // A model may offer an alternative by its name; that name reads better than the kind of record.
       const written = typeof id === 'string' && !LOOKS_LIKE_ID.test(id) ? id : null;
       const to = chatEntityRoute({ entity: { kind, id: String(id) } });
+      // The kind's own name stands in for a record only where the server names it; an id the app's lists do not know is no record.
+      const unknown = current && !name && !written && NAMED_FROM_APP_LISTS.has(kind) && LOOKS_LIKE_ID.test(String(id));
+      if (unknown) return { text: t('chat.cards.noValue') };
+
       return { text: name ?? written ?? entityLabel({ kind }), ...(to && !(written && !name) ? { to } : {}) };
     });
 
@@ -59,12 +75,15 @@ export const useCardFieldText = () => {
   const valueParts = ({
     field,
     value,
+    current = false,
     lookups,
     currencyCode,
     dependsOn,
   }: {
     field: ChatCardField;
     value: unknown;
+    /** The value the card holds now; an alternative on offer is named by its kind when nothing names it. */
+    current?: boolean;
     lookups: CardLookups;
     /** The currency of a money field; `null` when the card does not say. */
     currencyCode: string | null;
@@ -74,7 +93,7 @@ export const useCardFieldText = () => {
     if (value === null || value === undefined || value === '') return [{ text: t('chat.cards.noValue') }];
 
     const displayKind = field.display?.kind ?? 'text';
-    if (displayKind === 'entity') return entityParts({ field, value, lookups, dependsOn });
+    if (displayKind === 'entity') return entityParts({ field, value, current, lookups, dependsOn });
     if (displayKind === 'boolean' && typeof value === 'boolean') {
       return [{ text: t(value ? 'chat.cards.yes' : 'chat.cards.no') }];
     }

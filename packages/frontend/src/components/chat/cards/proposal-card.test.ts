@@ -308,6 +308,38 @@ describe('ProposalCard', () => {
       ]);
     });
 
+    it('lets the owner write the note, saves it on the card on leaving the field, and holds Approve until then', async () => {
+      const saved = paymentCard({ account: 'acc-raif' });
+      vi.mocked(editChatProposal).mockResolvedValue(saved);
+      const wrapper = mountCard({ card: paymentCard({ account: 'acc-raif' }), inbox: true });
+      const input = wrapper.get('[data-testid="ingest-note-field"] input');
+
+      await input.setValue('October salary');
+      expect(approveButton(wrapper).attributes('disabled')).toBeDefined();
+
+      await input.trigger('focusout');
+      await flushPromises();
+
+      expect(firstArgsOf(editChatProposal)).toEqual([
+        {
+          proposalId: 'card-1',
+          payload: { revision: 1, args: { requestId: 'req-1', accountId: 'acc-raif', note: 'October salary' } },
+        },
+      ]);
+    });
+
+    it('shows the note the history suggested, already on the card', () => {
+      const card = paymentCard({ account: 'acc-raif' });
+      card.fields.push(buildField({ path: 'note', value: 'Monthly salary', editable: { type: 'text' } }));
+
+      const wrapper = mountCard({ card, inbox: true });
+
+      expect((wrapper.get('[data-testid="ingest-note-field"] input').element as HTMLInputElement).value).toBe(
+        'Monthly salary',
+      );
+      expect(approveButton(wrapper).attributes('disabled')).toBeUndefined();
+    });
+
     it('says nothing about learning when approving teaches nothing', () => {
       const wrapper = mountCard({ card: paymentCard({ account: 'acc-raif', willLearn: null }), inbox: true });
 
