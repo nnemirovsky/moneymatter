@@ -26,6 +26,9 @@ const inputSchema = {
   time: transactionTimeSchema()
     .optional()
     .describe('When the payment happened (ISO 8601). Default: now. Only with createTransaction'),
+  timeZone: bodyShape.timeZone.describe(
+    'IANA zone to record on the created transaction, e.g. Asia/Tbilisi. Only with createTransaction',
+  ),
   accountId: bodyShape.accountId.describe(
     'Account to book the created transaction on. It is also saved on the subscription, so give it for a subscription that has no account yet. Only with createTransaction',
   ),

@@ -40,12 +40,15 @@ export async function buildTransactionFromSubscription({
   subscription,
   amount,
   time,
+  timeZone,
 }: {
   subscription: Subscriptions;
   /** Decimal override for the booked amount, expressed in the ACCOUNT's currency. */
   amount?: number;
   /** Actual payment date override. Falls back to now. */
   time?: Date;
+  /** IANA zone to record on the booked transaction; absent records none. */
+  timeZone?: string | null;
 }): Promise<CreateTransactionParams> {
   if (subscription.accountId == null) {
     throw new ValidationError({
@@ -122,6 +125,7 @@ export async function buildTransactionFromSubscription({
     // default tags. Pass undefined to leave that rule in charge.
     tagIds: tagIds.length > 0 ? tagIds : undefined,
     time: effectiveTime,
+    timeZone,
     note: subscription.name,
   };
 }

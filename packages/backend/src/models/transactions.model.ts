@@ -117,6 +117,10 @@ export interface TransactionsAttributes {
   externalReference: string | null;
   location: TransactionLocation | null;
   time: Date;
+  /** IANA zone the payment happened or was entered in; `null` is unknown. */
+  timeZone: string | null;
+  /** The zone's offset at `time` in minutes, or the offset a source stated without a zone. */
+  utcOffsetMinutes: number | null;
   userId: number;
   transactionType: TRANSACTION_TYPES;
   paymentType: PAYMENT_TYPES;
@@ -201,6 +205,14 @@ export default class Transactions extends Model {
     type: DataType.DATE,
   })
   time!: Date;
+
+  /** IANA zone the payment happened or was entered in; `null` is unknown. */
+  @Column({ allowNull: true, type: DataType.STRING(64) })
+  timeZone!: string | null;
+
+  /** The zone's offset at `time` in minutes, or the offset a source stated without a zone. */
+  @Column({ allowNull: true, type: DataType.SMALLINT })
+  utcOffsetMinutes!: number | null;
 
   @ForeignKey(() => Users)
   @Column({ type: DataType.INTEGER })
@@ -1406,6 +1418,8 @@ type CreateTxOptionalParams = Partial<
     | 'externalReference'
     | 'location'
     | 'time'
+    | 'timeZone'
+    | 'utcOffsetMinutes'
     | 'categoryId'
     | 'refCurrencyCode'
     | 'transferId'
@@ -1464,6 +1478,8 @@ export interface UpdateTransactionByIdParams {
   externalReference?: string | null;
   location?: TransactionLocation | null;
   time?: Date;
+  timeZone?: string | null;
+  utcOffsetMinutes?: number | null;
   transactionType?: TRANSACTION_TYPES;
   paymentType?: PAYMENT_TYPES;
   accountId?: string;

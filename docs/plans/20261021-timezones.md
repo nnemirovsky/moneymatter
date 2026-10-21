@@ -482,13 +482,13 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 
 **Files:**
 
-- Create: `packages/backend/src/migrations/20261021000000-add-time-zone-to-transactions.ts`
-- Modify: `packages/backend/src/models/transactions.model.ts`, `packages/backend/src/serializers/transactions.serializer.ts`, `packages/backend/src/controllers/transactions.controller/{create-transaction,update-transaction}.ts`, `packages/backend/src/services/transactions/{create-transaction,types}.ts`, `packages/backend/src/services/transactions/update-transaction/update-transaction.ts`, `packages/backend/src/services/mcp/serializers.ts` (output fields)
+- Create: `packages/backend/src/migrations/20261021010000-add-time-zone-to-transactions.ts` (➕ renamed: `20261021000000` is taken by `ingest-request-pairing` on dev)
+- Modify: `packages/backend/src/models/transactions.model.ts`, `packages/backend/src/serializers/transactions.serializer.ts`, `packages/backend/src/controllers/transactions.controller/{create-transaction,update-transaction}.ts`, `packages/backend/src/services/transactions/{create-transaction,types}.ts`, `packages/backend/src/services/transactions/update-transaction/update-transaction.ts`, `packages/backend/src/services/mcp/serializers.ts` (output fields), `packages/backend/src/services/transactions/recorded-zone.ts` (➕ `deriveStoredZone` / `deriveZoneUpdate`, shared by create, update, merge and the portfolio transfers); ➕ `pay_subscription_period` gained a `timeZone` input now, because the tool-schema drift test requires the REST body's fields (Task 4 moves it onto `resolveTimeInput`)
 - Modify: `packages/backend/src/services/transactions/planned-matching/merge-into-planned.ts`
 - Modify: `packages/backend/src/services/accounts/balance-adjustment.ts`, `packages/backend/src/services/subscriptions/{mark-period-paid,build-transaction-from-subscription,process-auto-record}.ts`, `packages/backend/src/services/investments/portfolios/transfers/{account-to-portfolio,portfolio-to-account}-transfer.service.ts` and their REST controllers' bodies (`timeZone?`)
 - Create: `packages/backend/src/services/transactions/time-zone.e2e.ts`
 
-- [ ] write failing e2e:
+- [x] write failing e2e:
   - create with `timeZone: 'America/New_York'` returns the zone and `utcOffsetMinutes: -240` (a summer instant);
   - create without `timeZone` returns `null`/`null`;
   - a transfer's two legs carry the same pair;
@@ -500,8 +500,8 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - a balance adjustment, a subscription mark-paid and an account→portfolio transfer, each through REST with `timeZone`, record it; an auto-recorded subscription payment records the user's stored zone (`null` without a setting);
   - a planned row created through REST with `timeZone: 'America/New_York'` in October, merged by a CSV import row in November for a user **with no zone setting**, imported **without** a `timezone` in the request (so the incoming row is `null` before and after Task 7), keeps New York and gets -300 (`merge-on-import.e2e.ts`'s setup); the case where the incoming row has a zone is tested in Task 7, the first task with an HTTP path that produces one;
   - `real-transactions-view-columns.e2e.ts` gains a case: a planned row is not in the view
-- [ ] implement the migration (both columns, CHECK on the offset range, the `real_transactions` view rebuild; `down` reverses it), the model fields, `createTransaction` / `updateTransaction` params and derivation, and the opposite-leg copy (`create-transaction.ts:325-333`) plus its update twin
-- [ ] gate: e2e `--testPathPattern='(transactions/(time-zone|get-by-id|get-transactions|planned-matching/merge-on-import)|transactions-query/real-transactions-view-columns)\.e2e'`
+- [x] implement the migration (both columns, CHECK on the offset range, the `real_transactions` view rebuild; `down` reverses it), the model fields, `createTransaction` / `updateTransaction` params and derivation, and the opposite-leg copy (`create-transaction.ts:325-333`) plus its update twin
+- [x] gate: e2e `--testPathPattern='(transactions/(time-zone|get-by-id|get-transactions|planned-matching/merge-on-import)|transactions-query/real-transactions-view-columns)\.e2e'`
 
 ### Task 4: Tool time input for MCP and the chat cards
 

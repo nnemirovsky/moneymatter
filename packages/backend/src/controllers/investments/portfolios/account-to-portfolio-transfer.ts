@@ -1,4 +1,4 @@
-import { dateString, positiveAmountString, recordId } from '@common/lib/zod/custom-types';
+import { dateString, ianaTimeZone, positiveAmountString, recordId } from '@common/lib/zod/custom-types';
 import { createController } from '@controllers/helpers/controller-factory';
 import { accountToPortfolioTransfer } from '@services/investments/portfolios/transfers';
 import { z } from 'zod';
@@ -14,6 +14,7 @@ const schema = z.object({
     amount: positiveAmountString(),
     date: dateString(),
     description: z.string().nullable().optional(),
+    timeZone: ianaTimeZone().nullish(),
   }),
 });
 
@@ -25,6 +26,7 @@ export default createController(schema, async ({ user, params, body }) => {
     amount: body.amount,
     date: body.date,
     description: body.description || null,
+    timeZone: body.timeZone,
   });
 
   return { data: serializeTransferResponse({ transfer }) };

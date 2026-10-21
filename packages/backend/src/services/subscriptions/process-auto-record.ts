@@ -3,6 +3,7 @@ import { logger } from '@js/utils/logger';
 import SubscriptionPeriods from '@models/subscription-periods.model';
 import Subscriptions from '@models/subscriptions.model';
 import { isBaseCurrencyChangeLocked } from '@services/currencies/base-currency-lock';
+import { getStoredUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { Op } from 'sequelize';
 
 import { markPeriodPaid } from './mark-period-paid';
@@ -74,6 +75,8 @@ export async function processAutoRecordPeriods(): Promise<ProcessResult> {
     }
     if (userLocked) continue;
 
+    const recordedTimeZone = await getStoredUserTimeZone({ userId: subscription.userId });
+
     for (const period of subscription.periods) {
       try {
         await markPeriodPaid({
@@ -86,6 +89,8 @@ export async function processAutoRecordPeriods(): Promise<ProcessResult> {
           // they scheduled it: the bill is dated when it was supposed to fall,
           // not when the cron happened to run.
           time: new Date(period.dueDate + 'T00:00:00Z'),
+          // The payment is made now, so it records the zone the user is in; none when they have no setting.
+          timeZone: recordedTimeZone,
         });
         booked += 1;
       } catch (error) {

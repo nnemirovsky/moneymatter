@@ -129,6 +129,46 @@ const listAccountTransactions = ({ accountId }: { accountId: string }) =>
   helpers.getTransactions({ accountIds: [accountId], raw: true });
 
 describe('Planned transactions – merge on import', () => {
+  describe('time zone', () => {
+    it('keeps the plan zone and recomputes its offset at the imported time when the row has no zone', async () => {
+      const account = await createOwnedAccount({ initialBalance: 1000 });
+      const [plan] = await helpers.createPlannedTransaction({
+        payload: {
+          accountId: account.id,
+          amount: 250,
+          time: '2026-03-06T12:00:00.000Z',
+          timeZone: 'America/New_York',
+        },
+        raw: true,
+      });
+      expect(plan.utcOffsetMinutes).toBe(-300);
+
+      // A user with no zone setting and no request zone: the incoming row records no zone.
+      const summary = (
+        await runImport({
+          fileContent: buildCsv([
+            {
+              date: '2026-03-09',
+              amount: '250.00',
+              description: 'RENT PAYMENT',
+              account: CSV_ACCOUNT,
+              currency: account.currencyCode,
+              type: 'expense',
+            },
+          ]),
+          accountMapping: { [CSV_ACCOUNT]: { action: 'link-existing', accountId: account.id } },
+        })
+      ).summary;
+      expect(summary.merged).toBe(1);
+
+      const merged = await helpers.getTransactionById({ id: plan.id, raw: true });
+      expect(merged!.isPlanned).toBe(false);
+      expect(merged!.timeZone).toBe('America/New_York');
+      // The import moved the time to 2026-03-09, after the March 8 switch to daylight time.
+      expect(merged!.utcOffsetMinutes).toBe(-240);
+    });
+  });
+
   describe('CSV merge happy path', () => {
     it('folds the bank row into the plan and keeps every field the user entered', async () => {
       const account = await createOwnedAccount({ initialBalance: 1000 });

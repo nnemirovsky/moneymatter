@@ -165,7 +165,7 @@ export function balanceAdjustment<R extends boolean | undefined = undefined>({
   raw,
 }: {
   id: string;
-  payload: { targetBalance: Decimal; note?: string; time?: string };
+  payload: { targetBalance: Decimal; note?: string; time?: string; timeZone?: string | null };
   raw?: R;
 }) {
   return makeRequest<
