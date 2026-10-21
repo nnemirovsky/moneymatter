@@ -14,9 +14,11 @@ import {
 import { createGlobalPlugins } from '../test-support';
 import AddShortcutButton from './add-shortcut-button.vue';
 
-const { mockUseShortcutLink, mockLink } = vi.hoisted(() => ({
+const { mockUseShortcutLink, mockLink, mockFile, mockAddError } = vi.hoisted(() => ({
   mockUseShortcutLink: vi.fn(),
   mockLink: { current: null as unknown },
+  mockFile: { current: null as File | null },
+  mockAddError: vi.fn(),
 }));
 
 vi.mock('../composables/use-shortcut-link', () => ({
@@ -24,6 +26,17 @@ vi.mock('../composables/use-shortcut-link', () => ({
     mockUseShortcutLink(args);
     return mockLink.current;
   },
+  useShortcutFile: () => ({
+    file: {
+      get value() {
+        return mockFile.current;
+      },
+    },
+  }),
+}));
+
+vi.mock('@/components/notification-center', () => ({
+  useNotificationCenter: () => ({ addErrorNotification: mockAddError }),
 }));
 
 const ICLOUD = 'https://www.icloud.com/shortcuts/abc123';
@@ -45,6 +58,7 @@ describe('AddShortcutButton', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockLink.current = null;
+    mockFile.current = null;
     vi.stubGlobal('open', open);
     stubStandalone({ isStandalone: false });
   });
@@ -133,6 +147,102 @@ describe('AddShortcutButton', () => {
       await link.trigger('click');
 
       expect(open).toHaveBeenCalledWith(`${window.location.origin}/shortcuts/log-payments.shortcut`, '_blank');
+    });
+  });
+
+  describe('when the browser can share files', () => {
+    const share = vi.fn();
+    const shortcutFile = new File(['signed'], PAYMENTS_SHORTCUT_DOWNLOAD_NAME);
+
+    const stubSharing = ({ canShare = true }: { canShare?: boolean } = {}) => {
+      vi.stubGlobal('navigator', {
+        ...navigator,
+        share,
+        canShare: vi.fn().mockReturnValue(canShare),
+      });
+    };
+
+    beforeEach(() => {
+      share.mockReset().mockResolvedValue(undefined);
+      mockFile.current = shortcutFile;
+      stubSharing();
+    });
+
+    const clickPayments = async () => {
+      const link = mountButton({
+        href: PAYMENTS_SHORTCUT_FILE_PATH,
+        shortcut: 'payments',
+      }).get('[data-testid="add-shortcut-payments"]');
+      const event = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+      });
+      link.element.dispatchEvent(event);
+      await Promise.resolve();
+
+      return event;
+    };
+
+    it('shares the loaded file instead of following the link', async () => {
+      const event = await clickPayments();
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(share).toHaveBeenCalledWith({ files: [shortcutFile] });
+      expect(open).not.toHaveBeenCalled();
+    });
+
+    it('shares from the installed app too, instead of opening the browser sheet', async () => {
+      stubStandalone({ isStandalone: true });
+
+      await clickPayments();
+
+      expect(share).toHaveBeenCalledOnce();
+      expect(open).not.toHaveBeenCalled();
+    });
+
+    it('stays quiet when the share sheet is dismissed', async () => {
+      share.mockRejectedValue(new DOMException('dismissed', 'AbortError'));
+
+      await clickPayments();
+      await Promise.resolve();
+
+      expect(mockAddError).not.toHaveBeenCalled();
+    });
+
+    it('tells the user when sharing fails', async () => {
+      share.mockRejectedValue(new DOMException('blocked', 'NotAllowedError'));
+
+      await clickPayments();
+      await new Promise((done) => setTimeout(done));
+
+      expect(mockAddError).toHaveBeenCalledWith(expect.stringContaining('share sheet'));
+    });
+
+    it('falls back to the link when the browser refuses the file', async () => {
+      stubSharing({ canShare: false });
+
+      const event = await clickPayments();
+
+      expect(event.defaultPrevented).toBe(false);
+      expect(share).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the link before the file has loaded', async () => {
+      mockFile.current = null;
+
+      const event = await clickPayments();
+
+      expect(event.defaultPrevented).toBe(false);
+      expect(share).not.toHaveBeenCalled();
+    });
+
+    it('leaves an iCloud link a plain link', async () => {
+      const link = mountButton({ href: ICLOUD, shortcut: 'payments' }).get('[data-testid="add-shortcut-payments"]');
+
+      await link.trigger('click');
+
+      expect(share).not.toHaveBeenCalled();
+      expect(link.attributes('href')).toBe(ICLOUD);
     });
   });
 

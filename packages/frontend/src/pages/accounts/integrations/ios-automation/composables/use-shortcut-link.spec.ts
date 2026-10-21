@@ -3,13 +3,14 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent } from 'vue';
 
-import { useShortcutLink } from './use-shortcut-link';
+import { useShortcutFile, useShortcutLink } from './use-shortcut-link';
 
-const { mockProbe } = vi.hoisted(() => ({ mockProbe: vi.fn() }));
+const { mockProbe, mockLoad } = vi.hoisted(() => ({ mockProbe: vi.fn(), mockLoad: vi.fn() }));
 
 vi.mock('../ios-automation', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../ios-automation')>()),
   probeShortcutFile: mockProbe,
+  loadShortcutFile: mockLoad,
 }));
 
 const ICLOUD = 'https://www.icloud.com/shortcuts/abc123';
@@ -113,5 +114,71 @@ describe('useShortcutLink', () => {
     mockProbe.mockResolvedValue(false);
 
     expect((await mountComposable()).isResolved.value).toBe(true);
+  });
+});
+
+describe('useShortcutFile', () => {
+  const DOWNLOAD_NAME = 'MoneyMatter - Log card payment.shortcut';
+  const shortcutFile = new File(['signed'], DOWNLOAD_NAME);
+
+  const mountFileComposable = async ({ enabled }: { enabled: boolean }) => {
+    let composable!: ReturnType<typeof useShortcutFile>;
+    mount(
+      defineComponent({
+        setup() {
+          composable = useShortcutFile({
+            filePath: FILE,
+            downloadName: DOWNLOAD_NAME,
+            enabled,
+          });
+          return () => null;
+        },
+      }),
+      {
+        global: {
+          plugins: [
+            [
+              VueQueryPlugin,
+              {
+                queryClient: new QueryClient({
+                  defaultOptions: { queries: { retry: false } },
+                }),
+              },
+            ],
+          ],
+        },
+      },
+    );
+    await flushPromises();
+
+    return composable;
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockLoad.mockResolvedValue(shortcutFile);
+  });
+
+  it('fetches the file ahead of the tap', async () => {
+    const { file } = await mountFileComposable({ enabled: true });
+
+    expect(mockLoad).toHaveBeenCalledWith({
+      filePath: FILE,
+      downloadName: DOWNLOAD_NAME,
+    });
+    expect(file.value).toBe(shortcutFile);
+  });
+
+  it('does not fetch when the button points at an iCloud link', async () => {
+    const { file } = await mountFileComposable({ enabled: false });
+
+    expect(mockLoad).not.toHaveBeenCalled();
+    expect(file.value).toBeNull();
+  });
+
+  it('stays null when the file could not be loaded', async () => {
+    mockLoad.mockResolvedValue(null);
+
+    expect((await mountFileComposable({ enabled: true })).file.value).toBeNull();
   });
 });

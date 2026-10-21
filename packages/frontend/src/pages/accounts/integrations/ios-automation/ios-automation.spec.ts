@@ -11,6 +11,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  canShareShortcutFile,
   CARD_PAYMENT_SHORTCUT_FILE_PATH,
   countRetryOutcomes,
   getMappableAccounts,
@@ -19,11 +20,13 @@ import {
   getShortcutSource,
   IOS_AUTOMATION_MODE_LABEL_KEYS,
   isStandalone,
+  loadShortcutFile,
   openShortcutLink,
   PAYMENTS_SHORTCUT_FILE_PATH,
   probeShortcutFile,
   resolveShortcutHref,
   selectRequestsForCard,
+  shareShortcutFile,
 } from './ios-automation';
 
 const makeAccount = (overrides: Partial<AccountModel> & { share?: { isOwner: boolean } } = {}): AccountModel =>
@@ -242,6 +245,135 @@ describe('probeShortcutFile', () => {
     expect(await probeShortcutFile({ filePath, fetcher: vi.fn().mockRejectedValue(new TypeError('offline')) })).toBe(
       false,
     );
+  });
+});
+
+describe('loadShortcutFile', () => {
+  const downloadName = 'MoneyMatter - Log payments.shortcut';
+  const respond = ({
+    ok = true,
+    contentType = 'application/octet-stream',
+    body = 'signed-bytes',
+  }: {
+    ok?: boolean;
+    contentType?: string | null;
+    body?: string;
+  }) =>
+    vi.fn().mockResolvedValue({
+      ok,
+      headers: {
+        get: (name: string) => (name.toLowerCase() === 'content-type' ? contentType : null),
+      },
+      blob: async () => new Blob([body]),
+    });
+
+  it('requests the file with credentials so a gateway session cookie applies', async () => {
+    const fetcher = respond({});
+
+    await loadShortcutFile({
+      filePath: PAYMENTS_SHORTCUT_FILE_PATH,
+      downloadName,
+      fetcher,
+    });
+
+    expect(fetcher).toHaveBeenCalledWith('/shortcuts/log-payments.shortcut', {
+      credentials: 'include',
+    });
+  });
+
+  it('returns a File named like the download with the served bytes', async () => {
+    const file = await loadShortcutFile({
+      filePath: PAYMENTS_SHORTCUT_FILE_PATH,
+      downloadName,
+      fetcher: respond({}),
+    });
+
+    expect(file?.name).toBe(downloadName);
+    expect(file?.type).toBe('application/octet-stream');
+    expect(await file?.text()).toBe('signed-bytes');
+  });
+
+  it.each([
+    ['a failed response', respond({ ok: false })],
+    ['an HTML answer (SPA fallback or login page)', respond({ contentType: 'text/html; charset=utf-8' })],
+    ['an empty body', respond({ body: '' })],
+    ['a network error', vi.fn().mockRejectedValue(new TypeError('offline'))],
+  ])('returns null for %s', async (_label, fetcher) => {
+    expect(
+      await loadShortcutFile({
+        filePath: PAYMENTS_SHORTCUT_FILE_PATH,
+        downloadName,
+        fetcher,
+      }),
+    ).toBeNull();
+  });
+});
+
+describe('canShareShortcutFile', () => {
+  const file = new File(['x'], 'a.shortcut');
+
+  it('is true when the browser accepts the file', () => {
+    const nav = { share: vi.fn(), canShare: vi.fn().mockReturnValue(true) };
+
+    expect(canShareShortcutFile({ file, nav })).toBe(true);
+    expect(nav.canShare).toHaveBeenCalledWith({ files: [file] });
+  });
+
+  it('is false when the browser refuses the file', () => {
+    expect(
+      canShareShortcutFile({
+        file,
+        nav: { share: vi.fn(), canShare: vi.fn().mockReturnValue(false) },
+      }),
+    ).toBe(false);
+  });
+
+  it('is false when the Web Share API is missing', () => {
+    expect(canShareShortcutFile({ file, nav: {} as Navigator })).toBe(false);
+    expect(
+      canShareShortcutFile({
+        file,
+        nav: { share: vi.fn() } as unknown as Navigator,
+      }),
+    ).toBe(false);
+  });
+
+  it('is false when canShare throws', () => {
+    const nav = {
+      share: vi.fn(),
+      canShare: vi.fn(() => {
+        throw new TypeError('bad data');
+      }),
+    };
+
+    expect(canShareShortcutFile({ file, nav })).toBe(false);
+  });
+});
+
+describe('shareShortcutFile', () => {
+  const file = new File(['x'], 'a.shortcut');
+
+  it('shares the file and reports it', async () => {
+    const nav = { share: vi.fn().mockResolvedValue(undefined) };
+
+    expect(await shareShortcutFile({ file, nav })).toBe('shared');
+    expect(nav.share).toHaveBeenCalledWith({ files: [file] });
+  });
+
+  it('treats a dismissed share sheet as a cancel, not an error', async () => {
+    const nav = {
+      share: vi.fn().mockRejectedValue(new DOMException('dismissed', 'AbortError')),
+    };
+
+    expect(await shareShortcutFile({ file, nav })).toBe('cancelled');
+  });
+
+  it('rethrows any other failure', async () => {
+    const nav = {
+      share: vi.fn().mockRejectedValue(new DOMException('no', 'NotAllowedError')),
+    };
+
+    await expect(shareShortcutFile({ file, nav })).rejects.toThrow('no');
   });
 });
 

@@ -94,6 +94,73 @@ export const probeShortcutFile = async ({
 };
 
 /**
+ * The signed shortcut as a `File` named like the nginx download, for the share sheet. The request
+ * is same-origin with credentials, so a gateway's session cookie (Cloudflare Access) applies, and
+ * an HTML answer (the SPA fallback or a login page) counts as no file. `application/octet-stream`
+ * leaves the type to the `.shortcut` extension, which iOS maps to Shortcuts.
+ */
+export const loadShortcutFile = async ({
+  filePath,
+  downloadName,
+  fetcher = fetch,
+}: {
+  filePath: string;
+  downloadName: string;
+  fetcher?: typeof fetch;
+}): Promise<File | null> => {
+  try {
+    const response = await fetcher(filePath, { credentials: 'include' });
+    if (!response.ok) return null;
+    if ((response.headers.get('content-type') ?? '').toLowerCase().includes('text/html')) return null;
+
+    const blob = await response.blob();
+    if (!blob.size) return null;
+
+    return new File([blob], downloadName, { type: 'application/octet-stream' });
+  } catch {
+    return null;
+  }
+};
+
+/** Whether the browser's share sheet accepts `file`. Both calls are feature checks, never a user-agent match. */
+export const canShareShortcutFile = ({
+  file,
+  nav = navigator,
+}: {
+  file: File;
+  nav?: Pick<Navigator, 'canShare' | 'share'>;
+}): boolean => {
+  if (typeof nav.share !== 'function' || typeof nav.canShare !== 'function') return false;
+
+  try {
+    return nav.canShare({ files: [file] });
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Hands `file` to the share sheet, which offers Shortcuts and Save to Files. Dismissing the sheet is
+ * not an error (`'cancelled'`); any other failure rejects so the caller can say so.
+ */
+export const shareShortcutFile = async ({
+  file,
+  nav = navigator,
+}: {
+  file: File;
+  nav?: Pick<Navigator, 'share'>;
+}): Promise<'shared' | 'cancelled'> => {
+  try {
+    await nav.share({ files: [file] });
+    return 'shared';
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') return 'cancelled';
+
+    throw error;
+  }
+};
+
+/**
  * Whether the app runs as a home-screen web app. Both are feature checks: `display-mode` for the
  * standard, `navigator.standalone` for the iOS-only flag older versions still set.
  */
