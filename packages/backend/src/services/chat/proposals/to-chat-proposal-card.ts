@@ -110,6 +110,7 @@ const ingestRequestOf = ({
     time: textOf({ value: before.time }),
     summary: textOf({ value: before.summary }),
     willLearn: lesson,
+    alsoWaiting: typeof before.alsoWaiting === 'number' ? before.alsoWaiting : 0,
   };
 };
 

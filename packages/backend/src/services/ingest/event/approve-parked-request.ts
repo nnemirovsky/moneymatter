@@ -15,6 +15,7 @@ import { learnAccountChoice, type AccountLesson } from './learn-account-choice';
 import { enqueueNotificationProcessing } from './notification-queue';
 import { prepareNotificationRetry } from './prepare-notification-retry';
 import { readStoredParse } from './stored-parse';
+import { rerunWaitingSiblings, siblingMatchOf } from './waiting-siblings';
 
 /** The park reasons whose payment the owner can log from the inbox card. */
 const APPROVABLE_REASONS = ['unknownAccount', 'ownTransfer', 'lowConfidence', 'unverifiedParse'];
@@ -41,7 +42,7 @@ export const approveParkedRequest = withTransaction(
     requestId: RecordId;
     accountId?: RecordId;
     direction?: 'debit' | 'credit';
-  }): Promise<{ requestId: RecordId; queued: true; learned: AccountLesson }> => {
+  }): Promise<{ requestId: RecordId; queued: true; learned: AccountLesson; alsoQueued: number }> => {
     const row = await findOrThrowNotFound({
       query: IngestRequests.findOne({ where: { id: requestId, userId, pipeline: 'notification' }, lock: true }),
       message: t({ key: 'ingest.requestNotFound' }),
@@ -72,6 +73,11 @@ export const approveParkedRequest = withTransaction(
         ? await learnAccountChoice({ userId, accountId, payment: stored.payment, source, payload: row.payload })
         : null;
 
+    // Every other waiting payment the same card or source resolves goes through the pipeline now, each with
+    // its own confirm card; nothing is confirmed on the owner's behalf.
+    const match = learned ? siblingMatchOf({ payment: stored.payment, sourceId: row.sourceId }) : null;
+    const alsoQueued = match ? await rerunWaitingSiblings({ userId, match, excludeRequestId: requestId }) : 0;
+
     await row.update({
       parsed: {
         ...stored,
@@ -97,6 +103,6 @@ export const approveParkedRequest = withTransaction(
       },
     });
 
-    return { requestId, queued: true, learned };
+    return { requestId, queued: true, learned, alsoQueued };
   },
 );

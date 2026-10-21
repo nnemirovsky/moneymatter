@@ -2,6 +2,7 @@ import type { ChatProposalCard, RecordId } from '@bt/shared/types';
 import { until } from '@common/helpers';
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import CardAccountMappings from '@models/card-account-mappings.model';
+import ChatProposals from '@models/chat-proposals.model';
 import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
 import Transactions from '@models/transactions.model';
@@ -27,7 +28,10 @@ const resetLimits = async () => {
 };
 
 const account = ({ name }: { name: string }) =>
-  helpers.createAccount({ payload: helpers.buildAccountPayload({ name, currencyCode: BASE, initialBalance: 1000 }), raw: true });
+  helpers.createAccount({
+    payload: helpers.buildAccountPayload({ name, currencyCode: BASE, initialBalance: 1000 }),
+    raw: true,
+  });
 
 /** A push from a seeded bank app that shows an incoming credit and only the last digits of the card. */
 const push = () => ({
@@ -39,9 +43,12 @@ const push = () => ({
   idempotencyKey: `key-${randomUUID()}`,
 });
 
-const credit = ({ cardLastDigits = '1258' }: { cardLastDigits?: string | null } = {}) => ({
+const credit = ({
+  cardLastDigits = '1258',
+  amount = '3000.00',
+}: { cardLastDigits?: string | null; amount?: string } = {}) => ({
   kind: 'credit' as const,
-  amount: '3000.00',
+  amount,
   currency: BASE,
   merchant: 'Salary',
   cardName: null,
@@ -52,20 +59,49 @@ const send = ({ secret }: { secret: string }) => ingestHelpers.postIngestEvent({
 
 const readParsed = ({ row }: { row: IngestRequests }) => row.parsed as unknown as StoredParse;
 
-const waitForCard = async (): Promise<ChatProposalCard> => {
-  const find = async () => {
-    const threads = (await helpers.listChatThreads({ raw: true })).threads.filter((thread) => thread.kind === 'automationInbox');
-    const cards: ChatProposalCard[] = [];
-    for (const thread of threads) {
-      cards.push(...Object.values((await helpers.getChatThread({ threadId: thread.id, limit: 100, raw: true })).cards));
-    }
+const inboxCards = async ({ toolName, status }: { toolName: string; status?: string }): Promise<ChatProposalCard[]> => {
+  const threads = (await helpers.listChatThreads({ raw: true })).threads.filter(
+    (thread) => thread.kind === 'automationInbox',
+  );
+  const cards: ChatProposalCard[] = [];
+  for (const thread of threads) {
+    cards.push(...Object.values((await helpers.getChatThread({ threadId: thread.id, limit: 100, raw: true })).cards));
+  }
 
-    return cards.filter((card) => card.toolName === LOG_REQUEST && card.status === 'pending');
-  };
-  await until(async () => (await find()).length > 0, { timeout: 20_000, interval: 150 });
-
-  return (await find())[0]!;
+  return cards.filter((card) => card.toolName === toolName && (!status || card.status === status));
 };
+
+const waitForCards = async ({
+  toolName,
+  count,
+  status = 'pending',
+}: {
+  toolName: string;
+  count: number;
+  status?: string;
+}): Promise<ChatProposalCard[]> => {
+  await until(async () => (await inboxCards({ toolName, status })).length >= count, { timeout: 30_000, interval: 150 });
+
+  return inboxCards({ toolName, status });
+};
+
+const waitForCard = async (): Promise<ChatProposalCard> =>
+  (await waitForCards({ toolName: LOG_REQUEST, count: 1 }))[0]!;
+
+const CONFIRM = 'confirm_ingest_payment';
+
+/** The account picker of the card: stores the account on it the way the UI does. */
+const pickAccount = ({ card, accountId }: { card: ChatProposalCard; accountId: RecordId }) =>
+  helpers.editChatProposal({
+    proposalId: card.id,
+    payload: {
+      revision: card.revision,
+      args: { ...Object.fromEntries(card.fields.map((field) => [field.path, field.value])), accountId },
+    },
+    raw: true,
+  });
+
+const waitingRequests = async () => (await helpers.listCardPaymentRequests({ status: 'parked', raw: true })).length;
 
 const approve = ({ card }: { card: ChatProposalCard }) =>
   helpers.approveChatProposal({ proposalId: card.id, payload: { revision: card.revision } });
@@ -98,9 +134,10 @@ describe('which account a parked notification payment goes to', () => {
   const setUp = async () => {
     const bank = await account({ name: 'TBC' });
     await account({ name: 'Gazprom CC' });
-    await account({ name: 'Bereke' });
+    const bereke = await account({ name: 'Bereke' });
+    const forte = await account({ name: 'Forte' });
 
-    return { bank, secret: (await ingestHelpers.createTestIngestToken()).secret };
+    return { bank, bereke, forte, secret: (await ingestHelpers.createTestIngestToken()).secret };
   };
 
   it('guesses the account named after the app among several in the currency, and still waits for approval', async () => {
@@ -126,7 +163,7 @@ describe('which account a parked notification payment goes to', () => {
     expect(readParsed({ row: request }).accountGuessId).toBeNull();
   });
 
-  it('lists the waiting payment under the card its digits name, and logs it once that card is linked', async () => {
+  it('lists the waiting payment under the card its digits name, and logs it when that card is linked', async () => {
     mockNotificationParsing({ answer: () => credit() });
     const { bank, secret } = await setUp();
     const res = await send({ secret });
@@ -140,13 +177,13 @@ describe('which account a parked notification payment goes to', () => {
       { cardLabel: 'TBC Bank •1258', count: 1, lastDigits: '1258' },
     ]);
 
-    await helpers.createCardMapping({
+    // Linking the card puts its waiting payment back through the pipeline by itself.
+    const mapping = await helpers.createCardMapping({
       payload: { cardLabel: 'TBC Bank •1258', lastDigits: '1258', accountId: bank.id },
       raw: true,
     });
+    expect(mapping.releasedCount).toBe(1);
     expect(await helpers.listUnlinkedCards({ raw: true })).toEqual([]);
-
-    expect(await helpers.retryCardPaymentRequest({ id: requestId, raw: true })).toMatchObject({ outcome: 'logged' });
     expect((await waitUntilLogged({ requestId })).accountId).toBe(bank.id);
   });
 
@@ -227,6 +264,158 @@ describe('which account a parked notification payment goes to', () => {
 
       const second = await send({ secret });
       expect(second.body.response.outcome).toBe('logged');
+    });
+  });
+
+  describe('the dead end is gone', () => {
+    it('(a) logs a fresh card on the account picked on it, and the waiting list clears', async () => {
+      mockNotificationParsing({ answer: () => credit() });
+      const { forte, secret } = await setUp();
+      const first = await send({ secret });
+      const requestId = first.body.response.requestId as RecordId;
+      const card = await waitForCard();
+
+      const picked = await pickAccount({ card, accountId: forte.id });
+      expect((await approve({ card: picked })).statusCode).toBe(200);
+
+      const logged = await waitUntilLogged({ requestId });
+      expect(logged.accountId).toBe(forte.id);
+      expect(await waitingRequests()).toBe(0);
+    });
+
+    it('(b) recovers a card that failed, from the picker, without a new card', async () => {
+      mockNotificationParsing({ answer: () => credit() });
+      const { bereke, secret } = await setUp();
+      const first = await send({ secret });
+      const requestId = first.body.response.requestId as RecordId;
+      const card = await waitForCard();
+      // The state the owner's card was left in: approved without an account, failed, and posted before the
+      // preview carried the digits, the source or the lesson.
+      const stored = (await ChatProposals.findByPk(card.id))!;
+      await stored.update({
+        args: { requestId, direction: 'credit' },
+        status: 'failed',
+        error: { message: 'Choose the account to log this payment on.' },
+        preview: {
+          before: {
+            id: requestId,
+            reason: 'unknownAccount',
+            name: 'Salary',
+            amount: 3000,
+            currencyCode: BASE,
+            direction: 'credit',
+            cardName: null,
+            time: new Date().toISOString(),
+          },
+        },
+      });
+
+      const failed = await helpers.getChatProposal({ proposalId: card.id, raw: true });
+      expect(failed.status).toBe('failed');
+      expect(failed.ingestRequest).toMatchObject({ reason: 'unknownAccount', amount: 3000, direction: 'credit' });
+      expect(failed.fields.map((field) => field.path)).toContain('accountId');
+
+      const edited = await pickAccount({ card: failed, accountId: bereke.id });
+      expect(edited.status).toBe('pending');
+      expect(edited.canApply).toEqual({ ok: true });
+      expect((await approve({ card: edited })).statusCode).toBe(200);
+      expect((await waitUntilLogged({ requestId })).accountId).toBe(bereke.id);
+    });
+
+    it('(c) logs a waiting payment from the waiting list once its digits are linked', async () => {
+      mockNotificationParsing({ answer: () => credit() });
+      const { bank, secret } = await setUp();
+      const first = await send({ secret });
+      const requestId = first.body.response.requestId as RecordId;
+
+      // The link is written behind the service, so nothing re-runs the payment by itself.
+      await CardAccountMappings.create({
+        userId: (await helpers.getUserInfo({ raw: true })).id,
+        cardLabel: 'TBC Bank •1258',
+        normalizedLabel: 'tbc bank •1258',
+        lastDigits: '1258',
+        currencyCode: null,
+        accountId: bank.id,
+      });
+
+      expect(await helpers.retryCardPaymentRequest({ id: requestId, raw: true })).toMatchObject({ outcome: 'logged' });
+      expect((await waitUntilLogged({ requestId })).accountId).toBe(bank.id);
+      expect(await waitingRequests()).toBe(0);
+    });
+  });
+
+  describe('waiting payments of the same card', () => {
+    /** Two payments from card 1258, parked on their account; the amounts differ so neither is a repeat. */
+    const parkTwo = async () => {
+      const amounts = ['3000.00', '1500.00'];
+      mockNotificationParsing({ answer: () => credit({ amount: amounts.shift() }) });
+      const fixture = await setUp();
+      const first = await send({ secret: fixture.secret });
+      const second = await send({ secret: fixture.secret });
+
+      return {
+        ...fixture,
+        ids: [first.body.response.requestId, second.body.response.requestId] as RecordId[],
+      };
+    };
+
+    const expectBothLoggedAwaitingConfirmation = async ({
+      ids,
+      accountId,
+    }: {
+      ids: RecordId[];
+      accountId: RecordId;
+    }) => {
+      const transactions: Transactions[] = [];
+      for (const requestId of ids) transactions.push(await waitUntilLogged({ requestId }));
+
+      expect(transactions.map((transaction) => transaction.accountId)).toEqual([accountId, accountId]);
+      expect(await waitingRequests()).toBe(0);
+      // Each payment has its own confirm card, still open: nothing was confirmed for the owner.
+      const confirms = await waitForCards({ toolName: CONFIRM, count: 2 });
+      expect(confirms.map((card) => card.status)).toEqual(['pending', 'pending']);
+    };
+
+    it('logs the others too when one is approved on an account, each for its own OK', async () => {
+      const { bank, ids } = await parkTwo();
+      const [firstCard] = await waitForCards({ toolName: LOG_REQUEST, count: 2 });
+      expect(firstCard!.ingestRequest?.alsoWaiting).toBe(1);
+
+      expect((await approve({ card: firstCard! })).statusCode).toBe(200);
+
+      await expectBothLoggedAwaitingConfirmation({ ids, accountId: bank.id });
+      const requestCards = await inboxCards({ toolName: LOG_REQUEST });
+      expect(requestCards.map((card) => card.status).toSorted()).toEqual(['applied', 'rejected']);
+      expect(await CardAccountMappings.count()).toBe(1);
+    });
+
+    it('logs them when the card is linked by hand', async () => {
+      const { bank, ids } = await parkTwo();
+
+      const mapping = await helpers.createCardMapping({
+        payload: { cardLabel: 'TBC Bank •1258', lastDigits: '1258', accountId: bank.id },
+        raw: true,
+      });
+
+      expect(mapping.releasedCount).toBe(2);
+      await expectBothLoggedAwaitingConfirmation({ ids, accountId: bank.id });
+    });
+
+    it('logs the ones that show no card when the source default is set by hand', async () => {
+      mockNotificationParsing({ answer: () => credit({ cardLastDigits: null }) });
+      const { bank, secret } = await setUp();
+      const first = await send({ secret });
+      const ids = [first.body.response.requestId as RecordId];
+      const source = (await NotificationSources.findOne({ where: { appName: 'TBC Bank' } }))!;
+
+      const updated = await helpers.updateNotificationSource({
+        id: source.id,
+        payload: { defaultAccountId: bank.id },
+        raw: true,
+      });
+
+      expect(updated.releasedCount).toBe(1);
+      expect((await waitUntilLogged({ requestId: ids[0]! })).accountId).toBe(bank.id);
     });
   });
 });

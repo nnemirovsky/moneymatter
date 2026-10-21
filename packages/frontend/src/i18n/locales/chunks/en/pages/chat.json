@@ -588,6 +588,7 @@
         "learnCard": "Future {source} payments ending {digits} will go to {account}.",
         "learnCardNamed": "Future payments on {card} will go to {account}.",
         "learnSource": "Future {source} payments will go to {account}.",
+        "siblings": "{count} other waiting payment will be logged on {account} too, and wait for your OK. | {count} other waiting payments will be logged on {account} too, and wait for your OK.",
         "unknownCounterparty": "Unknown"
       },
       "sourceSettled": "This source is not waiting for approval any more.",

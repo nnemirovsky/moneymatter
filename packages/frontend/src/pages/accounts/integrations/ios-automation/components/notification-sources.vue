@@ -123,6 +123,7 @@ import type {
 } from '@bt/shared/types';
 import { useQuery } from '@tanstack/vue-query';
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import { getMappableAccounts } from '../ios-automation';
 import { getSourceName } from '../notification-sources';
@@ -155,6 +156,8 @@ const { mutateAsync: update, isPending: isUpdating } = useInvalidatingMutation({
   mutationFn: (variables: { id: NotificationSourceDto['id'] } & UpdateNotificationSourcePayload) =>
     updateNotificationSource(variables),
   invalidateKeys,
+  successMessage: (source) =>
+    source.releasedCount ? t(`${LABEL_ROOT}.released`, { count: source.releasedCount }, source.releasedCount) : '',
   errorKey: `${LABEL_ROOT}.saveError`,
 });
 
@@ -165,6 +168,7 @@ const { mutateAsync: forget, isPending: isForgetting } = useInvalidatingMutation
   errorKey: `${LABEL_ROOT}.forgetDialog.error`,
 });
 
+const { t } = useI18n({ useScope: 'global' });
 const accountsStore = useAccountsStore();
 
 /** The accounts a payment may be logged on: the ones the server accepts as a source default. */

@@ -179,6 +179,8 @@ export interface ChatIngestRequestSummary {
   summary: string | null;
   /** What approving on an account would teach: a link for the card, or the source's default account. */
   willLearn: 'card' | 'sourceDefault' | null;
+  /** How many other waiting payments the same choice logs too; each gets its own confirm card. */
+  alsoWaiting: number;
 }
 
 export interface ChatProposalCard {

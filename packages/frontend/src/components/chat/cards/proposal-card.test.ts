@@ -192,6 +192,7 @@ describe('ProposalCard', () => {
           time: '2026-10-21T09:30:00.000Z',
           summary: 'Needs your OK in MoneyMatter: 3000 RUB at Salary',
           willLearn,
+          alsoWaiting: 0,
         },
       });
 
@@ -255,6 +256,34 @@ describe('ProposalCard', () => {
       await wrapper.get('[data-testid="edit"]').trigger('click');
 
       expect(wrapper.find('[data-testid="field-editor-accountId"]').exists()).toBe(true);
+    });
+
+    it('says how many other waiting payments are logged with it, each for the owner to confirm', () => {
+      const card = paymentCard({ account: 'acc-raif' });
+      card.ingestRequest!.alsoWaiting = 2;
+
+      const text = mountCard({ card, inbox: true }).get('[data-testid="ingest-siblings"]').text();
+
+      expect(text).toBe('2 other waiting payments will be logged on Raiffeisen too, and wait for your OK.');
+    });
+
+    it('lets a card that failed be fixed from its picker, without a new card', async () => {
+      const failed = {
+        ...paymentCard(),
+        status: 'failed' as const,
+        canApply: { ok: false as const, reasonKey: 'chat.cards.notPending' },
+      };
+      vi.mocked(editChatProposal).mockResolvedValue(paymentCard({ account: 'acc-raif' }));
+      const wrapper = mountCard({ card: failed, inbox: true });
+
+      const picker = wrapper.findComponent(AccountSelectField);
+      expect(picker.props('disabled')).toBe(false);
+      picker.vm.$emit('update:modelValue', { id: 'acc-raif' });
+      await flushPromises();
+
+      expect(firstArgsOf(editChatProposal)).toEqual([
+        { proposalId: 'card-1', payload: { revision: 1, args: { requestId: 'req-1', accountId: 'acc-raif' } } },
+      ]);
     });
 
     it('says nothing about learning when approving teaches nothing', () => {

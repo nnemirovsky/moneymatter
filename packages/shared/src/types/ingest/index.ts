@@ -76,6 +76,11 @@ export interface CardMappingDto {
   currencyCode: string | null;
   accountId: RecordId;
   createdAt: string;
+  /**
+   * Set on the answer of a create or edit: how many waiting notification payments of this card were
+   * put back through the pipeline because the card now has a default account.
+   */
+  releasedCount?: number;
 }
 
 /** A card's last digits as a notification states them. */

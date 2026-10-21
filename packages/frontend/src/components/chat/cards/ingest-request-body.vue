@@ -46,7 +46,9 @@ const cardText = computed(() => {
 
 const timeText = computed(() => (props.payment.time ? formatVisualDate({ value: props.payment.time }) : null));
 
-const selectedAccount = computed(() => props.lookups.accounts().find((account) => account.id === props.accountId) ?? null);
+const selectedAccount = computed(
+  () => props.lookups.accounts().find((account) => account.id === props.accountId) ?? null,
+);
 
 /** What approving on the chosen account teaches, said before the owner approves. */
 const lessonText = computed(() => {
@@ -85,7 +87,9 @@ const lessonText = computed(() => {
     <dl class="flex flex-col gap-1 text-sm">
       <div class="flex justify-between gap-3" data-testid="ingest-counterparty">
         <dt class="text-muted-foreground shrink-0">{{ $t(`${LABEL_ROOT}.payee`) }}</dt>
-        <dd class="min-w-0 text-right break-words">{{ payment.counterparty ?? $t(`${LABEL_ROOT}.unknownCounterparty`) }}</dd>
+        <dd class="min-w-0 text-right break-words">
+          {{ payment.counterparty ?? $t(`${LABEL_ROOT}.unknownCounterparty`) }}
+        </dd>
       </div>
       <div v-if="payment.sourceName" class="flex justify-between gap-3" data-testid="ingest-source">
         <dt class="text-muted-foreground shrink-0">{{ $t(`${LABEL_ROOT}.source`) }}</dt>
@@ -116,7 +120,18 @@ const lessonText = computed(() => {
       <p v-if="!selectedAccount" class="text-muted-foreground text-xs" data-testid="ingest-account-hint">
         {{ $t(`${LABEL_ROOT}.accountHint`) }}
       </p>
-      <p v-else-if="lessonText" class="text-muted-foreground text-xs" data-testid="ingest-lesson">{{ lessonText }}</p>
+      <template v-else-if="lessonText">
+        <p class="text-muted-foreground text-xs" data-testid="ingest-lesson">{{ lessonText }}</p>
+        <p v-if="payment.alsoWaiting > 0" class="text-muted-foreground text-xs" data-testid="ingest-siblings">
+          {{
+            $t(
+              `${LABEL_ROOT}.siblings`,
+              { count: payment.alsoWaiting, account: selectedAccount?.name ?? '' },
+              payment.alsoWaiting,
+            )
+          }}
+        </p>
+      </template>
     </div>
   </div>
 </template>

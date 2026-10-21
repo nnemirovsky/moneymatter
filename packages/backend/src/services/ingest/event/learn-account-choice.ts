@@ -77,11 +77,19 @@ export const learnAccountChoice = async ({
 
   const digits = validDigits({ payment });
   const cardLabel =
-    payment.cardName ?? (digits ? digitsCardLabel({ appName: sourceAppName({ source, payload }), lastDigits: digits }) : null);
+    payment.cardName ??
+    (digits ? digitsCardLabel({ appName: sourceAppName({ source, payload }), lastDigits: digits }) : null);
   if (!cardLabel) return null;
 
   try {
-    await createCardMapping({ userId, cardLabel, accountId, ...(digits && { lastDigits: digits }) });
+    // The caller re-runs the waiting payments itself, the approved one among them excluded.
+    await createCardMapping({
+      userId,
+      cardLabel,
+      accountId,
+      ...(digits && { lastDigits: digits }),
+      releaseWaiting: false,
+    });
 
     return lesson;
   } catch (error) {
