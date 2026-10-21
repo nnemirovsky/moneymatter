@@ -14,6 +14,7 @@ const facts = (overrides: Partial<HoldFacts> = {}): HoldFacts => ({
   accountId: 'acc-1',
   sourceId: null,
   cardLastDigits: null,
+  merchant: null,
   ...overrides,
 });
 
@@ -57,6 +58,26 @@ describe('pickHoldCounterpart', () => {
         candidates: [candidate('hold', overrides)],
       }),
     ).toBeNull();
+  });
+
+  describe('merchants', () => {
+    const named = (merchant: string | null) => candidate('hold', { merchant });
+
+    it('pairs when the release names no merchant', () => {
+      expect(pickHoldCounterpart({ incoming: facts(), candidates: [named('Wolt')] })?.id).toBe('hold');
+    });
+
+    it('pairs the same merchant spelled differently', () => {
+      expect(pickHoldCounterpart({ incoming: facts({ merchant: 'WOLT' }), candidates: [named('Wolt')] })?.id).toBe(
+        'hold',
+      );
+    });
+
+    it('keeps a transfer out and a deposit of the same amount apart', () => {
+      expect(
+        pickHoldCounterpart({ incoming: facts({ merchant: 'Deposit Money' }), candidates: [named('Money Transfer')] }),
+      ).toBeNull();
+    });
   });
 
   it('pairs at the edge of the window and not a second after it', () => {

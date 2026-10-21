@@ -154,7 +154,7 @@ export const nordCoffeeTap = {
  * reversal's tail is completed after the lock-screen text, which stops after the merchant; it opens with
  * "Reversal:" and reads as a credit; the pair must cancel out and log nothing.
  */
-export const holdAndReversal = {
+const holdAndReversal = {
   hold: {
     appName: 'TBC Bank',
     bundleId: null,

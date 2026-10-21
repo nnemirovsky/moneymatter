@@ -50,7 +50,7 @@ const answerFor = ({ prompt }: { prompt: string }) => {
     kind: release ? ('credit' as const) : ('debit' as const),
     amount,
     currency: 'GEL',
-    merchant: 'Wolt',
+    merchant: release && prompt.includes('Unnamed') ? null : 'Wolt',
     cardName: CARD,
     cardLastDigits: '0000',
     occurredAt: `${paymentDay}T12:42:00`,
@@ -296,6 +296,16 @@ describe('a hold and its release', () => {
 
     expect(later.body.response.outcome).toBe('logged');
     expect(await rows()).toHaveLength(2);
+  });
+
+  it('drops the pair when the release names no merchant', async () => {
+    const { start, secret } = await setUp();
+
+    await push({ secret, at: start, release: false });
+    const later = await push({ secret, at: addSeconds(start, 12), release: true, note: ' Unnamed' });
+
+    expect(later.body.response.outcome).toBe('dropped');
+    expect(await rows()).toHaveLength(0);
   });
 
   it('keeps both when the amounts differ', async () => {

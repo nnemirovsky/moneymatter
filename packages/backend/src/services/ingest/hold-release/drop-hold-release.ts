@@ -94,7 +94,31 @@ const requestIdsOf = ({ tx }: { tx: Transactions }): RecordId[] => {
 const directionOf = ({ tx }: { tx: Transactions }): 'debit' | 'credit' =>
   tx.transactionType === TRANSACTION_TYPES.expense ? 'debit' : 'credit';
 
-const factsOfRow = ({ tx }: { tx: Transactions }): HoldFacts => ({
+/**
+ * The merchant each row's first source printed, by row id. A notification that named none has none:
+ * the row's own marker would then hold the source's name, which is not a merchant.
+ */
+const loadMerchants = async ({ rows }: { rows: readonly Transactions[] }): Promise<Map<string, string | null>> => {
+  const primaryOf = new Map(rows.map((row) => [row.id, ingestMarkersOf({ externalData: row.externalData }).requestId]));
+  const requests = await IngestRequests.findAll({
+    where: { id: { [Op.in]: [...primaryOf.values()].filter((id): id is RecordId => Boolean(id)) } },
+    attributes: ['id', 'pipeline', 'parsed'],
+  });
+  const byId = new Map(requests.map((request) => [request.id, request]));
+
+  return new Map(
+    rows.map((row) => {
+      const request = byId.get(primaryOf.get(row.id) ?? ('' as RecordId));
+      const fromParse = (request?.parsed as { payment?: { merchant?: unknown } } | null)?.payment?.merchant;
+      const fromTap = (row.externalData as { cardPayment?: { merchant?: unknown } } | null)?.cardPayment?.merchant;
+      const merchant = request?.pipeline === 'cardPayment' ? fromTap : fromParse;
+
+      return [row.id, typeof merchant === 'string' && merchant.trim() ? merchant : null];
+    }),
+  );
+};
+
+const factsOfRow = ({ tx, merchant }: { tx: Transactions; merchant: string | null }): HoldFacts => ({
   direction: directionOf({ tx }),
   amount: tx.amount,
   currencyCode: tx.currencyCode,
@@ -102,6 +126,7 @@ const factsOfRow = ({ tx }: { tx: Transactions }): HoldFacts => ({
   accountId: tx.accountId,
   sourceId: null,
   cardLastDigits: null,
+  merchant,
 });
 
 /** Closes the requests of a pair: both end `dismissed` as `holdReleased`, each pointing at the other's primary request. */
@@ -175,7 +200,8 @@ export const dropHoldRelease = withTransaction(
     });
     if (!tx || tx.transferId || !isUnconfirmedIngest({ externalData: tx.externalData })) return 'none';
 
-    const incoming = factsOfRow({ tx });
+    const merchants = await loadMerchants({ rows: [tx] });
+    const incoming = factsOfRow({ tx, merchant: merchants.get(tx.id) ?? null });
     const windowMs = holdWindowOf({ textEnc: request.textEnc });
     const rows = await findTransactions({
       planned: 'include',
@@ -195,8 +221,12 @@ export const dropHoldRelease = withTransaction(
       },
     });
     const byId = new Map(rows.map((row) => [row.id, row]));
+    const candidateMerchants = await loadMerchants({ rows });
     const toCandidates = (list: readonly Transactions[]): HoldCandidate[] =>
-      list.map((row) => ({ ...factsOfRow({ tx: row }), id: row.id }));
+      list.map((row) => ({
+        ...factsOfRow({ tx: row, merchant: candidateMerchants.get(row.id) ?? null }),
+        id: row.id,
+      }));
 
     const unconfirmed = pickHoldCounterpart({
       incoming,
@@ -266,6 +296,7 @@ const factsOfParkedPayment = ({
   accountId: null,
   sourceId,
   cardLastDigits: payment.cardLastDigits,
+  merchant: payment.merchant,
 });
 
 const timeOfRequest = ({ request }: { request: IngestRequests }): Date =>

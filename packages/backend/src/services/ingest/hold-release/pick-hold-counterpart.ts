@@ -1,5 +1,6 @@
 import type { RecordId } from '@bt/shared/types';
 import type { Money } from '@common/types/money';
+import { normalizePayeeName } from '@services/payees/normalize-name';
 
 import { holdReleaseConfig } from './constants';
 
@@ -14,6 +15,8 @@ export interface HoldFacts {
   /** The notification source (parked payments only). */
   sourceId: string | null;
   cardLastDigits: string | null;
+  /** The merchant the payment printed; `null` when the text names none. */
+  merchant: string | null;
 }
 
 export interface HoldCandidate extends HoldFacts {
@@ -34,8 +37,19 @@ const sameScope = ({ left, right }: { left: HoldFacts; right: HoldFacts }): bool
 };
 
 /**
+ * Whether the two name different merchants. A text that names none (a release often does not) cannot
+ * contradict the other, so only two named merchants that differ keep the payments apart: a transfer out
+ * and a deposit of the same amount are not a hold and its release.
+ */
+const namesDifferentMerchants = ({ left, right }: { left: HoldFacts; right: HoldFacts }): boolean => {
+  if (!left.merchant || !right.merchant) return false;
+
+  return normalizePayeeName({ raw: left.merchant }) !== normalizePayeeName({ raw: right.merchant });
+};
+
+/**
  * The earlier payment an incoming one cancels out: the opposite direction, the same amount in the
- * same currency, the same scope and at most `holdReleaseConfig.windowMs` apart. Of several the
+ * same currency, the same scope, merchants that do not contradict each other and at most `holdReleaseConfig.windowMs` apart. Of several the
  * nearest in time wins, so pairing is one to one in whatever order the payments come.
  */
 export const pickHoldCounterpart = ({
@@ -57,7 +71,8 @@ export const pickHoldCounterpart = ({
           candidate.currencyCode === incoming.currencyCode &&
           candidate.amount.equals(incoming.amount) &&
           distance(candidate) <= windowMs &&
-          sameScope({ left: incoming, right: candidate }),
+          sameScope({ left: incoming, right: candidate }) &&
+          !namesDifferentMerchants({ left: incoming, right: candidate }),
       )
       .toSorted((a, b) => distance(a) - distance(b) || a.id.localeCompare(b.id))[0] ?? null
   );
