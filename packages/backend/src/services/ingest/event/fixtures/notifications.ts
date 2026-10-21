@@ -41,12 +41,36 @@ export const WALLET_BUNDLE = 'com.apple.Passbook';
 
 export const walletFixtures = {
   /** Wallet's fixed layout: the card, the merchant, the amount. */
-  wolt: { appName: 'Wallet', bundleId: WALLET_BUNDLE, title: 'TBC Bank', subtitle: 'Wolt', body: 'GEL 43.60' },
+  wolt: {
+    appName: 'Wallet',
+    bundleId: WALLET_BUNDLE,
+    title: 'TBC Bank',
+    subtitle: 'Wolt',
+    body: 'GEL 43.60',
+  },
   /** An online Apple Pay payment, as the owner's phone showed it (2026-10-20): card, merchant, amount. */
-  woltOnline: { appName: 'Wallet', bundleId: WALLET_BUNDLE, title: 'TBC Bank', subtitle: 'Wolt', body: 'GEL 29.41' },
+  woltOnline: {
+    appName: 'Wallet',
+    bundleId: WALLET_BUNDLE,
+    title: 'TBC Bank',
+    subtitle: 'Wolt',
+    body: 'GEL 29.41',
+  },
   /** The same layout when the device reports only the display name. */
-  woltByName: { appName: 'Wallet', bundleId: null, title: 'TBC Bank', subtitle: 'Wolt', body: 'GEL 43.60' },
-  dollarSymbol: { appName: 'Wallet', bundleId: WALLET_BUNDLE, title: 'Visa •• 4321', subtitle: 'Apple', body: '$9.99' },
+  woltByName: {
+    appName: 'Wallet',
+    bundleId: null,
+    title: 'TBC Bank',
+    subtitle: 'Wolt',
+    body: 'GEL 43.60',
+  },
+  dollarSymbol: {
+    appName: 'Wallet',
+    bundleId: WALLET_BUNDLE,
+    title: 'Visa •• 4321',
+    subtitle: 'Apple',
+    body: '$9.99',
+  },
   groupedAmount: {
     appName: 'Wallet',
     bundleId: WALLET_BUNDLE,
@@ -93,6 +117,38 @@ export const woltOnlinePayment = {
   }),
 } as const;
 
+/**
+ * One Apple Pay tap with a TBC card, captured on the owner's phone on 2026-10-21: the Wallet Transaction
+ * trigger, which fired twice in the same second (12:38:10 local, no time of its own), and the TBC push
+ * 14 seconds later (stamped 12:38:24, the text prints the minute). The push also reports a cashback credit
+ * and a piggy-bank balance; neither is a transaction. The body keeps the bank's trailing space after the
+ * balance and its typographic apostrophe.
+ */
+export const nordCoffeeTap = {
+  tap: {
+    card: 'TBC CARD VISA GOLD',
+    merchant: 'Nord Cofee Company Ltd',
+    amount: 'GEL 48.00',
+  },
+  tbcPush: {
+    appName: 'TBC Bank',
+    bundleId: null,
+    title: 'TBC',
+    subtitle: '',
+    body: '48.00 GEL\nTBC CARD VISA GOLD (***0000)\nNORD COFEE COMPANY LTD 21/10/26 12:38\nBalance: 3768.41 GEL \nYou\u2019ve received: 0.24 GEL\nIn Ertguli Piggy bank you have: 11.80 GEL',
+  },
+  /** What a model should answer for the push. */
+  tbcPushAnswer: answer({
+    amount: '48.00',
+    currency: 'GEL',
+    merchant: 'NORD COFEE COMPANY LTD',
+    cardName: 'TBC CARD VISA GOLD',
+    cardLastDigits: '0000',
+    balanceAfter: { amount: '3768.41', currency: 'GEL', scopeHint: 'total' },
+    occurredAt: '2026-10-21T12:38:00',
+  }),
+} as const;
+
 export const notificationFixtures: readonly NotificationFixture[] = [
   {
     id: 'tbc-push-wolt-online',
@@ -104,6 +160,19 @@ export const notificationFixtures: readonly NotificationFixture[] = [
     body: woltOnlinePayment.tbcPush.body,
     prefilter: 'pass',
     answer: woltOnlinePayment.tbcPushAnswer,
+  },
+  {
+    // The balance line is followed by a cashback credit and a piggy-bank balance: both are context, not
+    // the amount, the balance or a second transaction.
+    id: 'tbc-push-cashback-piggy',
+    channel: 'push',
+    appName: nordCoffeeTap.tbcPush.appName,
+    bundleId: null,
+    title: nordCoffeeTap.tbcPush.title,
+    subtitle: nordCoffeeTap.tbcPush.subtitle,
+    body: nordCoffeeTap.tbcPush.body,
+    prefilter: 'pass',
+    answer: nordCoffeeTap.tbcPushAnswer,
   },
   {
     // The bank prints the operation, the amount with its ISO code after the number, the card label with no
@@ -156,7 +225,11 @@ export const notificationFixtures: readonly NotificationFixture[] = [
       currency: 'GEL',
       merchant: 'WOLT.COM TBILISI',
       payee: { candidateId: 'p1', newName: null },
-      balanceAfter: { amount: '1204.30', currency: 'GEL', scopeHint: 'unknown' },
+      balanceAfter: {
+        amount: '1204.30',
+        currency: 'GEL',
+        scopeHint: 'unknown',
+      },
       occurredAt: '2026-10-20T14:30:00',
     }),
   },
@@ -191,7 +264,11 @@ export const notificationFixtures: readonly NotificationFixture[] = [
       amount: '1500.00',
       currency: 'GEL',
       merchant: 'ხელფასი',
-      balanceAfter: { amount: '2704.30', currency: 'GEL', scopeHint: 'unknown' },
+      balanceAfter: {
+        amount: '2704.30',
+        currency: 'GEL',
+        scopeHint: 'unknown',
+      },
     }),
   },
   {
@@ -227,7 +304,11 @@ export const notificationFixtures: readonly NotificationFixture[] = [
       merchant: 'MAGNIT',
       payee: { candidateId: null, newName: 'Magnit' },
       cardLastDigits: '1234',
-      balanceAfter: { amount: '54321.10', currency: 'RUB', scopeHint: 'account' },
+      balanceAfter: {
+        amount: '54321.10',
+        currency: 'RUB',
+        scopeHint: 'account',
+      },
     }),
   },
   {
@@ -244,7 +325,11 @@ export const notificationFixtures: readonly NotificationFixture[] = [
       currency: 'UAH',
       merchant: 'ATB-Market',
       payee: { candidateId: null, newName: 'ATB' },
-      balanceAfter: { amount: '3120.50', currency: 'UAH', scopeHint: 'account' },
+      balanceAfter: {
+        amount: '3120.50',
+        currency: 'UAH',
+        scopeHint: 'account',
+      },
     }),
   },
   {
@@ -273,7 +358,12 @@ export const notificationFixtures: readonly NotificationFixture[] = [
     subtitle: '',
     body: 'ATM withdrawal 200.00 GEL, TBC ATM VAKE, card *4321',
     prefilter: 'pass',
-    answer: answer({ amount: '200.00', currency: 'GEL', merchant: 'TBC ATM VAKE', cardLastDigits: '4321' }),
+    answer: answer({
+      amount: '200.00',
+      currency: 'GEL',
+      merchant: 'TBC ATM VAKE',
+      cardLastDigits: '4321',
+    }),
   },
   {
     id: 'en-push-processor-prefix',
@@ -362,7 +452,12 @@ export const notificationFixtures: readonly NotificationFixture[] = [
     subtitle: '',
     body: 'Your card payment of 25.00 USD at NETFLIX was declined: insufficient funds',
     prefilter: 'pass',
-    answer: answer({ kind: 'declined', amount: '25.00', currency: 'USD', merchant: 'NETFLIX' }),
+    answer: answer({
+      kind: 'declined',
+      amount: '25.00',
+      currency: 'USD',
+      merchant: 'NETFLIX',
+    }),
   },
   {
     id: 'en-sms-otp',
@@ -373,7 +468,12 @@ export const notificationFixtures: readonly NotificationFixture[] = [
     subtitle: '',
     body: '482913 is your code to confirm the payment of 43.60 GEL at WOLT. Do not share it with anyone',
     prefilter: 'security',
-    answer: answer({ kind: 'security', amount: '43.60', currency: 'GEL', merchant: 'WOLT' }),
+    answer: answer({
+      kind: 'security',
+      amount: '43.60',
+      currency: 'GEL',
+      merchant: 'WOLT',
+    }),
   },
   {
     id: 'ru-sms-otp',
@@ -406,7 +506,14 @@ export const notificationFixtures: readonly NotificationFixture[] = [
     subtitle: 'Your October statement is ready',
     body: 'Closing balance 1,204.30 GEL. Open the attached PDF to see your transactions.',
     prefilter: 'pass',
-    answer: answer({ kind: 'info', balanceAfter: { amount: '1204.30', currency: 'GEL', scopeHint: 'account' } }),
+    answer: answer({
+      kind: 'info',
+      balanceAfter: {
+        amount: '1204.30',
+        currency: 'GEL',
+        scopeHint: 'account',
+      },
+    }),
   },
   {
     id: 'en-email-bill',
@@ -417,7 +524,12 @@ export const notificationFixtures: readonly NotificationFixture[] = [
     subtitle: 'Payment due',
     body: 'Your bill of 27.40 GEL is due on 05/11/2026. Pay in the app to avoid a late fee.',
     prefilter: 'pass',
-    answer: answer({ kind: 'info', amount: '27.40', currency: 'GEL', merchant: 'Georgian Water' }),
+    answer: answer({
+      kind: 'info',
+      amount: '27.40',
+      currency: 'GEL',
+      merchant: 'Georgian Water',
+    }),
   },
   {
     id: 'en-chat-amount',
@@ -428,7 +540,12 @@ export const notificationFixtures: readonly NotificationFixture[] = [
     subtitle: '',
     body: 'Can you lend me 50 GEL until Friday?',
     prefilter: 'pass',
-    answer: answer({ kind: 'other', amount: '50', currency: 'GEL', confidence: 0.9 }),
+    answer: answer({
+      kind: 'other',
+      amount: '50',
+      currency: 'GEL',
+      confidence: 0.9,
+    }),
   },
   {
     id: 'en-chat-no-amount',
