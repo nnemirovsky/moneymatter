@@ -9,6 +9,7 @@ import { expandCategoryIdsWithDescendants } from '@services/categories/category-
 import { getAccessibleCategoryMap } from '@services/categories/get-accessible-category-map.service';
 import { type StatsScopeFilters, buildStatsScopeWhere } from '@services/stats/stats-scope-filters';
 import { statsTransactions } from '@services/stats/stats-transactions';
+import { getUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import {
   addMonths,
   differenceInMonths,
@@ -142,6 +143,7 @@ async function getPeriodData({
   decimals,
 }: PeriodDataParams): Promise<CumulativePeriodData> {
   // Use parseISO for consistent date parsing (treats dates as local time, not UTC)
+  const zone = await getUserTimeZone({ userId });
   const fromDate = parseISO(from);
   const toDate = parseISO(to);
   const now = new Date();
@@ -157,7 +159,7 @@ async function getPeriodData({
     planned: 'exclude',
     refunds: 'net',
     decimals,
-    window: { from, to: effectiveTo },
+    window: { from, to: effectiveTo, zone },
     // ponytail: query-level category filter ignores split legs; route through computeCategoryAllocations if totals must match cash-flow exactly
     where: {
       [Op.and]: [

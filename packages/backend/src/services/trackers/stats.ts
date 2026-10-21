@@ -210,7 +210,8 @@ const getCategoryTrackerStats = async ({
     access: { creator: userId },
     planned,
     refunds: 'ignore',
-    window: { from: trackerDetails.startDate ?? undefined, to: trackerDetails.endDate ?? undefined },
+    // Exact instants: the zone only reads day strings.
+    window: { from: trackerDetails.startDate ?? undefined, to: trackerDetails.endDate ?? undefined, zone: 'UTC' },
     where: { categoryId: { [Op.in]: categoryIds } },
     include: [{ model: TransactionSplits, as: 'splits', required: false }],
   });

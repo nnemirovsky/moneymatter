@@ -32,7 +32,8 @@ const getAverageMonthlyIncome = async ({
     access: { creator: userId },
     planned: 'exclude',
     refunds: 'ignore',
-    window: { from, to },
+    // Exact instants: the zone only reads day strings.
+    window: { from, to, zone: 'UTC' },
     where: { transactionType: TRANSACTION_TYPES.income },
     attributes: ['refAmount'],
   });

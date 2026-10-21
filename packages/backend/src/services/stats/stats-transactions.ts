@@ -1,8 +1,8 @@
+import { zonedDayEnd, zonedDayStart } from '@bt/shared/time-zone';
 import { TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES } from '@bt/shared/types';
 import Accounts from '@models/accounts.model';
 import { AccessPolicy, PlannedPolicy, findTransactions } from '@models/transactions-query';
 import Transactions from '@models/transactions.model';
-import { endOfDay } from 'date-fns';
 import { FindAttributeOptions, Includeable, Op, Order, WhereOptions } from 'sequelize';
 
 import { CategoryRefundPair, resolveRefundPairs } from './category-allocation';
@@ -25,6 +25,8 @@ type StatsRefundsPolicy =
   | 'ignore'; // refunds are counted like any other row
 
 interface StatsWindow {
+  /** IANA zone the `yyyy-MM-dd` day strings are read in: the viewing zone, or `'UTC'`. */
+  zone: string;
   /** `yyyy-MM-dd` (start of that day) or an exact Date bound. Omit for an open start. */
   from?: string | Date;
   /**
@@ -76,11 +78,19 @@ const windowWhere = ({ window }: { window: StatsWindow }): WhereOptions | null =
 
   const bounds: { [Op.gte]?: Date; [Op.lte]?: Date } = {};
 
-  if (window.from) bounds[Op.gte] = new Date(window.from);
+  if (window.from)
+    bounds[Op.gte] =
+      typeof window.from === 'string' ? zonedDayStart({ date: window.from, zone: window.zone }) : window.from;
 
   if (window.to) {
-    const closesRange = typeof window.to === 'string' && Boolean(window.from);
-    bounds[Op.lte] = closesRange ? endOfDay(new Date(window.to)) : new Date(window.to);
+    if (typeof window.to !== 'string') {
+      bounds[Op.lte] = window.to;
+    } else {
+      const closesRange = Boolean(window.from);
+      bounds[Op.lte] = closesRange
+        ? zonedDayEnd({ date: window.to, zone: window.zone })
+        : zonedDayStart({ date: window.to, zone: window.zone });
+    }
   }
 
   return { time: bounds };

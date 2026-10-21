@@ -1,4 +1,5 @@
 import type { PivotGranularity } from '@bt/shared/types';
+import { tzOptions } from '@common/lib/time-zones/tz-options';
 import { format, getQuarter, getYear, startOfWeek } from 'date-fns';
 
 import { PeriodBucket, generatePeriodBuckets } from '../utils';
@@ -14,34 +15,39 @@ export const generatePivotBuckets = ({
   from,
   to,
   granularity,
+  zone,
 }: {
   from: string;
   to: string;
   granularity: PivotGranularity;
-}): PeriodBucket[] => generatePeriodBuckets({ from, to, granularity });
+  zone: string;
+}): PeriodBucket[] => generatePeriodBuckets({ from, to, granularity, zone });
 
 /**
  * Stable, range-unique column key. The year is always present so keys never collide across
  * a multi-year range (e.g. Q1 2024 vs Q1 2025). Because edge clamping only ever moves the
  * first bucket's start forward within its own period, deriving the key from `periodStart` is
- * safe.
+ * safe. The calendar fields are the ones of `zone`, the zone the buckets were cut in.
  */
 export const getBucketKey = ({
   periodStart,
   granularity,
+  zone,
 }: {
   periodStart: Date;
   granularity: PivotGranularity;
+  zone: string;
 }): string => {
+  const options = tzOptions({ zone });
   switch (granularity) {
     case 'yearly':
-      return format(periodStart, 'yyyy');
+      return format(periodStart, 'yyyy', options);
     case 'quarterly':
-      return `${getYear(periodStart)}-Q${getQuarter(periodStart)}`;
+      return `${getYear(periodStart, options)}-Q${getQuarter(periodStart, options)}`;
     case 'monthly':
-      return format(periodStart, 'yyyy-MM');
+      return format(periodStart, 'yyyy-MM', options);
     case 'weekly':
-      return format(startOfWeek(periodStart, WEEK_OPTS), 'yyyy-MM-dd');
+      return format(startOfWeek(periodStart, { ...WEEK_OPTS, ...options }), 'yyyy-MM-dd', options);
   }
 };
 
@@ -52,18 +58,21 @@ export const getBucketKey = ({
 export const getBucketLabel = ({
   periodStart,
   granularity,
+  zone,
 }: {
   periodStart: Date;
   granularity: PivotGranularity;
+  zone: string;
 }): string => {
+  const options = tzOptions({ zone });
   switch (granularity) {
     case 'yearly':
-      return format(periodStart, 'yyyy');
+      return format(periodStart, 'yyyy', options);
     case 'quarterly':
-      return `Q${getQuarter(periodStart)} ${getYear(periodStart)}`;
+      return `Q${getQuarter(periodStart, options)} ${getYear(periodStart, options)}`;
     case 'monthly':
-      return format(periodStart, 'MMM yyyy');
+      return format(periodStart, 'MMM yyyy', options);
     case 'weekly':
-      return `Wk of ${format(startOfWeek(periodStart, WEEK_OPTS), 'yyyy-MM-dd')}`;
+      return `Wk of ${format(startOfWeek(periodStart, { ...WEEK_OPTS, ...options }), 'yyyy-MM-dd', options)}`;
   }
 };
