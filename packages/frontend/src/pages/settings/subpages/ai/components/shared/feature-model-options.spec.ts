@@ -5,6 +5,7 @@ import {
   AUTOMATIC_OPTION,
   SERVER_OPTION,
   buildFeatureModelOptions,
+  formatAnsweringModel,
   readFeatureSelectValue,
   resolveCostDisplay,
 } from './feature-model-options';
@@ -99,7 +100,25 @@ describe('buildFeatureModelOptions', () => {
     expect(automatic).toEqual({
       value: AUTOMATIC_OPTION,
       kind: 'automatic',
-      target: { kind: 'connection', name: 'Claude fast' },
+      target: { kind: 'connection', name: 'Claude fast', model: 'gemini-flash' },
+    });
+  });
+
+  it('names the model that answers an unconfigured feature, as the connection labels it', () => {
+    const [automatic] = buildFeatureModelOptions({
+      status: buildStatus({
+        servedBy: 'connection',
+        connectionId: CONNECTION_B,
+        connectionName: 'My Claude Account',
+        modelId: 'claude-code/haiku',
+      }),
+      connections: [
+        { ...buildConnection({ id: CONNECTION_B, name: 'My Claude Account' }), provider: AI_PROVIDER.claudeCode },
+      ],
+    });
+
+    expect(automatic).toMatchObject({
+      target: { kind: 'connection', name: 'My Claude Account', model: 'haiku (latest)' },
     });
   });
 
@@ -123,6 +142,22 @@ describe('buildFeatureModelOptions', () => {
       model: 'claude-sonnet-5',
       needsAttention: false,
     });
+  });
+});
+
+describe('formatAnsweringModel', () => {
+  const claude = {
+    ...buildConnection({ id: CONNECTION_B, name: 'My Claude Account' }),
+    provider: AI_PROVIDER.claudeCode,
+  };
+  const status = buildStatus({ servedBy: 'connection', connectionId: CONNECTION_B, modelId: 'claude-code/haiku' });
+
+  it('labels a subscription model as the connection does', () => {
+    expect(formatAnsweringModel({ status, connections: [claude] })).toBe('haiku (latest)');
+  });
+
+  it('falls back to the bare model name while the connection list is missing', () => {
+    expect(formatAnsweringModel({ status, connections: [] })).toBe('haiku');
   });
 });
 

@@ -519,7 +519,7 @@
     "connectionModel": {
       "label": "Model from this connection",
       "placeholder": "Choose a model",
-      "default": "Default ({model})"
+      "defaultTag": "Default"
     }
   },
   "aiUsage": {
