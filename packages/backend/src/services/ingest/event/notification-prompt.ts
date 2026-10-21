@@ -62,7 +62,7 @@ STAGE
 4. stage is authorization when the bank reports a hold or a pending purchase, settlement when it reports that an earlier hold was posted or finalized, and payment for any single notice that reports the whole payment. When unsure, use payment.
 
 AMOUNTS
-5. amount and currency are the money of THIS transaction. Never use a balance, a limit or a fee as the amount. amount is a positive plain decimal with a dot and no thousands separators ("1234.50"). currency is the three-letter ISO code ("GEL", "USD"); read it from a symbol or a local word when the text has no code.
+5. amount and currency are the money of THIS transaction. Never use a balance, a limit or a fee as the amount. A notice reports one transaction: extra lines about a cashback or bonus credited for it, a rewards balance, or the balance of a savings pot or piggy bank are not transactions; leave them out of amount, kind and balanceAfter. amount is a positive plain decimal with a dot and no thousands separators ("1234.50"). currency is the three-letter ISO code ("GEL", "USD"); read it from a symbol or a local word when the text has no code.
 6. When the text states one amount for the transaction, put it in amount and currency, in the currency the text states, and leave originalAmount and originalCurrency null.
 7. When the text states two amounts for the transaction, amount and currency are what was taken from or paid into the user's account, and originalAmount and originalCurrency are what the merchant charged.
 8. When the text states no amount for the transaction, set amount to null.

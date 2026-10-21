@@ -2,6 +2,7 @@ import { AMOUNT_GATE_SAMPLES, type GateStrictness } from '@bt/shared/types';
 import { i18nextReady } from '@i18n/index';
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
+import { nordCoffeeTap } from './fixtures/notifications';
 import { prefilterNotification } from './prefilter-notification';
 
 const filter = ({
@@ -18,7 +19,15 @@ const filter = ({
   strictness?: GateStrictness;
   bundleId?: string | null;
   appName?: string | null;
-}) => prefilterNotification({ bundleId, appName, title, subtitle, body, strictness });
+}) =>
+  prefilterNotification({
+    bundleId,
+    appName,
+    title,
+    subtitle,
+    body,
+    strictness,
+  });
 
 beforeAll(async () => {
   await i18nextReady;
@@ -36,22 +45,50 @@ describe('prefilterNotification', () => {
     it.each(['Your balance is looking good', 'See you tonight at 20:30', 'Order #4521 shipped', ''])(
       'drops "%s" as noAmount',
       (body) => {
-        expect(filter({ title: '', body })).toEqual({ pass: false, reason: 'noAmount' });
+        expect(filter({ title: '', body })).toEqual({
+          pass: false,
+          reason: 'noAmount',
+        });
+      },
+    );
+
+    it('passes the TBC push that ends in a cashback credit and a piggy-bank balance, matching the payment amount', () => {
+      const { title, subtitle, body } = nordCoffeeTap.tbcPush;
+
+      expect(filter({ title, subtitle, body })).toEqual({
+        pass: true,
+        amountText: '48.00 GEL',
+      });
+    });
+
+    it.each(['strict', 'standard', 'loose'] as const)(
+      'passes the real TBC push of the Nord Cofee payment at %s',
+      (strictness) => {
+        const { title, subtitle, body } = nordCoffeeTap.tbcPush;
+
+        expect(filter({ title, subtitle, body, strictness }).pass).toBe(true);
       },
     );
 
     it('follows the strictness of the user', () => {
       const body = 'Purchase at Wolt 43.60';
 
-      expect(filter({ body, strictness: 'standard' })).toEqual({ pass: false, reason: 'noAmount' });
-      expect(filter({ body, strictness: 'loose' })).toMatchObject({ pass: true });
+      expect(filter({ body, strictness: 'standard' })).toEqual({
+        pass: false,
+        reason: 'noAmount',
+      });
+      expect(filter({ body, strictness: 'loose' })).toMatchObject({
+        pass: true,
+      });
     });
 
     it.each(AMOUNT_GATE_SAMPLES.filter((sample) => sample.minLevel === null))(
       'drops the gate sample "$text" at every level',
       ({ text }) => {
         for (const strictness of ['strict', 'standard', 'loose'] as const) {
-          expect(filter({ title: '', body: text, strictness })).toMatchObject({ pass: false });
+          expect(filter({ title: '', body: text, strictness })).toMatchObject({
+            pass: false,
+          });
         }
       },
     );
@@ -66,7 +103,10 @@ describe('prefilterNotification', () => {
       'შეიყვანეთ კოდი 482913 გადახდის დასადასტურებლად 43.60 GEL',
       'Do not share 4829 with anyone. Payment 12.00 EUR',
     ])('drops an OTP request: %s', (body) => {
-      expect(filter({ title: '', body })).toEqual({ pass: false, reason: 'security' });
+      expect(filter({ title: '', body })).toEqual({
+        pass: false,
+        reason: 'security',
+      });
     });
 
     it.each([
@@ -79,19 +119,34 @@ describe('prefilterNotification', () => {
     });
 
     it('passes a code that nobody asks the user to enter or hide', () => {
-      expect(filter({ title: '', body: 'Reference 482913: payment of 43.60 GEL received' })).toMatchObject({
+      expect(
+        filter({
+          title: '',
+          body: 'Reference 482913: payment of 43.60 GEL received',
+        }),
+      ).toMatchObject({
         pass: true,
       });
     });
 
     it('does not read the digits of a card, an amount or a date as a code', () => {
-      expect(filter({ title: '', body: 'Confirm 1,234.50 EUR on card *4821 on 2026-10-20' })).toMatchObject({
+      expect(
+        filter({
+          title: '',
+          body: 'Confirm 1,234.50 EUR on card *4821 on 2026-10-20',
+        }),
+      ).toMatchObject({
         pass: true,
       });
     });
 
     it('needs a code: a request without a standalone code passes', () => {
-      expect(filter({ title: '', body: 'Please confirm the payment of 43.60 GEL in the app' })).toMatchObject({
+      expect(
+        filter({
+          title: '',
+          body: 'Please confirm the payment of 43.60 GEL in the app',
+        }),
+      ).toMatchObject({
         pass: true,
       });
     });
@@ -106,7 +161,10 @@ describe('prefilterNotification', () => {
       'ფასდაკლება 20% შეკვეთებზე 50 GEL-დან',
       'Use promo code SAVE20 and get 5 EUR off',
     ])('drops a promo: %s', (body) => {
-      expect(filter({ title: '', body })).toEqual({ pass: false, reason: 'promo' });
+      expect(filter({ title: '', body })).toEqual({
+        pass: false,
+        reason: 'promo',
+      });
     });
 
     it.each([
@@ -131,7 +189,14 @@ describe('prefilterNotification', () => {
     });
 
     it('recognizes a banner in another language', () => {
-      expect(filter({ title: '', body: 'Записано 43.60 GEL: Wolt → Їжа', bundleId: null, appName: null })).toEqual({
+      expect(
+        filter({
+          title: '',
+          body: 'Записано 43.60 GEL: Wolt → Їжа',
+          bundleId: null,
+          appName: null,
+        }),
+      ).toEqual({
         pass: false,
         reason: 'self',
       });
@@ -150,11 +215,22 @@ describe('prefilterNotification', () => {
     });
 
     it('does not take a bank for MoneyMatter', () => {
-      expect(filter({ title: 'TBC Bank', body: 'Logged out of TBC. Balance GEL 10.00' }).pass).toBe(true);
+      expect(
+        filter({
+          title: 'TBC Bank',
+          body: 'Logged out of TBC. Balance GEL 10.00',
+        }).pass,
+      ).toBe(true);
     });
 
     it('drops our output ahead of the other checks, so an amount in it does not matter', () => {
-      expect(filter({ title: '', body: 'Logged 43.60 GEL at Wolt → Food', strictness: 'strict' })).toEqual({
+      expect(
+        filter({
+          title: '',
+          body: 'Logged 43.60 GEL at Wolt → Food',
+          strictness: 'strict',
+        }),
+      ).toEqual({
         pass: false,
         reason: 'self',
       });
