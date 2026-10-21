@@ -24,20 +24,33 @@ const SEEDED_DATES: Date[] = [];
 
 let paymentDay = '';
 
-/** The bank's push of a hold or a release: 1 GEL on the owner's card, 12:42 on the wall (UTC+4). */
-const pushBody = ({ release, amount = '1.00', note = '' }: { release: boolean; amount?: string; note?: string }) =>
-  `${release ? '+' : ''}${amount} GEL\n${CARD} (***0000)\n${release ? 'RELEASE' : 'HOLD'}${note} 21/10/26 12:42\nBalance: 3768.41 GEL`;
+/**
+ * The bank's push of a hold ("1.00 GEL … Wolt"), of its reversal ("Reversal: 1.00 GEL …") or of a plain
+ * credit that does not call itself a reversal (`refund`): 12:42 on the owner's wall (UTC+4).
+ */
+const pushBody = ({
+  release,
+  reversal = release,
+  amount = '1.00',
+  note = '',
+}: {
+  release: boolean;
+  reversal?: boolean;
+  amount?: string;
+  note?: string;
+}) =>
+  `${reversal ? 'Reversal:\n' : ''}${release && !reversal ? 'Cashback ' : ''}${amount} GEL\n${CARD} (***0000)\nWolt${note} 21/10/26 12:42\nBalance: 3768.41 GEL`;
 
 /** What the model answers for the push, read from its text. */
 const answerFor = ({ prompt }: { prompt: string }) => {
-  const release = prompt.includes('RELEASE');
+  const release = prompt.includes('Reversal:') || prompt.includes('Cashback ');
   const amount = /(\d+\.\d{2}) GEL/.exec(prompt)?.[1] ?? '1.00';
 
   return {
     kind: release ? ('credit' as const) : ('debit' as const),
     amount,
     currency: 'GEL',
-    merchant: release ? 'RELEASE' : 'HOLD',
+    merchant: 'Wolt',
     cardName: CARD,
     cardLastDigits: '0000',
     occurredAt: `${paymentDay}T12:42:00`,
@@ -83,12 +96,14 @@ const push = ({
   secret,
   at,
   release,
+  reversal,
   amount,
   note,
 }: {
   secret: string;
   at: Date;
   release: boolean;
+  reversal?: boolean;
   amount?: string;
   note?: string;
 }) =>
@@ -99,7 +114,7 @@ const push = ({
       app: 'TBC Bank',
       title: 'TBC',
       subtitle: '',
-      body: pushBody({ release, amount, note }),
+      body: pushBody({ release, reversal, amount, note }),
       time: at.toISOString(),
       idempotencyKey: `push-${randomUUID()}`,
     },
@@ -243,12 +258,44 @@ describe('a hold and its release', () => {
       secret,
       at: addSeconds(start, 11 * 60),
       release: true,
+      reversal: false,
     });
 
     expect(later.body.response.outcome).toBe('logged');
     expect(await rows()).toHaveLength(2);
     expect((await requests()).map((request) => request.status)).toEqual(['logged', 'logged']);
     expect(await droppedNotices()).toHaveLength(0);
+  });
+
+  it('drops a hold and a "Reversal:" push that comes hours later', async () => {
+    const { start, secret } = await setUp();
+
+    await push({ secret, at: start, release: false });
+    const later = await push({ secret, at: addMinutes(start, 120), release: true });
+
+    expect(later.body.response).toMatchObject({ outcome: 'dropped', notify: false });
+    expect(await rows()).toHaveLength(0);
+    expect(await droppedNotices()).toHaveLength(1);
+  });
+
+  it('keeps a credit that does not call itself a reversal when it comes hours later', async () => {
+    const { start, secret } = await setUp();
+
+    await push({ secret, at: start, release: false });
+    const later = await push({ secret, at: addMinutes(start, 120), release: true, reversal: false });
+
+    expect(later.body.response.outcome).toBe('logged');
+    expect(await rows()).toHaveLength(2);
+  });
+
+  it('keeps a "Reversal:" push that comes after more than a day', async () => {
+    const { start, secret } = await setUp();
+
+    await push({ secret, at: start, release: false });
+    const later = await push({ secret, at: addMinutes(start, 25 * 60), release: true });
+
+    expect(later.body.response.outcome).toBe('logged');
+    expect(await rows()).toHaveLength(2);
   });
 
   it('keeps both when the amounts differ', async () => {
@@ -322,12 +369,11 @@ describe('a hold and its release', () => {
     expect(question!.status).toBe('pending');
     expect(await droppedNotices()).toHaveLength(0);
 
+    // The new row is still being categorized when the card is posted, so the card is refreshed first.
+    const fresh = await helpers.refreshChatProposal({ proposalId: question!.id, raw: true });
     const approved = await helpers.approveChatProposal({
-      proposalId: question!.id,
-      payload: {
-        revision: question!.revision,
-        confirmation: question!.confirmation.phrase,
-      },
+      proposalId: fresh.id,
+      payload: { revision: fresh.revision, confirmation: fresh.confirmation.phrase },
     });
     expect(approved.statusCode).toBe(200);
     expect(await rows()).toHaveLength(0);

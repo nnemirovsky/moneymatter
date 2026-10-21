@@ -149,6 +149,28 @@ export const nordCoffeeTap = {
   }),
 } as const;
 
+/**
+ * A card hold (the real capture: Wolt's card authorization check) and its reversal as TBC pushes them. The
+ * reversal's tail is completed after the lock-screen text, which stops after the merchant; it opens with
+ * "Reversal:" and reads as a credit; the pair must cancel out and log nothing.
+ */
+export const holdAndReversal = {
+  hold: {
+    appName: 'TBC Bank',
+    bundleId: null,
+    title: 'TBC',
+    subtitle: '',
+    body: '1.00 GEL\nTBC CARD VISA GOLD (***0000)\nWolt 21/10/26 16:41\nBalance: 3767.41 GEL',
+  },
+  reversal: {
+    appName: 'TBC Bank',
+    bundleId: null,
+    title: 'TBC',
+    subtitle: '',
+    body: 'Reversal:\n1.00 GEL\nTBC CARD VISA GOLD (***0000)\nWolt 21/10/26 16:41\nBalance: 3768.41 GEL',
+  },
+} as const;
+
 export const notificationFixtures: readonly NotificationFixture[] = [
   {
     id: 'tbc-push-wolt-online',
@@ -173,6 +195,37 @@ export const notificationFixtures: readonly NotificationFixture[] = [
     body: nordCoffeeTap.tbcPush.body,
     prefilter: 'pass',
     answer: nordCoffeeTap.tbcPushAnswer,
+  },
+  {
+    id: 'tbc-push-hold',
+    channel: 'push',
+    ...holdAndReversal.hold,
+    prefilter: 'pass',
+    answer: answer({
+      amount: '1.00',
+      currency: 'GEL',
+      merchant: 'Wolt',
+      cardName: 'TBC CARD VISA GOLD',
+      cardLastDigits: '0000',
+      balanceAfter: { amount: '3767.41', currency: 'GEL', scopeHint: 'total' },
+      occurredAt: '2026-10-21T16:41:00',
+    }),
+  },
+  {
+    id: 'tbc-push-reversal',
+    channel: 'push',
+    ...holdAndReversal.reversal,
+    prefilter: 'pass',
+    answer: answer({
+      kind: 'credit',
+      amount: '1.00',
+      currency: 'GEL',
+      merchant: 'Wolt',
+      cardName: 'TBC CARD VISA GOLD',
+      cardLastDigits: '0000',
+      balanceAfter: { amount: '3768.41', currency: 'GEL', scopeHint: 'total' },
+      occurredAt: '2026-10-21T16:41:00',
+    }),
   },
   {
     // The bank prints the operation, the amount with its ISO code after the number, the card label with no

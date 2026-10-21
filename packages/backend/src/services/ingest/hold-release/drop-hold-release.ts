@@ -17,8 +17,8 @@ import { readUserLocale } from '../card-payment/read-user-locale';
 import { describeSource } from '../event/source-label';
 import { readStoredParse, type StoredPayment } from '../event/stored-parse';
 import { ingestMarkersOf, isUnconfirmedIngest } from '../ingest-markers';
-import { holdReleaseConfig } from './constants';
 import { pickHoldCounterpart, type HoldCandidate, type HoldFacts } from './pick-hold-counterpart';
+import { holdWindowOf } from './reversal';
 
 /** The notice the inbox shows for a pair that was dropped; the frontend owns the text. */
 const NOTICE_KEY = 'chat.notices.holdReleased';
@@ -176,7 +176,7 @@ export const dropHoldRelease = withTransaction(
     if (!tx || tx.transferId || !isUnconfirmedIngest({ externalData: tx.externalData })) return 'none';
 
     const incoming = factsOfRow({ tx });
-    const windowMs = holdReleaseConfig.windowMs;
+    const windowMs = holdWindowOf({ textEnc: request.textEnc });
     const rows = await findTransactions({
       planned: 'include',
       access: { accountOwner: userId },
@@ -201,6 +201,7 @@ export const dropHoldRelease = withTransaction(
     const unconfirmed = pickHoldCounterpart({
       incoming,
       candidates: toCandidates(rows.filter((row) => isUnconfirmedIngest({ externalData: row.externalData }))),
+      windowMs,
     });
 
     if (unconfirmed) {
@@ -233,6 +234,7 @@ export const dropHoldRelease = withTransaction(
     const confirmed = pickHoldCounterpart({
       incoming,
       candidates: toCandidates(rows),
+      windowMs,
     });
     if (confirmed) {
       await createSystemProposal({
@@ -326,7 +328,7 @@ export const dropParkedHoldRelease = withTransaction(
       }
     }
 
-    const match = pickHoldCounterpart({ incoming, candidates });
+    const match = pickHoldCounterpart({ incoming, candidates, windowMs: holdWindowOf({ textEnc: request.textEnc }) });
     if (!match) return false;
 
     await dismissRequests({
