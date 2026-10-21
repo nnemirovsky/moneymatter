@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ChatNavBadge from '@/components/chat/chat-nav-badge.vue';
 import ResponsiveHoverCard from '@/components/common/responsive-hover-card.vue';
 import UiButton from '@/components/lib/ui/button/Button.vue';
 import { Card } from '@/components/lib/ui/card';
@@ -255,12 +256,13 @@ const sectionItems = computed<RailSectionItem[]>(() => {
                 as="span"
                 size="icon"
                 :aria-label="item.label"
-                :class="cn((item.active ?? isActive) && 'bg-primary/10')"
+                :class="cn('relative', (item.active ?? isActive) && 'bg-primary/10')"
               >
                 <component
                   :is="item.icon"
                   :class="cn('size-4 shrink-0', (item.active ?? isActive) && 'text-primary-text')"
                 />
+                <ChatNavBadge v-if="item.routeName === SIDEBAR_CHAT_NAV_ITEM.routeName" placement="corner" />
               </ui-button>
             </router-link>
           </DesktopOnlyTooltip>

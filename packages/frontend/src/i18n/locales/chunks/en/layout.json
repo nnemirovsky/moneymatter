@@ -23,7 +23,8 @@
     },
     "venture": "Venture",
     "budget": "Budget",
-    "chat": "AI chat"
+    "chat": "AI chat",
+    "chatBadge": "{count} new or waiting in AI chat | {count} new or waiting in AI chat"
   },
   "sidebar": {
     "collapse": "Collapse sidebar",

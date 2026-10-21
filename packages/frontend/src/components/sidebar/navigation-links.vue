@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ChatNavBadge from '@/components/chat/chat-nav-badge.vue';
 import UiButton from '@/components/lib/ui/button/Button.vue';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/lib/ui/collapsible';
 import { ROUTES_NAMES } from '@/routes';
@@ -255,8 +256,13 @@ watch(
       :class="[navItemBase, !bottomNav && 'justify-start', isChatRoute && navItemActive]"
       size="default"
     >
-      <component :is="SIDEBAR_CHAT_NAV_ITEM.icon" :class="[navIconBase, isChatRoute && navIconActive]" />
+      <!-- The bottom bar's cell is the whole width: the badge rides on the icon, not on the cell's corner. -->
+      <span class="relative inline-flex">
+        <component :is="SIDEBAR_CHAT_NAV_ITEM.icon" :class="[navIconBase, isChatRoute && navIconActive]" />
+        <ChatNavBadge v-if="bottomNav" placement="corner" />
+      </span>
       <span :class="{ 'max-sm:hidden': bottomNav }">{{ $t(SIDEBAR_CHAT_NAV_ITEM.labelKey) }}</span>
+      <ChatNavBadge v-if="!bottomNav" />
     </ui-button>
   </router-link>
 </template>
