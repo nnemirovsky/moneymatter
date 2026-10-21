@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { cleanText } from '../card-payment/clean-text';
 import { parseAmount } from '../card-payment/parse-amount';
+import type { NotificationText } from './notification-text';
 
 /**
  * What a notification says it is. `debit` and `credit` are payments; the rest are read and dropped
@@ -98,7 +99,7 @@ export interface ParsedPayment {
  * The verdict on one notification:
  *
  * - `payment`: log it;
- * - `park`: a payment that needs the user (`ownTransfer`, `lowConfidence`). `payment` is what was read,
+ * - `park`: a payment that needs the user (`ownTransfer`, `lowConfidence`, `unverifiedParse`). `payment` is what was read,
  *   so a forced retry can still log it; null when no usable amount was read;
  * - `ignore`: read, not a payment.
  *
@@ -109,7 +110,7 @@ export type ClassifiedNotification = { parser: 'wallet' | 'ai'; kind: Notificati
   | { verdict: 'payment'; payment: ParsedPayment }
   | {
       verdict: 'park';
-      reason: Extract<NotificationParkReason, 'ownTransfer' | 'lowConfidence'>;
+      reason: Extract<NotificationParkReason, 'ownTransfer' | 'lowConfidence' | 'unverifiedParse'>;
       payment: ParsedPayment | null;
     }
   | { verdict: 'ignore'; reason: NotificationIgnoreReason }
@@ -219,20 +220,115 @@ const readPayee = ({
   return name ? { type: 'new', name } : null;
 };
 
-const readCardLastDigits = ({ value }: { value: string | null }): string | null => {
+const readCardLastDigits = ({ value, text }: { value: string | null; text: string | null }): string | null => {
   const digits = typeof value === 'string' ? value.replace(/\D/gu, '') : '';
+  if (!CARD_LAST_DIGITS_PATTERN.test(digits)) return null;
 
-  return CARD_LAST_DIGITS_PATTERN.test(digits) ? digits : null;
+  // Digits the text does not print are the model's invention (a phone number, a balance, a guess).
+  return text === null || printsCardDigits({ text, digits }) ? digits : null;
+};
+
+/** The text the model read: title, subtitle and body, or the device's own rendering when all are empty. */
+const readableTextOf = ({ text }: { text: NotificationText }): string => {
+  const fields = [text.title, text.subtitle, text.body].filter(Boolean).join('\n');
+
+  return fields || text.raw || '';
+};
+
+/** Characters a bank masks the rest of a card number with: `*1258`, `•1258`, `**** 1258`. */
+const MASK_BEFORE = /(?:[*•·…]+[ \u00a0]*|[xX×]+)$/u;
+/** A digit right before or after, past at most one separator: the run is part of a longer number. */
+const DIGIT_BEFORE = /\d[ \u00a0\u202f.,'’-]?$/u;
+const DIGIT_AFTER = /^[ \u00a0\u202f.,'’-]?\d/u;
+
+/**
+ * Whether the text prints `digits` as a card's digits: the exact run of digits, after a mask, or on its
+ * own. A run that is a piece of a longer number (a phone number, a balance, a date, a reference) does
+ * not count, so the model cannot pass off such digits as the card's.
+ */
+const printsCardDigits = ({ text, digits }: { text: string; digits: string }): boolean => {
+  for (const match of text.matchAll(/\d+/gu)) {
+    if (match[0] !== digits) continue;
+
+    const before = text.slice(0, match.index);
+    const after = text.slice(match.index + digits.length);
+    if (MASK_BEFORE.test(before)) return true;
+    if (!DIGIT_BEFORE.test(before) && !DIGIT_AFTER.test(after)) return true;
+  }
+
+  return false;
+};
+
+/** `1500`, `1500.5`: a decimal without trailing zeros, so differently written equal amounts compare equal. */
+const canonicalDecimal = ({ value }: { value: string }): string => {
+  const [integer = '0', fraction = ''] = value.split('.');
+  const trimmed = fraction.replace(/0+$/u, '');
+  const whole = integer.replace(/^0+(?=\d)/u, '');
+
+  return trimmed ? `${whole}.${trimmed}` : whole;
+};
+
+/**
+ * The values a number written in a notification may stand for, as canonical decimals. Spaces and
+ * apostrophes group thousands; with both `.` and `,` the last one is the decimal point; a lone `,` or
+ * `.` is a decimal point before one or two digits, a thousands separator before groups of three, and
+ * either before exactly three (`1.500`).
+ */
+const readingsOf = ({ token }: { token: string }): string[] => {
+  const compact = token.replace(/[ \u00a0\u202f'’]/gu, '');
+  const lastDot = compact.lastIndexOf('.');
+  const lastComma = compact.lastIndexOf(',');
+
+  if (lastDot >= 0 && lastComma >= 0) {
+    const decimalAt = Math.max(lastDot, lastComma);
+    const integer = compact.slice(0, decimalAt).replace(/[.,]/gu, '');
+
+    return [canonicalDecimal({ value: `${integer}.${compact.slice(decimalAt + 1)}` })];
+  }
+
+  const separator = lastDot >= 0 ? '.' : lastComma >= 0 ? ',' : null;
+  if (!separator) return [canonicalDecimal({ value: compact })];
+
+  const parts = compact.split(separator);
+  const grouped = canonicalDecimal({ value: parts.join('') });
+  if (parts.length > 2) return parts.slice(1).every((part) => part.length === 3) ? [grouped] : [];
+
+  const fraction = parts[1]!;
+  const decimal = canonicalDecimal({ value: `${parts[0]}.${fraction}` });
+  if (fraction.length === 3) return [grouped, decimal];
+
+  return [decimal];
+};
+
+/** Whether some number the text prints equals `amount` once its separators are read. */
+const printsAmount = ({ text, amount }: { text: string; amount: string }): boolean => {
+  const wanted = canonicalDecimal({ value: amount });
+  const tokens = text.match(/\d(?:[\d.,'’ \u00a0\u202f]*\d)?/gu) ?? [];
+
+  return tokens.some((token) => {
+    // "*1258 3 000,00" is several numbers as well as one: every run of its space-separated pieces is read.
+    const pieces = token.split(/[ \u00a0\u202f]+/u);
+
+    return pieces.some((_, start) =>
+      pieces
+        .slice(start)
+        .some((__, length) =>
+          readingsOf({ token: pieces.slice(start, start + length + 1).join(' ') }).includes(wanted),
+        ),
+    );
+  });
 };
 
 const readPayment = ({
   output,
   kind,
   candidateIds,
+  text,
 }: {
   output: NotificationParseOutput;
   kind: 'debit' | 'credit';
   candidateIds: ReadonlyMap<string, string>;
+  text: string | null;
 }): ParsedPayment | null => {
   const amount = readPositiveAmount({ value: output.amount });
   if (!amount) return null;
@@ -254,7 +350,7 @@ const readPayment = ({
     merchant: readText({ value: output.merchant, maxLength: MERCHANT_MAX_LENGTH }),
     payee: readPayee({ payee: output.payee, candidateIds }),
     cardName: readText({ value: output.cardName, maxLength: CARD_NAME_MAX_LENGTH }),
-    cardLastDigits: readCardLastDigits({ value: output.cardLastDigits }),
+    cardLastDigits: readCardLastDigits({ value: output.cardLastDigits, text }),
     balanceAfter: readBalanceAfter({ balance: output.balanceAfter }),
     occurredAt: readOccurredAt({ value: output.occurredAt }),
   };
@@ -267,6 +363,9 @@ const readPayment = ({
  * - a payment with no readable amount, an own-account transfer, or a confidence under
  *   `NOTIFICATION_MIN_CONFIDENCE` is parked, never logged. Only payments are held to the confidence
  *   bar: a non-payment has nothing to log, and the amount gate already let its text through;
+ * - with the notification `text`, what the model copied out of it is checked against it: card digits
+ *   the text does not print (on their own or after a mask, not inside a longer number) are dropped,
+ *   and a payment whose amount no number in the text equals is parked as `unverifiedParse`;
  * - every other field is read defensively and dropped when invalid (currency codes, digits, the
  *   time), a `candidateId` outside `candidateIds` included.
  *
@@ -275,9 +374,12 @@ const readPayment = ({
 export const classifyNotification = ({
   output,
   candidateIds,
+  text,
 }: {
   output: NotificationParseOutput;
   candidateIds: ReadonlyMap<string, string>;
+  /** The notification the model read; without it nothing is checked against the text. */
+  text?: NotificationText;
 }): ClassifiedNotification => {
   const confidence = clampConfidence({ value: output.confidence });
   const base = { parser: 'ai', kind: output.kind, confidence } as const;
@@ -286,9 +388,13 @@ export const classifyNotification = ({
     return { ...base, verdict: 'ignore', reason: output.kind };
   }
 
-  const payment = readPayment({ output, kind: output.kind, candidateIds });
+  const readable = text ? readableTextOf({ text }) : null;
+  const payment = readPayment({ output, kind: output.kind, candidateIds, text: readable });
 
   if (!payment) return { ...base, verdict: 'park', reason: 'lowConfidence', payment: null };
+  if (readable !== null && !printsAmount({ text: readable, amount: payment.amount })) {
+    return { ...base, verdict: 'park', reason: 'unverifiedParse', payment };
+  }
   if (output.isOwnAccountTransfer) return { ...base, verdict: 'park', reason: 'ownTransfer', payment };
   if (confidence < NOTIFICATION_MIN_CONFIDENCE) return { ...base, verdict: 'park', reason: 'lowConfidence', payment };
 

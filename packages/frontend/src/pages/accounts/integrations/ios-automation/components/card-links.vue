@@ -45,7 +45,9 @@
         class="border-border flex flex-col gap-2 rounded-lg border p-4"
         data-testid="card-link-row"
       >
-        <div class="flex items-center justify-between gap-2">
+        <div
+          class="flex flex-col gap-2 @lg/integrations:flex-row @lg/integrations:items-center @lg/integrations:justify-between"
+        >
           <div class="min-w-0 font-medium break-words" data-testid="card-link-label-text">
             {{ card.cardLabel }}
             <span v-if="card.lastDigits" class="text-muted-foreground ml-1 text-sm font-normal">
@@ -56,7 +58,7 @@
           <Button
             variant="outline"
             size="sm"
-            class="shrink-0"
+            :class="ACTIONS_WIDTH"
             :aria-label="$t(`${LABEL_ROOT}.addAccountAria`, { name: card.cardLabel })"
             data-testid="card-link-add-account"
             @click="openAddAccount({ card })"
@@ -70,38 +72,48 @@
           <li
             v-for="mapping in card.mappings"
             :key="mapping.id"
-            class="flex items-center gap-2 py-2 first:pt-0 last:pb-0"
+            class="flex flex-col gap-2 py-2 first:pt-0 last:pb-0 @lg/integrations:flex-row @lg/integrations:items-center"
             data-testid="card-link-account-row"
           >
-            <span
-              class="border-border text-muted-foreground shrink-0 rounded-[5px] border px-1.5 py-px text-[10.5px] font-bold tracking-wider"
-              data-testid="card-link-currency"
-            >
-              {{ mapping.currencyCode ?? $t(`${LABEL_ROOT}.defaultChip`) }}
-            </span>
-            <span class="text-muted-foreground min-w-0 flex-1 truncate text-sm" data-testid="card-link-account-name">
-              {{ accountName({ accountId: mapping.accountId }) }}
-            </span>
+            <div class="flex min-w-0 flex-1 items-center gap-2">
+              <span class="flex shrink-0 items-center gap-1.5">
+                <span :class="CHIP_CLASSES" data-testid="card-link-currency">
+                  {{ mapping.currencyCode ?? $t(`${LABEL_ROOT}.defaultChip`) }}
+                </span>
+                <span
+                  v-if="mapping.currencyCode === null && accountCurrency({ accountId: mapping.accountId })"
+                  :class="CHIP_CLASSES"
+                  data-testid="card-link-default-currency"
+                >
+                  {{ accountCurrency({ accountId: mapping.accountId }) }}
+                </span>
+              </span>
+              <span class="text-muted-foreground min-w-0 flex-1 truncate text-sm" data-testid="card-link-account-name">
+                {{ accountName({ accountId: mapping.accountId }) }}
+              </span>
+            </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              :aria-label="$t(`${LABEL_ROOT}.editAria`, { name: rowName({ mapping }) })"
-              data-testid="card-link-edit"
-              @click="openEdit({ mapping })"
-            >
-              {{ $t(`${LABEL_ROOT}.edit`) }}
-            </Button>
-            <Button
-              variant="soft-destructive"
-              size="sm"
-              :aria-label="$t(`${LABEL_ROOT}.deleteAria`, { name: rowName({ mapping }) })"
-              :disabled="isDeleting"
-              data-testid="card-link-delete"
-              @click="askToDelete({ mapping })"
-            >
-              {{ $t(`${LABEL_ROOT}.delete`) }}
-            </Button>
+            <div :class="cn('grid grid-cols-2 gap-2', ACTIONS_WIDTH)" data-testid="card-link-actions">
+              <Button
+                variant="outline"
+                size="sm"
+                :aria-label="$t(`${LABEL_ROOT}.editAria`, { name: rowName({ mapping }) })"
+                data-testid="card-link-edit"
+                @click="openEdit({ mapping })"
+              >
+                {{ $t(`${LABEL_ROOT}.edit`) }}
+              </Button>
+              <Button
+                variant="soft-destructive"
+                size="sm"
+                :aria-label="$t(`${LABEL_ROOT}.deleteAria`, { name: rowName({ mapping }) })"
+                :disabled="isDeleting"
+                data-testid="card-link-delete"
+                @click="askToDelete({ mapping })"
+              >
+                {{ $t(`${LABEL_ROOT}.delete`) }}
+              </Button>
+            </div>
           </li>
         </ul>
 
@@ -144,6 +156,7 @@ import ResponsiveAlertDialog from '@/components/common/responsive-alert-dialog.v
 import { Button } from '@/components/lib/ui/button';
 import { Callout } from '@/components/lib/ui/callout';
 import { useInvalidatingMutation } from '@/composable/data-queries/use-invalidating-mutation';
+import { cn } from '@/lib/utils';
 import { useAccountsStore } from '@/stores/accounts';
 import type { CardMappingDto } from '@bt/shared/types';
 import { CreditCardIcon, PlusIcon } from '@lucide/vue';
@@ -159,6 +172,14 @@ defineOptions({
 });
 
 const LABEL_ROOT = 'settings.integrations.iosAutomation.cardLinks';
+
+/**
+ * One width for the Edit and Delete pair of a row and for the card's Add account button, so the
+ * button above lines up with the pair below on a wide container; both fill the row on a narrow one.
+ */
+const ACTIONS_WIDTH = 'w-full @lg/integrations:w-52 @lg/integrations:shrink-0';
+const CHIP_CLASSES =
+  'border-border text-muted-foreground shrink-0 rounded-[5px] border px-1.5 py-px text-[10.5px] font-bold tracking-wider';
 
 const { t } = useI18n({ useScope: 'global' });
 const accountsStore = useAccountsStore();
@@ -187,6 +208,9 @@ const rowName = ({ mapping }: { mapping: CardMappingDto }) =>
 
 const accountName = ({ accountId }: { accountId: CardMappingDto['accountId'] }) =>
   accountsStore.accountsRecord?.[accountId]?.name ?? t(`${LABEL_ROOT}.accountMissing`);
+
+const accountCurrency = ({ accountId }: { accountId: CardMappingDto['accountId'] }): string | null =>
+  accountsStore.accountsRecord?.[accountId]?.currencyCode ?? null;
 
 const { mutateAsync: remove, isPending: isDeleting } = useInvalidatingMutation({
   mutationFn: (mapping: CardMappingDto) => deleteCardMapping({ id: mapping.id }),

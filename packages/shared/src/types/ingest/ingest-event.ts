@@ -87,6 +87,8 @@ export interface NotificationSourceDto {
   counters: NotificationSourceCounters;
   lastSeenAt: string | null;
   createdAt: string;
+  /** Set on the answer of an edit: how many waiting payments of this source were put back through the pipeline. */
+  releasedCount?: number;
 }
 
 /** The modes a user may set; `auto` is only ever the starting mode of Wallet and the known banks. */

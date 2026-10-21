@@ -76,6 +76,11 @@ export interface CardMappingDto {
   currencyCode: string | null;
   accountId: RecordId;
   createdAt: string;
+  /**
+   * Set on the answer of a create or edit: how many waiting notification payments of this card were
+   * put back through the pipeline because the card now has a default account.
+   */
+  releasedCount?: number;
 }
 
 /** A card's last digits as a notification states them. */
@@ -225,6 +230,8 @@ export const NOTIFICATION_PARK_REASONS = [
   'aiLimitReached',
   'ownTransfer',
   'lowConfidence',
+  /** The model read an amount the notification does not print. */
+  'unverifiedParse',
 ] as const;
 
 export type NotificationParkReason = (typeof NOTIFICATION_PARK_REASONS)[number];
@@ -256,7 +263,15 @@ export interface CardPaymentRequestDto {
   reason: IngestRequestReason | null;
   /** The line the shortcut showed (or would have shown) for this request. */
   summary: string | null;
+  /**
+   * The card the payment names: its Wallet card name, else for a notification that shows only digits the
+   * source and the digits ("Raiffeisen •1258"), so the card can be linked like a Wallet one.
+   */
   cardLabel: string | null;
+  /** The last digits of the card or account a notification names. */
+  cardLastDigits: string | null;
+  /** For a notification parked on its account: the account the server would suggest on the inbox card. */
+  accountGuessId: RecordId | null;
   merchant: string | null;
   /** The amount exactly as the client sent it, e.g. `"47,00 GEL"`. */
   amountText: string | null;
@@ -302,6 +317,8 @@ export interface RetryCardPaymentRequestPayload {
 export interface UnlinkedCardDto {
   cardLabel: string;
   count: number;
+  /** The digits the waiting payments name, to pre-fill the link. */
+  lastDigits: string | null;
 }
 
 /** An amount in a currency, as a correction shows it. */

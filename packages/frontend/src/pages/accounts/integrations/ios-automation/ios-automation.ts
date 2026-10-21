@@ -189,6 +189,7 @@ const WAITING_REASONS: ReadonlyArray<NonNullable<CardPaymentRequestDto['reason']
   'ownTransfer',
   'lowConfidence',
   'holdReleased',
+  'unverifiedParse',
 ];
 const IGNORED_REASONS: ReadonlyArray<NonNullable<CardPaymentRequestDto['reason']>> = [
   'declined',
@@ -204,6 +205,7 @@ const INBOX_CARD_REASONS: ReadonlyArray<NonNullable<CardPaymentRequestDto['reaso
   'sourceNotApproved',
   'ownTransfer',
   'lowConfidence',
+  'unverifiedParse',
 ];
 
 /** i18n key that explains why a request is in its state, or `null` when it has no reason. */
@@ -239,7 +241,8 @@ export const selectRequestsForCard = ({
   return requests.filter(
     (request) =>
       request.status === 'parked' &&
-      request.reason === 'unknownCard' &&
+      // A tap parks on its card, a notification on its account; both name the card they waited on.
+      (request.reason === 'unknownCard' || request.reason === 'unknownAccount') &&
       request.cardLabel !== null &&
       normalizeCardLabel({ label: request.cardLabel }) === target,
   );

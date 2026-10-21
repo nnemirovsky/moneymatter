@@ -171,6 +171,7 @@
           "noDefault": "No default account. Payments in a currency without an account of its own wait until you add one."
         },
         "unlinked": {
+          "released": "{count} waiting payment is being logged. | {count} waiting payments are being logged.",
           "title": "Cards without a link",
           "description": "These cards sent payments that are waiting for a link.",
           "loadError": "Could not load the unlinked cards.",
@@ -213,6 +214,7 @@
             "ownTransfer": "This looks like a transfer between your own accounts. Log it anyway, or settle it in the inbox.",
             "lowConfidence": "MoneyMatter is not sure this is a payment. Log it if it is, or dismiss it.",
             "holdReleased": "A hold and its release cancelled each other out, so nothing was logged.",
+            "unverifiedParse": "The amount MoneyMatter read is not in the notification text. Check it, then log it or dismiss it.",
             "ignored": {
               "declined": "Read as a declined payment, so nothing was logged.",
               "security": "Read as a security message, such as a code, so nothing was logged.",
@@ -329,6 +331,9 @@
           "empty": "No sources yet. They appear after the first notification arrives.",
           "unknownApp": "Unknown app",
           "sender": "From {sender}",
+          "logTo": "Log to",
+          "released": "{count} waiting payment is being logged on this account. | {count} waiting payments are being logged on this account.",
+          "logToPlaceholder": "Ask me each time",
           "modes": {
             "auto": "Trusted",
             "pending": "Waiting",

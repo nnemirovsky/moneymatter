@@ -4,6 +4,7 @@ import { logger } from '@js/utils/logger';
 import { suggestShortBalanceCorrection } from './corrections/suggest-short-balance-correction';
 import { judgeAfterCommit } from './dedup/judge-after-commit';
 import { suggestConversionPair } from './dedup/suggest-conversion-pair';
+import { suggestNoteAfterCommit } from './note/suggest-note-after-commit';
 
 /**
  * The follow-ups of a payment that was just logged, after its transaction committed. Each only stores
@@ -12,7 +13,8 @@ import { suggestConversionPair } from './dedup/suggest-conversion-pair';
  *
  * - a short per-currency balance: which other balance of the card most likely paid;
  * - a currency conversion: the other leg of an own-account conversion, to link as a transfer;
- * - the AI judge: another row of the account that probably records the same payment.
+ * - the AI judge: another row of the account that probably records the same payment;
+ * - the note: when the payee's past notes are mixed, the one the AI picks for this payment.
  */
 export const afterPaymentLogged = async ({
   userId,
@@ -31,6 +33,12 @@ export const afterPaymentLogged = async ({
     await suggestConversionPair({ userId, transactionId });
   } catch (error) {
     logger.error({ message: 'Failed to look for a currency-conversion pair', error: error as Error });
+  }
+
+  try {
+    await suggestNoteAfterCommit({ userId, transactionId });
+  } catch (error) {
+    logger.error({ message: 'Failed to suggest the note of a logged payment', error: error as Error });
   }
 
   // The judge never throws: it logs its own failures.

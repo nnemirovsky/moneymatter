@@ -20,6 +20,7 @@ import { Op, QueryTypes } from 'sequelize';
 import { assertUsableAccount } from '../usable-account';
 import { enqueueNotificationProcessing } from './notification-queue';
 import { UNCLASSIFIED_PARK_REASONS } from './stored-parse';
+import { rerunWaitingSiblings } from './waiting-siblings';
 
 /** The app a notification came from, as the device reported it. */
 interface NotificationApp {
@@ -190,12 +191,16 @@ const updateNotificationSourceImpl = async ({
   });
 
   let releasedRequestIds: RecordId[] = [];
+  // A default account answers the payments that waited on this source's account.
+  const releasedCount = defaultAccountId
+    ? await rerunWaitingSiblings({ userId, match: { kind: 'source', sourceId: source.id } })
+    : 0;
   if (mode === 'approved') releasedRequestIds = await releaseHeldRequests({ userId, sourceId: source.id });
   if (mode === 'muted') await deleteHeldRequests({ userId, sourceId: source.id });
   // The question "treat this as a payment source?" has its answer; a card still asking it closes.
   if (mode === 'approved' || mode === 'muted') await resolveCardsElsewhere({ proposalIds: [source.proposalId] });
 
-  return { source: toSourceDto({ source }), releasedRequestIds };
+  return { source: { ...toSourceDto({ source }), ...(releasedCount && { releasedCount }) }, releasedRequestIds };
 };
 
 const updateNotificationSourceInTransaction = withTransaction(updateNotificationSourceImpl);

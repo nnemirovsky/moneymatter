@@ -46,6 +46,9 @@ type JudgeAnswer = { matches: { id: string; confidence: number; reason: string |
 /** What the mocked model answers when a tap's merchant is equally close to several payees: one candidate's id, or none. */
 type PayeePickAnswer = { candidateId: string | null } | 'fail';
 
+/** What the mocked model answers when it picks a logged payment's note from the payee's past notes. */
+type NotePickAnswer = { candidateId: string | null } | 'fail';
+
 /**
  * Answers `notificationParsing` calls over MSW. Every call to the model that carries a notification
  * is passed to `answer` with its prompt; any other call to the endpoint (a categorization the logged
@@ -53,7 +56,8 @@ type PayeePickAnswer = { candidateId: string | null } | 'fail';
  * is optional: without it the model answers nothing usable and the deterministic suggestion stands.
  * A duplicate-judge prompt is answered by `judge`, optional the same way: without it the judge
  * finds nothing usable and raises no suggestion. A payee-pick prompt (a tap whose merchant is equally close
- * to several payees) is answered by `payeePick`, optional too: without it the model picks none.
+ * to several payees) is answered by `payeePick`, and a note-pick prompt (a payee with mixed past notes) by
+ * `notePick`, both optional too: without them the model picks none.
  * Returns the prompts the parser sent, in order.
  */
 export const mockNotificationParsing = ({
@@ -64,6 +68,8 @@ export const mockNotificationParsing = ({
   judgePrompts = [],
   payeePick,
   payeePickPrompts = [],
+  notePick,
+  notePickPrompts = [],
 }: {
   answer: (args: { prompt: string; call: number }) => NotificationAnswer;
   correction?: (args: { prompt: string }) => CorrectionAnswer;
@@ -75,6 +81,9 @@ export const mockNotificationParsing = ({
   payeePick?: (args: { prompt: string }) => PayeePickAnswer;
   /** Collects the payee-pick prompts the model was sent. */
   payeePickPrompts?: string[];
+  notePick?: (args: { prompt: string }) => NotePickAnswer;
+  /** Collects the note-pick prompts the model was sent. */
+  notePickPrompts?: string[];
 }): string[] => {
   const prompts: string[] = [];
 
@@ -112,6 +121,16 @@ export const mockNotificationParsing = ({
         }
 
         return geminiAnswer({ text: JSON.stringify(judged) });
+      }
+
+      if (prompt.includes('NOTE PICK')) {
+        notePickPrompts.push(prompt);
+        const picked = notePick?.({ prompt }) ?? { candidateId: null };
+        if (picked === 'fail') {
+          return HttpResponse.json({ error: { code: 500, message: 'boom', status: 'INTERNAL' } }, { status: 500 });
+        }
+
+        return geminiAnswer({ text: JSON.stringify(picked) });
       }
 
       if (prompt.includes('PAYEE PICK')) {

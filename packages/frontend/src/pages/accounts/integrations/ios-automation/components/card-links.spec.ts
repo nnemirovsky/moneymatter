@@ -9,7 +9,7 @@ import CardLinks from './card-links.vue';
 const { mockGetMappings, mockDeleteMapping, mockAccountsStore } = vi.hoisted(() => ({
   mockGetMappings: vi.fn(),
   mockDeleteMapping: vi.fn(),
-  mockAccountsStore: { accountsRecord: {} as Record<string, { name: string }> },
+  mockAccountsStore: { accountsRecord: {} as Record<string, { name: string; currencyCode?: string }> },
 }));
 
 vi.mock('@/api/ingest', () => ({ getCardMappings: mockGetMappings, deleteCardMapping: mockDeleteMapping }));
@@ -88,6 +88,36 @@ describe('CardLinks', () => {
     expect(rows(wrapper)[0]!.get('[data-testid="card-link-account-name"]').text()).toBe('TBC main');
     expect(rows(wrapper)[1]!.get('[data-testid="card-link-account-name"]').text()).toBe('Cash GEL');
     expect(rows(wrapper)[0]!.get('[data-testid="card-link-currency"]').text()).toBe('Default');
+  });
+
+  it("shows the currency of the default row's account next to its Default chip", async () => {
+    mockAccountsStore.accountsRecord = {
+      'account-1': { name: 'TBC main', currencyCode: 'GEL' },
+      'account-2': { name: 'Cash USD', currencyCode: 'USD' },
+    };
+    const wrapper = await mountCardLinks([
+      makeMapping(),
+      makeMapping({ id: 'usd' as RecordId, currencyCode: 'USD', accountId: 'account-2' as RecordId }),
+    ]);
+
+    const [defaultRow, usdRow] = accountRows(rows(wrapper)[0]!);
+    expect(defaultRow!.get('[data-testid="card-link-currency"]').text()).toBe('Default');
+    expect(defaultRow!.get('[data-testid="card-link-default-currency"]').text()).toBe('GEL');
+    expect(usdRow!.find('[data-testid="card-link-default-currency"]').exists()).toBe(false);
+  });
+
+  it('gives the Add account button and the Edit and Delete pair the same width on a wide container', async () => {
+    const wrapper = await mountCardLinks([makeMapping()]);
+
+    const width = (classes: string[]) => classes.filter((name) => name.includes('w-52'));
+    const addClasses = wrapper.get('[data-testid="card-link-add-account"]').classes();
+    const actionsClasses = wrapper.get('[data-testid="card-link-actions"]').classes();
+
+    expect(width(addClasses)).toEqual(['@lg/integrations:w-52']);
+    expect(width(actionsClasses)).toEqual(width(addClasses));
+    // On a narrow container both fill the row, stacked under the card name.
+    expect(addClasses).toContain('w-full');
+    expect(actionsClasses).toContain('w-full');
   });
 
   describe('a card in several currencies', () => {

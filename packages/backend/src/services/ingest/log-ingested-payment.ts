@@ -21,6 +21,8 @@ import { QueryTypes } from 'sequelize';
 import { CardPaymentRateUnavailableError } from './card-payment/rate-unavailable-error';
 import type { IngestSlot, IngestSourceEntry } from './dedup/source-slots';
 import type { StoredBalanceAfter } from './event/balance-authority';
+import { loadNoteSuggestion } from './note/load-note-suggestion';
+import { offsetMinutesOf } from './note/note-history';
 
 /** The `externalData.cardPayment` marker both pipelines write: bank sync settles a plan that carries it. */
 interface CardPaymentMarker {
@@ -61,22 +63,39 @@ interface LogIngestedPaymentParams {
 }
 
 /**
- * The payee, when it was created while this request was processed: its merchant made it. The owner's
- * correction of the payee folds such a payee into the one they chose.
+ * What the payee brings to the row: the note the owner's past payments there suggest (see
+ * `suggestNoteFromHistory`; one the AI must pick is left to the follow-up), and whether this request's
+ * merchant created the payee, which the owner's correction of the payee folds into the one they chose.
  */
-const payeeCreatedByRequest = async ({
+const readPayeeContext = async ({
+  userId,
   payeeId,
   requestId,
+  merchant,
+  time,
 }: {
+  userId: number;
   payeeId: string;
   requestId: RecordId;
-}): Promise<string | null> => {
+  merchant: string;
+  time: Date;
+}): Promise<{ note: string | null; createdPayeeId: string | null }> => {
   const [payee, request] = await Promise.all([
     Payees.findByPk(payeeId, { attributes: ['createdAt'] }),
-    IngestRequests.findByPk(requestId, { attributes: ['createdAt'] }),
+    IngestRequests.findByPk(requestId, { attributes: ['createdAt', 'payload'] }),
   ]);
+  const suggestion = await loadNoteSuggestion({
+    ownerUserId: userId,
+    payeeId,
+    merchant,
+    time,
+    offsetMinutes: offsetMinutesOf({ time: (request?.payload as { time?: unknown } | null)?.time }),
+  });
 
-  return payee && request && payee.createdAt >= request.createdAt ? payeeId : null;
+  return {
+    note: suggestion.kind === 'note' ? suggestion.note : null,
+    createdPayeeId: payee && request && payee.createdAt >= request.createdAt ? payeeId : null,
+  };
 };
 
 /**
@@ -89,9 +108,9 @@ const payeeCreatedByRequest = async ({
  * - `ingest.balanceBefore` is what a debit's account held before it (the correction suggestion for a
  *   short per-currency balance starts from it); `ingest.sources[]` lists every request that told of
  *   the payment, each with the dedup slot it fills.
- * - The note is empty when a payee names the merchant: the payee says it already, and the raw spelling
- *   stays in the `cardPayment` marker. A row without a payee keeps the merchant as its note, so the
- *   owner still sees where the money went.
+ * - With a payee, the note is the one the owner's past payments there suggest, else empty: never the
+ *   merchant, which the payee names already and the `cardPayment` marker keeps verbatim. A row without
+ *   a payee keeps the merchant as its note, so the owner still sees where the money went.
  * - `ingest.systemNote` is the note the pipeline wrote and `ingest.systemCategoryId` the category it
  *   ended up with when no rule or AI stamped one, so a later merge can tell the pipeline's own values
  *   from the owner's edits. `ingest.createdPayeeId` names a payee this payment's merchant created, which
@@ -137,8 +156,9 @@ export const logIngestedPayment = async ({
   // What the account held before this payment: a short balance on a per-currency account is what the
   // correction suggestion starts from.
   const accountBefore = await Accounts.findOne({ where: { id: account.id }, attributes: ['currentBalance'] });
-  const note = payeeId ? null : merchant;
-  const createdPayeeId = payeeId ? await payeeCreatedByRequest({ payeeId, requestId }) : null;
+  const { note, createdPayeeId } = payeeId
+    ? await readPayeeContext({ userId, payeeId, requestId, merchant, time })
+    : { note: merchant, createdPayeeId: null };
 
   let transaction: Awaited<ReturnType<typeof createTransaction>>[0];
   try {

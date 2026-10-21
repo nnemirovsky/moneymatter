@@ -33,6 +33,12 @@ describe('buildNotificationSystemPrompt', () => {
     expect(prompt).toContain('{ newName }');
   });
 
+  it('asks for digits exactly as printed, never inferred from other numbers', () => {
+    expect(prompt).toContain(
+      'Copy digits exactly as printed; never infer card digits from phone numbers, balances, dates or reference numbers.',
+    );
+  });
+
   it('ignores legal forms and typos, and tells look-alike candidates apart by their usual categories', () => {
     expect(prompt).toContain('legal forms ("LTD", "LLC", "Company", "შპს", "ООО")');
     expect(prompt).toContain('small typos');

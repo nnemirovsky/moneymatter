@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals
 import { categorizationQueue } from '@services/ai-categorization/categorization-queue';
 import { CATEGORIZATION_SCOPE } from '@services/ai-categorization/categorization-scope';
 import * as helpers from '@tests/helpers';
+import { confirmCardOf } from '@tests/helpers/ingest-cards';
 import * as ingestHelpers from '@tests/helpers/ingest-tokens';
 import { VALID_GEMINI_API_KEY, createGeminiMock } from '@tests/mocks/gemini/mock-api';
 import { getLunchFlowBalanceMock, getLunchFlowTransactionsMock } from '@tests/mocks/lunchflow/mock-api';
@@ -158,6 +159,23 @@ describe('card payment AI categorization', () => {
     const replay = await ingest({ secret, overrides: { idempotencyKey: key } });
     expect(replay.duplicate).toBe(true);
     expect(replay.summary).toMatch(/ → Coffee$/);
+  }, 60_000);
+
+  it('brings the confirm card up to date when the AI category lands after the card was posted', async () => {
+    enableAi();
+    cardPaymentTimings.aiWaitBudgetMs = 400;
+    const coffee = await createCategory(AI_CATEGORY);
+    aiAnswers({ delayMs: 2_500 });
+    const { secret } = await linkCard();
+
+    const logged = await ingest({ secret });
+    const categoryOnCard = async () =>
+      (await confirmCardOf({ transactionId: logged.transactionId })).fields.find((field) => field.path === 'categoryId')
+        ?.value;
+    expect(await categoryOnCard()).toBe(await userDefaultCategoryId());
+
+    await waitForAiCategory(logged);
+    await until(async () => (await categoryOnCard()) === coffee.id, { timeout: 20_000, interval: 200 });
   }, 60_000);
 
   it('queues nothing and answers "Uncategorized" when no AI is configured', async () => {
