@@ -3,7 +3,6 @@ import SelectField from '@/components/fields/select-field.vue';
 import { useAiConnectionModels } from '@/composable/data-queries/use-ai-connection-models';
 import { type AIConnectionInfo } from '@bt/shared/types';
 import { computed, onBeforeUnmount, watch } from 'vue';
-import { useI18n } from 'vue-i18n';
 
 import {
   type ConnectionModelOption,
@@ -23,8 +22,6 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{ select: [modelId: string | null]; 'update:hasChoice': [hasChoice: boolean] }>();
-
-const { t } = useI18n();
 
 const { liveModels, isLoadingLiveModels } = useAiConnectionModels({
   params: () => ({
@@ -51,8 +48,7 @@ const hasChoice = computed(() => options.value.length > 1 || isLoadingLiveModels
 watch(hasChoice, (value) => emit('update:hasChoice', value), { immediate: true });
 onBeforeUnmount(() => emit('update:hasChoice', false));
 
-const formatOption = (option: ConnectionModelOption) =>
-  option.kind === 'default' ? t('ai.connectionModel.default', { model: option.name }) : option.name;
+const formatOption = (option: ConnectionModelOption) => option.name;
 
 const onSelect = (option: ConnectionModelOption | null) => {
   if (!option) return;
@@ -75,6 +71,14 @@ const onSelect = (option: ConnectionModelOption | null) => {
   >
     <template #trigger="{ label: triggerLabel }">
       <span class="block truncate" :title="triggerLabel">{{ triggerLabel }}</span>
+    </template>
+    <template #item="{ item, label: itemLabel }">
+      <span class="flex items-baseline gap-2">
+        <span>{{ itemLabel }}</span>
+        <span v-if="item.kind === 'default'" class="text-muted-foreground text-xs">
+          {{ $t('ai.connectionModel.defaultTag') }}
+        </span>
+      </span>
     </template>
   </SelectField>
 </template>
