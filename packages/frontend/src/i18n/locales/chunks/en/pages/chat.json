@@ -347,6 +347,9 @@
         "stale": "Your data changed after this was proposed. Refresh the card to see the current version.",
         "resolvedElsewhere": "Settled somewhere else, so this item is closed."
       },
+      "statusBadge": {
+        "resolvedElsewhere": "Closed"
+      },
       "actions": {
         "approve": "Approve",
         "approving": "Approving…",

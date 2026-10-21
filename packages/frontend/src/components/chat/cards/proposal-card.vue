@@ -3,7 +3,7 @@ import ResponsiveAlertDialog from '@/components/common/responsive-alert-dialog.v
 import TextareaField from '@/components/fields/textarea-field.vue';
 import { Button } from '@/components/lib/ui/button';
 import { Callout } from '@/components/lib/ui/callout';
-import { StatusBadge } from '@/components/lib/ui/status-badge';
+import { StatusBadge, type Variant as StatusBadgeVariant } from '@/components/lib/ui/status-badge';
 import { useNotificationCenter } from '@/components/notification-center';
 import { useChatCardActions } from '@/composable/data-queries/chat';
 import { ApiErrorResponseError } from '@/js/errors';
@@ -81,16 +81,17 @@ const KIND_ICONS: Record<ChatCardKind, Component> = {
   action: ZapIcon,
 };
 
-const STATUS_BADGE: Record<ChatProposalStatus, 'success' | 'destructive' | 'warning' | 'info'> = {
+// The accent marks what waits on the owner; a card that ended without a change is grey.
+const STATUS_BADGE: Record<ChatProposalStatus, StatusBadgeVariant> = {
   pending: 'info',
   applying: 'info',
   applied: 'success',
-  rejected: 'info',
+  rejected: 'destructive',
   failed: 'destructive',
   stale: 'warning',
-  blocked: 'info',
-  superseded: 'info',
-  expired: 'info',
+  blocked: 'neutral',
+  superseded: 'neutral',
+  expired: 'neutral',
   unknown: 'warning',
 };
 
@@ -134,6 +135,14 @@ const cannotApplyText = computed(() =>
 
 const title = computed(() => titleText({ title: props.card.title }));
 const statusText = computed(() => keyText({ key: `chat.cards.status.${props.card.status}` }) ?? props.card.status);
+// A record settled outside the card closed it: the owner rejected nothing, so the badge says so in grey.
+const isResolvedElsewhere = computed(() => props.card.statusReason === RESOLVED_ELSEWHERE);
+const badgeText = computed(() =>
+  isResolvedElsewhere.value ? t('chat.cards.statusBadge.resolvedElsewhere') : statusText.value,
+);
+const badgeVariant = computed<StatusBadgeVariant>(() =>
+  isResolvedElsewhere.value ? 'neutral' : STATUS_BADGE[props.card.status],
+);
 // A card whose record was settled outside it says so, instead of claiming the owner rejected it.
 const statusDetail = computed(() =>
   keyText({
@@ -325,7 +334,7 @@ const isDetailsOpen = ref(false);
         <component :is="KIND_ICONS[card.kind]" class="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
         <h3 class="text-sm font-semibold wrap-anywhere">{{ title }}</h3>
       </div>
-      <StatusBadge :variant="STATUS_BADGE[card.status]">{{ statusText }}</StatusBadge>
+      <StatusBadge :variant="badgeVariant" data-testid="card-status">{{ badgeText }}</StatusBadge>
     </header>
 
     <p v-if="statusDetail && !isPending && card.status !== 'stale'" class="text-muted-foreground text-sm">

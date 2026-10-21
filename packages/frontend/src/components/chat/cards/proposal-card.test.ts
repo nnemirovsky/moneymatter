@@ -532,6 +532,34 @@ describe('ProposalCard', () => {
     });
   });
 
+  describe('the status badge', () => {
+    const badge = (wrapper: ReturnType<typeof mountCard>) => wrapper.find('[data-testid="card-status"]');
+
+    it.each([
+      ['pending', 'Waiting for you', 'info'],
+      ['applied', 'Applied', 'success'],
+      ['rejected', 'Rejected', 'destructive'],
+      ['failed', 'Failed', 'destructive'],
+      ['stale', 'Out of date', 'warning'],
+      ['expired', 'Expired', 'neutral'],
+    ] as const)('shows a %s card as "%s" in the %s colour', (status, text, variant) => {
+      const wrapper = mountCard({ card: createCard({ status }) });
+
+      expect(badge(wrapper).text()).toBe(text);
+      expect(badge(wrapper).attributes('data-variant')).toBe(variant);
+    });
+
+    it('shows a card settled somewhere else as Closed in grey, not as Rejected', () => {
+      const wrapper = mountCard({
+        card: createCard({ status: 'rejected', statusReason: 'resolvedElsewhere' }),
+        inbox: true,
+      });
+
+      expect(badge(wrapper).text()).toBe('Closed');
+      expect(badge(wrapper).attributes('data-variant')).toBe('neutral');
+    });
+  });
+
   describe('rejecting', () => {
     it('rejects the card', async () => {
       vi.mocked(rejectChatProposal).mockResolvedValue(actionResponse({ card: createCard({ status: 'rejected' }) }));
