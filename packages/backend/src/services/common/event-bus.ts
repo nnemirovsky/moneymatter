@@ -36,6 +36,12 @@ export const DOMAIN_EVENTS = {
    */
   INGEST_PAYMENT_UPDATED: 'ingest:payment-updated',
   /**
+   * Emitted after the commit of an AI categorization run that changed rows' categories, so a card that
+   * shows a category (the inbox's confirm card) can catch up.
+   * Payload: @type TransactionsAiCategorizedPayload
+   */
+  TRANSACTIONS_AI_CATEGORIZED: 'transactions:ai-categorized',
+  /**
    * Emitted after the commit of a notification request that parked: it waits for the owner and the
    * inbox posts its card (an unknown account, an own transfer, a doubtful read, a source to approve).
    * Payload: @type IngestRequestParkedPayload
@@ -59,6 +65,11 @@ export interface IngestPaymentLoggedPayload {
   /** The ingest request that produced the row. */
   requestId: string;
   pipeline: 'cardPayment' | 'notification';
+}
+
+export interface TransactionsAiCategorizedPayload {
+  userId: number;
+  transactionIds: string[];
 }
 
 export interface IngestPaymentUpdatedPayload {

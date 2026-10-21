@@ -75,7 +75,8 @@ describe('POST /ingest/card-payment', () => {
       expect(stored!.externalData.ingest).toMatchObject({
         pipeline: 'cardPayment',
         unconfirmed: true,
-        systemNote: MERCHANT,
+        // The payee names the merchant, so the pipeline wrote no note.
+        systemNote: '',
         systemCategoryId: expect.any(String),
       });
     });

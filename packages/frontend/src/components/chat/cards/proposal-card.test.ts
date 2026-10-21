@@ -568,6 +568,40 @@ describe('ProposalCard', () => {
       });
     });
 
+    it('sends an emptied note, which the server saves as no note', async () => {
+      vi.mocked(editChatProposal).mockResolvedValue(createCard({ revision: 2 }));
+      const wrapper = mountCard({ card: createCard() });
+
+      await wrapper.find('[data-testid="edit"]').trigger('click');
+      await wrapper.find('[data-testid="field-editor-note"] input').setValue('');
+      await wrapper.find('[data-testid="save-edit"]').trigger('click');
+      await flushPromises();
+
+      expect(firstArgsOf(editChatProposal)).toContainEqual({
+        proposalId: 'card-1',
+        payload: { revision: 1, args: { amount: 12.5, accountId: 'acc-1', categoryId: 'cat-1', note: '' } },
+      });
+    });
+
+    it('edits the note of an inbox confirm card that has none yet', async () => {
+      vi.mocked(editChatProposal).mockResolvedValue(createCard({ revision: 2 }));
+      const card = createCard({
+        toolName: 'confirm_ingest_payment',
+        fields: [fields.amount, { ...fields.note, value: '' }],
+      });
+      const wrapper = mountCard({ card });
+
+      await wrapper.find('[data-testid="edit"]').trigger('click');
+      await wrapper.find('[data-testid="field-editor-note"] input').setValue('Breakfast');
+      await wrapper.find('[data-testid="save-edit"]').trigger('click');
+      await flushPromises();
+
+      expect(firstArgsOf(editChatProposal)).toContainEqual({
+        proposalId: 'card-1',
+        payload: { revision: 1, args: { amount: 12.5, note: 'Breakfast' } },
+      });
+    });
+
     it('leaves edit mode without sending anything on cancel', async () => {
       const wrapper = mountCard({ card: createCard() });
 

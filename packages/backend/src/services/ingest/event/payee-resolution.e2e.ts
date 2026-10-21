@@ -5,6 +5,7 @@ import Transactions from '@models/transactions.model';
 import { RateLimitService } from '@services/common/rate-limit.service';
 import * as helpers from '@tests/helpers';
 import { enableServerModel, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
+import { approveCardAsIs, confirmCardOf } from '@tests/helpers/ingest-cards';
 import * as ingestHelpers from '@tests/helpers/ingest-tokens';
 import { mockNotificationParsing } from '@tests/helpers/notification-ai';
 import { randomUUID } from 'node:crypto';
@@ -29,10 +30,13 @@ const push = ({ merchant, amount = '43.60' }: { merchant: string; amount?: strin
 const answer = ({
   merchant,
   payee,
+  amount = '43.60',
 }: {
   merchant: string;
   payee: { candidateId: string | null; newName: string | null } | null;
-}) => ({ kind: 'debit' as const, amount: '43.60', currency: BASE, merchant, cardName: CARD, payee });
+  /** The amount the push prints: an amount it does not print parks the payment as unverified. */
+  amount?: string;
+}) => ({ kind: 'debit' as const, amount, currency: BASE, merchant, cardName: CARD, payee });
 
 const setUp = async () => {
   const account = await helpers.createAccount({ raw: true });
@@ -46,6 +50,12 @@ const payeeOf = async ({ requestId }: { requestId: RecordId }) => {
   const tx = await Transactions.findOne({ where: { id: request!.transactionId! } });
 
   return { request: request!, payeeId: tx!.payeeId };
+};
+
+/** The owner confirms the payment a request logged, as it is, on its inbox card. */
+const confirmAsIs = async ({ requestId }: { requestId: RecordId }) => {
+  const request = await IngestRequests.findOne({ where: { id: requestId } });
+  await approveCardAsIs({ card: await confirmCardOf({ transactionId: request!.transactionId! }) });
 };
 
 const aliasesOf = async ({ payeeId }: { payeeId: string }) =>
@@ -65,17 +75,23 @@ describe('payee resolution of a notification', () => {
     Object.assign(notificationTimings, DEFAULT_TIMINGS);
   });
 
-  it('learns the spelling as an alias, and the next one resolves by the alias without the model', async () => {
+  it('learns the spelling once the owner confirms the pick, and the next one resolves by the alias', async () => {
     const wolt = await helpers.createPayee({ payload: { name: 'Wolt' }, raw: true });
     mockNotificationParsing({
       answer: ({ call }) =>
         call === 1
           ? answer({ merchant: 'WOLT.COM TBILISI', payee: { candidateId: 'p1', newName: null } })
-          : answer({ merchant: 'WOLT.COM TBILISI', payee: { candidateId: null, newName: 'Something' } }),
+          : answer({
+              merchant: 'WOLT.COM TBILISI',
+              payee: { candidateId: null, newName: 'Something' },
+              amount: '44.60',
+            }),
     });
     const secret = await setUp();
 
     const first = await ingestHelpers.postIngestEvent({ secret, body: push({ merchant: 'WOLT.COM TBILISI' }) });
+    expect(await aliasesOf({ payeeId: wolt.id })).not.toContain('wolt com tbilisi');
+    await confirmAsIs({ requestId: first.body.response.requestId });
     const second = await ingestHelpers.postIngestEvent({
       secret,
       body: push({ merchant: 'WOLT.COM TBILISI', amount: '44.60' }),
@@ -89,7 +105,7 @@ describe('payee resolution of a notification', () => {
     expect((await helpers.listPayees({ raw: true })).map((payee) => payee.name)).toEqual(['Wolt']);
   });
 
-  it('creates a clean payee for a new business and keeps the raw spelling as its alias', async () => {
+  it('creates a clean payee for a new business and keeps the raw spelling as its alias once confirmed', async () => {
     mockNotificationParsing({
       answer: () => answer({ merchant: 'SP *COFFEE LAB', payee: { candidateId: null, newName: 'Coffee Lab' } }),
     });
@@ -102,6 +118,9 @@ describe('payee resolution of a notification', () => {
     const payees = await helpers.listPayees({ raw: true });
     expect(payees.map((payee) => payee.name)).toEqual(['Coffee Lab']);
     expect(payeeId).toBe(payees[0]!.id);
+    expect(await aliasesOf({ payeeId: payeeId! })).not.toContain('sp coffee lab');
+
+    await confirmAsIs({ requestId: res.body.response.requestId });
     expect(await aliasesOf({ payeeId: payeeId! })).toContain('sp coffee lab');
   });
 
@@ -120,7 +139,48 @@ describe('payee resolution of a notification', () => {
     expect(request.status).toBe('logged');
     expect(payeeId).toBe(wolt.id);
     expect((await helpers.listPayees({ raw: true })).map((payee) => payee.name)).toEqual(['Wolt']);
+
+    await confirmAsIs({ requestId: res.body.response.requestId });
     expect(await aliasesOf({ payeeId: wolt.id })).toContain('wolt tbilisi ge');
+  });
+
+  it('links a merchant a typo and a legal form away to the existing payee, whatever the model answers', async () => {
+    const nordCoffee = await helpers.createPayee({ payload: { name: 'Nord Coffee' }, raw: true });
+    mockNotificationParsing({
+      answer: () => answer({ merchant: 'NORD COFEE COMPANY LTD', payee: { candidateId: null, newName: 'Nord Cofee' } }),
+    });
+    const secret = await setUp();
+
+    const res = await ingestHelpers.postIngestEvent({ secret, body: push({ merchant: 'NORD COFEE COMPANY LTD' }) });
+
+    expect(res.body.response.outcome).toBe('logged');
+    const { payeeId } = await payeeOf({ requestId: res.body.response.requestId });
+    expect(payeeId).toBe(nordCoffee.id);
+    expect((await helpers.listPayees({ raw: true })).map((payee) => payee.name)).toEqual(['Nord Coffee']);
+    expect(await aliasesOf({ payeeId: nordCoffee.id })).not.toContain('nord cofee company ltd');
+    expect((await Transactions.findOne({ where: { payeeId: nordCoffee.id } }))!.note).toBeNull();
+  });
+
+  it('shows the model the categories its payee candidates usually get', async () => {
+    const secret = await setUp();
+    const account = await helpers.createAccount({ raw: true });
+    const barCafe = await helpers.addCustomCategory({ name: 'Bar, cafe', color: '#336699', raw: true });
+    const nordCoffee = await helpers.createPayee({ payload: { name: 'Nord Coffee' }, raw: true });
+    await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({
+        accountId: account.id,
+        payeeId: nordCoffee.id,
+        categoryId: barCafe.id,
+      }),
+      raw: true,
+    });
+    const prompts = mockNotificationParsing({
+      answer: () => answer({ merchant: 'NORD COFFEE', payee: { candidateId: 'p1', newName: null } }),
+    });
+
+    await ingestHelpers.postIngestEvent({ secret, body: push({ merchant: 'NORD COFFEE' }) });
+
+    expect(prompts[0]).toContain('id|name|known spellings|usual categories\np1|Nord Coffee||Bar, cafe');
   });
 
   it('creates no payee and no alias for a merchant on the ignored list, and still logs the payment', async () => {

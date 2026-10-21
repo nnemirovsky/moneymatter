@@ -28,7 +28,7 @@ import {
 } from './inbox-transitions';
 
 /** Park reasons whose request gets a card of its own; the others have no action the owner can take. */
-const REQUEST_CARD_REASONS = ['unknownAccount', 'ownTransfer', 'lowConfidence'];
+const REQUEST_CARD_REASONS = ['unknownAccount', 'ownTransfer', 'lowConfidence', 'unverifiedParse'];
 
 /**
  * Whether a parked notification request gets an inbox card for `reason`: its own card, or the card of
@@ -59,7 +59,13 @@ const buildConfirmArgs = ({
   const correction = openCorrectionOf({ tx });
   const accountId = correction ? correction.suggestedAccountId : tx.accountId;
   const amount = correction ? correction.estimatedAmount.amount : tx.amount.toNumber();
-  const baseline: ConfirmBaseline = { accountId, amount, payeeId: tx.payeeId ?? null, categoryId: tx.categoryId };
+  const baseline: ConfirmBaseline = {
+    accountId,
+    amount,
+    payeeId: tx.payeeId ?? null,
+    categoryId: tx.categoryId,
+    note: tx.note ?? '',
+  };
 
   return {
     args: {
@@ -68,6 +74,7 @@ const buildConfirmArgs = ({
       amount: baseline.amount,
       ...(baseline.payeeId && { payeeId: baseline.payeeId }),
       categoryId: baseline.categoryId,
+      note: baseline.note,
     },
     baseline,
   };
