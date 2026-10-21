@@ -122,9 +122,9 @@ test.describe('Chat panel', () => {
     expect(await panel.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
     // The model select names the model, so the connection is named alone; a label cut short keeps its full text.
     await expect(selects.nth(0)).toHaveText('My Claude Account');
-    await expect(selects.nth(1)).toContainText('Default (claude-haiku-5-5)');
+    await expect(selects.nth(1)).toHaveText('claude-haiku-5-5');
     await expect(selectLabel({ select: selects.nth(0) })).toHaveAttribute('title', 'My Claude Account');
-    await expect(selectLabel({ select: selects.nth(1) })).toHaveAttribute('title', /Default \(claude-haiku-5-5\)/);
+    await expect(selectLabel({ select: selects.nth(1) })).toHaveAttribute('title', 'claude-haiku-5-5');
 
     await panel.screenshot({ path: test.info().outputPath('panel-360.png') });
   });
