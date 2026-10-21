@@ -31,6 +31,8 @@ export interface StoredParse {
   accountOverrideId?: RecordId;
   /** The direction the owner chose on that card, when it differs from what the text said. */
   directionOverride?: 'debit' | 'credit';
+  /** The note the owner wrote on that card; an empty one is no note. Absent, the pipeline picks the note. */
+  noteOverride?: string;
 }
 
 /** The reasons a park leaves the notification unread: nothing was parsed, so the text stays. */

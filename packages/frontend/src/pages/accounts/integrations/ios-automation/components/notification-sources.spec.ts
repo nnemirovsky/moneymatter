@@ -40,7 +40,12 @@ vi.mock('@/components/notification-center', () => ({
 vi.mock('@/components/fields/account-select-field.vue', () => ({
   default: defineComponent({
     name: 'AccountSelectFieldStub',
-    props: { modelValue: { type: Object, default: null }, accounts: { type: Array, default: () => [] } },
+    props: {
+      modelValue: { type: Object, default: null },
+      accounts: { type: Array, default: () => [] },
+      noneLabel: { type: String, default: '' },
+      clearable: { type: Boolean, default: false },
+    },
     emits: ['update:modelValue'],
     setup:
       (props, { emit }) =>
@@ -48,6 +53,8 @@ vi.mock('@/components/fields/account-select-field.vue', () => ({
         h('div', { 'data-testid': 'account-select' }, [
           h('span', { 'data-testid': 'account-select-value' }, (props.modelValue as AccountModel | null)?.name ?? ''),
           h('span', { 'data-testid': 'account-select-count' }, String(props.accounts.length)),
+          h('span', { 'data-testid': 'account-select-none' }, props.noneLabel),
+          h('span', { 'data-testid': 'account-select-clearable' }, String(props.clearable)),
           ...(props.accounts as AccountModel[]).map((account) =>
             h('button', { 'data-testid': `pick-${account.id}`, onClick: () => emit('update:modelValue', account) }),
           ),
@@ -211,6 +218,22 @@ describe('NotificationSources', () => {
 
       expect(mockUpdate).toHaveBeenCalledWith({ id: 'source-1', defaultAccountId: RAIFFEISEN.id });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: VUE_QUERY_CACHE_KEYS.notificationSources });
+    });
+
+    it('offers "Ask me each time" as the option for no account, and the clear button only while one is set', async () => {
+      const { wrapper } = await mountSources({
+        sources: [makeSource({ defaultAccountId: RAIFFEISEN.id }), makeSource({ id: 'other' as RecordId })],
+      });
+
+      const picks = wrapper.findAll('[data-testid="account-select"]');
+      expect(picks.map((pick) => pick.get('[data-testid="account-select-none"]').text())).toEqual([
+        'Ask me each time',
+        'Ask me each time',
+      ]);
+      expect(picks.map((pick) => pick.get('[data-testid="account-select-clearable"]').text())).toEqual([
+        'true',
+        'false',
+      ]);
     });
 
     it('clears the default when the choice is cleared', async () => {

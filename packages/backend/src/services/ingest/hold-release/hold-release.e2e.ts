@@ -379,11 +379,11 @@ describe('a hold and its release', () => {
     expect(question!.status).toBe('pending');
     expect(await droppedNotices()).toHaveLength(0);
 
-    // The new row is still being categorized when the card is posted, so the card is refreshed first.
-    const fresh = await helpers.refreshChatProposal({ proposalId: question!.id, raw: true });
+    // The new row is still refined after the card is posted; the card follows it, so the first Approve works.
+    const current = await helpers.getChatProposal({ proposalId: question!.id, raw: true });
     const approved = await helpers.approveChatProposal({
-      proposalId: fresh.id,
-      payload: { revision: fresh.revision, confirmation: fresh.confirmation.phrase },
+      proposalId: current.id,
+      payload: { revision: current.revision, confirmation: current.confirmation.phrase },
     });
     expect(approved.statusCode).toBe(200);
     expect(await rows()).toHaveLength(0);

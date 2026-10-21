@@ -11,7 +11,7 @@ import {
 } from '@services/common/event-bus';
 import { Op, literal } from 'sequelize';
 
-import { postRequestCard, safely, syncConfirmCard, syncTransferCard } from './inbox-items';
+import { postRequestCard, refreshDropBothCards, safely, syncConfirmCard, syncTransferCard } from './inbox-items';
 
 const handlePaymentLogged = async ({
   userId,
@@ -24,6 +24,10 @@ const handlePaymentLogged = async ({
   await safely({
     what: 'post the transfer card',
     fn: () => syncTransferCard({ userId, transactionId: transactionId as RecordId }),
+  });
+  await safely({
+    what: 'refresh the drop-both card of the payment',
+    fn: () => refreshDropBothCards({ userId, transactionId: transactionId as RecordId }),
   });
 };
 
@@ -60,6 +64,10 @@ const handleAiCategorized = async ({ transactionIds }: TransactionsAiCategorized
     await safely({
       what: 'refresh the confirm card after the AI categorized the payment',
       fn: () => syncConfirmCard({ userId: row.userId!, transactionId: row.id as RecordId }),
+    });
+    await safely({
+      what: 'refresh the drop-both card after the AI categorized the payment',
+      fn: () => refreshDropBothCards({ userId: row.userId!, transactionId: row.id as RecordId }),
     });
   }
 };

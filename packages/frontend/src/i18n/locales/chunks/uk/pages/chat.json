@@ -584,6 +584,8 @@
         "note": "Чому він чекає",
         "account": "Записати на",
         "accountPlaceholder": "Оберіть рахунок",
+        "noteLabel": "Примітка",
+        "notePlaceholder": "Додайте примітку",
         "accountHint": "Спершу оберіть рахунок. Без нього нічого не записується.",
         "learnCard": "Наступні платежі {source} із карткою на {digits} підуть на {account}.",
         "learnCardNamed": "Наступні платежі з картки {card} підуть на {account}.",
