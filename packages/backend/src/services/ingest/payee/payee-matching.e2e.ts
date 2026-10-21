@@ -3,15 +3,18 @@ import { until } from '@common/helpers';
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { categorizationQueue } from '@services/ai-categorization/categorization-queue';
 import { RateLimitService } from '@services/common/rate-limit.service';
+import * as fuzzyMatcher from '@services/payees/fuzzy-matcher';
 import * as helpers from '@tests/helpers';
 import { enableServerModel, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
+import { approveCardAsIs, confirmCardOf, confirmCardWith } from '@tests/helpers/ingest-cards';
 import * as ingestHelpers from '@tests/helpers/ingest-tokens';
 import { mockNotificationParsing } from '@tests/helpers/notification-ai';
 import { subDays } from 'date-fns';
 import { randomUUID } from 'node:crypto';
 
+import * as merchantCore from './merchant-core';
+
 const CARD = 'TBC CARD VISA GOLD';
-const CONFIRM = 'confirm_ingest_payment';
 
 const linkCard = async () => {
   const account = await helpers.createAccount({ raw: true });
@@ -70,45 +73,6 @@ const payeeNames = async () => (await helpers.listPayees({ raw: true })).map((pa
 const aliasesOf = async ({ payeeId }: { payeeId: string }) =>
   ((await helpers.getPayeeById({ id: payeeId, raw: true })).aliases ?? []).map((alias) => alias.normalizedName);
 
-const confirmCardOf = async ({ transactionId }: { transactionId: RecordId }): Promise<ChatProposalCard> => {
-  const find = async () => {
-    const threads = (await helpers.listChatThreads({ raw: true })).threads.filter(
-      (thread) => thread.kind === 'automationInbox',
-    );
-    for (const thread of threads) {
-      const page = await helpers.getChatThread({ threadId: thread.id, limit: 100, raw: true });
-      const card = Object.values(page.cards).find(
-        (candidate) =>
-          candidate.toolName === CONFIRM &&
-          candidate.status === 'pending' &&
-          candidate.fields.some((field) => field.path === 'transactionId' && field.value === transactionId),
-      );
-      if (card) return card;
-    }
-
-    return null;
-  };
-
-  await until(async () => (await find()) !== null, { timeout: 20_000, interval: 150 });
-
-  return (await find())!;
-};
-
-/** Edits the confirm card like the owner does in the inbox, then approves it. */
-const confirmWith = async ({ card, changes }: { card: ChatProposalCard; changes: Record<string, unknown> }) => {
-  const edited = await helpers.editChatProposal({
-    proposalId: card.id,
-    payload: {
-      revision: card.revision,
-      args: { ...Object.fromEntries(card.fields.map((field) => [field.path, field.value])), ...changes },
-    },
-    raw: true,
-  });
-  const approved = await helpers.approveChatProposal({ proposalId: edited.id, payload: { revision: edited.revision } });
-
-  expect(approved.statusCode).toBe(200);
-};
-
 describe('payee matching of an automated payment', () => {
   useSelfHostWithoutServerAiKeys();
 
@@ -148,12 +112,46 @@ describe('payee matching of an automated payment', () => {
       expect(tx.categorizationMeta ?? null).toBeNull();
       expect(tx.note ?? null).toBeNull();
       expect(await payeeNames()).toEqual(['Nord Coffee']);
-      expect(await aliasesOf({ payeeId: nordCoffee.id })).toContain('nord cofee company ltd');
       // The payee's history settles the category, so the AI is not asked.
       expect(queueAdd).not.toHaveBeenCalled();
+      // A match the pipeline made on its own is a suggestion: no alias until the owner confirms it.
+      expect(await aliasesOf({ payeeId: nordCoffee.id })).not.toContain('nord cofee company ltd');
 
-      const next = await stored({ id: await tap({ secret, merchant: 'NORD COFEE COMPANY LTD', amount: '12.00' }) });
-      expect(next.payeeId).toBe(nordCoffee.id);
+      await approveCardAsIs({ card: await confirmCardOf({ transactionId }) });
+      expect(await aliasesOf({ payeeId: nordCoffee.id })).toContain('nord cofee company ltd');
+      const alias = (await helpers.getPayeeById({ id: nordCoffee.id, raw: true })).aliases!.find(
+        (entry) => entry.normalizedName === 'nord cofee company ltd',
+      );
+      expect(alias!.rawName).toBe('Nord Cofee Company Ltd');
+    });
+
+    it('maps the next identical merchant by its confirmed alias, without the matcher or the model', async () => {
+      enableServerModel();
+      const payeePickPrompts: string[] = [];
+      mockNotificationParsing({ answer: () => ({}), payeePickPrompts });
+      const { account, secret } = await linkCard();
+      const nordCoffee = await payeeWithHistory({ name: 'Nord Coffee', accountId: account.id, categoryIds: [] });
+      await payeeWithHistory({ name: 'Nord Coffea', accountId: account.id, categoryIds: [] });
+      const first = await tap({ secret, merchant: 'NORD COFFEX LTD' });
+      await confirmCardWith({
+        card: await confirmCardOf({ transactionId: first }),
+        changes: { payeeId: nordCoffee.id },
+      });
+      const coreMatch = jest.spyOn(merchantCore, 'matchMerchantCore');
+      const fuzzyMatch = jest.spyOn(fuzzyMatcher, 'fuzzyFindBestMatch');
+      const promptsBefore = payeePickPrompts.length;
+
+      try {
+        const next = await stored({ id: await tap({ secret, merchant: 'nord  coffex ltd', amount: '9.00' }) });
+
+        expect(next.payeeId).toBe(nordCoffee.id);
+        expect(coreMatch).not.toHaveBeenCalled();
+        expect(fuzzyMatch).not.toHaveBeenCalled();
+        expect(payeePickPrompts).toHaveLength(promptsBefore);
+      } finally {
+        coreMatch.mockRestore();
+        fuzzyMatch.mockRestore();
+      }
     });
 
     it('asks the AI to choose between equally close payees, showing their usual categories', async () => {
@@ -182,6 +180,10 @@ describe('payee matching of an automated payment', () => {
       expect(tx.categoryId).toBe(barCafe.id);
       expect(tx.note ?? null).toBeNull();
       expect(await payeeNames()).toEqual(['Nord Coffea', 'Nord Coffee']);
+      // The AI's pick is a suggestion too: the alias waits for the owner.
+      expect(await aliasesOf({ payeeId: nordCoffee.id })).not.toContain('nord coffex ltd');
+
+      await approveCardAsIs({ card: await confirmCardOf({ transactionId: tx.id }) });
       expect(await aliasesOf({ payeeId: nordCoffee.id })).toContain('nord coffex ltd');
     });
 
@@ -209,7 +211,7 @@ describe('payee matching of an automated payment', () => {
       const transactionId = await tap({ secret, merchant: 'SQ *BLUE DOOR 0042' });
       expect(await payeeNames()).toEqual(['Mama Kitchen', 'SQ *BLUE DOOR 0042']);
 
-      await confirmWith({ card: await confirmCardOf({ transactionId }), changes: { payeeId: kitchen.id } });
+      await confirmCardWith({ card: await confirmCardOf({ transactionId }), changes: { payeeId: kitchen.id } });
 
       expect((await stored({ id: transactionId })).payeeId).toBe(kitchen.id);
       expect(await payeeNames()).toEqual(['Mama Kitchen']);
@@ -242,7 +244,7 @@ describe('payee matching of an automated payment', () => {
       await helpers.createPayeeAlias({ payeeId: blueDoor.id, rawName: 'SQ *BLUE DOOR 0042', raw: true });
 
       const transactionId = await tap({ secret, merchant: 'SQ *BLUE DOOR 0042' });
-      await confirmWith({ card: await confirmCardOf({ transactionId }), changes: { payeeId: kitchen.id } });
+      await confirmCardWith({ card: await confirmCardOf({ transactionId }), changes: { payeeId: kitchen.id } });
 
       expect(await payeeNames()).toEqual(['Blue Door', 'Mama Kitchen']);
       expect(await aliasesOf({ payeeId: blueDoor.id })).toContain('sq blue door 0042');
@@ -261,7 +263,7 @@ describe('payee matching of an automated payment', () => {
         editable: { type: 'text' },
       });
 
-      await confirmWith({ card, changes: { note: 'Team breakfast' } });
+      await confirmCardWith({ card, changes: { note: 'Team breakfast' } });
 
       expect((await stored({ id: transactionId })).note).toBe('Team breakfast');
     });
@@ -274,7 +276,7 @@ describe('payee matching of an automated payment', () => {
       const card = await confirmCardOf({ transactionId });
       expect(card.fields.find((field) => field.path === 'note')?.value).toBe('NORD COFFEX LTD');
 
-      await confirmWith({ card, changes: { note: '' } });
+      await confirmCardWith({ card, changes: { note: '' } });
 
       expect((await stored({ id: transactionId })).note ?? null).toBeNull();
     });

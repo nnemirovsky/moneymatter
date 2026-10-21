@@ -5,6 +5,7 @@ import Transactions from '@models/transactions.model';
 import { RateLimitService } from '@services/common/rate-limit.service';
 import * as helpers from '@tests/helpers';
 import { enableServerModel, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
+import { approveCardAsIs, confirmCardOf } from '@tests/helpers/ingest-cards';
 import * as ingestHelpers from '@tests/helpers/ingest-tokens';
 import { mockNotificationParsing } from '@tests/helpers/notification-ai';
 import { randomUUID } from 'node:crypto';
@@ -48,6 +49,12 @@ const payeeOf = async ({ requestId }: { requestId: RecordId }) => {
   return { request: request!, payeeId: tx!.payeeId };
 };
 
+/** The owner confirms the payment a request logged, as it is, on its inbox card. */
+const confirmAsIs = async ({ requestId }: { requestId: RecordId }) => {
+  const request = await IngestRequests.findOne({ where: { id: requestId } });
+  await approveCardAsIs({ card: await confirmCardOf({ transactionId: request!.transactionId! }) });
+};
+
 const aliasesOf = async ({ payeeId }: { payeeId: string }) =>
   ((await helpers.getPayeeById({ id: payeeId, raw: true })).aliases ?? []).map((alias) => alias.normalizedName);
 
@@ -65,7 +72,7 @@ describe('payee resolution of a notification', () => {
     Object.assign(notificationTimings, DEFAULT_TIMINGS);
   });
 
-  it('learns the spelling as an alias, and the next one resolves by the alias without the model', async () => {
+  it('learns the spelling once the owner confirms the pick, and the next one resolves by the alias', async () => {
     const wolt = await helpers.createPayee({ payload: { name: 'Wolt' }, raw: true });
     mockNotificationParsing({
       answer: ({ call }) =>
@@ -76,6 +83,8 @@ describe('payee resolution of a notification', () => {
     const secret = await setUp();
 
     const first = await ingestHelpers.postIngestEvent({ secret, body: push({ merchant: 'WOLT.COM TBILISI' }) });
+    expect(await aliasesOf({ payeeId: wolt.id })).not.toContain('wolt com tbilisi');
+    await confirmAsIs({ requestId: first.body.response.requestId });
     const second = await ingestHelpers.postIngestEvent({
       secret,
       body: push({ merchant: 'WOLT.COM TBILISI', amount: '44.60' }),
@@ -89,7 +98,7 @@ describe('payee resolution of a notification', () => {
     expect((await helpers.listPayees({ raw: true })).map((payee) => payee.name)).toEqual(['Wolt']);
   });
 
-  it('creates a clean payee for a new business and keeps the raw spelling as its alias', async () => {
+  it('creates a clean payee for a new business and keeps the raw spelling as its alias once confirmed', async () => {
     mockNotificationParsing({
       answer: () => answer({ merchant: 'SP *COFFEE LAB', payee: { candidateId: null, newName: 'Coffee Lab' } }),
     });
@@ -102,6 +111,9 @@ describe('payee resolution of a notification', () => {
     const payees = await helpers.listPayees({ raw: true });
     expect(payees.map((payee) => payee.name)).toEqual(['Coffee Lab']);
     expect(payeeId).toBe(payees[0]!.id);
+    expect(await aliasesOf({ payeeId: payeeId! })).not.toContain('sp coffee lab');
+
+    await confirmAsIs({ requestId: res.body.response.requestId });
     expect(await aliasesOf({ payeeId: payeeId! })).toContain('sp coffee lab');
   });
 
@@ -120,6 +132,8 @@ describe('payee resolution of a notification', () => {
     expect(request.status).toBe('logged');
     expect(payeeId).toBe(wolt.id);
     expect((await helpers.listPayees({ raw: true })).map((payee) => payee.name)).toEqual(['Wolt']);
+
+    await confirmAsIs({ requestId: res.body.response.requestId });
     expect(await aliasesOf({ payeeId: wolt.id })).toContain('wolt tbilisi ge');
   });
 
@@ -136,7 +150,7 @@ describe('payee resolution of a notification', () => {
     const { payeeId } = await payeeOf({ requestId: res.body.response.requestId });
     expect(payeeId).toBe(nordCoffee.id);
     expect((await helpers.listPayees({ raw: true })).map((payee) => payee.name)).toEqual(['Nord Coffee']);
-    expect(await aliasesOf({ payeeId: nordCoffee.id })).toContain('nord cofee company ltd');
+    expect(await aliasesOf({ payeeId: nordCoffee.id })).not.toContain('nord cofee company ltd');
     expect((await Transactions.findOne({ where: { payeeId: nordCoffee.id } }))!.note).toBeNull();
   });
 

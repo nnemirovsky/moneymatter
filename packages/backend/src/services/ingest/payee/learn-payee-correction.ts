@@ -21,10 +21,11 @@ const isPayeeInUse = async ({ userId, payeeId }: { userId: number; payeeId: stri
   })) > 0;
 
 /**
- * The owner gave a payment the automation logged another payee: the merchant the payment printed is
- * that payee from now on, so the next payment there maps to it without a correction.
+ * The owner's word on the payee of a payment the automation logged, whether they confirmed the payee
+ * it suggested or chose another: the merchant the payment printed is that payee from now on, so the
+ * next payment there maps to it by the exact lookup, with no matching and no AI.
  *
- * - A spelling that names no payee yet becomes an alias of the chosen payee.
+ * - A spelling that names no payee yet becomes an alias of the payee, kept verbatim.
  * - A spelling that names the payee this payment's merchant created when it was logged (and nothing
  *   uses any more) folds that payee into the chosen one, the way merging payees does: its name and
  *   aliases move over and it is deleted.
@@ -45,7 +46,7 @@ export const learnPayeeCorrection = async ({
   previousPayeeId: string | null;
   payeeId: string | null;
 }): Promise<void> => {
-  if (!payeeId || payeeId === previousPayeeId || !isIngestTransaction({ externalData })) return;
+  if (!payeeId || !isIngestTransaction({ externalData })) return;
 
   const merchant = (externalData?.cardPayment as { merchant?: unknown } | undefined)?.merchant;
   if (typeof merchant !== 'string') return;

@@ -879,17 +879,18 @@ export const updateTransaction = withTransaction(
       }
 
       // An edit outside the ingest pipeline is the owner's word on a payment the automation logged:
-      // the row is confirmed and its inbox card closes, and a payee they chose answers to the
-      // merchant the payment printed from now on.
-      if (!payload.keepIngestUnconfirmed && isUnconfirmedIngestRow({ tx: prevData })) {
+      // the row is confirmed and its inbox card closes, and the payee it ends with (the one they
+      // chose, or the suggestion they kept) answers to the merchant the payment printed from now on.
+      const confirmsIngest = !payload.keepIngestUnconfirmed && isUnconfirmedIngestRow({ tx: prevData });
+      if (confirmsIngest) {
         await settleTransactionCards({ transactionIds: [prevData.id], markConfirmed: true });
       }
-      if (!payload.keepIngestUnconfirmed && payload.payeeId !== undefined) {
+      if (!payload.keepIngestUnconfirmed && (confirmsIngest || payload.payeeId !== undefined)) {
         await learnPayeeCorrection({
           userId: ctx.accountOwnerUserId,
           externalData: prevData.externalData,
           previousPayeeId: prevData.payeeId,
-          payeeId: payload.payeeId,
+          payeeId: payload.payeeId !== undefined ? payload.payeeId : prevData.payeeId,
         });
       }
 
