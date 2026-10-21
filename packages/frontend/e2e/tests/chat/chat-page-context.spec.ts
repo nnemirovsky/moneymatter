@@ -13,7 +13,7 @@ import { type ChatStub, stubChatApi, textRun } from '../../helpers/chat-stubs';
 import { buildTestCredentials, signUpAndVerify } from '../../helpers/test-setup';
 
 const CURRENCY = 'USD';
-const COMPOSER_PLACEHOLDER = 'Ask about your money or describe a change';
+const COMPOSER_PLACEHOLDER = 'Ask or describe a change';
 const creds = buildTestCredentials({ prefix: 'chat-page-context' });
 
 let subscriptionId: string;

@@ -9,7 +9,7 @@ const CURRENCY = 'USD';
 const creds = buildTestCredentials({ prefix: 'chat-page' });
 let accountId: string;
 
-const COMPOSER_PLACEHOLDER = 'Ask about your money or describe a change';
+const COMPOSER_PLACEHOLDER = 'Ask or describe a change';
 const MOBILE_VIEWPORT = { width: 390, height: 844 };
 
 const thread = ({ page, title }: { page: Page; title: string }) =>

@@ -116,7 +116,7 @@ test.describe('Reconciliation suggestions', () => {
   test('the inbox is a pinned thread with no composer, no comment control and a blocked Archive', async ({ page }) => {
     await openInbox({ page });
 
-    await expect(page.getByPlaceholder('Ask about your money or describe a change')).toHaveCount(0);
+    await expect(page.getByPlaceholder('Ask or describe a change')).toHaveCount(0);
     const card = page.getByTestId('proposal-card');
     await expect(card).toHaveCount(1);
     await expect(card.getByTestId('approve')).toBeVisible();
