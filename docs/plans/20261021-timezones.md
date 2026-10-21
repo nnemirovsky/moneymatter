@@ -206,7 +206,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - `timeZoneSource?: 'device' | 'manual'`: unset means `device`.
 - `hourCycle?: 'h23' | 'h12'`: unset means the locale's default.
 
-`getUserTimeZone({ userId })` returns `settings.timeZone ?? 'UTC'`. Constants `TIME_ZONE_SOURCES` and `HOUR_CYCLES` go in `shared/src/types/user-settings.ts`.
+`getUserTimeZone({ userId })` returns `settings.timeZone ?? 'UTC'`, for day bounds and wall-clock reading. `getStoredUserTimeZone({ userId })` (same file) returns `settings.timeZone ?? null`, for anything that **records** a zone on a row: a zone nobody chose is never stamped. Constants `TIME_ZONE_SOURCES` and `HOUR_CYCLES` go in `shared/src/types/user-settings.ts`.
 
 **`ianaTimeZone()`** (`common/lib/zod/custom-types.ts`):
 
@@ -271,7 +271,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - `YYYY-MM-DDTHH:mm[:ss]`: a wall clock read in `timeZone`;
   - ISO with `Z` or an offset: an exact instant;
   - `YYYY-MM-DD`: noon in `timeZone`, the same rule imports use.
-- `timeZone?` (IANA) is the zone the wall clock is read in and the zone the row records. It defaults to `getUserTimeZone`.
+- `timeZone?` (IANA) is the zone the wall clock is read in and the zone the row records. A wall clock without it is read in `getUserTimeZone`; the row records `timeZone` when given, else `getStoredUserTimeZone` (so a user with no setting records `null`).
 - An ISO offset that disagrees with an explicit `timeZone` at that instant is refused with a message telling the model to send the wall clock and the zone. It is not silently re-zoned.
 - Descriptions say:
   - "Prefer the user's local wall time without an offset, plus timeZone when the payment happened elsewhere";
@@ -294,14 +294,14 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - The logged row's pair comes from `resolveRecordedZone`:
   - `explicitZone` is the request's `timeZone`;
   - `offsetMinutes` comes from the ISO;
-  - `candidateZone` is `getUserTimeZone`.
+  - `candidateZone` is `getStoredUserTimeZone` (`null` for a user with no setting).
 - A blank time (the receive time) uses the request zone, else the setting.
 - The shortcut adds a `Format Date` step with Custom format `VV` (Apple's date formatter prints the IANA ID) and sends it as `timeZone`. Whether this works is checked on a device (Post-Completion). Without it the offset alone is stored.
 - In the notification path, `bankWallClock` is first read in the request zone (`wallClockToInstant`) and accepted when it lies within `inferBankTime`'s residual of the request time. Otherwise the existing inference runs.
 
 **Imports:**
 
-- The anchor zone is the request's `timezone` when sent, else `getUserTimeZone`.
+- The anchor zone is the request's `timezone` when sent, else `getUserTimeZone`. The recorded zone's candidate is the request's `timezone`, else `getStoredUserTimeZone`, so a user with no setting and no request zone records `null`.
 - The frontend sends the viewing zone instead of the raw device zone.
 - Each created row gets `resolveRecordedZone({ explicitZone: undefined, offsetMinutes: <cell offset if any>, candidateZone: anchorZone })`. A cell with an offset of its own keeps that offset, and the zone too when it matches.
 - MS Money, Budget Bakers and YNAB (no zone in the file, values parsed as UTC) store `null`.
@@ -309,8 +309,8 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 **Bank syncs** (owner's decision):
 
 - No provider gives a zone. A payment synced soon after it happened most likely happened where the user is now, so a recent row records the user's setting zone at sync time.
-- The rule, one helper for all five providers: `bankSyncRecordedZone({ time, syncedAt, userZone })` in `services/bank-data-providers/utils/recorded-zone.ts`.
-  - When `|syncedAt − time| ≤ BANK_SYNC_RECENT_ZONE_WINDOW_DAYS` (3 days, one exported constant in that file), the row gets `timeZone = getUserTimeZone(...)` and the offset at its `time`.
+- The rule, one helper for all five providers: `bankSyncRecordedZone({ time, syncedAt, userZone })`, where `userZone: string | null` comes from `getStoredUserTimeZone` (never the `UTC` fallback), in `services/bank-data-providers/utils/recorded-zone.ts`.
+  - When `|syncedAt − time| ≤ BANK_SYNC_RECENT_ZONE_WINDOW_DAYS` (3 days, one exported constant in that file), the row gets `timeZone = userZone` and the offset at its `time`. A `null` `userZone` gives `null`/`null`.
   - Otherwise both columns stay `null`. This covers an initial or backfill sync (up to 90 days of history), when the user may have been elsewhere.
   - `syncedAt` is the sync job's start time, read once per sync, so every row of one sync is judged against the same moment.
 - Call sites, each passing the pair to `createTransaction`:
@@ -324,7 +324,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   | Walutomat      | `walutomat/walutomat.provider.ts:395-401`           | `new Date(item.ts)`                 |
 
 - A later sync that moves `time` (Enable Banking pending → booked, `:1040-1041`, which writes `updates.time` directly) also sets `utcOffsetMinutes` from the stored zone at the new time; a `null` zone stays `null`. The zone itself is not re-judged on that update.
-- A user without a zone setting gets `UTC` stamped, which is what they see today; the frontend writes a real zone on the first app open, so this only affects syncs before that.
+- A user without a zone setting gets `null` ("Unknown") on every synced row, recent or not: `UTC` would record a zone nobody chose. The frontend writes a real zone on the first app open, so only syncs before that are affected.
 - Enable Banking's and LunchFlow's date-only times at UTC midnight are a separate bug; see the Decisions section.
 
 **Reports:**
@@ -434,7 +434,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - an invalid zone → 422;
   - patching `locale` leaves `timeZone` alone;
   - a user without the key reads as `UTC` through the chat prompt (covered in Task 5)
-- [ ] implement the keys in `ZodSettingsSchema` and `ZodSettingsPatchSchema` (the `SettingsPatchSchemaIsInSync` guard must stay green), and `getUserTimeZone`
+- [ ] implement the keys in `ZodSettingsSchema` and `ZodSettingsPatchSchema` (the `SettingsPatchSchemaIsInSync` guard must stay green), `getUserTimeZone` and `getStoredUserTimeZone`
 - [ ] gate: unit `--testPathPattern='(zod/custom-types|mcp/tools/(notification-settings|time-zone-settings)-tools)'`; e2e `--testPathPattern='user-settings/patch-settings.e2e'`
 
 ### Task 3: Transaction columns and the REST create/update contract
@@ -543,10 +543,10 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - the same import **without** `timezone` for a user whose setting is Montevideo anchors in Montevideo (today: UTC);
   - a statement import stamps the zone;
   - the statement AI's "today" uses the setting when the request has none;
-  - a Tbilisi user's bank sync: a row dated 1 day before the sync gets `Asia/Tbilisi` and +240; a row dated 90 days back stays `null`/`null`; a user with no setting gets `UTC` on the recent row;
+  - a Tbilisi user's bank sync: a row dated 1 day before the sync gets `Asia/Tbilisi` and +240; a row dated 90 days back stays `null`/`null`; a user with no setting gets `null`/`null` on the recent row too;
   - backup → restore keeps both columns, and restoring a fixture archive without the columns gives `null`;
   - data export adds `timeZone` and `localTime` (ISO with the row's offset, or the user's zone when `null`) and leaves `date`/`time` as they are
-- [ ] write failing unit tests for `bankSyncRecordedZone`: exactly 3 days → stamped; 3 days and 1 second → `null`; a future-dated row within the window → stamped
+- [ ] write failing unit tests for `bankSyncRecordedZone`: exactly 3 days → stamped; 3 days and 1 second → `null`; a future-dated row within the window → stamped; `userZone: null` inside the window → `null`/`null`
 - [ ] implement; frontend stores send the viewing zone (vitest updates the two existing expectations)
 - [ ] gate: e2e `--testPathPattern='(import-export/(csv-import/detect-duplicates|statement-parser/(execute-import|ai-extraction))|backup/restore/restore-backup|data-export/export-data|bank-data-providers/connection/transaction-sync)\.e2e'`; unit `--testPathPattern='bank-data-providers/utils/recorded-zone'`; frontend `src/stores/import-export.test.ts`
 
