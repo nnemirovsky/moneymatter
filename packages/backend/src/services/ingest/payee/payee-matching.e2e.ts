@@ -249,4 +249,34 @@ describe('payee matching of an automated payment', () => {
       expect(await aliasesOf({ payeeId: kitchen.id })).not.toContain('sq blue door 0042');
     });
   });
+
+  describe('the note on the confirm card', () => {
+    it('offers the note for editing and applies what the owner wrote', async () => {
+      const { secret } = await linkCard();
+      const transactionId = await tap({ secret, merchant: 'Lokal Roasters' });
+      const card = await confirmCardOf({ transactionId });
+
+      expect(card.fields.find((field) => field.path === 'note')).toMatchObject({
+        value: '',
+        editable: { type: 'text' },
+      });
+
+      await confirmWith({ card, changes: { note: 'Team breakfast' } });
+
+      expect((await stored({ id: transactionId })).note).toBe('Team breakfast');
+    });
+
+    it('clears the note when the owner empties it', async () => {
+      const { account, secret } = await linkCard();
+      await payeeWithHistory({ name: 'Nord Coffee', accountId: account.id, categoryIds: [] });
+      await payeeWithHistory({ name: 'Nord Coffea', accountId: account.id, categoryIds: [] });
+      const transactionId = await tap({ secret, merchant: 'NORD COFFEX LTD' });
+      const card = await confirmCardOf({ transactionId });
+      expect(card.fields.find((field) => field.path === 'note')?.value).toBe('NORD COFFEX LTD');
+
+      await confirmWith({ card, changes: { note: '' } });
+
+      expect((await stored({ id: transactionId })).note ?? null).toBeNull();
+    });
+  });
 });

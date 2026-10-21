@@ -59,7 +59,13 @@ const buildConfirmArgs = ({
   const correction = openCorrectionOf({ tx });
   const accountId = correction ? correction.suggestedAccountId : tx.accountId;
   const amount = correction ? correction.estimatedAmount.amount : tx.amount.toNumber();
-  const baseline: ConfirmBaseline = { accountId, amount, payeeId: tx.payeeId ?? null, categoryId: tx.categoryId };
+  const baseline: ConfirmBaseline = {
+    accountId,
+    amount,
+    payeeId: tx.payeeId ?? null,
+    categoryId: tx.categoryId,
+    note: tx.note ?? '',
+  };
 
   return {
     args: {
@@ -68,6 +74,7 @@ const buildConfirmArgs = ({
       amount: baseline.amount,
       ...(baseline.payeeId && { payeeId: baseline.payeeId }),
       categoryId: baseline.categoryId,
+      note: baseline.note,
     },
     baseline,
   };

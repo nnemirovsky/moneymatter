@@ -8,6 +8,8 @@ export interface ConfirmBaseline {
   amount: number;
   payeeId: string | null;
   categoryId: string;
+  /** Absent on a card posted before the note was part of it: the row's note stands in. */
+  note?: string;
 }
 
 /**

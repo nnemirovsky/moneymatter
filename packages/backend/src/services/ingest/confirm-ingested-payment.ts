@@ -49,10 +49,12 @@ interface ConfirmParams {
   amount?: number;
   payeeId?: RecordId;
   categoryId?: RecordId;
+  /** The note as the card shows it; an empty one clears the row's note. */
+  note?: string;
 }
 
 /**
- * Account, amount, payee and category the owner changed on the confirm card, as an update. A value
+ * Account, amount, payee, category and note the owner changed on the confirm card, as an update. A value
  * counts as changed only when it differs from what the card was built from: an untouched field leaves
  * the row as it is now, so what the pipeline refined meanwhile (the AI's category, a bank's amount) is
  * not overwritten by the card's older copy.
@@ -117,6 +119,10 @@ const planEdits = async ({
     update.categoryId = params.categoryId;
     changed = true;
   }
+  if (params.note !== undefined && params.note !== (baseline.note ?? tx.note ?? '')) {
+    update.note = params.note.trim() || null;
+    changed = true;
+  }
 
   return changed ? update : null;
 };
@@ -128,8 +134,8 @@ const planEdits = async ({
  * - An open short-balance correction is part of the same decision. The card offers the account the
  *   correction suggests: keeping that account (or choosing another candidate) moves the payment there
  *   with the estimated or entered amount; choosing the account the payment is on closes the correction.
- * - Account, amount, payee and category apply only when changed against what the card showed. Keeping
- *   the logged account closes the correction and still applies an amount the owner entered.
+ * - Account, amount, payee, category and note apply only when changed against what the card showed.
+ *   Keeping the logged account closes the correction and still applies an amount the owner entered.
  * - A payee the owner chose answers to the payment's merchant from now on (`learnPayeeCorrection`).
  * - The row stops being unconfirmed and the inbox card closes.
  */
