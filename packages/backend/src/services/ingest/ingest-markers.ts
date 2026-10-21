@@ -28,6 +28,8 @@ export interface IngestMarkers {
   correction?: IngestShortBalanceCorrection;
   systemNote?: string;
   systemCategoryId?: string;
+  /** A payee the payment's merchant created when the payment was logged. */
+  createdPayeeId?: RecordId;
 }
 
 /** The ingest markers of a row, empty for a row the ingest did not write. */

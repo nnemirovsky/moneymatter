@@ -27,6 +27,7 @@ import { settleTransactionCards } from '@services/chat/inbox/inbox-resolution';
 import { DOMAIN_EVENTS, eventBus } from '@services/common/event-bus';
 import { assertCurrencyCodesVisible } from '@services/currencies/assert-currency-codes-visible';
 import { isUnconfirmedIngest } from '@services/ingest/ingest-markers';
+import { learnPayeeCorrection } from '@services/ingest/payee/learn-payee-correction';
 import { assertLoanEditAllowed } from '@services/loans/assert-loan-edit-allowed';
 import { deriveImpliedDestinationAmount } from '@services/loans/implied-destination-amount';
 import {
@@ -878,9 +879,18 @@ export const updateTransaction = withTransaction(
       }
 
       // An edit outside the ingest pipeline is the owner's word on a payment the automation logged:
-      // the row is confirmed and its inbox card closes.
+      // the row is confirmed and its inbox card closes, and a payee they chose answers to the
+      // merchant the payment printed from now on.
       if (!payload.keepIngestUnconfirmed && isUnconfirmedIngestRow({ tx: prevData })) {
         await settleTransactionCards({ transactionIds: [prevData.id], markConfirmed: true });
+      }
+      if (!payload.keepIngestUnconfirmed && payload.payeeId !== undefined) {
+        await learnPayeeCorrection({
+          userId: ctx.accountOwnerUserId,
+          externalData: prevData.externalData,
+          previousPayeeId: prevData.payeeId,
+          payeeId: payload.payeeId,
+        });
       }
 
       return updatedTransactions;

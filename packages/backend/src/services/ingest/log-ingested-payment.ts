@@ -10,6 +10,8 @@ import type { Money } from '@common/types/money';
 import { ExchangeRateUnavailableError } from '@js/errors';
 import Accounts from '@models/accounts.model';
 import { connection } from '@models/connection';
+import IngestRequests from '@models/ingest-requests.model';
+import Payees from '@models/payees.model';
 import { getBaseCurrency } from '@models/users-currencies.model';
 import { DOMAIN_EVENTS, eventBus, type IngestPaymentLoggedPayload } from '@services/common/event-bus';
 import { runAfterCommit } from '@services/common/run-after-commit';
@@ -59,6 +61,25 @@ interface LogIngestedPaymentParams {
 }
 
 /**
+ * The payee, when it was created while this request was processed: its merchant made it. The owner's
+ * correction of the payee folds such a payee into the one they chose.
+ */
+const payeeCreatedByRequest = async ({
+  payeeId,
+  requestId,
+}: {
+  payeeId: string;
+  requestId: RecordId;
+}): Promise<string | null> => {
+  const [payee, request] = await Promise.all([
+    Payees.findByPk(payeeId, { attributes: ['createdAt'] }),
+    IngestRequests.findByPk(requestId, { attributes: ['createdAt'] }),
+  ]);
+
+  return payee && request && payee.createdAt >= request.createdAt ? payeeId : null;
+};
+
+/**
  * Writes the transaction of an automated payment, the one place both ingest pipelines log through.
  *
  * - The row is real at once (balances are current) and carries two markers in `externalData`:
@@ -73,7 +94,8 @@ interface LogIngestedPaymentParams {
  *   owner still sees where the money went.
  * - `ingest.systemNote` is the note the pipeline wrote and `ingest.systemCategoryId` the category it
  *   ended up with when no rule or AI stamped one, so a later merge can tell the pipeline's own values
- *   from the owner's edits.
+ *   from the owner's edits. `ingest.createdPayeeId` names a payee this payment's merchant created, which
+ *   the owner's correction of the payee folds into the payee they chose.
  * - On a bank-connected account the row is planned, the only kind of manual row such an account
  *   accepts; the bank sync later settles it.
  * - After the commit, `INGEST_PAYMENT_LOGGED` is emitted: the inbox posts the one confirm card for the
@@ -116,6 +138,7 @@ export const logIngestedPayment = async ({
   // correction suggestion starts from.
   const accountBefore = await Accounts.findOne({ where: { id: account.id }, attributes: ['currentBalance'] });
   const note = payeeId ? null : merchant;
+  const createdPayeeId = payeeId ? await payeeCreatedByRequest({ payeeId, requestId }) : null;
 
   let transaction: Awaited<ReturnType<typeof createTransaction>>[0];
   try {
@@ -143,6 +166,7 @@ export const logIngestedPayment = async ({
           unconfirmed: true,
           systemNote: note ?? '',
           sources: [source],
+          ...(createdPayeeId && { createdPayeeId }),
           ...(cardLastDigits && { cardLastDigits }),
           ...(direction === 'debit' &&
             accountBefore && {

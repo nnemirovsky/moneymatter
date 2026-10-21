@@ -16,6 +16,7 @@ import { updateTransaction } from '@services/transactions/update-transaction';
 import { approveCorrection, dismissCorrection } from './corrections/apply-correction';
 import { correctionOf } from './corrections/read-ingest-suggestions';
 import { type ConfirmBaseline, ingestMarkersOf, isUnconfirmedIngest } from './ingest-markers';
+import { learnPayeeCorrection } from './payee/learn-payee-correction';
 import { assertUsableAccount } from './usable-account';
 
 const loadUnconfirmedPayment = async ({
@@ -129,6 +130,7 @@ const planEdits = async ({
  *   with the estimated or entered amount; choosing the account the payment is on closes the correction.
  * - Account, amount, payee and category apply only when changed against what the card showed. Keeping
  *   the logged account closes the correction and still applies an amount the owner entered.
+ * - A payee the owner chose answers to the payment's merchant from now on (`learnPayeeCorrection`).
  * - The row stops being unconfirmed and the inbox card closes.
  */
 export const confirmIngestedPayment = withTransaction(
@@ -173,6 +175,14 @@ export const confirmIngestedPayment = withTransaction(
       amountSettled: moved,
     });
     if (edits) await updateTransaction({ id: transactionId, userId, keepIngestUnconfirmed: true, ...edits });
+    if (edits?.payeeId !== undefined) {
+      await learnPayeeCorrection({
+        userId,
+        externalData: fresh.externalData,
+        previousPayeeId: fresh.payeeId ?? null,
+        payeeId: edits.payeeId,
+      });
+    }
 
     await clearUnconfirmed({ transactionIds: [transactionId] });
     await settleTransactionCards({ transactionIds: [transactionId] });

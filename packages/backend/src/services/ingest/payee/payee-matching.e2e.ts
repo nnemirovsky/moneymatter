@@ -197,4 +197,56 @@ describe('payee matching of an automated payment', () => {
       expect(await payeeNames()).toEqual(['Nord Coffea', 'Nord Coffee']);
     });
   });
+
+  describe("the owner's correction", () => {
+    it('merges the payee a tap created into the one chosen on the confirm card, and the next tap maps to it', async () => {
+      const { secret } = await linkCard();
+      const kitchen = await helpers.createPayee({
+        payload: helpers.buildPayeePayload({ name: 'Mama Kitchen' }),
+        raw: true,
+      });
+
+      const transactionId = await tap({ secret, merchant: 'SQ *BLUE DOOR 0042' });
+      expect(await payeeNames()).toEqual(['Mama Kitchen', 'SQ *BLUE DOOR 0042']);
+
+      await confirmWith({ card: await confirmCardOf({ transactionId }), changes: { payeeId: kitchen.id } });
+
+      expect((await stored({ id: transactionId })).payeeId).toBe(kitchen.id);
+      expect(await payeeNames()).toEqual(['Mama Kitchen']);
+      expect(await aliasesOf({ payeeId: kitchen.id })).toContain('sq blue door 0042');
+
+      const next = await stored({ id: await tap({ secret, merchant: 'SQ *BLUE DOOR 0042', amount: '9.00' }) });
+      expect(next.payeeId).toBe(kitchen.id);
+    });
+
+    it('learns the merchant as an alias when the owner sets the payee by editing the transaction', async () => {
+      const { account, secret } = await linkCard();
+      const nordCoffee = await payeeWithHistory({ name: 'Nord Coffee', accountId: account.id, categoryIds: [] });
+      await payeeWithHistory({ name: 'Nord Coffea', accountId: account.id, categoryIds: [] });
+      const transactionId = await tap({ secret, merchant: 'NORD COFFEX LTD' });
+
+      await helpers.updateTransaction({ id: transactionId, payload: { payeeId: nordCoffee.id }, raw: true });
+
+      expect(await aliasesOf({ payeeId: nordCoffee.id })).toContain('nord coffex ltd');
+      const next = await stored({ id: await tap({ secret, merchant: 'NORD COFFEX LTD', amount: '9.00' }) });
+      expect(next.payeeId).toBe(nordCoffee.id);
+    });
+
+    it('keeps a payee the owner uses elsewhere when they pick another one for a payment', async () => {
+      const { account, secret } = await linkCard();
+      const blueDoor = await payeeWithHistory({ name: 'Blue Door', accountId: account.id, categoryIds: [] });
+      const kitchen = await helpers.createPayee({
+        payload: helpers.buildPayeePayload({ name: 'Mama Kitchen' }),
+        raw: true,
+      });
+      await helpers.createPayeeAlias({ payeeId: blueDoor.id, rawName: 'SQ *BLUE DOOR 0042', raw: true });
+
+      const transactionId = await tap({ secret, merchant: 'SQ *BLUE DOOR 0042' });
+      await confirmWith({ card: await confirmCardOf({ transactionId }), changes: { payeeId: kitchen.id } });
+
+      expect(await payeeNames()).toEqual(['Blue Door', 'Mama Kitchen']);
+      expect(await aliasesOf({ payeeId: blueDoor.id })).toContain('sq blue door 0042');
+      expect(await aliasesOf({ payeeId: kitchen.id })).not.toContain('sq blue door 0042');
+    });
+  });
 });
