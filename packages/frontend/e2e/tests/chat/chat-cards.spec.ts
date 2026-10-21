@@ -377,6 +377,10 @@ test.describe('Chat cards', () => {
       const toggle = applied.getByTestId('card-fold-toggle');
       await expect(toggle).toHaveAttribute('aria-expanded', 'false');
       await expect(applied.getByTestId('card-body')).toHaveCount(0);
+      // Folded, the header keeps the title and the status badge; only the body goes.
+      await expect(applied.getByText('Update transaction')).toBeVisible();
+      await expect(applied.getByTestId('card-status')).toBeVisible();
+      await expect(applied.getByTestId('card-status')).toHaveText('Applied');
       await expect(applied.getByTestId('card-summary')).toHaveText(
         /^Oct 19, 2026, [^·]+ · [^·]*28\.10[^·]* · Nord Coffee · Main card$/,
       );
@@ -394,14 +398,26 @@ test.describe('Chat cards', () => {
       await expect(toggle).toHaveAttribute('aria-expanded', 'false');
       await expect(applied.getByTestId('card-body')).toHaveCount(0);
 
-      // Every final status starts folded; a card that waits for the owner, or needs a refresh, stays open.
-      for (const note of ['Bakery', 'Pharmacy', 'Taxi']) {
+      // A settled card starts folded, its badge still in the header.
+      for (const [note, status] of [
+        ['Bakery', 'Rejected'],
+        ['Pharmacy', 'Closed'],
+      ]) {
         await expect(card({ page, note }).getByTestId('card-fold-toggle')).toHaveAttribute('aria-expanded', 'false');
+        await expect(card({ page, note }).getByTestId('card-status')).toBeVisible();
+        await expect(card({ page, note }).getByTestId('card-status')).toHaveText(status!);
       }
-      for (const note of ['Cinema', 'Books']) {
+      // A card that waits for the owner, needs a refresh, or failed but can still be refreshed, edited or
+      // rejected stays open with its actions in view.
+      for (const note of ['Cinema', 'Books', 'Taxi']) {
         await expect(card({ page, note }).getByTestId('card-fold-toggle')).toHaveAttribute('aria-expanded', 'true');
         await expect(card({ page, note }).getByTestId('card-body')).toBeVisible();
       }
+      const failed = card({ page, note: 'Taxi' });
+      await expect(failed.getByTestId('card-status')).toHaveText('Failed');
+      await expect(failed.getByTestId('card-error')).toHaveText('Account is archived');
+      await expect(failed.getByTestId('refresh')).toBeVisible();
+      await expect(failed.getByTestId('reject')).toBeVisible();
     });
 
     test('colours each status badge by what it means', async ({ page }) => {
