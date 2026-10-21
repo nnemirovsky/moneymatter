@@ -230,7 +230,7 @@ A notification's payment goes to the first account that applies:
 
 If none applies, the payment waits for you. MoneyMatter never guesses an account, but when you have exactly one account in the payment's currency, the inbox card offers it pre-selected.
 
-The merchant becomes a **payee** the same way as for a tap. For a notification, the AI is shown your payees that look like the merchant and picks one, or gives a clean brand name for a new payee. The AI also sees the categories you usually give those payees, which helps it tell similar names apart. When the notification spells a known payee differently, MoneyMatter saves the spelling as an **alias**, so the next one matches without any AI. Names you told MoneyMatter to ignore in [Payees](/transactions/payees/) stay ignored.
+The merchant becomes a **payee** the same way as for a tap. For a notification, the AI is shown your payees that look like the merchant and picks one, or gives a clean brand name for a new payee. The AI also sees the categories you usually give those payees, which helps it tell similar names apart. Once you confirm the payment, MoneyMatter saves the spelling as an **alias** of its payee, so the next one with the same spelling matches at once, without any AI. Names you told MoneyMatter to ignore in [Payees](/transactions/payees/) stay ignored.
 
 ### Balances
 
@@ -431,9 +431,9 @@ When the payment currency differs from the account's, MoneyMatter converts the a
 
 ### Payee and category
 
-The merchant name is matched to your payees first. Letter case, punctuation and company forms such as `LTD`, `LLC`, `Company` or `შპს` don't count, and a small typo is forgiven, so `NORD COFEE COMPANY LTD` goes to your payee "Nord Coffee", and its spelling is saved as an alias. If the name is spelled almost like two or more of your payees, the AI picks one of them; without an answer the payment is logged with no payee, and you choose it on the inbox card. Only a name that matches none of your payees becomes a new payee, with its logo when one is found.
+The merchant name is matched to your payees first. Letter case, punctuation and company forms such as `LTD`, `LLC`, `Company` or `შპს` don't count, and a small typo is forgiven, so `NORD COFEE COMPANY LTD` goes to your payee "Nord Coffee". If the name is spelled almost like two or more of your payees, the AI picks one of them; without an answer the payment is logged with no payee, and you choose it on the inbox card. Only a name that matches none of your payees becomes a new payee, with its logo when one is found.
 
-The note stays empty when a payee names the merchant; you can write one on the inbox card. To build an automation rule on the merchant text, use its **Merchant** condition.
+The note comes from your own past payments to that payee, never from the merchant name. If you usually write the same note there, at that time of day ("Breakfast" in the morning, "Lunch" at midday), it is filled in. If your notes there vary, the AI picks the one that fits the time and amount best, or none; it never writes a new one. Without such notes the note stays empty. You can change or clear it on the inbox card. To build an automation rule on the merchant text, use its **Merchant** condition.
 
 The category is the first that applies:
 
@@ -442,7 +442,7 @@ The category is the first that applies:
 3. AI categorization, when it is set up. The notification waits up to 8 seconds for the answer. If it takes longer, the notification says `categorizing…` and the category is filled in a moment later;
 4. your default category.
 
-When you change the payee of an automatic payment, on its inbox card or by editing it, MoneyMatter remembers the merchant name for that payee, so the next payment there gets it right. A payee the payment created for itself is merged into the one you chose.
+A payee MoneyMatter matched on its own is only a suggestion. When you confirm the payment, or change its payee on the inbox card or by editing it, MoneyMatter saves the merchant name as an alias of that payee, so the next payment with the same name gets it right with no matching and no AI. A payee the payment created for itself is merged into the one you chose.
 
 ### Bank-connected accounts
 

@@ -164,20 +164,22 @@ A code and a symbol in the same text that disagree (`€47 USD`) are refused as 
 
 The merchant text resolves to a payee (`resolveIngestPayee`), in order:
 
-1. an exact name or alias match;
+1. an exact alias or name match on the normalized spelling (case, whitespace, punctuation and accents folded; no fuzziness). An alias keeps the raw spelling verbatim in `rawName`;
 2. nothing for a name on the ignored list;
-3. a **core-name match**: case, punctuation and legal forms (`LTD`, `LLC`, `Company`, `Co`, `JSC`, `შპს`, `ООО`, …) are dropped from both names, and names with as many words that are equal or a small typo apart (no edit under 5 characters, 1 under 12, else 2) match. One closest payee is linked and the raw spelling becomes its alias, so `NORD COFEE COMPANY LTD` resolves to an existing "Nord Coffee";
-4. several payees as close: before the logging transaction, the `notificationParsing` model picks one of them (`pickAmbiguousPayee`), shown each candidate's known spellings and usual categories. A pick is linked and aliased; no pick (or no AI) logs the payment **without a payee**, never a new look-alike payee;
-5. otherwise the normal payee extraction: a fuzzy match, else a new payee on first sight.
+3. a **core-name match**: case, punctuation and legal forms (`LTD`, `LLC`, `Company`, `Co`, `JSC`, `შპს`, `ООО`, …) are dropped from both names, and names with as many words that are equal or a small typo apart (no edit under 5 characters, 1 under 12, else 2) match. The one closest payee is suggested, so `NORD COFEE COMPANY LTD` goes to an existing "Nord Coffee";
+4. several payees as close: before the logging transaction, the `notificationParsing` model picks one of them (`pickAmbiguousPayee`), shown each candidate's known spellings and usual categories. A pick is suggested; no pick (or no AI) logs the payment **without a payee**, never a new look-alike payee;
+5. otherwise the closest fuzzy match is suggested, else a new payee is created at first sight, with the merchant as its own alias.
 
-The note stays empty when a payee names the merchant; the raw spelling stays in `externalData.cardPayment.merchant`, which the automations' **Merchant** condition reads. A row without a payee keeps the merchant as its note. Then the category, in order:
+Steps 3 to 5 write no alias: the payee is a suggestion on the row and its confirm card until the owner confirms or corrects it (see **Learning from the owner** below). Only then does the spelling become an alias, so the next identical merchant resolves at step 1 with no matcher and no model.
+
+The note is suggested from the payee's last 50 payments of the past 12 months (`suggestNoteFromHistory`), never from the merchant: notes that only repeat the payee's name, its spellings or the merchant don't count. With two or more past payments at the same part of the day (morning 5–11, midday 11–16, evening 16–22, night, at the payment's local time from the request's `time` offset) those decide, else the whole history does. A note on at least two of them and 60% of them is written at once. When most of them carry notes but none wins, the `afterPaymentLogged` follow-up asks the `notificationParsing` model to pick one of the past notes (with when and for how much each was used) or none, and refreshes the confirm card. Otherwise the note stays empty. A row without a payee keeps the merchant as its note. The raw spelling stays in `externalData.cardPayment.merchant`, which the automations' **Merchant** condition reads. Then the category, in order:
 
 1. the user's automations and the payee's default category (`enforce` or `hint` mode);
 2. the most frequent category the user used for that payee in the last 12 months (a tie goes to the latest). It is final: no AI job is queued for a row that still carries it;
 3. AI categorization, queued for every other row that no rule or `enforce` payee settled, with a short wait for the answer when the row is still in the default category;
 4. the user's default category.
 
-**Learning from corrections.** When the owner gives an ingested row another payee (on its confirm card, by editing the transaction, or through the assistant), `learnPayeeCorrection` maps the raw merchant to that payee: a spelling no payee holds becomes its alias; a payee the payment's own merchant created when it was logged (`externalData.ingest.createdPayeeId`) and nothing else uses is merged into the chosen one. A spelling held by any other payee, or on the ignored list, is left alone.
+**Learning from the owner.** When the owner confirms an ingested row (approving its confirm card, with or without edits, or editing the transaction) or gives it another payee (also through the assistant), `learnPayeeCorrection` maps the raw merchant to the payee the row ends with: a spelling no payee holds becomes its alias; a payee the payment's own merchant created when it was logged (`externalData.ingest.createdPayeeId`) and nothing else uses is merged into the chosen one. A spelling held by any other payee, or on the ignored list, is left alone.
 
 ### Settlement on bank-connected accounts
 
@@ -325,9 +327,9 @@ Archived accounts and loan or vehicle accounts don't count as found. With none, 
 
 The parse call resolves the payee with the model:
 
-1. An exact lookup first: when the raw merchant resolves through the normalized name, that payee is used and the model's payee answer is ignored. A core-name match to exactly one payee (see [Payee and category](#payee-and-category)) wins over the model's answer too, and learns the spelling.
+1. An exact lookup first: when the raw merchant resolves through the normalized name, that payee is used and the model's payee answer is ignored. A core-name match to exactly one payee (see [Payee and category](#payee-and-category)) wins over the model's answer too.
 2. Otherwise up to 15 candidates go into the prompt: token matches on payee names and aliases (tokens of 3 or more characters that are not digits and not generic merchant words), fuzzy matches, and the source's 5 most recent payees, each with its two most frequent categories of the last 12 months. The model returns `{ candidateId }` or `{ newName }`.
-3. `applyPayeeChoice` applies it: a candidate becomes the payee and a differently normalized raw spelling is saved as an alias (unless the name is ignored or already belongs to another payee). For `newName` an existing payee with that normalized name is adopted rather than created, so a name clash can't fail the request.
+3. `applyPayeeChoice` applies it: a candidate becomes the payee. For `newName` an existing payee with that normalized name is adopted rather than created, so a name clash can't fail the request. Either way it is a suggestion: the raw spelling becomes an alias only when the owner confirms the payment.
 
 ### AI limits
 
