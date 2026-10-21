@@ -650,14 +650,16 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - Create: `packages/frontend/src/js/helpers/time-zone.ts`, `.test.ts`; `packages/frontend/src/composable/use-device-time-zone-sync.ts`, `.test.ts`
 - Modify: `packages/frontend/src/app.vue`
 
-- [ ] write failing vitest:
+- [x] write failing vitest:
   - `formatTime` gives `16:00` under `h23` and `4:00 PM` under `h12` for the same instant;
   - `formatZoneLabel` gives `GMT+4` for Tbilisi;
   - `formatDateTime` in a zone that is not the test runner's;
   - `viewingTimeZone` picks manual over device;
   - the sync composable patches once when the source is device and the zone differs, never when manual, and again after a `visibilitychange` with a new zone
-- [ ] implement the refs, the helpers and the composable, wired in `app.vue`
-- [ ] gate: frontend `src/js/helpers/time-zone.test.ts src/composable/use-device-time-zone-sync.test.ts`
+- [x] implement the refs, the helpers and the composable, wired in `app.vue`
+- [x] gate: frontend `src/js/helpers/time-zone.test.ts src/composable/use-device-time-zone-sync.test.ts`
+- ➕ the frontend resolves `date-fns` to its CJS typings, where `format`'s options reject `in`; the helpers use `format(new TZDate(date, zone), pattern)` instead of `{ in: tz(zone) }`. Later tasks do the same.
+- gate: frontend `src/js/helpers/time-zone.test.ts src/composable/use-device-time-zone-sync.test.ts` (15 tests pass); frontend typecheck clean
 
 ### Task 10: Frontend: settings UI
 
