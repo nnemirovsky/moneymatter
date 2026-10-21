@@ -467,16 +467,16 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - Modify: `packages/backend/src/services/user-settings/patch-settings.e2e.ts`, `packages/backend/src/services/mcp/tools/notification-settings-tools.unit.ts` (or a new `time-zone-settings-tools.unit.ts`)
 - Modify: `packages/frontend/src/api/user-settings.ts` (type)
 
-- [ ] write failing unit tests:
+- [x] write failing unit tests:
   - `ianaTimeZone()` accepts an alias, refuses an offset and an unknown zone;
   - `update_user_settings` accepts `{ timeZone, timeZoneSource, hourCycle }` and refuses `timeZone: '+04:00'`
-- [ ] write failing e2e:
+- [x] write failing e2e:
   - `PATCH /user/settings` stores `timeZone: 'Asia/Tbilisi'`, `timeZoneSource: 'manual'`, `hourCycle: 'h23'` and `GET` returns them;
   - an invalid zone → 422;
   - patching `locale` leaves `timeZone` alone;
   - a user without the key reads as `UTC` through the chat prompt (covered in Task 5)
-- [ ] implement the keys in `ZodSettingsSchema` and `ZodSettingsPatchSchema` (the `SettingsPatchSchemaIsInSync` guard must stay green), `getUserTimeZone` and `getStoredUserTimeZone`
-- [ ] gate: unit `--testPathPattern='(zod/custom-types|mcp/tools/(notification-settings|time-zone-settings)-tools)'`; e2e `--testPathPattern='user-settings/patch-settings.e2e'`
+- [x] implement the keys in `ZodSettingsSchema` and `ZodSettingsPatchSchema` (the `SettingsPatchSchemaIsInSync` guard must stay green), `getUserTimeZone` and `getStoredUserTimeZone`
+- [x] gate: unit `--testPathPattern='(zod/custom-types|mcp/tools/(notification-settings|time-zone-settings)-tools)'`; e2e `--testPathPattern='user-settings/patch-settings.e2e'`
 
 ### Task 3: Transaction columns and the REST create/update contract
 

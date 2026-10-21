@@ -580,4 +580,39 @@ describe('Patch user settings – notification push groups', () => {
     expect(res.statusCode).toBe(ERROR_CODES.ValidationError);
     expect((await helpers.getUserSettings({ raw: true })).notifications?.push?.groups?.system).toBe(false);
   });
+
+  describe('time zone keys', () => {
+    it('stores timeZone, timeZoneSource and hourCycle and returns them on read', async () => {
+      const patched = await helpers.patchUserSettings({
+        raw: true,
+        patch: { timeZone: 'Asia/Tbilisi', timeZoneSource: 'manual', hourCycle: 'h23' },
+      });
+
+      expect(patched.timeZone).toBe('Asia/Tbilisi');
+      expect(patched.timeZoneSource).toBe('manual');
+      expect(patched.hourCycle).toBe('h23');
+
+      const fetched = await helpers.getUserSettings({ raw: true });
+      expect(fetched.timeZone).toBe('Asia/Tbilisi');
+      expect(fetched.timeZoneSource).toBe('manual');
+      expect(fetched.hourCycle).toBe('h23');
+    });
+
+    it('rejects an invalid zone', async () => {
+      const res = await helpers.patchUserSettings({ patch: { timeZone: '+04:00' } });
+      expect(res.statusCode).toBe(ERROR_CODES.ValidationError);
+
+      const unknown = await helpers.patchUserSettings({ patch: { timeZone: 'Mars/Base' } });
+      expect(unknown.statusCode).toBe(ERROR_CODES.ValidationError);
+    });
+
+    it('leaves timeZone alone when another key is patched', async () => {
+      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Tbilisi' } });
+
+      const patched = await helpers.patchUserSettings({ raw: true, patch: { locale: 'uk' } });
+
+      expect(patched.locale).toBe('uk');
+      expect(patched.timeZone).toBe('Asia/Tbilisi');
+    });
+  });
 });
