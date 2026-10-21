@@ -50,7 +50,7 @@ This plan delivers:
 **The transaction column and its write paths.** `Transactions.time` is `DataType.DATE` (`models/transactions.model.ts:199-203`). Almost every path ends in `createTransaction` (`services/transactions/create-transaction.ts`); account↔portfolio transfers call the model-level `Transactions.createTransaction` directly (`services/investments/portfolios/transfers/{account-to-portfolio,portfolio-to-account}-transfer.service.ts`). `createTransaction` defaults `time` to `new Date()` (`:504`, `:564`, `:650`) and copies `time` onto the opposite transfer leg (`:325-333`). The callers:
 
 - **Services between a caller and `createTransaction` that take only `time` today**, so the pair must be threaded through them:
-  - balance adjustment: `services/accounts/balance-adjustment.ts` (`adjustAccountBalance` → `createBalanceAdjustmentTransaction`), reached by REST, MCP `adjust_account_balance` and import balance reconciliation (`services/import-export/core/reconcile-account-balances.ts`);
+  - balance adjustment: `services/accounts/balance-adjustment.ts` (`adjustAccountBalance` → `createBalanceAdjustmentTransaction`), reached by REST, MCP `adjust_account_balance` and the post-link residual adjustment (`services/accounts/absorb-link-residual.ts:64`, a row dated at `bankConnection.linkedAt`). Import balance reconciliation (`services/import-export/core/reconcile-account-balances.ts`) creates no row: it calls `absorbBalanceAdjustment`, which shifts the opening balance, so it has nothing to record;
   - subscription payments: `services/subscriptions/mark-period-paid.ts` → `build-transaction-from-subscription.ts`, reached by REST, MCP `pay_subscription_period` and the auto-record cron (`services/subscriptions/process-auto-record.ts:83`);
   - account↔portfolio transfers (above), reached by REST and MCP `transfer_account_to_portfolio` / `transfer_portfolio_to_account`.
 - **Planned merge:** `createTransaction` may merge an incoming row into a planned one (`create-transaction.ts:497-519` → `services/transactions/planned-matching/merge-into-planned.ts:145-151`), which writes `planned.update({ time: incoming.time, … })` directly.
@@ -60,7 +60,7 @@ This plan delivers:
   - REST requires a UTC `Z` string: `transactionTimeSchema` (`controllers/transactions.controller/schemas.ts:18-24`).
 - **AI chat and MCP:**
   - the chat applies a card by invoking the MCP handler (`services/chat/proposals/approve.ts:202`, catalog in `services/mcp/tool-catalog.ts`);
-  - the tools with a time argument are `create_transaction`, `update_transaction`, `adjust_account_balance` (`transactionTimeSchema`, Z only), `confirm_planned_transaction`, `pay_subscription_period`, and the date bounds of `search_transactions` and `transaction-filter-input.ts:30-31` ("ISO 8601 datetime in UTC");
+  - the tools with a time argument are `create_transaction`, `update_transaction`, `adjust_account_balance`, `confirm_planned_transaction` and `pay_subscription_period` (all three `transactionTimeSchema`, Z only: `adjust-account-balance.ts:17`, `confirm-planned-transaction.ts:16`, `pay-subscription-period.ts:26`), and the date bounds of `search_transactions` and `transaction-filter-input.ts:30-31` ("ISO 8601 datetime in UTC");
   - the MCP guide (`services/mcp/prompts/financial-data-guide.ts`) says nothing about zones;
   - card fields with `format: date-time` or an ISO-looking value become `datetime` fields (`services/chat/proposals/card-fields.ts:68-71`), and the editor writes `toISOString()` back (`frontend/src/components/chat/cards/card-field-editor.vue:169-173`).
 - **iOS Automation ingest:**
@@ -197,10 +197,14 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 ```
 
 - **Instants stay the truth.** `time` remains the exact instant. `timeZone` says where the payment happened or was entered. `utcOffsetMinutes` is that zone's offset at `time`, or the only thing known when a source sends an offset without a zone.
-- **One rule decides a row's zone.** `resolveRecordedZone({ instant, offsetMinutes, candidateZone })`:
-  - an explicit zone wins, and the offset is derived from it;
-  - an offset alone keeps the candidate zone when the candidate's offset at that instant is equal, and is stored without a zone otherwise;
-  - with neither, the result is `null`.
+- **One rule decides a row's zone.** `resolveRecordedZone({ instant, explicitZone, offsetMinutes, candidateZone })`, five branches in order:
+  1. `explicitZone` given → that zone, offset derived from it;
+  2. `offsetMinutes` given and `candidateZone` has that offset at `instant` → the candidate, with that offset;
+  3. `offsetMinutes` given otherwise → `{ timeZone: null, utcOffsetMinutes: offsetMinutes }`;
+  4. no offset, `candidateZone` given → the candidate, offset derived from it (a wall clock or a date read in that zone, a `Z` instant, a receive time);
+  5. nothing → `null`/`null`.
+  - `offsetMinutes` means an offset the **source stated about local time**. A `Z` instant states none, so its `offsetMinutes` is absent, never `0`; a `Z` without a zone therefore goes to branch 4 or 5, never to `{null, 0}`.
+  - `candidateZone` is always a **stored** zone (`getStoredUserTimeZone`, a request's zone, an import's request zone), never the `UTC` fallback of `getUserTimeZone`, so a user with no setting records `null`.
 - **Viewing and day membership use the setting's zone.** A transaction's own zone is information shown beside the time. It never moves the instant and never decides which report day the row lands in.
 
 ## Technical Details
@@ -231,7 +235,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - `Transactions.timeZone VARCHAR(64) NULL`;
 - `Transactions.utcOffsetMinutes SMALLINT NULL` (-840 to 840, CHECK constraint);
 - no index, no backfill;
-- the `real_transactions` view is re-created at the end of `up` with its SQL written inline (keeping `"deletedAt" IS NULL`), because a `SELECT *` view freezes its column list (`models/transactions-query/real-transactions-view-columns.e2e.ts` guards it; `20261016010000-custom-currencies.ts` is the precedent). `down` re-creates the view without the columns, so it drops the view before dropping the columns.
+- the `real_transactions` view is rebuilt at the end of `up` with `dropRealTransactionsViewSql` + `createRealTransactionsViewSql` from `migrations/utils/real-transactions-view.ts`, as `20261016010000-custom-currencies.ts` does. That definition keeps **both** filters, `"isPlanned" = false AND "deletedAt" IS NULL`; a hand-written SQL must not drop the planned filter, or every raw-SQL reader (budget activity, `get-plan-cash`, `absorb-link-residual`, balance revalue) counts plans as money. A `SELECT *` view freezes its column list, which `models/transactions-query/real-transactions-view-columns.e2e.ts` guards. `down` drops the view, drops the columns and re-creates the view the same way.
 
 **Shared helpers** (`packages/shared/src/time-zone/`, Intl only, no dependencies):
 
@@ -242,7 +246,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - a wall clock in a fall-back overlap takes the earlier instant (New York 2026-11-01 01:30 → 01:30 EDT = `05:30Z`; Kyiv 2026-10-25 03:30 → `00:30Z`).
   - The existing two-pass algorithm does not follow one rule (New York's gap resolves backward to `06:30Z`, Kyiv's overlap takes the later instant). `anchor-import-date.unit.ts:128-171` pins New York's `06:30Z`; Task 1 changes that expectation to `07:30Z` and fixes its comment. It is an intended change for one nonexistent hour a year.
 - `zonedDayStart({ date, zone })` / `zonedDayEnd({ date, zone })`: local 00:00 of a `YYYY-MM-DD` day as an instant, and the instant just before the next day's 00:00 (23- and 25-hour days included). Used by tool range bounds (Task 4) and reports (Task 8);
-- `resolveRecordedZone({ instant, offsetMinutes, candidateZone, explicitZone })` → `{ timeZone, utcOffsetMinutes }`;
+- `resolveRecordedZone({ instant, explicitZone, offsetMinutes, candidateZone })` → `{ timeZone, utcOffsetMinutes }` (the five branches in Solution Overview);
 - `formatOffset({ minutes })` → `UTC+04:00`.
 
 **`createTransaction` / `updateTransaction`:**
@@ -261,7 +265,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - Who records what on those paths:
   - REST callers send `timeZone` (the frontend sends the viewing zone); MCP callers go through `resolveTimeInput`;
   - the auto-record cron records `getStoredUserTimeZone` (the payment is happening now, the same reasoning as recent bank-synced rows; `null` for a user with no setting);
-  - import balance reconciliation records the import's anchor zone, like the imported rows.
+  - the post-link residual adjustment (`absorb-link-residual.ts`) records `null`: it is a system correction dated at the link time, not a payment anyone made somewhere.
 
 **REST:**
 
@@ -313,9 +317,10 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   > "Times the user mentions are in <zone> unless they name another place or zone. Pass transaction times and date ranges to tools as local wall time (2026-10-21T16:00) or dates, and add timeZone only for another zone. Never convert them to UTC. Tools whose description says UTC (security prices) take UTC."
 
 - `propose.ts` normalizes the time arguments of a proposed call before storing the card, with the same resolvers the handlers use:
-  - create tools: `{ time, timeZone? }` becomes `{ time: '<UTC ISO Z>', timeZone: '<recorded zone or null>' }`;
+  - create tools: when the recorded zone is known, `{ time, timeZone? }` becomes `{ time: '<UTC ISO Z>', timeZone: '<zone>' }`; when it is `null` with an offset (an offset-only input), `time` becomes the ISO **with that offset** (`2026-10-21T16:00:00+02:00`) and `timeZone` is omitted; when both are `null`, `time` becomes `Z` and `timeZone` is omitted. `timeZone` is never stored as `null` on a create card: create tools' `timeZone` is optional, not nullable (only update tools accept `null`, to clear);
+  - so approval re-resolves to the same pair: zone + `Z` → branch 1; offset ISO → branch 3; `Z` alone → branch 4 or 5;
   - update tools: `time` becomes `'<UTC ISO Z>'`, and `timeZone` is kept only when the model passed it (so approval does not re-zone the row).
-  - The card shows the instant in the viewing zone, the editor writes an instant (`Z`) back, and on approval `resolveTimeInput` accepts `Z` with any `timeZone` (see above).
+  - The card shows the instant in the viewing zone, the editor writes an instant (`Z`) back, and on approval `resolveTimeInput` accepts `Z` with any `timeZone` (see above). An edited offset-only card loses its stated offset (the user typed a time in the viewing zone), so it records branch 4 or 5.
 
 **Ingest:**
 
@@ -333,7 +338,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 
 - The anchor zone is the request's `timezone` when sent, else `getUserTimeZone`. The recorded zone's candidate is the request's `timezone`, else `getStoredUserTimeZone`, so a user with no setting and no request zone records `null`.
 - The frontend sends the viewing zone instead of the raw device zone.
-- Each created row gets `resolveRecordedZone({ explicitZone: undefined, offsetMinutes: <cell offset if any>, candidateZone: anchorZone })`. A cell with an offset of its own keeps that offset, and the zone too when it matches.
+- Each created row gets `resolveRecordedZone({ explicitZone: undefined, offsetMinutes: <cell offset if any>, candidateZone: <request timezone ?? getStoredUserTimeZone> })`. The anchor zone (with its `UTC` fallback) is only for reading the cell; it is never the candidate. An offset-free cell records the candidate (branch 4); a cell with an offset of its own keeps that offset, and the zone too when it matches.
 - OFX: the upload parses dates (`ofx-import/date.ts`, zone from `X-Timezone`) and a separate execute request creates the rows (`ofx-import/execute-import.service.ts:230`, `time: new Date(tx.date)`). `parseOfxDate` also returns the offset the cell carried (`[±h:TZ]`), which the parsed transaction keeps as `utcOffsetMinutes`; the execute request (`controllers/import-export/ofx/execute-ofx.controller.ts`) gains `timezone`, which the frontend sends as for CSV; execute-import applies `resolveRecordedZone` per row.
 - MS Money, Budget Bakers and YNAB (no zone in the file, values parsed as UTC) store `null`.
 
@@ -363,13 +368,14 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - `from`/`to` (`YYYY-MM-DD`) become instants **in the user's zone**, keeping today's window semantics (`stats-transactions.ts:69-86`, `stats/utils/index.ts:36-50`): `from` → `zonedDayStart`; `to` → `zonedDayEnd` only when `from` is also given, and `zonedDayStart(to)` for an open-start window. With `zone = 'UTC'` every bound equals today's.
 - Period buckets use date-fns v4 with `@date-fns/tz` (`startOfDay(d, { in: tz(zone) })`, likewise for week, month, quarter and year).
 - Budgets: every `utcInstant` bound becomes a zoned bound: the `fromUtc` / `toUtc` / `poolFromUtc` pre-filter and the period JOIN (`AT TIME ZONE :zone`) in `activity/get-plan-activity.ts:94-107`, `activity/get-plan-cash.ts`, `get-scheduled.ts:104`. `fold/goal-schedule.ts` (calendar arithmetic on dates, no instants) stays as is.
-- `zone` is a **required** parameter of `generatePeriodBuckets`, `findBucketIndex`, `getWhereConditionForTime` and the `statsTransactions` window, so the compiler lists every caller and each one decides:
+- `getWhereConditionForTime` stays as it is: its only callers (`stats/get-balance-history.ts:116`, `get-balance-history-for-account.ts:54`) filter the DATEONLY `Balances.date`, which stays on UTC days (Decision 3).
+- `zone` is a **required** parameter of `generatePeriodBuckets`, `findBucketIndex` and the `statsTransactions` window, so the compiler lists every caller and each one decides:
   - zoned (`getUserTimeZone`): cash flow, expenses history, cumulative, spending by categories, pivot (`get-pivot/{index,buckets}.ts`), tracker stats (`trackers/{spending-stats,stats,get-category-tracker-transactions}.ts`), subscriptions summary (`subscriptions/get-subscriptions-summary.ts`);
   - `'UTC'`, with a comment pointing at Decision 3: net-worth history (`get-net-worth-history/index.ts`, whose snapshot dates come from `format(bucket.periodEnd, 'yyyy-MM-dd')` at `:224` and must match UTC `Balances` days), net-worth drivers (`get-net-worth-drivers/{index,investment-growth,savings}.ts`, `stats/utils/savings-transactions.ts`), investment contributions (`get-investment-contributions/{index,derivations}.ts`).
 - MCP report tools take their default range in the user's zone: `get_spending_by_categories` (`:35-41`) and `get_expenses_for_period` (`:28-33`) default to the current month **as dates** (`YYYY-MM-DD` of the first of the month and today in the user's zone), not server-time datetimes; `search_transactions` and `get_balance_history` compute "30 days ago" from today's date in the user's zone. Explicit bounds go through `resolveRangeBound`.
 - Sites:
   - `stats/stats-transactions.ts` `windowWhere`;
-  - `stats/utils/index.ts` (`getWhereConditionForTime`, `generatePeriodBuckets`, `findBucketIndex`) and every caller listed above;
+  - `stats/utils/index.ts` (`generatePeriodBuckets`, `findBucketIndex`) and every caller listed above;
   - `budget-plans/{activity/get-plan-activity,activity/get-plan-cash,get-scheduled,date-ranges}.ts`;
   - the MCP report tools above.
 - A user with no zone gets `UTC`, which is today's behavior.
@@ -444,7 +450,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - `zoneOffsetMinutes`: Kathmandu +345; New York -300 / -240 around both 2026 DST switches;
   - `wallClockToInstant`: New York and Kyiv gaps both resolve forward (`2026-03-08T02:30` NY → `07:30Z`), New York and Kyiv overlaps both take the earlier instant, Kiritimati +14;
   - `zonedDayStart` / `zonedDayEnd`: Tbilisi `2026-10-21` → `2026-10-20T20:00Z` / `2026-10-21T19:59:59.999Z`; New York's 23- and 25-hour days; Kiritimati, Pago Pago;
-  - `resolveRecordedZone`, each branch (explicit zone; offset matching the candidate; offset not matching; nothing);
+  - `resolveRecordedZone`, each of the five branches (explicit zone; offset matching the candidate; offset not matching; candidate only; nothing), and a `Z` input with no zone and no candidate → `null`/`null`, not offset 0;
   - `formatOffset` for ±, zero and 45-minute offsets;
   - `anchor-import-date.unit.ts` passes with one change: the New York gap case expects `2026-03-08T07:30:00.000Z` and its comment says forward by the gap
 - [ ] implement the helpers with `Intl.DateTimeFormat` only; move the wall-clock code out of `anchor-import-date.ts`
@@ -492,9 +498,10 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - an invalid zone → 422;
   - `GET /transactions` and the by-id route return both fields;
   - a balance adjustment, a subscription mark-paid and an account→portfolio transfer, each through REST with `timeZone`, record it; an auto-recorded subscription payment records the user's stored zone (`null` without a setting);
-  - a planned row with a zone merged by an incoming zone-less row across a DST switch keeps its zone and gets the new offset; merged by an incoming row with a zone, it takes the incoming pair
+  - a planned row created through REST with `timeZone: 'America/New_York'` in October, merged by a CSV import row in November for a user **with no zone setting**, imported **without** a `timezone` in the request (so the incoming row is `null` before and after Task 7), keeps New York and gets -300 (`merge-on-import.e2e.ts`'s setup); the case where the incoming row has a zone is tested in Task 7, the first task with an HTTP path that produces one;
+  - `real-transactions-view-columns.e2e.ts` gains a case: a planned row is not in the view
 - [ ] implement the migration (both columns, CHECK on the offset range, the `real_transactions` view rebuild; `down` reverses it), the model fields, `createTransaction` / `updateTransaction` params and derivation, and the opposite-leg copy (`create-transaction.ts:325-333`) plus its update twin
-- [ ] gate: e2e `--testPathPattern='(transactions/(time-zone|get-by-id|get-transactions|planned-matching/merge-on-sync)|transactions-query/real-transactions-view-columns)\.e2e'`
+- [ ] gate: e2e `--testPathPattern='(transactions/(time-zone|get-by-id|get-transactions|planned-matching/merge-on-import)|transactions-query/real-transactions-view-columns)\.e2e'`
 
 ### Task 4: Tool time input for MCP and the chat cards
 
@@ -517,6 +524,9 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
     - `2026-10-21` → local noon;
     - garbage → refused;
     - `2026-10-21T12:00:00Z` + `timeZone: 'Asia/Tbilisi'` → accepted, `12:00Z`, zone Tbilisi;
+    - `2026-10-21T12:00:00Z` alone for a Tbilisi user → zone Tbilisi, +240; for a user with no setting → `null`/`null` (never offset 0);
+  - `confirm_planned_transaction` and `pay_subscription_period` accept a wall clock (`2026-10-21T16:00` → `12:00Z` for a Tbilisi user), not only `Z`;
+  - `normalizeTimeArgs` on an offset-only create (`+02:00`, Tbilisi user) stores the offset ISO without `timeZone`, and re-resolving it gives `{null, +120}`; a user with no setting gets a card with no `timeZone` key;
   - update mode: no `timeZone` on a New York row → the zone stays New York, the wall clock is read in the viewing zone, the offset is recomputed; a `null` row stays `null`; `timeZone` given → recorded;
   - `resolveRangeBound`: `2026-10-21` as start/end for a Tbilisi user → `2026-10-20T20:00Z` / `2026-10-21T19:59:59.999Z`; a `Z` bound passes through;
   - each tool's `validate…Args` refuses a bad zone;
@@ -531,7 +541,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - the resolver;
   - the tools take `time` and `timeZone` through it and pass `{ timeZone, utcOffsetMinutes }` to the services Task 3 extended; update tools use update mode;
   - range-bound tools convert through `resolveRangeBound` before the REST schema parse;
-  - `adjust_account_balance` stops requiring `Z`;
+  - `adjust_account_balance`, `confirm_planned_transaction` and `pay_subscription_period` drop `transactionTimeSchema()` for the resolver's input schema;
   - the descriptions as in Technical Details;
   - the proposal normalizer;
   - the guide paragraph on zones
@@ -593,11 +603,12 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - an OFX import executed with `timezone: 'America/Montevideo'` stamps that zone on an offset-free row, and a row with `[+2:EET]` keeps +120;
   - the statement AI's "today" uses the setting when the request has none;
   - a Tbilisi user's bank sync: a row dated 1 day before the sync gets `Asia/Tbilisi` and +240; a row dated 90 days back stays `null`/`null`; a user with no setting gets `null`/`null` on the recent row too;
+  - a planned row without a zone, matched by that recent synced row with `Asia/Tbilisi`, takes the incoming pair (`planned-matching/merge-on-sync.e2e.ts` setup);
   - backup → restore keeps both columns, and restoring a fixture archive without the columns gives `null`;
   - data export adds `timeZone` and `localTime` (ISO with the row's offset, or the user's zone when `null`) and leaves `date`/`time` as they are
 - [ ] write failing unit tests for `bankSyncRecordedZone`: exactly 3 days → stamped; 3 days and 1 second → `null`; a future-dated row within the window → stamped; `userZone: null` inside the window → `null`/`null`
 - [ ] implement (backend only; the frontend starts sending the viewing zone in Task 13, once Task 9's `viewingTimeZone` exists; until then the backend's fallback to the stored setting covers a request without `timezone`)
-- [ ] gate: e2e `--testPathPattern='(import-export/(csv-import/detect-duplicates|statement-parser/(execute-import|ai-extraction))|backup/restore/restore-backup|data-export/export-data|import-export/ofx-import/.*|bank-data-providers/connection/transaction-sync)\.e2e'`; unit `--testPathPattern='(bank-data-providers/utils/recorded-zone|ofx-import/date)'`
+- [ ] gate: e2e `--testPathPattern='(import-export/(csv-import/detect-duplicates|statement-parser/(execute-import|ai-extraction))|backup/restore/restore-backup|data-export/export-data|import-export/ofx-import/.*|bank-data-providers/connection/transaction-sync|transactions/planned-matching/merge-on-sync)\.e2e'`; unit `--testPathPattern='(bank-data-providers/utils/recorded-zone|ofx-import/date)'`
 
 ### Task 8: Report day bucketing in the user's zone
 
@@ -657,12 +668,14 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - Modify: `packages/frontend/src/components/transactions-list/transaction-record.vue`, `packages/frontend/src/components/transactions-table/transaction-table-row.vue` (date in the viewing zone; `DesktopOnlyTooltip` on the date with `formatDateTime`, plus a second line for the row's own zone when it differs)
 - Modify: `packages/frontend/src/components/fields/date-field.vue` (a `timeZone` prop, default `viewingTimeZone`; input formatting and parsing through `tz`; v-calendar `timezone` prop; `is24hr` from `hourCyclePreference`)
 - Modify: `packages/frontend/src/components/dialogs/manage-transaction/{dialog-content.vue,helpers.ts,types.ts,utils/prepare-tx-creation-params.ts,utils/prepare-tx-updation-params.ts,composables/use-optional-fields.ts}` (the `timeZone` form field, the caption, sending `timeZone`; `timeZone` excluded from `DEFAULT_OPTIONAL_FIELDS` and shown when it differs from the viewing zone)
+- Modify: `packages/frontend/src/api/accounts.ts` (`:60`, balance adjustment), `packages/frontend/src/api/subscriptions.ts` (`:231`, mark paid), `packages/frontend/src/api/portfolios.ts` (`:94`, `:112`, account↔portfolio transfers): each body sends `timeZone: viewingTimeZone`; their dialogs (`pages/account/components/balance-adjustment-dialog.vue`, `pages/planned/subscriptions/components/subscription-mark-paid-dialog.vue`, the portfolio transfer dialogs) read and show times through `date-field` in the viewing zone
 - Modify: `packages/frontend/src/components/chat/visuals/format-visual-value.ts`, `packages/frontend/src/pages/settings/subpages/ai/pages/chat-applied-changes.vue`, `packages/frontend/src/pages/accounts/integrations/ios-automation/components/{payment-request-summary,unconfirmed-payments}.vue`, `packages/frontend/src/pages/optimizations/reconciliation/components/merge-dialog.vue`, `packages/frontend/src/pages/settings/subpages/general/rows/transaction-rows.vue` (the new optional field's label)
 - Specs beside each changed util; i18n `en` + `uk`
 
 - [ ] write failing vitest:
   - `date-field` with `timeZone: 'Asia/Tbilisi'` shows `2026-10-21 16:00` for `12:00Z` and emits `12:00Z` back when 16:00 is typed;
   - `prepareTxCreationParams` sends `timeZone`;
+  - the balance-adjustment, mark-paid and both portfolio-transfer API calls send `timeZone`;
   - the optional-field visibility rule;
   - `formatVisualDate` shows a `Z` instant in the viewing zone with the hour cycle;
   - the list tooltip text with and without a second zone;
