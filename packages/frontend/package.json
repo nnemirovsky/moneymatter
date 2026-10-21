@@ -18,7 +18,7 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report",
     "knip": "npx knip",
-    "shortcuts:build": "node scripts/shortcuts/build-card-payment-shortcut.ts"
+    "shortcuts:build": "node scripts/shortcuts/build-card-payment-shortcut.ts && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/shortcuts/build-payments-shortcut.ts"
   },
   "dependencies": {
     "@better-auth/passkey": "^1.6.30",
