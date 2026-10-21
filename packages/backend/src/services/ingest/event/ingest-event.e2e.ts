@@ -255,6 +255,60 @@ describe('POST /ingest/event', () => {
       expect(await storedRequests()).toHaveLength(2);
       expect(await helpers.getTransactions({ raw: true })).toHaveLength(2);
     });
+
+    it('folds the same notification under a second key within the fold window into the first', async () => {
+      const { account, secret } = await setUpWithCard();
+      const time = new Date(Date.now() - 60_000);
+      const first = await send({ secret, body: notification({ time: time.toISOString() }) });
+      const balanceAfterFirst = (await helpers.getAccount({ id: account.id, raw: true })).currentBalance;
+
+      const second = await send({
+        secret,
+        body: notification({ time: new Date(time.getTime() + 2000).toISOString() }),
+      });
+
+      expect(first.body.response.outcome).toBe('logged');
+      expect(second.body.response).toEqual({
+        outcome: 'duplicate',
+        requestId: first.body.response.requestId,
+        notify: false,
+      });
+      expect(await storedRequests()).toHaveLength(1);
+      expect(await helpers.getTransactions({ raw: true })).toHaveLength(1);
+      expect((await helpers.getAccount({ id: account.id, raw: true })).currentBalance).toBe(balanceAfterFirst);
+    });
+
+    it('stores one request when the same notification arrives twice at once under two keys', async () => {
+      const { secret } = await setUpWithCard();
+      const time = new Date(Date.now() - 60_000).toISOString();
+
+      const [a, b] = await Promise.all([
+        send({ secret, body: notification({ time }) }),
+        send({ secret, body: notification({ time }) }),
+      ]);
+
+      expect([a.body.response.outcome, b.body.response.outcome].toSorted()).toEqual(['duplicate', 'logged']);
+      expect(await storedRequests()).toHaveLength(1);
+      expect(await helpers.getTransactions({ raw: true })).toHaveLength(1);
+    });
+
+    it('does not fold a notification with other text, or the same text past the fold window', async () => {
+      const { secret } = await setUpWithCard();
+      const time = Date.now() - 60_000;
+      notificationTimings.foldMs = 1000;
+
+      await send({ secret, body: notification({ time: new Date(time).toISOString() }) });
+      await send({
+        secret,
+        body: notification({ time: new Date(time + 3000).toISOString() }),
+      });
+      await send({
+        secret,
+        body: notification({ time: new Date(time + 3500).toISOString(), body: `${BASE} 12.00` }),
+      });
+
+      expect(await storedRequests()).toHaveLength(3);
+    });
   });
 
   describe('idempotency', () => {
@@ -404,8 +458,8 @@ describe('POST /ingest/event', () => {
       expect((await send({ secret, body: notification() })).status).toBe(200);
       expect((await send({ secret, body: notification({ body: 'Nothing to see' }) })).status).toBe(200);
       expect((await send({ secret, body: notification({ body: 'Nothing to see' }) })).status).toBe(200);
-      expect((await send({ secret, body: notification() })).status).toBe(200);
-      const limited = await send({ secret, body: notification() });
+      expect((await send({ secret, body: notification({ body: `${BASE} 12.00` }) })).status).toBe(200);
+      const limited = await send({ secret, body: notification({ body: `${BASE} 13.00` }) });
 
       expect(limited.status).toBe(429);
       expect(limited.body.response.code).toBe(API_ERROR_CODES.tooManyRequests);

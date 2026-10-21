@@ -7,6 +7,7 @@ import type {
 } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { ConflictError, TooManyRequests, ValidationError } from '@js/errors';
+import { connection } from '@models/connection';
 import IngestRequests from '@models/ingest-requests.model';
 import { RateLimitService } from '@services/common/rate-limit.service';
 import { withTransaction } from '@services/common/with-transaction';
@@ -17,7 +18,7 @@ import { readUserLocale } from '../card-payment/read-user-locale';
 import { sanitizeForJsonb } from '../card-payment/sanitize-payload';
 import { getGateStrictness } from '../gate-strictness.service';
 import { notificationLimits } from './constants';
-import { computeNotificationFingerprint } from './notification-fingerprint';
+import { computeNotificationFingerprint, isFoldedRepeat } from './notification-fingerprint';
 import { enqueueNotificationProcessing } from './notification-queue';
 import {
   bumpDropCounter,
@@ -65,9 +66,47 @@ const isWithinLimits = async ({ userId }: { userId: number }): Promise<boolean> 
 
 interface RecordedNotification {
   requestId: RecordId;
-  /** The key was used before: the row that answers is the earlier one. */
+  /** The key was used before, or the text folded into an earlier notification: the earlier row answers. */
   replay: boolean;
 }
+
+/** How many of the latest same-text requests are compared against a new notification's time. */
+const FOLD_CANDIDATES = 20;
+
+/**
+ * The earlier request that a notification with the same text and a time within `foldMs` repeats: the
+ * same notification on two devices, or a double fire under a second key. Runs under a lock of the user
+ * and the fingerprint, held until the caller's transaction ends, so two repeats that arrive together
+ * cannot both find nothing and both be stored.
+ */
+const findFoldedOriginal = async ({
+  userId,
+  fingerprint,
+  time,
+}: {
+  userId: number;
+  fingerprint: string;
+  time: Date;
+}): Promise<IngestRequests | null> => {
+  await connection.sequelize.query('SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))', {
+    replacements: { key: `ingest-fold:${userId}:${fingerprint}` },
+  });
+
+  const candidates = await IngestRequests.findAll({
+    where: { userId, fingerprint, pipeline: 'notification' },
+    order: [['createdAt', 'DESC']],
+    limit: FOLD_CANDIDATES,
+  });
+
+  return (
+    candidates.find((candidate) => {
+      const storedTime = typeof candidate.payload.time === 'string' ? new Date(candidate.payload.time) : null;
+      if (storedTime === null || Number.isNaN(storedTime.getTime())) return false;
+
+      return isFoldedRepeat({ first: storedTime, second: time });
+    }) ?? null
+  );
+};
 
 const recordNotificationImpl = async ({
   userId,
@@ -82,6 +121,12 @@ const recordNotificationImpl = async ({
   sourceKey: string;
   fingerprint: string;
 }): Promise<RecordedNotification> => {
+  const folded = await findFoldedOriginal({ userId, fingerprint, time: notification.time });
+  // A repeat stores nothing, not even its text.
+  if (folded && folded.idempotencyKey !== notification.idempotencyKey) {
+    return { requestId: folded.id, replay: true };
+  }
+
   const source = await touchNotificationSource({
     userId,
     sourceKey,
@@ -219,7 +264,8 @@ const ingestNotification = async ({
  * - `walletTransaction` runs the card-payment pipeline unchanged (its own record, processing and
  *   answer).
  * - `notification` is checked, in this order: the body; the idempotency key (a repeat is answered
- *   from the earlier row); the prefilter (own output, no amount, a code request, a promo); a muted
+ *   from the earlier row; so is a same-text repeat within `foldMs`, which the recording transaction
+ *   finds under a lock); the prefilter (own output, no amount, a code request, a promo); a muted
  *   source; the per-user caps. Only then the request is recorded (tx 1) with its text encrypted,
  *   handed to the processing job, and awaited for up to the wait budget.
  *
