@@ -10,6 +10,7 @@ const inputSchema = {
   requestId: recordId(),
   accountId: recordId().optional(),
   direction: z.enum(['debit', 'credit']).optional(),
+  note: z.string().max(2000).optional().describe('The note to log the payment with; an empty string means no note'),
 };
 
 export function registerLogIngestRequest(server: McpServer) {
@@ -31,6 +32,7 @@ export function registerLogIngestRequest(server: McpServer) {
         requestId: args.requestId,
         accountId: args.accountId,
         direction: args.direction,
+        note: args.note,
       });
 
       return jsonContent({ data: result });

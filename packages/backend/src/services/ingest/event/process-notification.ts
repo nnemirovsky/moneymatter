@@ -92,7 +92,11 @@ const read = async ({
       parser: stored.parser,
       confidence: stored.confidence,
       paymentKind: stored.kind,
-      override: { accountId: stored.accountOverrideId ?? null, direction: stored.directionOverride ?? null },
+      override: {
+        accountId: stored.accountOverrideId ?? null,
+        direction: stored.directionOverride ?? null,
+        note: stored.noteOverride ?? null,
+      },
     };
   }
 
