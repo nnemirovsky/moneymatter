@@ -361,15 +361,13 @@ test.describe('Chat cards', () => {
 
     const card = ({ page, note }: { page: Page; note: string }) => cardLocator({ page, name: note });
 
-    /** Saves the whole list of cards, past the scroll of the conversation, once the account is named. */
+    /** Saves the whole list of cards once the account is named: the window grows so the conversation needs no scroll. */
     const saveCards = async ({ page, name }: { page: Page; name: string }) => {
       if (!SCREENSHOT_DIR) return;
       await expect(card({ page, note: 'Nord Coffee' })).toContainText('Main card');
-      await page
-        .getByTestId('proposal-card')
-        .first()
-        .locator('..')
-        .screenshot({ path: `${SCREENSHOT_DIR}/${name}.png` });
+      const { width } = page.viewportSize()!;
+      await page.setViewportSize({ width, height: 1800 });
+      await page.screenshot({ path: `${SCREENSHOT_DIR}/${name}.png` });
     };
 
     test('a finished card shows its header and a summary, and opens from the header', async ({ page }) => {
