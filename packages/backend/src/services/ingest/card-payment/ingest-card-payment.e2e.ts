@@ -230,15 +230,15 @@ describe('POST /ingest/card-payment', () => {
     });
 
     it('does not let a repeat anchor the window', async () => {
-      const windowMs = 1600;
-      cardPaymentTimings.repeatWindowMs = windowMs;
+      // Run times sent by the shortcut: 15 s after the original is a repeat (window 20 s), 30 s after
+      // the original is not, although it is only 15 s after the repeat. Stated times need no sleeping.
       const { secret } = await setUp();
+      const start = Date.now() - 10 * 60_000;
+      const at = ({ seconds }: { seconds: number }) => new Date(start + seconds * 1000).toISOString();
 
-      const original = await send({ secret, body: payment() });
-      await helpers.sleep(windowMs * 0.75);
-      const repeat = await send({ secret, body: payment() });
-      await helpers.sleep(windowMs * 0.75);
-      const later = await send({ secret, body: payment() });
+      const original = await send({ secret, body: payment({ time: at({ seconds: 0 }) }) });
+      const repeat = await send({ secret, body: payment({ time: at({ seconds: 15 }) }) });
+      const later = await send({ secret, body: payment({ time: at({ seconds: 30 }) }) });
 
       expect(repeat.body.response.duplicate).toBe(true);
       expect(later.body.response.duplicate).toBeUndefined();

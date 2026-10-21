@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
 import ChatMessages from '@models/chat-messages.model';
 import Notifications from '@models/notifications.model';
+import { REDIS_KEY_PREFIX, redisClient } from '@root/redis-client';
 import { RateLimitService } from '@services/common/rate-limit.service';
 import * as helpers from '@tests/helpers';
 import { enableServerModel, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
@@ -67,6 +68,40 @@ const awaitQuiet = async ({ device }: { device: Device }) => {
     { timeout: 10_000, interval: 25 },
   );
   await helpers.awaitSentinelPush({ subscription: device.subscription });
+};
+
+/** A debounce long enough that no window ends on its own: a test ends it with `endPushWindows`. */
+const HELD_DEBOUNCE_MS = 60_000;
+
+/** The keys that match `pattern`, without the per-worker prefix the client adds on every call. */
+const keysMatching = async ({ pattern }: { pattern: string }) =>
+  (await redisClient.keys(pattern)).map((key) => key.slice(REDIS_KEY_PREFIX?.length ?? 0));
+
+/** Events counted in the open windows of one slot, summed over its targets. */
+const countedEvents = async ({ slot }: { slot: string }) => {
+  const keys = await keysMatching({ pattern: `assistant-push:${slot}:*:count` });
+  const counts = await Promise.all(keys.map((key) => redisClient.get(key)));
+
+  return counts.reduce((sum, count) => sum + Number(count ?? 0), 0);
+};
+
+/**
+ * Ends the push windows now instead of after the debounce, once `events` events of `slot` were counted
+ * (or, with none given, once a window is open). A case that races the debounce against its own steps
+ * holds the windows open and ends them here, so what happens in between no longer depends on timing.
+ */
+const endPushWindows = async ({ slot, events }: { slot?: string; events?: number } = {}) => {
+  await until(
+    async () => {
+      const opened = (await assistantPushQueue.getDelayedCount()) > 0;
+
+      return opened && (slot === undefined || (await countedEvents({ slot })) >= (events ?? 1));
+    },
+    { timeout: 10_000, interval: 25 },
+  );
+
+  const delayed = await assistantPushQueue.getDelayed();
+  await Promise.all(delayed.map((job) => job.promote()));
 };
 
 let modelConnected = false;
@@ -133,7 +168,9 @@ const walletPayment = ({ secret, card = CARD, amount }: { secret: string; card?:
     },
   });
 
-/** A TBC push that only the AI can read. */
+let bankPushes = 0;
+
+/** A TBC push that only the AI can read. Each differs in its amount: the same text within seconds folds into one. */
 const bankPush = ({ secret }: { secret: string }) =>
   ingestHelpers.postIngestEvent({
     secret,
@@ -142,7 +179,7 @@ const bankPush = ({ secret }: { secret: string }) =>
       app: 'TBC Bank',
       title: 'TBC Bank',
       subtitle: '',
-      body: `Purchase ${BASE} 43.60, WOLT.COM TBILISI`,
+      body: `Purchase ${BASE} ${(43.6 + ++bankPushes).toFixed(2)}, WOLT.COM TBILISI`,
       idempotencyKey: `push-${randomUUID()}`,
     },
   });
@@ -158,6 +195,12 @@ describe('Assistant push', () => {
   let device: Device;
 
   beforeEach(async () => {
+    // Other suites of this worker queue assistant jobs (every inbox card does) with the real debounce, and
+    // a case held open by this suite leaves its window behind; none of it may reach a case here.
+    await assistantPushQueue.drain(true);
+    const staleState = await keysMatching({ pattern: 'assistant-push:*' });
+    if (staleState.length) await redisClient.del(...staleState);
+
     modelConnected = false;
     assistantPushConfig.debounceMs = 50;
     clearCapturedPushRequests();
@@ -226,7 +269,10 @@ describe('Assistant push', () => {
     });
 
     it('sends nothing when the app is reading the run stream', async () => {
-      await runChat({ turns: REPLY, watch: true });
+      // The reply streams in pieces, so the run is still live when the stream connects and marks the thread read.
+      const slowReply: ChatScriptTurn[] = [{ text: ['Your secret', ' answer', ' is 42.'], pieceDelayMs: 400 }];
+
+      await runChat({ turns: slowReply, watch: true });
       await awaitQuiet({ device });
 
       expect(assistantPushes({ device })).toEqual([]);
@@ -243,11 +289,12 @@ describe('Assistant push', () => {
     });
 
     it('does not push when the user opens the thread before the debounce ends', async () => {
-      assistantPushConfig.debounceMs = 1500;
+      assistantPushConfig.debounceMs = HELD_DEBOUNCE_MS;
       const thread = await helpers.createChatThread({ title: 'Opened late', raw: true });
 
       await runChat({ turns: REPLY, threadId: thread.id });
       await helpers.putChatPresence({ threadId: thread.id });
+      await endPushWindows();
       await awaitQuiet({ device });
 
       expect(assistantPushes({ device })).toEqual([]);
@@ -315,11 +362,12 @@ describe('Assistant push', () => {
 
   describe('the Automation inbox', () => {
     it('pushes three items as one push with the count, and nothing more within the cooldown', async () => {
-      // Long enough for three payments to land inside one window.
-      assistantPushConfig.debounceMs = 2000;
+      // The window stays open until all three payments are counted.
+      assistantPushConfig.debounceMs = HELD_DEBOUNCE_MS;
       const { secret } = await linkedCard();
 
       for (const amount of ['11.00', '12.00', '13.00']) await walletPayment({ secret, amount });
+      await endPushWindows({ slot: 'inbox', events: 3 });
       const [push, ...rest] = await waitForAssistantPushes({ device, count: 1 });
 
       expect(rest).toEqual([]);

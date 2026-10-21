@@ -157,11 +157,12 @@ describe('short-balance correction', () => {
     });
 
     it('ranks the covering accounts by default, then by the fullest balance', async () => {
-      const { usd, eur, noon, secret } = await setUp({ eurBalance: 900 });
+      const { gel, usd, eur, noon, secret } = await setUp({ eurBalance: 900 });
 
-      await walletPayment({ secret, noon, amount: woltOnlinePayment.wallet.body });
+      const res = await walletPayment({ secret, noon, amount: woltOnlinePayment.wallet.body });
+      expect(res.body.response.outcome).toBe('logged');
 
-      const tx = (await Transactions.findOne({ where: { accountId: (await helpers.getAccounts())[0]!.id } }))!;
+      const tx = (await Transactions.findOne({ where: { accountId: gel.id } }))!;
       const correction = await correctionOf({ transactionId: tx.id });
       expect(correction!.candidates.map((candidate) => candidate.accountId)).toEqual([eur!.id, usd.id]);
       expect(correction!.suggestedAccountId).toBe(eur!.id);
