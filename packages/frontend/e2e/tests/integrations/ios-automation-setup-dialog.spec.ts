@@ -25,9 +25,17 @@ declare global {
   }
 }
 
-const stubShare = async ({ page, canShare }: { page: Page; canShare: boolean }) => {
+const stubShare = async ({
+  page,
+  canShare,
+  failShare = false,
+}: {
+  page: Page;
+  canShare: boolean;
+  failShare?: boolean;
+}) => {
   await page.addInitScript(
-    ({ canShareFiles }) => {
+    ({ canShareFiles, shouldFail }) => {
       window.sharedShortcutFiles = [];
       Object.defineProperty(navigator, 'canShare', {
         configurable: true,
@@ -36,6 +44,7 @@ const stubShare = async ({ page, canShare }: { page: Page; canShare: boolean }) 
       Object.defineProperty(navigator, 'share', {
         configurable: true,
         value: async (data: ShareData) => {
+          if (shouldFail) throw new DOMException('blocked', 'NotAllowedError');
           for (const file of data.files ?? []) {
             window.sharedShortcutFiles.push({
               name: file.name,
@@ -46,7 +55,7 @@ const stubShare = async ({ page, canShare }: { page: Page; canShare: boolean }) 
         },
       });
     },
-    { canShareFiles: canShare },
+    { canShareFiles: canShare, shouldFail: failShare },
   );
 };
 
@@ -122,11 +131,24 @@ test.describe('iOS Automation setup code dialog on a phone', () => {
     }
   });
 
-  test('the copied toast leaves on its own and closes with its X while the dialog is open', async ({ page }) => {
+  test('copies with an inline confirmation instead of a toast', async ({ page }) => {
     await openSetupCodeDialog({ page });
-    const toast = page.locator('[data-sonner-toast][data-type="success"]');
+    const copy = page.getByRole('dialog').getByTestId('setup-code-copy');
 
-    await page.getByRole('dialog').getByTestId('setup-code-copy').click();
+    await copy.tap();
+
+    await expect(copy).toHaveText('Copied');
+    await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
+    await expect(copy).toHaveText('Copy code', { timeout: 5_000 });
+  });
+
+  test('a toast raised inside the dialog leaves on its own and closes with its X', async ({ page }) => {
+    await stubShare({ page, canShare: true, failShare: true });
+    await openSetupCodeDialog({ page });
+    const toast = page.locator('[data-sonner-toast][data-type="error"]');
+    const addShortcut = page.getByRole('dialog').getByTestId('add-shortcut-payments');
+
+    await addShortcut.tap();
     await expect(toast).toBeVisible();
     await expect(toast).toHaveAttribute('data-mounted', 'true');
     // The toast slides in; the screenshot is only an artifact for review.
@@ -134,11 +156,25 @@ test.describe('iOS Automation setup code dialog on a phone', () => {
     await page.screenshot({ path: 'test-results/setup-dialog-toast.png' });
     await expect(toast).toBeHidden({ timeout: TOAST_AUTO_DISMISS_MS + 3_000 });
 
-    await page.getByRole('dialog').getByTestId('setup-code-copy').click();
+    await addShortcut.tap();
     await expect(toast).toBeVisible();
     await toast.locator('[data-close-button]').tap();
     await expect(toast).toBeHidden();
     await expect(page.getByTestId('setup-code-text')).toBeVisible();
+  });
+
+  test('hints how to finish from the share sheet', async ({ page }) => {
+    await stubShare({ page, canShare: true });
+    const fileLoaded = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/shortcuts/log-payments.shortcut') && response.request().method() === 'GET',
+    );
+    await openSetupCodeDialog({ page });
+    await fileLoaded;
+
+    await expect(page.getByRole('dialog').getByTestId('add-shortcut-payments-share-hint')).toContainText(
+      'Save to Files',
+    );
   });
 
   test('shares the shortcut file through the share sheet when the browser can', async ({ page }) => {

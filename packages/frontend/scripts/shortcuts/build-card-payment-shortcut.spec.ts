@@ -37,6 +37,9 @@ const dictionaryItems = (value: Dict): Dict[] => value.Value.WFDictionaryFieldVa
 const keyOf = (item: Dict): string => item.WFKey.Value.string;
 
 describe('card-payment shortcut generator', () => {
+  it('carries the MoneyMatter icon', () => {
+    expect(shortcut.WFWorkflowIcon).toEqual({ WFWorkflowIconGlyphNumber: 62322, WFWorkflowIconStartColor: 2071128575 });
+  });
   it('reads the subject of every text comparison as text', () => {
     const textConditions: number[] = [CONDITION_CODES.Is, CONDITION_CODES.Contains];
     const comparisons = byId(SHORTCUT_ACTIONS.conditional).filter((action) =>

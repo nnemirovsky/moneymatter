@@ -72,7 +72,23 @@ describe('SetupCodeDialog', () => {
     await click(wrapper, 'setup-code-copy');
 
     expect(writeText).toHaveBeenCalledWith(CODE);
-    expect(mockAddSuccess).toHaveBeenCalledWith('Setup code copied to clipboard');
+    expect(mockAddSuccess).not.toHaveBeenCalled();
+  });
+
+  it('confirms the copy on the button itself, then reverts', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const wrapper = mountDialog(CODE);
+      const button = () => wrapper.get('[data-testid="setup-code-copy"]');
+
+      await click(wrapper, 'setup-code-copy');
+      expect(button().text()).toBe('Copied');
+
+      await vi.advanceTimersByTimeAsync(1500);
+      expect(button().text()).toBe('Copy code');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('starts the clipboard write inside the click, before anything is awaited', async () => {
@@ -91,7 +107,7 @@ describe('SetupCodeDialog', () => {
     await click(wrapper, 'setup-code-copy');
 
     expect(execCommand).toHaveBeenCalledWith('copy');
-    expect(mockAddSuccess).toHaveBeenCalledWith('Setup code copied to clipboard');
+    expect(wrapper.get('[data-testid="setup-code-copy"]').text()).toBe('Copied');
     expect(wrapper.find('[data-testid="setup-code-manual-copy"]').exists()).toBe(false);
   });
 

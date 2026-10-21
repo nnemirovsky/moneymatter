@@ -16,8 +16,9 @@
         <div class="flex items-center justify-between gap-2">
           <span class="text-sm font-medium">{{ $t(`${LABEL_ROOT}.codeLabel`) }}</span>
           <Button type="button" variant="outline" size="sm" data-testid="setup-code-copy" @click="copyCode">
-            <CopyIcon class="size-4" />
-            {{ $t(`${LABEL_ROOT}.copy`) }}
+            <CheckIcon v-if="isCopied" class="size-4" />
+            <CopyIcon v-else class="size-4" />
+            {{ $t(`${LABEL_ROOT}.${isCopied ? 'copied' : 'copy'}`) }}
           </Button>
         </div>
         <code
@@ -42,8 +43,8 @@
 
     <template #footer>
       <div class="@container/setup-actions grid w-full gap-2">
-        <AddShortcutButton shortcut="payments" class="w-full" />
-        <AddShortcutButton shortcut="tap" class="w-full" />
+        <AddShortcutButton shortcut="payments" full-width />
+        <AddShortcutButton shortcut="tap" full-width />
         <Button
           type="button"
           class="w-full @sm/setup-actions:w-auto @sm/setup-actions:justify-self-end"
@@ -62,15 +63,14 @@ import { copyText } from '@/common/utils/copy-text';
 import ResponsiveDialog from '@/components/common/responsive-dialog.vue';
 import { Button } from '@/components/lib/ui/button';
 import { Callout } from '@/components/lib/ui/callout';
-import { useNotificationCenter } from '@/components/notification-center';
-import { CopyIcon } from '@lucide/vue';
-import { nextTick, ref, watch } from 'vue';
-import { useI18n } from 'vue-i18n';
+import { CheckIcon, CopyIcon } from '@lucide/vue';
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
 
 import AddShortcutButton from './add-shortcut-button.vue';
 import SetupCodeQr from './setup-code-qr.vue';
 
 const LABEL_ROOT = 'settings.integrations.iosAutomation.codeDialog';
+const COPIED_CONFIRMATION_MS = 1500;
 
 const props = defineProps<{
   /** The setup code, or `null` while the dialog is closed. It is a credential: show it, never keep it. */
@@ -79,12 +79,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{ close: [] }>();
 
-const { t } = useI18n({ useScope: 'global' });
-const { addSuccessNotification } = useNotificationCenter();
-
 const codeElement = ref<HTMLElement | null>(null);
 /** Both automatic ways to copy were refused, so the code is selected for the user to copy by hand. */
 const isManualCopy = ref(false);
+const isCopied = ref(false);
+let copiedTimeout: ReturnType<typeof setTimeout> | null = null;
 
 watch(
   () => props.code,
@@ -108,13 +107,27 @@ const selectCode = () => {
   selection.addRange(range);
 };
 
+/** The button confirms the copy itself: a toast would cover the dialog's own buttons. */
+const showCopied = () => {
+  isCopied.value = true;
+  if (copiedTimeout !== null) clearTimeout(copiedTimeout);
+  copiedTimeout = setTimeout(() => {
+    isCopied.value = false;
+    copiedTimeout = null;
+  }, COPIED_CONFIRMATION_MS);
+};
+
+onBeforeUnmount(() => {
+  if (copiedTimeout !== null) clearTimeout(copiedTimeout);
+});
+
 const copyCode = async () => {
   if (!props.code) return;
 
   // `copyText` starts the clipboard write before it awaits anything, so iOS still sees the tap.
   if (await copyText({ text: props.code })) {
     isManualCopy.value = false;
-    addSuccessNotification(t(`${LABEL_ROOT}.copied`));
+    showCopied();
     return;
   }
 

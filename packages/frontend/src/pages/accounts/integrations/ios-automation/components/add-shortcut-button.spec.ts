@@ -218,6 +218,20 @@ describe('AddShortcutButton', () => {
       expect(mockAddError).toHaveBeenCalledWith(expect.stringContaining('share sheet'));
     });
 
+    it('tells how to finish from the share sheet, which has no Open in Shortcuts', () => {
+      const wrapper = mountButton({ href: PAYMENTS_SHORTCUT_FILE_PATH, shortcut: 'payments' });
+
+      expect(wrapper.get('[data-testid="add-shortcut-payments-share-hint"]').text()).toContain('Save to Files');
+    });
+
+    it('shows no hint when the share sheet is not used', () => {
+      stubSharing({ canShare: false });
+
+      const wrapper = mountButton({ href: PAYMENTS_SHORTCUT_FILE_PATH, shortcut: 'payments' });
+
+      expect(wrapper.find('[data-testid="add-shortcut-payments-share-hint"]').exists()).toBe(false);
+    });
+
     it('falls back to the link when the browser refuses the file', async () => {
       stubSharing({ canShare: false });
 
