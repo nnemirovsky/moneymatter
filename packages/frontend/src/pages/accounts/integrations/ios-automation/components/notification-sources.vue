@@ -56,10 +56,12 @@
           />
         </div>
 
+        <!-- `md:h-9` is the picker's own height rule, so the buttons are as tall as the picker next to them. -->
         <div class="flex gap-2 @lg/integrations:shrink-0">
           <Button
             v-if="source.mode === 'muted'"
             variant="outline"
+            class="md:h-9"
             :disabled="isBusy"
             :aria-label="$t(`${LABEL_ROOT}.approveAria`, { name: getSourceName({ source, fallback: '' }) })"
             data-testid="notification-source-approve"
@@ -70,6 +72,7 @@
           <Button
             v-else
             variant="outline"
+            class="md:h-9"
             :disabled="isBusy"
             :aria-label="$t(`${LABEL_ROOT}.muteAria`, { name: getSourceName({ source, fallback: '' }) })"
             data-testid="notification-source-mute"
@@ -79,6 +82,7 @@
           </Button>
           <Button
             variant="soft-destructive"
+            class="md:h-9"
             :disabled="isBusy"
             :aria-label="$t(`${LABEL_ROOT}.forgetAria`, { name: getSourceName({ source, fallback: '' }) })"
             data-testid="notification-source-forget"
