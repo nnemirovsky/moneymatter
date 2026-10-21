@@ -97,6 +97,10 @@ export interface TransactionModel {
   /** Where the purchase happened. */
   location: TransactionLocation | null;
   time: Date;
+  /** IANA zone the payment happened or was entered in; `null` means unknown. */
+  timeZone: string | null;
+  /** The zone's UTC offset at `time` in minutes, or the offset a source stated without a zone. */
+  utcOffsetMinutes: number | null;
   userId: number;
   /** See `TransactionCreatorSnapshot`. NULL on every row except when the creator's
    *  account is deleted; backfill is intentionally skipped (no historical
@@ -235,6 +239,8 @@ export interface CreateTransactionBody {
   externalReference?: string;
   location?: TransactionLocation | null;
   time: string;
+  /** IANA zone to record on the row; `time` stays a UTC instant. */
+  timeZone?: string | null;
   transactionType: TransactionModel['transactionType'];
   paymentType: TransactionModel['paymentType'];
   accountId: TransactionModel['accountId'];
@@ -274,6 +280,8 @@ export interface UpdateTransactionBody {
   externalReference?: string | null;
   location?: TransactionLocation | null;
   time?: string;
+  /** `null` clears the recorded zone and offset. */
+  timeZone?: string | null;
   transactionType?: TransactionModel['transactionType'];
   paymentType?: TransactionModel['paymentType'];
   accountId?: TransactionModel['accountId'];

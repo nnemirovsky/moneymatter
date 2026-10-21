@@ -163,6 +163,7 @@ export const CARD_PAYMENT_REQUEST_KEYS = [
   'name',
   'time',
   'timeSource',
+  'timeZone',
   'idempotencyKey',
   'source',
   'dryRun',

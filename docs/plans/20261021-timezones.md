@@ -445,7 +445,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - Modify: `packages/backend/src/services/import-export/core/parse/anchor-import-date.ts` (import the moved helpers), `anchor-import-date.unit.ts` (the New York gap expectation)
 - Create: `packages/backend/src/services/import-export/core/parse/time-zone-helpers.unit.ts`
 
-- [ ] write failing unit tests:
+- [x] write failing unit tests:
   - `isValidTimeZone`: `Asia/Tbilisi`, `Europe/Kiev`, `UTC` pass; `+04:00`, `Mars/Base`, `''` fail;
   - `zoneOffsetMinutes`: Kathmandu +345; New York -300 / -240 around both 2026 DST switches;
   - `wallClockToInstant`: New York and Kyiv gaps both resolve forward (`2026-03-08T02:30` NY → `07:30Z`), New York and Kyiv overlaps both take the earlier instant, Kiritimati +14;
@@ -453,9 +453,9 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - `resolveRecordedZone`, each of the five branches (explicit zone; offset matching the candidate; offset not matching; candidate only; nothing), and a `Z` input with no zone and no candidate → `null`/`null`, not offset 0;
   - `formatOffset` for ±, zero and 45-minute offsets;
   - `anchor-import-date.unit.ts` passes with one change: the New York gap case expects `2026-03-08T07:30:00.000Z` and its comment says forward by the gap
-- [ ] implement the helpers with `Intl.DateTimeFormat` only; move the wall-clock code out of `anchor-import-date.ts`
-- [ ] add the shared constants and fields; `typecheck` stays green (frontend and backend compile with the new optional fields)
-- [ ] gate: unit `--testPathPattern='import-export/core/parse/(anchor-import-date|time-zone-helpers)'`; root `typecheck`
+- [x] implement the helpers with `Intl.DateTimeFormat` only; move the wall-clock code out of `anchor-import-date.ts`
+- [x] add the shared constants and fields (➕ `TRANSACTION_OPTIONAL_FIELDS` += `timeZone` moved to Task 11: the form's field-reveal map must gain the field in the same change, or the frontend typecheck breaks; `isValidTimeZone` also checks the IANA name shape, since Intl accepts `+04:00`); `typecheck` stays green (frontend and backend compile with the new optional fields)
+- [x] gate: unit `--testPathPattern='import-export/core/parse/(anchor-import-date|time-zone-helpers)'`; root `typecheck`
 
 ### Task 2: User settings: time zone, source, hour cycle
 

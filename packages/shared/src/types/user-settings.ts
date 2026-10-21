@@ -6,6 +6,14 @@ import type { TRANSACTION_SORT_FIELD } from './transactions/transactions';
 export const TRANSACTION_OPTIONAL_FIELDS = ['externalUrl', 'externalReference', 'location', 'originalAmount'] as const;
 export type TransactionOptionalField = (typeof TRANSACTION_OPTIONAL_FIELDS)[number];
 
+// Where the user's time zone comes from: the device (kept in sync) or a manual pick.
+export const TIME_ZONE_SOURCES = ['device', 'manual'] as const;
+export type TimeZoneSource = (typeof TIME_ZONE_SOURCES)[number];
+
+// 24-hour or 12-hour clock; unset follows the UI language.
+export const HOUR_CYCLES = ['h23', 'h12'] as const;
+export type HourCycle = (typeof HOUR_CYCLES)[number];
+
 // Max length of a saved Pivot view's user-facing name. Shared by the backend Zod
 // schema and the client-side input cap so both reject the same overflow rather
 // than the client letting the user type a name the server will 400 on.
