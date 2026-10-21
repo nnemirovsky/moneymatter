@@ -69,7 +69,7 @@ export const CODEX_TOOL_DISABLE_ARGS: readonly string[] = CODEX_DISABLED_FEATURE
  * is shown none of the bridge's tools (verified on 0.160.1 and 0.163.0). Anything the host could run
  * is still refused by the fail-closed item guard.
  */
-export const CODEX_CHAT_ENABLED_FEATURES: readonly string[] = ['code_mode_host'];
+const CODEX_CHAT_ENABLED_FEATURES: readonly string[] = ['code_mode_host'];
 
 /** `--json` item types a plain answer produces; anything else is tool activity or a type this code has not vetted. */
 const ALLOWED_ITEM_TYPES = new Set(['agent_message', 'reasoning', 'error']);
