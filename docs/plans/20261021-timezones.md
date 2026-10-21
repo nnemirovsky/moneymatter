@@ -27,6 +27,7 @@ This plan delivers:
 6. **API and MCP:**
    - `timeZone` and `utcOffsetMinutes` appear on transactions and in create and update bodies;
    - the settings carry `timeZone`, `timeZoneSource` and `hourCycle`;
+   - `PUT /transactions/bulk`, MCP `bulk_update_transactions` and the list's bulk actions can set or clear the zone on many existing rows at once, so a backfill runs through supported tools, not SQL;
    - every change is additive and nullable, so the work can go upstream as a PR.
 
 ## Context (from discovery)
@@ -156,6 +157,7 @@ This plan delivers:
   - ingest with `timeZone`, with only an offset, and with neither;
   - CSV and statement imports stamping the anchor zone;
   - a bank sync leaving `null`;
+  - a bulk zone edit by ids and by filter selection, both transfer legs, per-row offsets across DST;
   - a backup round trip;
   - data-export columns;
   - stats and budgets bucketing an 23:30 local purchase into the right day for a user in a +04:00 zone and one in a -05:00 zone, with a no-zone user unchanged.
@@ -251,6 +253,18 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - Responses gain `timeZone` and `utcOffsetMinutes`, through `serializeTransaction` and the shared `TransactionModel`.
 - The frontend always sends `timeZone` on create: the viewing zone, or the zone picked in the form.
 
+**Bulk zone edits** (no new tool; the existing bulk update grows one field):
+
+- `bulkUpdate` (`services/transactions/bulk-update.ts`), `PUT /transactions/bulk` (`controllers/transactions.controller/bulk-update.ts`) and MCP `bulk_update_transactions` take `timeZone?: string | null`. `null` clears both columns.
+- The target is the existing bulk target: `transactionIds`, or a filter `selection` with `excludedIds` (`resolveBulkTargetIds`, `services/transactions/matching-transactions.ts:86`). An account and a date range select a whole trip in one call.
+- `resolveBulkTargetIds` keeps one leg per transfer (`dedupeTransferLegs`). For a zone change the service adds the opposite legs back, so both legs carry the same zone.
+- One `UPDATE` sets the zone and computes each row's offset at its own `time`:
+  `"utcOffsetMinutes" = EXTRACT(EPOCH FROM (("time" AT TIME ZONE :zone) - ("time" AT TIME ZONE 'UTC'))) / 60`.
+  An e2e test compares the SQL result with `zoneOffsetMinutes` across a DST switch, so Postgres's tz database and Node's ICU agree on the rows tested.
+- Bank-synced rows are included: the zone is an annotation, and `time` is not touched.
+- A zone change moves no money, balance or report day, because day membership follows the viewing zone. It needs no recompute.
+- A mapping-style tool (ids → zones in one call) is not added: a backfill applies one zone per period, which is one bulk call per group.
+
 **Tool time input** (`common/lib/time-zones/resolve-time-input.ts`, used by every MCP tool with a transaction time):
 
 - `time` accepts:
@@ -327,6 +341,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
    - Existing rows came from several places and devices, and the current setting would assert a zone nobody knows.
    - `null` displays exactly as today (viewing zone, no second zone) and costs no data rewrite.
    - Not chosen: stamping the current setting on manual rows only.
+   - A user who knows better sets zones afterwards with the bulk edit (Task 12): by ids, or by a filter selection such as an account and a date range. The owner's own backfill uses it (Post-Completion).
 3. **Day bucketing: the viewing zone (the setting).**
    - The list, analytics and budgets will agree, and a day is a contiguous span of time, so SQL ranges stay indexable.
    - Bucketing by each transaction's own local date (a coffee at 23:30 in New York lands on that New York day) needs per-row zone math in every report and can make days overlap. Rejected for now. `utcOffsetMinutes` keeps it possible later.
@@ -352,7 +367,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 ## What Goes Where
 
 - **Implementation Steps** (`[ ]`): code, tests, docs in this repo.
-- **Post-Completion** (no checkboxes): device check of the shortcut's `VV` format, re-signing the shortcut, the owner's settings, the upstream PR split.
+- **Post-Completion** (no checkboxes): device check of the shortcut's `VV` format, re-signing the shortcut, the owner's settings and data backfill, the upstream PR split.
 
 ## Implementation Steps
 
@@ -575,7 +590,29 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - [ ] implement; the dialog caption reads "Recorded in America/New_York: 08:00 GMT-4" when the row's zone differs
 - [ ] gate: frontend the changed spec files
 
-### Task 12: Frontend: filters, presets and widgets in the viewing zone
+### Task 12: Bulk zone edits: API, MCP and the list action
+
+**Files:**
+
+- Modify: `packages/backend/src/services/transactions/bulk-update.ts`, `packages/backend/src/controllers/transactions.controller/bulk-update.ts`, `packages/backend/src/services/mcp/tools/bulk-update-transactions.ts` (+ its validator in `tool-arg-validators.ts`), `packages/shared/src/types/transactions/transactions.ts` (bulk body type)
+- Modify: `packages/backend/src/controllers/transactions.controller/bulk-update.e2e.ts`, the bulk tool's unit test
+- Modify: `packages/frontend/src/components/transactions-list/bulk-action-dialogs.vue`, `packages/frontend/src/composable/use-bulk-transaction-actions.ts`, `packages/frontend/src/api/transactions.ts` + specs; i18n `en` + `uk`
+
+- [ ] write failing e2e:
+  - `PUT /transactions/bulk` with `transactionIds` and `timeZone: 'Asia/Makassar'` sets the zone on each row and the offset at each row's own time (+480);
+  - the same by a filter `selection` (one account, a date range) with one `excludedIds` row left untouched;
+  - a transfer selected by one leg gets the zone on both legs;
+  - New York rows on both sides of the 2026 DST switch get -240 and -300, equal to `zoneOffsetMinutes`;
+  - `timeZone: null` clears both columns;
+  - a bank-synced row is updated, and its `time` is unchanged;
+  - an invalid zone → 422; another user's ids → not updated;
+  - `timeZone` alone is a valid bulk body (the "at least one field" check counts it)
+- [ ] write failing unit tests: `bulk_update_transactions` accepts `timeZone` and `null`, refuses `+04:00`; its description says what the zone means and that the offset is computed per row
+- [ ] implement per Technical Details → Bulk zone edits
+- [ ] frontend: a "Set time zone" bulk action beside the existing ones. Its dialog uses `time-zone-select-field` (Task 10) plus a "Clear" choice, sends the current target (ids or selection), shows the toast and invalidates the transaction queries. Vitest covers the payload for both target kinds.
+- [ ] gate: e2e `--testPathPattern='transactions.controller/bulk-update\.e2e'`; unit `--testPathPattern='mcp/tools/.*bulk'`; frontend the changed spec files
+
+### Task 13: Frontend: filters, presets and widgets in the viewing zone
 
 **Files:**
 
@@ -586,15 +623,15 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - [ ] implement with `tz(viewingTimeZone)`
 - [ ] gate: frontend the changed spec files
 
-### Task 13: Verify acceptance criteria
+### Task 14: Verify acceptance criteria
 
 - [ ] the Haiku scenario end to end against a mocked model: a Tbilisi user says "coffee 5 GEL at 16:00"; the model calls `create_transaction` with `time: '<today>T16:00'`; the card shows 16:00; approval stores `12:00Z`, `Asia/Tbilisi`, +240; the list tooltip shows 16:00 GMT+4
 - [ ] the same chat after switching the setting to manual `Europe/Kyiv`: the list shows 15:00 GMT+3 and a second line "Recorded in Asia/Tbilisi: 16:00 GMT+4"
 - [ ] a user without a zone sees no change in reports (the existing stats and budgets e2e suites pass untouched)
 - [ ] Playwright flow from the Testing Strategy
-- [ ] full backend unit suite, the e2e patterns of Tasks 2–8 in one serial run, the frontend suite, root `typecheck`, `lint`, `format:check`, `knip`
+- [ ] full backend unit suite, the e2e patterns of Tasks 2–8 and 12 in one serial run, the frontend suite, root `typecheck`, `lint`, `format:check`, `knip`
 
-### Task 14: Documentation
+### Task 15: Documentation
 
 - [ ] user docs (`packages/docs`, via `user-docs`): a "Time zone and clock" settings page; how each source records a zone; the note that balance history uses UTC days
 - [ ] `packages/docs/.../integrations/ios-automation.mdx` and `packages/backend/docs/card-payment-ingest.md`: the `timeZone` key and the offset fallback
@@ -614,6 +651,21 @@ _Items requiring manual work or external systems; no checkboxes._
 
 **Owner settings:** set Clock to 24-hour, and leave Time zone on Automatic, which writes `Asia/Tbilisi` on first open.
 
-**Upstream PR shape:** Tasks 1–5 and 9–11 stand alone, as the zone column, the AI fix and display. Tasks 6–8 and 12 can follow as a second PR, since report bucketing is the only visible behavior change for users who set nothing.
+**Owner data backfill (one-off, after Task 12 is deployed; not part of the upstream PR):**
+
+- **Source 1, the Sheets ledger.** Read the per-row zones of the old Google Sheets ledger with the `bt` CLI. Match each row to its MoneyMatter transaction (account, amount, date, then merchant or note). Matched rows with a sheet zone are applied as they are, without review.
+- **Source 2, inference from context, for every other row.** Look at what was happening around the transaction's date, a few days on either side:
+  - where the owner's other spending happened then: merchant locations and countries, spending in a local currency;
+  - the sheet zones of neighbouring rows.
+  - Take the majority country in that window and its zone.
+  - Do **not** take the zone from the account's country group or its currency: a Georgian card is used abroad. The account's country is at most a weak tiebreaker.
+  - Windows with mixed signals, such as travel days, are marked uncertain.
+- **Review: every inferred zone needs the owner's approval**, not only the uncertain ones.
+  - Present the inferred zones grouped by period and country, one line each, e.g. "Mar 3–17: Indonesia (Asia/Makassar, UTC+8), 42 transactions".
+  - Uncertain rows are flagged inside their group with the reason.
+  - The owner approves or corrects each group.
+- **Apply.** Only after approval: one `bulk_update_transactions` call (or `PUT /transactions/bulk`) per approved group, with `transactionIds` and the group's `timeZone`. Keep the list of applied groups and ids as the record. A wrong group can be undone by clearing it with `timeZone: null`.
+
+**Upstream PR shape:** Tasks 1–5 and 9–12 stand alone, as the zone column, the AI fix, display and bulk zone edits. Tasks 6–8 and 13 can follow as a second PR, since report bucketing is the only visible behavior change for users who set nothing.
 
 **Release note:** reports, budgets and the list now agree on day boundaries in the user's zone. Before, reports used UTC days.
