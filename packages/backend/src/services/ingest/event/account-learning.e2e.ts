@@ -33,6 +33,8 @@ const account = ({ name }: { name: string }) =>
     raw: true,
   });
 
+/** What the next push prints and the mocked reader answers: each push differs, so none is a repeat. */
+let printedAmount = '3000.00';
 let sequence = 0;
 
 /** A push from a seeded bank app that shows an incoming credit and only the last digits of the card; each differs, so none is a repeat. */
@@ -41,23 +43,24 @@ const push = () => ({
   app: 'TBC Bank',
   title: 'TBC Bank',
   subtitle: '',
-  body: `Incoming transfer ${BASE} ${3000 - ++sequence} to card *1258`,
+  body: `Incoming transfer ${BASE} ${printedAmount} to card *1258`,
   idempotencyKey: `key-${randomUUID()}`,
 });
 
-const credit = ({
-  cardLastDigits = '1258',
-  amount = '3000.00',
-}: { cardLastDigits?: string | null; amount?: string } = {}) => ({
+const credit = ({ cardLastDigits = '1258' }: { cardLastDigits?: string | null } = {}) => ({
   kind: 'credit' as const,
-  amount,
+  amount: printedAmount,
   currency: BASE,
   merchant: 'Salary',
   cardName: null,
   cardLastDigits,
 });
 
-const send = ({ secret }: { secret: string }) => ingestHelpers.postIngestEvent({ secret, body: push() });
+const send = ({ secret }: { secret: string }) => {
+  printedAmount = (3000 - ++sequence * 10).toFixed(2);
+
+  return ingestHelpers.postIngestEvent({ secret, body: push() });
+};
 
 const readParsed = ({ row }: { row: IngestRequests }) => row.parsed as unknown as StoredParse;
 
@@ -202,7 +205,7 @@ describe('which account a parked notification payment goes to', () => {
         reason: 'unknownAccount',
         counterparty: 'Salary',
         sourceName: 'TBC Bank',
-        amount: 3000,
+        amount: Number(printedAmount),
         currencyCode: BASE,
         direction: 'credit',
         cardLastDigits: '1258',
@@ -349,8 +352,7 @@ describe('which account a parked notification payment goes to', () => {
   describe('waiting payments of the same card', () => {
     /** Two payments from card 1258, parked on their account; the amounts differ so neither is a repeat. */
     const parkTwo = async () => {
-      const amounts = ['3000.00', '1500.00'];
-      mockNotificationParsing({ answer: () => credit({ amount: amounts.shift() }) });
+      mockNotificationParsing({ answer: () => credit() });
       const fixture = await setUp();
       const first = await send({ secret: fixture.secret });
       const second = await send({ secret: fixture.secret });

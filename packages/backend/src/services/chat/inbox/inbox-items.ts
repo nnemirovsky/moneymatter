@@ -12,9 +12,11 @@ import { withTransaction } from '@services/common/with-transaction';
 import { correctionOf, transferSuggestionOf } from '@services/ingest/corrections/read-ingest-suggestions';
 import { chooseSurvivor } from '@services/ingest/dedup/choose-survivor';
 import { readStoredParse } from '@services/ingest/event/stored-parse';
+import { findWaitingSiblings, siblingMatchOf } from '@services/ingest/event/waiting-siblings';
 import { isUnconfirmedIngest, type ConfirmBaseline } from '@services/ingest/ingest-markers';
 import { Op, QueryTypes } from 'sequelize';
 
+import { refreshProposal } from '../proposals/refresh';
 import { createSystemProposal, refreshSystemProposal } from './create-system-proposal';
 import { findCardsOfTransactions, resolveCardsElsewhere } from './inbox-resolution';
 import { lockInbox } from './inbox-thread';
@@ -239,6 +241,21 @@ const postRequestCardInTransaction = async ({
     },
   });
   if (proposal) await request.update({ proposalId: proposal.proposalId });
+
+  // The cards of the other payments this one resolves with show how many wait with them: tell them.
+  const match =
+    proposal && stored?.payment ? siblingMatchOf({ payment: stored.payment, sourceId: request.sourceId }) : null;
+  if (!match) return;
+
+  for (const sibling of await findWaitingSiblings({ userId, match, excludeRequestId: request.id })) {
+    if (!sibling.proposalId) continue;
+
+    try {
+      await refreshProposal({ userId, proposalId: sibling.proposalId });
+    } catch {
+      // A card that is settled or gone has nothing to refresh.
+    }
+  }
 };
 
 /**

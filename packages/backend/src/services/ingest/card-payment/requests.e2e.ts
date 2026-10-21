@@ -208,7 +208,9 @@ describe('waiting card payments', () => {
 
       await linkCard({ card: OTHER_CARD, accountId: account.id });
 
-      expect(await helpers.listUnlinkedCards({ raw: true })).toEqual([{ cardLabel: 'Amex Gold', count: 1 }]);
+      expect(await helpers.listUnlinkedCards({ raw: true })).toEqual([
+        { cardLabel: 'Amex Gold', count: 1, lastDigits: null },
+      ]);
     });
   });
 
