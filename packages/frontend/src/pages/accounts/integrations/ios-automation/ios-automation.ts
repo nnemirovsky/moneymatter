@@ -188,6 +188,7 @@ const WAITING_REASONS: ReadonlyArray<NonNullable<CardPaymentRequestDto['reason']
   'aiLimitReached',
   'ownTransfer',
   'lowConfidence',
+  'holdReleased',
 ];
 const IGNORED_REASONS: ReadonlyArray<NonNullable<CardPaymentRequestDto['reason']>> = [
   'declined',

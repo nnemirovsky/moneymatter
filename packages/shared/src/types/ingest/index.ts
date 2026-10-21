@@ -235,14 +235,16 @@ export const NOTIFICATION_IGNORE_REASONS = ['declined', 'security', 'promo', 'in
 export type NotificationIgnoreReason = (typeof NOTIFICATION_IGNORE_REASONS)[number];
 
 /**
- * Why a request is in the state it is in: a park, ignore or rejection reason, or `interrupted` for a
- * request whose processing died before it recorded an outcome.
+ * Why a request is in the state it is in: a park, ignore or rejection reason, `holdReleased` for a
+ * `dismissed` request that cancelled out against the opposite payment (a hold and its release), or
+ * `interrupted` for a request whose processing died before it recorded an outcome.
  */
 export type IngestRequestReason =
   | CardPaymentParkReason
   | CardPaymentRejectionReason
   | NotificationParkReason
   | NotificationIgnoreReason
+  | 'holdReleased'
   | 'interrupted';
 
 /** One request a client sent to the card-payment endpoint, as Settings lists it. */

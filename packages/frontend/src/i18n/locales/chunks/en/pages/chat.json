@@ -642,6 +642,7 @@
       "thirdPartyReadLimit": "This message reached its limit of {limit} lookups in outside services.",
       "analysisLimit": "This message reached its limit of {limit} analyses.",
       "visualLimit": "This message reached its limit of {limit} charts and tables.",
+      "holdReleased": "Dropped a {amount} hold and its release at {source}.",
       "unknown": "Notice from the assistant."
     },
     "clarification": {
