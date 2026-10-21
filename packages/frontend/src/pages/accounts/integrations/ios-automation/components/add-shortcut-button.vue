@@ -8,8 +8,7 @@
     >
       <a
         :href="href"
-        :target="isExternal ? '_blank' : undefined"
-        :download="isDownload ? source.downloadName : undefined"
+        :download="isInStandaloneApp ? undefined : source.downloadName"
         rel="noopener noreferrer"
         @click="handleClick"
       >
@@ -17,8 +16,8 @@
         {{ $t(`${LABEL_ROOT}.${shortcut}.addShortcut`) }}
       </a>
     </Button>
-    <p v-if="isShareable" class="text-muted-foreground text-xs" :data-testid="`add-shortcut-${shortcut}-share-hint`">
-      {{ $t(`${LABEL_ROOT}.shareHint`) }}
+    <p class="text-muted-foreground text-xs" :data-testid="`add-shortcut-${shortcut}-hint`">
+      {{ $t(`${LABEL_ROOT}.${isShareable ? 'shareHint' : 'downloadHint'}`) }}
     </p>
   </div>
 </template>
@@ -33,9 +32,8 @@ import { useI18n } from 'vue-i18n';
 import {
   canShareShortcutFile,
   getShortcutSource,
-  isShortcutFileHref,
   isStandalone,
-  openShortcutLink,
+  openShortcutFile,
   shareShortcutFile,
   type ShortcutKind,
 } from '../ios-automation';
@@ -51,10 +49,7 @@ const props = defineProps<{
 }>();
 
 const source = getShortcutSource({ shortcut: props.shortcut });
-const { href } = useShortcutLink({
-  filePath: source.filePath,
-  icloudUrl: source.icloudUrl,
-});
+const { href } = useShortcutLink({ filePath: source.filePath });
 
 const { t } = useI18n({ useScope: 'global' });
 const { addErrorNotification } = useNotificationCenter();
@@ -67,18 +62,20 @@ const { addErrorNotification } = useNotificationCenter();
  */
 const isInStandaloneApp = isStandalone();
 
-const isFile = computed(() => !!href.value && isShortcutFileHref({ href: href.value, filePath: source.filePath }));
-const isExternal = computed(() => !isFile.value);
-const isDownload = computed(() => isFile.value && !isInStandaloneApp);
-
 const { file } = useShortcutFile({
   filePath: source.filePath,
   downloadName: source.downloadName,
-  enabled: isFile,
+  enabled: () => !!href.value,
 });
 
-/** The tap opens the share sheet, which has no "Open in Shortcuts", so the hint says how to finish. */
-const isShareable = computed(() => isFile.value && !!file.value && canShareShortcutFile({ file: file.value }));
+const hasShareApi = typeof navigator.share === 'function' && typeof navigator.canShare === 'function';
+
+/**
+ * Whether the tap opens the share sheet. The share sheet has no "Open in Shortcuts", so the hint
+ * under the button says how to finish. Until the file has loaded the browser's capability decides,
+ * so the hint does not change when the file arrives.
+ */
+const isShareable = computed(() => (file.value ? canShareShortcutFile({ file: file.value }) : hasShareApi));
 
 const share = async ({ shareable }: { shareable: File }) => {
   try {
@@ -92,15 +89,15 @@ const handleClick = (event: MouseEvent) => {
   // The share has to start inside this handler for the tap's activation to count, so the file is
   // fetched ahead of time and a tap before it arrives takes the link path below.
   const loadedFile = file.value;
-  if (isFile.value && loadedFile && canShareShortcutFile({ file: loadedFile })) {
+  if (loadedFile && canShareShortcutFile({ file: loadedFile })) {
     event.preventDefault();
     void share({ shareable: loadedFile });
     return;
   }
 
-  if (!isInStandaloneApp || !href.value) return;
+  if (!isInStandaloneApp) return;
 
   event.preventDefault();
-  openShortcutLink({ href: href.value, filePath: source.filePath });
+  openShortcutFile({ filePath: source.filePath });
 };
 </script>

@@ -13,15 +13,14 @@ vi.mock('../ios-automation', async (importOriginal) => ({
   loadShortcutFile: mockLoad,
 }));
 
-const ICLOUD = 'https://www.icloud.com/shortcuts/abc123';
 const FILE = '/shortcuts/log-card-payment.shortcut';
 
-const mountComposable = async ({ icloudUrl, queryClient }: { icloudUrl?: string; queryClient?: QueryClient } = {}) => {
+const mountComposable = async ({ queryClient }: { queryClient?: QueryClient } = {}) => {
   let composable!: ReturnType<typeof useShortcutLink>;
   mount(
     defineComponent({
       setup() {
-        composable = useShortcutLink({ filePath: FILE, icloudUrl });
+        composable = useShortcutLink({ filePath: FILE });
         return () => null;
       },
     }),
@@ -56,20 +55,10 @@ describe('useShortcutLink', () => {
     expect(mockProbe).toHaveBeenCalledWith({ filePath: FILE });
   });
 
-  it('has no link when the file is absent and there is no iCloud link', async () => {
+  it('has no link when the file is absent', async () => {
     mockProbe.mockResolvedValue(false);
 
     expect((await mountComposable()).href.value).toBeNull();
-  });
-
-  it('links the iCloud link when the file is absent', async () => {
-    mockProbe.mockResolvedValue(false);
-
-    expect((await mountComposable({ icloudUrl: ICLOUD })).href.value).toBe(ICLOUD);
-  });
-
-  it('prefers the iCloud link over the file, whatever the device', async () => {
-    expect((await mountComposable({ icloudUrl: ICLOUD })).href.value).toBe(ICLOUD);
   });
 
   it('keeps one probe per file path', async () => {
@@ -81,7 +70,7 @@ describe('useShortcutLink', () => {
     mount(
       defineComponent({
         setup() {
-          other = useShortcutLink({ filePath: '/shortcuts/log-payments.shortcut', icloudUrl: undefined });
+          other = useShortcutLink({ filePath: '/shortcuts/log-payments.shortcut' });
           return () => null;
         },
       }),
@@ -98,7 +87,7 @@ describe('useShortcutLink', () => {
     mount(
       defineComponent({
         setup() {
-          composable = useShortcutLink({ filePath: FILE, icloudUrl: undefined });
+          composable = useShortcutLink({ filePath: FILE });
           return () => null;
         },
       }),
@@ -169,7 +158,7 @@ describe('useShortcutFile', () => {
     expect(file.value).toBe(shortcutFile);
   });
 
-  it('does not fetch when the button points at an iCloud link', async () => {
+  it('does not fetch while it is disabled', async () => {
     const { file } = await mountFileComposable({ enabled: false });
 
     expect(mockLoad).not.toHaveBeenCalled();

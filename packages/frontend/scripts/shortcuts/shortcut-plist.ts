@@ -135,7 +135,7 @@ type Reference = (
 };
 
 /** The conditions that compare against text, and so need a text subject. */
-export const STRING_CONDITIONS = ['Is', 'Contains'] as const satisfies ReadonlyArray<keyof typeof CONDITION_CODES>;
+const STRING_CONDITIONS = ['Is', 'Contains'] as const satisfies ReadonlyArray<keyof typeof CONDITION_CODES>;
 
 const TEXT_COERCION: Dict = { CoercionItemClass: 'WFStringContentItem', Type: 'WFCoercionVariableAggrandizement' };
 

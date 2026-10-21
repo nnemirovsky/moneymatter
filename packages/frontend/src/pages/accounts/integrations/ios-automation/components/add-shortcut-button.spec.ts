@@ -39,7 +39,6 @@ vi.mock('@/components/notification-center', () => ({
   useNotificationCenter: () => ({ addErrorNotification: mockAddError }),
 }));
 
-const ICLOUD = 'https://www.icloud.com/shortcuts/abc123';
 const open = vi.fn();
 
 const stubStandalone = ({ isStandalone }: { isStandalone: boolean }) => {
@@ -65,7 +64,6 @@ describe('AddShortcutButton', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    delete window.__APP_CONFIG__;
   });
 
   describe('in a normal tab', () => {
@@ -100,19 +98,6 @@ describe('AddShortcutButton', () => {
       expect(nginx).toContain(`filename="${CARD_PAYMENT_SHORTCUT_DOWNLOAD_NAME}"`);
       expect(nginx).toContain(`filename="${PAYMENTS_SHORTCUT_DOWNLOAD_NAME}"`);
     });
-
-    it('opens the iCloud link in a new tab through a plain anchor', async () => {
-      const link = mountButton({ href: ICLOUD }).get('[data-testid="add-shortcut-tap"]');
-
-      expect(link.attributes('href')).toBe(ICLOUD);
-      expect(link.attributes('target')).toBe('_blank');
-      expect(link.attributes('rel')).toContain('noopener');
-      expect(link.attributes('download')).toBeUndefined();
-
-      await link.trigger('click');
-
-      expect(open).not.toHaveBeenCalled();
-    });
   });
 
   describe('in a home-screen web app', () => {
@@ -120,16 +105,10 @@ describe('AddShortcutButton', () => {
       stubStandalone({ isStandalone: true });
     });
 
-    it('opens the iCloud link through window.open, detached', async () => {
-      const link = mountButton({ href: ICLOUD, shortcut: 'payments' }).get('[data-testid="add-shortcut-payments"]');
-
-      await link.trigger('click');
-
-      expect(open).toHaveBeenCalledWith(ICLOUD, '_blank', 'noopener');
-    });
-
     it('keeps the app from navigating away on that click', () => {
-      const link = mountButton({ href: ICLOUD }).get('[data-testid="add-shortcut-tap"]').element;
+      const link = mountButton({ href: CARD_PAYMENT_SHORTCUT_FILE_PATH }).get(
+        '[data-testid="add-shortcut-tap"]',
+      ).element;
       const event = new MouseEvent('click', { bubbles: true, cancelable: true });
 
       link.dispatchEvent(event);
@@ -221,15 +200,17 @@ describe('AddShortcutButton', () => {
     it('tells how to finish from the share sheet, which has no Open in Shortcuts', () => {
       const wrapper = mountButton({ href: PAYMENTS_SHORTCUT_FILE_PATH, shortcut: 'payments' });
 
-      expect(wrapper.get('[data-testid="add-shortcut-payments-share-hint"]').text()).toContain('Save to Files');
+      expect(wrapper.get('[data-testid="add-shortcut-payments-hint"]').text()).toContain('Save to Files');
     });
 
-    it('shows no hint when the share sheet is not used', () => {
+    it('words the hint for the plain download when the share sheet is not used', () => {
       stubSharing({ canShare: false });
 
       const wrapper = mountButton({ href: PAYMENTS_SHORTCUT_FILE_PATH, shortcut: 'payments' });
 
-      expect(wrapper.find('[data-testid="add-shortcut-payments-share-hint"]').exists()).toBe(false);
+      expect(wrapper.get('[data-testid="add-shortcut-payments-hint"]').text()).toBe(
+        'Open the downloaded file to add the shortcut.',
+      );
     });
 
     it('falls back to the link when the browser refuses the file', async () => {
@@ -249,44 +230,19 @@ describe('AddShortcutButton', () => {
       expect(event.defaultPrevented).toBe(false);
       expect(share).not.toHaveBeenCalled();
     });
-
-    it('leaves an iCloud link a plain link', async () => {
-      const link = mountButton({ href: ICLOUD, shortcut: 'payments' }).get('[data-testid="add-shortcut-payments"]');
-
-      await link.trigger('click');
-
-      expect(share).not.toHaveBeenCalled();
-      expect(link.attributes('href')).toBe(ICLOUD);
-    });
   });
 
   describe('which shortcut it points at', () => {
-    it('asks for the iOS 27 file and link, never the tap shortcut ones', () => {
-      window.__APP_CONFIG__ = {
-        CARD_PAYMENT_SHORTCUT_ICLOUD_URL: 'https://www.icloud.com/shortcuts/tap',
-        PAYMENTS_SHORTCUT_ICLOUD_URL: 'https://www.icloud.com/shortcuts/ios27',
-      };
-
+    it('asks for the iOS 27 file, never the tap shortcut one', () => {
       mountButton({ href: null, shortcut: 'payments' });
 
-      expect(mockUseShortcutLink).toHaveBeenCalledWith({
-        filePath: '/shortcuts/log-payments.shortcut',
-        icloudUrl: 'https://www.icloud.com/shortcuts/ios27',
-      });
+      expect(mockUseShortcutLink).toHaveBeenCalledWith({ filePath: '/shortcuts/log-payments.shortcut' });
     });
 
-    it('asks for the tap file and link for iOS 26 and earlier', () => {
-      window.__APP_CONFIG__ = {
-        CARD_PAYMENT_SHORTCUT_ICLOUD_URL: 'https://www.icloud.com/shortcuts/tap',
-        PAYMENTS_SHORTCUT_ICLOUD_URL: 'https://www.icloud.com/shortcuts/ios27',
-      };
-
+    it('asks for the tap file for iOS 26 and earlier', () => {
       mountButton({ href: null, shortcut: 'tap' });
 
-      expect(mockUseShortcutLink).toHaveBeenCalledWith({
-        filePath: '/shortcuts/log-card-payment.shortcut',
-        icloudUrl: 'https://www.icloud.com/shortcuts/tap',
-      });
+      expect(mockUseShortcutLink).toHaveBeenCalledWith({ filePath: '/shortcuts/log-card-payment.shortcut' });
     });
   });
 

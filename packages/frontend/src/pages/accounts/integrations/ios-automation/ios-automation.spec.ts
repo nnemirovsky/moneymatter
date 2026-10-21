@@ -21,7 +21,7 @@ import {
   IOS_AUTOMATION_MODE_LABEL_KEYS,
   isStandalone,
   loadShortcutFile,
-  openShortcutLink,
+  openShortcutFile,
   PAYMENTS_SHORTCUT_FILE_PATH,
   probeShortcutFile,
   resolveShortcutHref,
@@ -74,68 +74,36 @@ describe('getMappableAccounts', () => {
 });
 
 describe('resolveShortcutHref', () => {
-  const ICLOUD = 'https://www.icloud.com/shortcuts/abc123';
-  const FILE = CARD_PAYMENT_SHORTCUT_FILE_PATH;
-
-  it('prefers the iCloud link, which opens straight in Shortcuts, on every device', () => {
-    expect(resolveShortcutHref({ filePath: FILE, icloudUrl: ICLOUD, isFileAvailable: true })).toBe(ICLOUD);
+  it('points at the signed file when the deployment ships it', () => {
+    expect(resolveShortcutHref({ filePath: CARD_PAYMENT_SHORTCUT_FILE_PATH, isFileAvailable: true })).toBe(
+      CARD_PAYMENT_SHORTCUT_FILE_PATH,
+    );
   });
 
-  it('falls back to the signed file when there is no iCloud link', () => {
-    expect(resolveShortcutHref({ filePath: FILE, icloudUrl: undefined, isFileAvailable: true })).toBe(FILE);
-  });
-
-  it('uses the iCloud link when the file is absent', () => {
-    expect(resolveShortcutHref({ filePath: FILE, icloudUrl: ICLOUD, isFileAvailable: false })).toBe(ICLOUD);
-  });
-
-  it('has no link when neither the file nor the iCloud link exists', () => {
-    expect(resolveShortcutHref({ filePath: FILE, icloudUrl: undefined, isFileAvailable: false })).toBeNull();
-    expect(resolveShortcutHref({ filePath: FILE, icloudUrl: '', isFileAvailable: false })).toBeNull();
+  it('has no link when the file is absent', () => {
+    expect(resolveShortcutHref({ filePath: CARD_PAYMENT_SHORTCUT_FILE_PATH, isFileAvailable: false })).toBeNull();
   });
 
   it('returns the file path it is given, so the iOS 27 shortcut never gets the tap shortcut file', () => {
-    expect(
-      resolveShortcutHref({ filePath: PAYMENTS_SHORTCUT_FILE_PATH, icloudUrl: undefined, isFileAvailable: true }),
-    ).toBe('/shortcuts/log-payments.shortcut');
+    expect(resolveShortcutHref({ filePath: PAYMENTS_SHORTCUT_FILE_PATH, isFileAvailable: true })).toBe(
+      '/shortcuts/log-payments.shortcut',
+    );
   });
 });
 
 describe('getShortcutSource', () => {
-  afterEach(() => {
-    delete window.__APP_CONFIG__;
-  });
-
-  it('gives the iOS 27 shortcut its own link and file, never the tap shortcut ones', () => {
-    window.__APP_CONFIG__ = {
-      CARD_PAYMENT_SHORTCUT_ICLOUD_URL: 'https://www.icloud.com/shortcuts/tap',
-      PAYMENTS_SHORTCUT_ICLOUD_URL: 'https://www.icloud.com/shortcuts/ios27',
-    };
-
+  it('gives the iOS 27 shortcut its own file and download name, never the tap shortcut ones', () => {
     expect(getShortcutSource({ shortcut: 'payments' })).toEqual({
       filePath: '/shortcuts/log-payments.shortcut',
-      icloudUrl: 'https://www.icloud.com/shortcuts/ios27',
       downloadName: 'MoneyMatter - Log payments.shortcut',
     });
   });
 
-  it('gives the iOS 26 shortcut the tap link and file', () => {
-    window.__APP_CONFIG__ = {
-      CARD_PAYMENT_SHORTCUT_ICLOUD_URL: 'https://www.icloud.com/shortcuts/tap',
-      PAYMENTS_SHORTCUT_ICLOUD_URL: 'https://www.icloud.com/shortcuts/ios27',
-    };
-
+  it('gives the iOS 26 shortcut the tap file and download name', () => {
     expect(getShortcutSource({ shortcut: 'tap' })).toEqual({
       filePath: '/shortcuts/log-card-payment.shortcut',
-      icloudUrl: 'https://www.icloud.com/shortcuts/tap',
       downloadName: 'MoneyMatter - Log card payment.shortcut',
     });
-  });
-
-  it('leaves the iOS 27 link empty when only the tap link is configured', () => {
-    window.__APP_CONFIG__ = { CARD_PAYMENT_SHORTCUT_ICLOUD_URL: 'https://www.icloud.com/shortcuts/tap' };
-
-    expect(getShortcutSource({ shortcut: 'payments' }).icloudUrl).toBeUndefined();
   });
 });
 
@@ -182,7 +150,7 @@ describe('isStandalone', () => {
   });
 });
 
-describe('openShortcutLink', () => {
+describe('openShortcutFile', () => {
   const open = vi.fn();
 
   beforeEach(() => {
@@ -194,16 +162,8 @@ describe('openShortcutLink', () => {
     vi.unstubAllGlobals();
   });
 
-  it('opens an iCloud link in a new, detached window', () => {
-    const href = 'https://www.icloud.com/shortcuts/abc123';
-
-    openShortcutLink({ href, filePath: CARD_PAYMENT_SHORTCUT_FILE_PATH });
-
-    expect(open).toHaveBeenCalledWith(href, '_blank', 'noopener');
-  });
-
   it('opens the file by its absolute URL, with no download', () => {
-    openShortcutLink({ href: CARD_PAYMENT_SHORTCUT_FILE_PATH, filePath: CARD_PAYMENT_SHORTCUT_FILE_PATH });
+    openShortcutFile({ filePath: CARD_PAYMENT_SHORTCUT_FILE_PATH });
 
     expect(open).toHaveBeenCalledWith(`${window.location.origin}${CARD_PAYMENT_SHORTCUT_FILE_PATH}`, '_blank');
   });

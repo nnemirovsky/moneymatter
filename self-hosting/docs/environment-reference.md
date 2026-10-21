@@ -160,19 +160,17 @@ The in-app [Chat](https://docs.moneymatter.app/ai/chat/) needs no new environmen
 Interpolated into the frontend container's `environment:` block. Change and
 `up -d` – **no image rebuild** needed.
 
-| Variable                                     | Purpose                                                                         |
-| -------------------------------------------- | ------------------------------------------------------------------------------- |
-| `VITE_POSTHOG_KEY`, `VITE_POSTHOG_HOST`      | Product analytics (PostHog)                                                     |
-| `VITE_SENTRY_DSN`                            | Frontend error tracking (Sentry)                                                |
-| `VITE_SENTRY_RELEASE`                        | Release tag Sentry events report — also a build arg, see below                  |
-| `VITE_LOGO_DEV_TOKEN`                        | Brand logos for payees, subs, banks, tickers (logo.dev publishable key)         |
-| `MCP_BASE_URL`                               | Backend origin advertised to MCP clients — required for MCP, see below          |
-| `PAYMENTS_SHORTCUT_ICLOUD_URL`               | iCloud link of the iOS 27 shortcut, offered as Add shortcut — iOS 27 or later   |
-| `CARD_PAYMENT_SHORTCUT_ICLOUD_URL`           | iCloud link of the iOS 26 shortcut, offered as Add shortcut — iOS 26 or earlier |
-| `API_HTTP`, `API_VER`                        | Point the SPA at a separate API origin (leave unset for same-origin)            |
-| `CSP_EXTRA_CONNECT`, `CSP_EXTRA_FORM_ACTION` | Extra CSP allow-list hosts (default to `API_HTTP`)                              |
-| `CSP_EXTRA_ANALYTICS`                        | CSP allow-list for analytics — **set this if you use Sentry**                   |
-| `SKIP_LANDING`                               | `true` (default) redirects `/` to `/dashboard`; `false` serves landing          |
+| Variable                                     | Purpose                                                                 |
+| -------------------------------------------- | ----------------------------------------------------------------------- |
+| `VITE_POSTHOG_KEY`, `VITE_POSTHOG_HOST`      | Product analytics (PostHog)                                             |
+| `VITE_SENTRY_DSN`                            | Frontend error tracking (Sentry)                                        |
+| `VITE_SENTRY_RELEASE`                        | Release tag Sentry events report — also a build arg, see below          |
+| `VITE_LOGO_DEV_TOKEN`                        | Brand logos for payees, subs, banks, tickers (logo.dev publishable key) |
+| `MCP_BASE_URL`                               | Backend origin advertised to MCP clients — required for MCP, see below  |
+| `API_HTTP`, `API_VER`                        | Point the SPA at a separate API origin (leave unset for same-origin)    |
+| `CSP_EXTRA_CONNECT`, `CSP_EXTRA_FORM_ACTION` | Extra CSP allow-list hosts (default to `API_HTTP`)                      |
+| `CSP_EXTRA_ANALYTICS`                        | CSP allow-list for analytics — **set this if you use Sentry**           |
+| `SKIP_LANDING`                               | `true` (default) redirects `/` to `/dashboard`; `false` serves landing  |
 
 `CSP_EXTRA_ANALYTICS` defaults to `VITE_POSTHOG_HOST` only. Sentry's ingest host
 is not derivable from the DSN by the entrypoint, so a Sentry deployment that
@@ -187,26 +185,6 @@ the hosted one. In split-domain mode set it to the backend's own origin, the
 same value as `BETTER_AUTH_URL`: the OAuth issuer is built from
 `BETTER_AUTH_URL`, and the frontend's static discovery mirrors rewrite it to
 `MCP_BASE_URL`, so the two must agree. Leave it unset if you do not use MCP.
-
-`PAYMENTS_SHORTCUT_ICLOUD_URL` and `CARD_PAYMENT_SHORTCUT_ICLOUD_URL` are the
-iCloud share links of the two ready-made shortcuts on the iOS Automation page
-(Accounts → iOS Automation):
-
-- `PAYMENTS_SHORTCUT_ICLOUD_URL`: "MoneyMatter - Log payments", for iOS 27 and
-  later. It carries the Wallet and Notification triggers, so share it from an
-  iPhone that runs iOS 27 or later, or the link loses them. The page offers it
-  as **Add shortcut — iOS 27 or later**.
-- `CARD_PAYMENT_SHORTCUT_ICLOUD_URL`: "MoneyMatter - Log card payment", the tap-only
-  shortcut for iOS 26 and earlier. The page offers it as
-  **Add shortcut — iOS 26 or earlier**.
-
-Each is a runtime variable of the frontend container, written to the page's
-config when the container starts: change it and `up -d`, no rebuild. The page
-shows both buttons; one without a link falls back to the shortcut file in the
-image, and if there is none either, it points to the manual guide. A link can
-only be created on an iPhone, by sharing the imported shortcut. Home Screen
-(PWA) users get the smoothest setup from an iCloud link. See the
-[iOS Automation guide](https://docs.moneymatter.app/integrations/ios-automation/).
 
 If a gateway with access control (such as Cloudflare Access) sits in front of the
 app, give the iOS Automation shortcuts a path-scoped service credential for
