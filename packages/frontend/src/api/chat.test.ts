@@ -1,7 +1,7 @@
 import type { ChatRunEvent } from '@bt/shared/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { streamChatRunEvents } from './chat';
+import { createChatThread, streamChatRunEvents } from './chat';
 
 type Handlers = {
   onopen: (response: { ok: boolean; status: number }) => Promise<void>;
@@ -13,11 +13,12 @@ type Handlers = {
 };
 
 const fetchEventSource = vi.fn();
+const post = vi.fn();
 
 vi.mock('@microsoft/fetch-event-source', () => ({
   fetchEventSource: (...args: unknown[]) => fetchEventSource(...args),
 }));
-vi.mock('@/api/_api', () => ({ api: {} }));
+vi.mock('@/api/_api', () => ({ api: { post: (...args: unknown[]) => post(...args) } }));
 vi.mock('@/api/_binary-download', () => ({ fetchBinaryDownload: vi.fn() }));
 vi.mock('@/i18n', () => ({ getCurrentLocale: () => 'en' }));
 
@@ -74,6 +75,23 @@ const run = (
 
 beforeEach(() => {
   fetchEventSource.mockReset();
+  post.mockReset();
+});
+
+describe('createChatThread', () => {
+  it('sends the page the conversation starts on', async () => {
+    const pageContext = { route: 'dashboard.account', entity: { kind: 'account' as const, id: 'acc-1' } };
+
+    await createChatThread({ connectionId: 'conn-1', pageContext });
+
+    expect(post).toHaveBeenCalledWith('/chat/threads', { connectionId: 'conn-1', pageContext });
+  });
+
+  it('sends an explicit null for no page', async () => {
+    await createChatThread({ connectionId: null, pageContext: null });
+
+    expect(post).toHaveBeenCalledWith('/chat/threads', { connectionId: null, pageContext: null });
+  });
 });
 
 describe('streamChatRunEvents', () => {
