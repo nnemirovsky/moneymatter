@@ -69,6 +69,7 @@
           "generate": "Generate setup code",
           "generateError": "Could not generate the setup code",
           "shareShortcutError": "Could not hand the shortcut to the share sheet. Try again or open this page in Safari.",
+          "shareHint": "In the share sheet, tap Save to Files, then open the file in the Files app to add it.",
           "payments": {
             "addShortcut": "Add shortcut — iOS 27 or later"
           },
@@ -103,7 +104,7 @@
           "codeLabel": "Setup code",
           "qrLabel": "QR code of the setup code",
           "copy": "Copy code",
-          "copied": "Setup code copied to clipboard",
+          "copied": "Copied",
           "done": "Done",
           "manualCopy": "Tap and hold the code to copy it."
         },

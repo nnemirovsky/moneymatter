@@ -1,16 +1,26 @@
 <template>
-  <Button v-if="href" as-child variant="outline" :data-testid="`add-shortcut-${shortcut}`">
-    <a
-      :href="href"
-      :target="isExternal ? '_blank' : undefined"
-      :download="isDownload ? source.downloadName : undefined"
-      rel="noopener noreferrer"
-      @click="handleClick"
+  <div v-if="href" class="grid gap-1.5">
+    <Button
+      as-child
+      variant="outline"
+      :class="fullWidth ? 'w-full' : 'justify-self-start'"
+      :data-testid="`add-shortcut-${shortcut}`"
     >
-      <SmartphoneIcon class="size-4" />
-      {{ $t(`${LABEL_ROOT}.${shortcut}.addShortcut`) }}
-    </a>
-  </Button>
+      <a
+        :href="href"
+        :target="isExternal ? '_blank' : undefined"
+        :download="isDownload ? source.downloadName : undefined"
+        rel="noopener noreferrer"
+        @click="handleClick"
+      >
+        <SmartphoneIcon class="size-4" />
+        {{ $t(`${LABEL_ROOT}.${shortcut}.addShortcut`) }}
+      </a>
+    </Button>
+    <p v-if="isShareable" class="text-muted-foreground text-xs" :data-testid="`add-shortcut-${shortcut}-share-hint`">
+      {{ $t(`${LABEL_ROOT}.shareHint`) }}
+    </p>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -36,6 +46,8 @@ const LABEL_ROOT = 'settings.integrations.iosAutomation.setup';
 const props = defineProps<{
   /** `payments` is the iOS 27 shortcut with the built-in triggers, `tap` the Wallet tap shortcut for iOS 26 and earlier. */
   shortcut: ShortcutKind;
+  /** Stretches the button to its container, for a stacked layout. */
+  fullWidth?: boolean;
 }>();
 
 const source = getShortcutSource({ shortcut: props.shortcut });
@@ -64,6 +76,9 @@ const { file } = useShortcutFile({
   downloadName: source.downloadName,
   enabled: isFile,
 });
+
+/** The tap opens the share sheet, which has no "Open in Shortcuts", so the hint says how to finish. */
+const isShareable = computed(() => isFile.value && !!file.value && canShareShortcutFile({ file: file.value }));
 
 const share = async ({ shareable }: { shareable: File }) => {
   try {
