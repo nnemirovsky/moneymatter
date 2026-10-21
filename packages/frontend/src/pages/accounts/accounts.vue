@@ -96,7 +96,7 @@
             </template>
 
             <div
-              v-if="connectionRows.length"
+              v-if="connectionRows.length || isApplePaySetUp"
               class="border-border/60 bg-card divide-border/60 divide-y overflow-hidden rounded-xl border"
             >
               <BankConnectionRow
