@@ -584,6 +584,8 @@
         "note": "Why it waits",
         "account": "Log to",
         "accountPlaceholder": "Choose an account",
+        "noteLabel": "Note",
+        "notePlaceholder": "Add a note",
         "accountHint": "Pick the account first. Nothing is logged without it.",
         "learnCard": "Future {source} payments ending {digits} will go to {account}.",
         "learnCardNamed": "Future payments on {card} will go to {account}.",
