@@ -73,9 +73,15 @@ const awaitQuiet = async ({ device }: { device: Device }) => {
 /** A debounce long enough that no window ends on its own: a test ends it with `endPushWindows`. */
 const HELD_DEBOUNCE_MS = 60_000;
 
-/** The keys that match `pattern`, without the per-worker prefix the client adds on every call. */
-const keysMatching = async ({ pattern }: { pattern: string }) =>
-  (await redisClient.keys(pattern)).map((key) => key.slice(REDIS_KEY_PREFIX?.length ?? 0));
+/**
+ * The keys that match `pattern`, as the client addresses them. KEYS takes no key argument, so the client
+ * does not add its per-worker prefix to the pattern, and it returns the prefixed names.
+ */
+const keysMatching = async ({ pattern }: { pattern: string }) => {
+  const prefix = REDIS_KEY_PREFIX ?? '';
+
+  return (await redisClient.keys(`${prefix}${pattern}`)).map((key) => key.slice(prefix.length));
+};
 
 /** Events counted in the open windows of one slot, summed over its targets. */
 const countedEvents = async ({ slot }: { slot: string }) => {
