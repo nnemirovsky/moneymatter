@@ -139,7 +139,7 @@ const getIconBg = (type: NotificationType) => {
     case NOTIFICATION_TYPES.automationInbox:
       return 'bg-primary';
     case NOTIFICATION_TYPES.ingestAttention:
-      return 'bg-amber-500';
+      return 'bg-warning';
     case NOTIFICATION_TYPES.shareInvitationReceived:
     case NOTIFICATION_TYPES.householdInvitationReceived:
       return 'bg-violet-500';
