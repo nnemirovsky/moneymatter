@@ -1,4 +1,6 @@
-import type { ChatCardField, ChatProposalCard } from '@bt/shared/types';
+import type { ChatCardField, ChatIngestRequestSummary, ChatProposalCard } from '@bt/shared/types';
+
+import { formatVisualDate, formatVisualValue } from '../visuals/format-visual-value';
 
 /**
  * What a folded card names, in order: when, how much, who or what, and from which account. Each group
@@ -37,4 +39,33 @@ export const summaryFields = ({ card }: { card: ChatProposalCard }): ChatCardFie
   });
 
   return picked.length > 0 ? picked : source.slice(0, FALLBACK_FIELD_COUNT);
+};
+
+/**
+ * The one-line summary of a parked payment's card, in the same order as a transaction's: when, how much,
+ * who, and the account it goes to (or the card it was paid with, until an account is chosen).
+ */
+export const ingestSummaryParts = ({
+  payment,
+  accountName,
+}: {
+  payment: ChatIngestRequestSummary;
+  accountName: string | null;
+}): string[] => {
+  const amount =
+    payment.amount === null
+      ? null
+      : formatVisualValue({
+          value: payment.amount,
+          kind: payment.currencyCode ? 'money' : 'number',
+          currencyCode: payment.currencyCode ?? undefined,
+        });
+  const card = payment.cardLastDigits ? `•${payment.cardLastDigits}` : payment.cardName;
+
+  return [
+    payment.time ? formatVisualDate({ value: payment.time }) : null,
+    amount,
+    payment.counterparty ?? payment.sourceName,
+    accountName ?? card,
+  ].filter((part): part is string => Boolean(part));
 };

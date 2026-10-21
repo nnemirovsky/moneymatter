@@ -8,7 +8,7 @@ import { fieldEntityKind, proposalRefId, summarizeValue } from './card-values';
 import { describeMatchingRules } from './matching-rules';
 import type { CardLookups } from './use-card-lookups';
 
-export interface CardValuePart {
+interface CardValuePart {
   text: string;
   to?: ReturnType<typeof chatEntityRoute>;
 }

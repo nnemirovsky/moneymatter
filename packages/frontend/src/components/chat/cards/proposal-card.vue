@@ -37,7 +37,7 @@ import CardDependencies from './card-dependencies.vue';
 import CardFieldEditor from './card-field-editor.vue';
 import CardField from './card-field.vue';
 import CardSources from './card-sources.vue';
-import { summaryFields } from './card-summary';
+import { ingestSummaryParts, summaryFields } from './card-summary';
 import IngestRequestBody from './ingest-request-body.vue';
 import {
   collectPendingParents,
@@ -346,8 +346,16 @@ const isDetailsOpen = ref(false);
 const isExpanded = ref(!FOLDED_STATUSES.includes(props.card.status));
 const bodyId = useId();
 
-const summaryText = computed(() =>
-  summaryFields({ card: props.card })
+const summaryText = computed(() => {
+  const payment = props.card.ingestRequest;
+  if (payment) {
+    const accountName = ingestAccountId.value
+      ? lookups.entityName({ kind: 'account', id: ingestAccountId.value })
+      : null;
+    return ingestSummaryParts({ payment, accountName }).join(' · ');
+  }
+
+  return summaryFields({ card: props.card })
     .map((field) =>
       valueParts({
         field,
@@ -359,8 +367,8 @@ const summaryText = computed(() =>
         .map((part) => part.text)
         .join(', '),
     )
-    .join(' · '),
-);
+    .join(' · ');
+});
 </script>
 
 <template>

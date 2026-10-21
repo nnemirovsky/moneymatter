@@ -203,6 +203,20 @@ describe('ProposalCard', () => {
         },
       });
 
+    it('sums up a folded payment card by date, amount, payee and the account it went to', () => {
+      const wrapper = mountCard({ card: { ...paymentCard({ account: 'acc-1' }), status: 'applied' }, inbox: true });
+
+      expect(wrapper.find('[data-testid="card-summary"]').text()).toMatch(
+        /^Oct 21, 2026, [^·]+ · [^·]*3,000[^·]* · Salary · Main card$/,
+      );
+    });
+
+    it('names the card it was paid with while no account is chosen', () => {
+      const wrapper = mountCard({ card: { ...paymentCard(), status: 'rejected' }, inbox: true });
+
+      expect(wrapper.find('[data-testid="card-summary"]').text()).toMatch(/ · Salary · •1258$/);
+    });
+
     it('shows the payment as a payment, not as a generic action', () => {
       const wrapper = mountCard({ card: paymentCard(), inbox: true });
       const text = wrapper.text();
