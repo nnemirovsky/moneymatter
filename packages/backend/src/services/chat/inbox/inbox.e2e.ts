@@ -51,10 +51,10 @@ const resetLimits = async () => {
 };
 
 /** A day with pinned rates (1 USD = 2 GEL = 1 EUR = 4 AED), so every converted amount is exact. */
-const seedRateDay = async () => {
+const seedRateDay = async ({ eurPerUsd = 1 }: { eurPerUsd?: number } = {}) => {
   const day = subDays(startOfDay(new Date()), 6);
   SEEDED_DATES.push(day);
-  await helpers.seedUsdExchangeRates({ date: day, ratesPerUsd: { AED: 4, GEL: 2, EUR: 1 } });
+  await helpers.seedUsdExchangeRates({ date: day, ratesPerUsd: { AED: 4, GEL: 2, EUR: eurPerUsd } });
 
   return addMinutes(day, 14 * 60 + 38);
 };
@@ -405,9 +405,10 @@ describe('Automation inbox', () => {
 
     describe('the short-balance correction', () => {
       /** The owner's multi-currency card: GEL is the default account with a short balance, USD holds the money. */
-      const setUpShortCard = async () => {
-        await helpers.addUserCurrencies({ currencyCodes: ['GEL', 'USD'] });
-        const noon = await seedRateDay();
+      const setUpShortCard = async ({ withEur = false }: { withEur?: boolean } = {}) => {
+        await helpers.addUserCurrencies({ currencyCodes: ['GEL', 'USD', ...(withEur ? ['EUR'] : [])] });
+        // With EUR at 1.6 per USD the EUR estimate (23.53) differs from the suggested USD one (14.7).
+        const noon = await seedRateDay(withEur ? { eurPerUsd: 1.6 } : {});
         const gel = await account({ name: 'TBC GEL', currencyCode: 'GEL', initialBalance: 10 });
         const usd = await account({ name: 'TBC USD', currencyCode: 'USD', initialBalance: 500 });
         await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id }, raw: true });
@@ -415,11 +416,18 @@ describe('Automation inbox', () => {
           payload: { cardLabel: CARD, accountId: usd.id, currencyCode: 'USD' },
           raw: true,
         });
+        const eur = withEur ? await account({ name: 'TBC EUR', currencyCode: 'EUR', initialBalance: 100 }) : null;
+        if (eur) {
+          await helpers.createCardMapping({
+            payload: { cardLabel: CARD, accountId: eur.id, currencyCode: 'EUR' },
+            raw: true,
+          });
+        }
         const { secret } = await ingestHelpers.createTestIngestToken();
         await wallet({ secret, card: CARD, body: woltOnlinePayment.wallet.body, time: noon.toISOString() });
         const card = await waitForCard({ toolName: CONFIRM });
 
-        return { gel, usd, card: card! };
+        return { gel, usd, eur: eur!, card: card! };
       };
 
       it('is part of the one card: the suggested account and its estimate come pre-filled', async () => {
@@ -495,6 +503,54 @@ describe('Automation inbox', () => {
         expect(tx.amount.toNumber()).toBe(30);
         expect(await balanceOf({ id: gel.id })).toBe(10 - 30);
         expect(await unconfirmedIds()).toEqual([]);
+      });
+
+      describe('picking another candidate on the card', () => {
+        const editCard = ({ card, args }: { card: ChatProposalCard; args: Record<string, unknown> }) =>
+          helpers.editChatProposal({
+            proposalId: card.id,
+            payload: {
+              revision: card.revision,
+              args: { ...card.fields.reduce((acc, field) => ({ ...acc, [field.path]: field.value }), {}), ...args },
+            },
+            raw: true,
+          });
+
+        it("books the chosen candidate's own estimate when the amount is left as pre-filled", async () => {
+          const { usd, eur, card } = await setUpShortCard({ withEur: true });
+          expect(fieldOf({ card, path: 'accountId' })).toBe(usd.id);
+          expect(fieldOf({ card, path: 'amount' })).toBe(14.7);
+
+          const approved = await approve({ card: await editCard({ card, args: { accountId: eur.id } }) });
+
+          expect(approved.statusCode).toBe(200);
+          const tx = (await Transactions.findOne())!;
+          expect(tx.accountId).toBe(eur.id);
+          expect(tx.amount.toNumber()).toBe(23.53);
+          expect(await balanceOf({ id: eur.id })).toBe(100 - 23.53);
+        });
+
+        it('books the entered amount on the suggested account', async () => {
+          const { usd, card } = await setUpShortCard({ withEur: true });
+
+          const approved = await approve({ card: await editCard({ card, args: { amount: 14.5 } }) });
+
+          expect(approved.statusCode).toBe(200);
+          const tx = (await Transactions.findOne())!;
+          expect(tx.accountId).toBe(usd.id);
+          expect(tx.amount.toNumber()).toBe(14.5);
+        });
+
+        it('books the entered amount on the chosen candidate', async () => {
+          const { eur, card } = await setUpShortCard({ withEur: true });
+
+          const approved = await approve({ card: await editCard({ card, args: { accountId: eur.id, amount: 23 } }) });
+
+          expect(approved.statusCode).toBe(200);
+          const tx = (await Transactions.findOne())!;
+          expect(tx.accountId).toBe(eur.id);
+          expect(tx.amount.toNumber()).toBe(23);
+        });
       });
     });
   });

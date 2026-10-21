@@ -149,11 +149,15 @@ export const confirmIngestedPayment = withTransaction(
       if (target === tx.accountId) {
         await dismissCorrection({ userId, transactionId });
       } else {
+        // The card's amount is the suggested account's estimate; it counts as entered only when it differs
+        // from that, so an untouched card books the chosen candidate's own estimate.
+        const shownAmounts = [baseline.amount, correction.estimatedAmount.amount];
+        const enteredAmount = params.amount !== undefined && !shownAmounts.includes(params.amount);
         await approveCorrection({
           userId,
           transactionId,
           accountId: target,
-          ...(params.amount !== undefined && { amount: Money.fromDecimal(params.amount) }),
+          ...(enteredAmount && { amount: Money.fromDecimal(params.amount!) }),
         });
         moved = true;
       }
