@@ -142,16 +142,7 @@ MoneyMatter still requires its own ingest token on every request to that path, s
 
 ### iOS Automation settings
 
-The iOS Automation page (Accounts → iOS Automation) can offer two **Add shortcut** buttons, one for each ready-made shortcut. Each points to an iCloud link that you set in `.env`:
-
-| Variable | Shortcut | Button |
-|---|---|---|
-| `PAYMENTS_SHORTCUT_ICLOUD_URL` | "MoneyMatter - Log payments" | **Add shortcut — iOS 27 or later** |
-| `CARD_PAYMENT_SHORTCUT_ICLOUD_URL` | "MoneyMatter - Log card payment" | **Add shortcut — iOS 26 or earlier** |
-
-Run `docker compose up -d` after you change them. They are read when the frontend container starts, so no rebuild is needed. Leave a variable empty if you have no link for that shortcut: the page then falls back to the shortcut file shipped with the image when there is one, and otherwise says that the instance doesn't ship it and points to the [manual guide](/integrations/ios-automation/#build-the-shortcut-by-hand). Set the links if your users run MoneyMatter from the Home Screen: an iCloud link opens in a sheet with a **Get Shortcut** button, while a file can't be handed to Shortcuts from a Home Screen app as directly.
-
-An iCloud link can only be created on an iPhone: import the shortcut, then share it and copy the link. For the iOS 27 shortcut, share it from an iPhone with iOS 27 or later, so the link keeps its triggers.
+The iOS Automation page (Accounts → iOS Automation) offers two **Add shortcut** buttons, one for each ready-made shortcut: "MoneyMatter - Log payments" (iOS 27 or later) and "MoneyMatter - Log card payment" (iOS 26 or earlier). Both are signed files that the frontend image serves, so there is nothing to configure. If an image ships without a file, the page says so and points to the [manual guide](/integrations/ios-automation/#build-the-shortcut-by-hand).
 
 Reading bank notifications with AI is limited per user to 300 AI calls a day. To change that figure, set `INGEST_AI_DAILY_LIMIT` in `.env` (`0` turns notification reading off). It is a backend variable, so restart the backend. See the [environment reference](https://github.com/letehaha/moneymatter/blob/main/self-hosting/docs/environment-reference.md).
 

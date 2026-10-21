@@ -172,9 +172,7 @@ test.describe('iOS Automation setup code dialog on a phone', () => {
     await openSetupCodeDialog({ page });
     await fileLoaded;
 
-    await expect(page.getByRole('dialog').getByTestId('add-shortcut-payments-share-hint')).toContainText(
-      'Save to Files',
-    );
+    await expect(page.getByRole('dialog').getByTestId('add-shortcut-payments-hint')).toContainText('Save to Files');
   });
 
   test('shares the shortcut file through the share sheet when the browser can', async ({ page }) => {

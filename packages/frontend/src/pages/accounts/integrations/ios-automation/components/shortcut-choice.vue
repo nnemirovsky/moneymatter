@@ -79,9 +79,9 @@ const SHORTCUTS: ShortcutKind[] = ['payments', 'tap'];
 
 const links = Object.fromEntries(
   SHORTCUTS.map((shortcut) => {
-    const { filePath, icloudUrl } = getShortcutSource({ shortcut });
+    const { filePath } = getShortcutSource({ shortcut });
 
-    return [shortcut, useShortcutLink({ filePath, icloudUrl })];
+    return [shortcut, useShortcutLink({ filePath })];
   }),
 ) as Record<ShortcutKind, ReturnType<typeof useShortcutLink>>;
 

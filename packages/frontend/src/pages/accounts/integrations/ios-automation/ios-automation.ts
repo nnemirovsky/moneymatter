@@ -1,4 +1,3 @@
-import { config } from '@/common/config';
 import {
   ACCOUNT_STATUSES,
   type AccountModel,
@@ -37,40 +36,30 @@ export type ShortcutKind = 'payments' | 'tap';
 interface ShortcutSource {
   /** Where the signed file is served from; the frontend's nginx sends it as a download. */
   filePath: string;
-  /** The iCloud share link of this shortcut, when the instance has one. */
-  icloudUrl: string | undefined;
   /** The name iOS gives the imported file. */
   downloadName: string;
 }
 
-/** The shortcut's sources, read lazily so a runtime config change shows up without a reload of the module. */
+/** The signed file and download name of one shortcut. */
 export const getShortcutSource = ({ shortcut }: { shortcut: ShortcutKind }): ShortcutSource =>
   shortcut === 'payments'
     ? {
         filePath: PAYMENTS_SHORTCUT_FILE_PATH,
-        icloudUrl: config.paymentsShortcutIcloudUrl,
         downloadName: PAYMENTS_SHORTCUT_DOWNLOAD_NAME,
       }
     : {
         filePath: CARD_PAYMENT_SHORTCUT_FILE_PATH,
-        icloudUrl: config.cardPaymentShortcutIcloudUrl,
         downloadName: CARD_PAYMENT_SHORTCUT_DOWNLOAD_NAME,
       };
 
-/**
- * Where **Add Shortcut** points. The iCloud link wins on every device, because it opens straight in
- * Shortcuts and works from a home-screen web app; the signed file is the fallback. `null` hides the
- * button.
- */
+/** Where **Add Shortcut** points: the signed file when this deployment ships it, otherwise nowhere and the button hides. */
 export const resolveShortcutHref = ({
   filePath,
-  icloudUrl,
   isFileAvailable,
 }: {
   filePath: string;
-  icloudUrl: string | undefined;
   isFileAvailable: boolean;
-}): string | null => icloudUrl || (isFileAvailable ? filePath : null);
+}): string | null => (isFileAvailable ? filePath : null);
 
 /**
  * Whether the signed shortcut is deployed. A HEAD request is enough, but the SPA fallback answers
@@ -174,23 +163,13 @@ export const isStandalone = (): boolean => {
   return (navigator as Navigator & { standalone?: boolean }).standalone === true;
 };
 
-/** Whether `href` is the served file rather than an iCloud link. */
-export const isShortcutFileHref = ({ href, filePath }: { href: string; filePath: string }): boolean =>
-  href === filePath;
-
 /**
- * Opens a shortcut link from a click handler in a home-screen web app, where a plain navigation
- * would replace the app and a `download` attribute is ignored. `window.open` shows the link in the
- * system browser sheet, whose button hands it to Shortcuts. The iCloud link opens `noopener`; the
- * file opens by its absolute URL.
+ * Opens the shortcut file from a click handler in a home-screen web app that cannot share files,
+ * where a plain navigation would replace the app and a `download` attribute is ignored.
+ * `window.open` shows the file's absolute URL in the system browser sheet.
  */
-export const openShortcutLink = ({ href, filePath }: { href: string; filePath: string }): void => {
-  if (isShortcutFileHref({ href, filePath })) {
-    window.open(new URL(href, window.location.origin).href, '_blank');
-    return;
-  }
-
-  window.open(href, '_blank', 'noopener');
+export const openShortcutFile = ({ filePath }: { filePath: string }): void => {
+  window.open(new URL(filePath, window.location.origin).href, '_blank');
 };
 
 const EMPTY_PAYMENT_REASONS: ReadonlyArray<NonNullable<CardPaymentRequestDto['reason']>> = [

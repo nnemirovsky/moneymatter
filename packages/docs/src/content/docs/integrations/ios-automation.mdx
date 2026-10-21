@@ -51,11 +51,11 @@ After a Wallet tap, iOS gives the shortcut only the **Amount**, the **Merchant**
 The page shows both **Add shortcut** buttons next to each other, and MoneyMatter does not try to guess your iOS version. Pick the one that matches your phone: **Add shortcut — iOS 27 or later** or **Add shortcut — iOS 26 or earlier**. Each has its own short instructions under **Show instructions**.
 
 <Aside type="tip" title="One-tap setup">
-The shortcut asks for the setup code once, when you import it, and needs nothing else. A button appears once your instance has the shortcut file or an iCloud link for it. If the button says that your instance does not ship the shortcut, ask whoever runs the instance for the link, or build the iOS 26 shortcut with the [manual guide](#build-the-shortcut-by-hand). It takes about ten actions, and you only do it once.
+The shortcut asks for the setup code once, when you import it, and needs nothing else. A button appears once your instance ships the shortcut file. If the button says that your instance does not ship the shortcut, ask whoever runs the instance to add it, or build the iOS 26 shortcut with the [manual guide](#build-the-shortcut-by-hand). It takes about ten actions, and you only do it once.
 </Aside>
 
-<Aside type="tip" title="From the home-screen app">
-If you run MoneyMatter from your Home Screen, the shortcut link opens in a sheet inside the app. Tap **Get Shortcut** there to open the Shortcuts app. Copy the setup code first: the sheet can't copy for you, and the code is shown only once.
+<Aside type="tip" title="Saving the shortcut file">
+The shortcut is a file that your MoneyMatter instance serves. On an iPhone the share sheet opens when you tap the button: tap **Save to Files**, then open the file in the Files app to add it in Shortcuts. The share sheet does not offer Shortcuts itself. Where the browser can't share files, it downloads the file instead: open the download. Copy the setup code first, because it is shown only once.
 </Aside>
 
 ## Step 1: Link your cards
@@ -125,7 +125,7 @@ iOS asks you to choose the apps for a Notification trigger. There is no "any app
 The Notification trigger can fire for notifications that iOS later hides, such as ones silenced by a Focus. The checks below handle that noise.
 
 <Aside type="note" title="If you set the shortcut up by file">
-A shortcut imported from a file instead of from an iCloud link can arrive without its triggers. If you open it and it has no triggers, add a **Transaction** trigger and a **Notification** trigger yourself and select the same apps.
+A shortcut imported from a file can arrive without its triggers. If you open it and it has no triggers, add a **Transaction** trigger and a **Notification** trigger yourself and select the same apps.
 </Aside>
 
 ## Step 3 (iOS 26 or earlier): Create the automation
@@ -537,6 +537,4 @@ The automation fires only for the cards you chose when you created it. On iOS 26
 
 ## Sharing the shortcut
 
-An app can't generate an iCloud link to a shortcut. The link comes from sharing the shortcut from an iPhone, which only a person can do. For that reason, each ready-made shortcut is shared once by the person who runs the MoneyMatter instance. On a self-hosted instance, the administrator sets the links with `PAYMENTS_SHORTCUT_ICLOUD_URL` (iOS 27 or later) and `CARD_PAYMENT_SHORTCUT_ICLOUD_URL` (iOS 26 or earlier). See [Self-hosting](/getting-started/self-hosting/#ios-automation-settings).
-
-Whoever imports a shared shortcut still enters their own setup code or token, so the link is safe to share.
+The ready-made shortcuts are the signed files that your MoneyMatter instance serves from `/shortcuts/`. Whoever imports one still enters their own setup code or token, so the file is safe to share.

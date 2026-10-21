@@ -22,7 +22,6 @@ vi.mock('../composables/use-shortcut-link', () => ({
 
 const PAYMENTS_FILE = '/shortcuts/log-payments.shortcut';
 const TAP_FILE = '/shortcuts/log-card-payment.shortcut';
-const ICLOUD = 'https://www.icloud.com/shortcuts/abc123';
 
 const setLink = ({
   filePath,
@@ -74,14 +73,6 @@ describe('ShortcutChoice', () => {
     const paths = mockUseShortcutLink.mock.calls.map(([args]) => args.filePath);
     expect(paths).toContain(PAYMENTS_FILE);
     expect(paths).toContain(TAP_FILE);
-  });
-
-  it('opens the iOS 27 button with its iCloud link, never the tap shortcut one', () => {
-    setLink({ filePath: PAYMENTS_FILE, href: ICLOUD });
-    const wrapper = mountChoice();
-
-    expect(wrapper.get('[data-testid="add-shortcut-payments"]').attributes('href')).toBe(ICLOUD);
-    expect(wrapper.get('[data-testid="add-shortcut-tap"]').attributes('href')).toBe(TAP_FILE);
   });
 
   describe('instructions', () => {

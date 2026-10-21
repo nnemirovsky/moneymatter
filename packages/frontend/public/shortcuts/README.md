@@ -54,7 +54,7 @@ shortcuts sign --mode anyone \
 
 ### iOS 27 or later (an iPhone)
 
-The iOS 27 Shortcut ships as this file, served from our own server; the page's iOS 27 button downloads `/shortcuts/log-payments.shortcut`. `PAYMENTS_SHORTCUT_ICLOUD_URL` is an optional override that wins when set; nothing depends on it.
+The iOS 27 Shortcut ships as this file, served from our own server; the page's iOS 27 button downloads `/shortcuts/log-payments.shortcut`.
 
 macOS 26 `shortcuts sign` rewrites the client version and drops `WFWorkflowTriggers`, and iOS refuses an unsigned file. The triggers survive an export from an iOS 27 iPhone, so the regeneration loop is:
 
@@ -74,5 +74,3 @@ Until the file exists the page hides the iOS 27 button (the HEAD probe fails), e
 3. Run the Shortcut by hand. With no input it sends a dry run and shows `Connected as <username>. …`.
 4. iOS 27: turn **Automation** on for both triggers, add the bank app to the Notification trigger, then tap a linked card and check that the banner reads `Logged …`. A bank push in the selected app logs the same way.
 5. iOS 26: create the Transaction automation, tap a linked card and check the same banner.
-
-An iCloud share link of the imported Shortcut is an alternative to each file: set `CARD_PAYMENT_SHORTCUT_ICLOUD_URL` (iOS 26) or `PAYMENTS_SHORTCUT_ICLOUD_URL` (iOS 27) on the frontend container (read at start, no rebuild). It asks for the setup code the same way.

@@ -69,7 +69,8 @@
           "generate": "Generate setup code",
           "generateError": "Could not generate the setup code",
           "shareShortcutError": "Could not hand the shortcut to the share sheet. Try again or open this page in Safari.",
-          "shareHint": "In the share sheet, tap Save to Files, then open the file in the Files app to add it.",
+          "shareHint": "Tap Save to Files in the share sheet, then open the file in the Files app to add the shortcut.",
+          "downloadHint": "Open the downloaded file to add the shortcut.",
           "payments": {
             "addShortcut": "Add shortcut — iOS 27 or later"
           },
@@ -282,13 +283,13 @@
           },
           "showInstructions": "Show instructions",
           "hideInstructions": "Hide instructions",
-          "unavailable": "This instance does not ship the \"{name}\" shortcut. Build it by hand with the manual guide above, or ask the administrator for the shortcut link.",
-          "hint": "Copy the setup code first. The shortcut asks for it once, when you add it. In the home-screen app the link opens in a sheet: tap Get Shortcut there."
+          "unavailable": "This instance does not ship the \"{name}\" shortcut. Build it by hand with the manual guide above, or ask the administrator to ship the shortcut file.",
+          "hint": "Copy the setup code first. The shortcut asks for it once, when you add it. The button saves the shortcut file; open it from the Files app to add it to Shortcuts."
         },
         "triggered": {
           "title": "Then switch on the triggers on your iPhone",
           "description": "The shortcut brings its own triggers, one for Wallet payments and one for notifications. iOS adds them switched off.",
-          "step1": "Add the shortcut and paste the setup code when it asks for it.",
+          "step1": "Add the shortcut: save the file, open it from the Files app and paste the setup code when it asks for it.",
           "step2": "Open the shortcut, tap each of its two triggers (Transaction and Notification) and turn on Automation. Imported triggers arrive switched off, so nothing runs until you do. Choose Run Immediately for both.",
           "step3": "The Notification trigger comes with Wallet and Messages already selected. Open it and add your bank apps, and your mail app if your bank writes by email.",
           "step4": "Apple Wallet may be missing from the Notification trigger after the import. If you do not see it in the list of apps, add it by hand.",
