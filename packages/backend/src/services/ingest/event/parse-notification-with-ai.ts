@@ -87,6 +87,7 @@ export const parseNotificationWithAi = async ({
       alias: shortIds.aliasOf({ id: candidate.payeeId }) ?? '',
       name: candidate.name,
       aliases: candidate.aliases,
+      usualCategories: candidate.usualCategories ?? [],
     })),
   });
 

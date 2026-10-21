@@ -9,6 +9,7 @@ import { ensureAliasExists, isPayeeNameIgnored, resolveNormalizedName } from '@s
 import { resolvePayeeForIncomingRow } from '@services/payees/resolve-payee-for-incoming-row';
 import { UniqueConstraintError } from 'sequelize';
 
+import { learnMerchantSpelling, matchIngestMerchant } from '../payee/resolve-ingest-payee';
 import type { ParsedPayment } from './classify-notification';
 
 /**
@@ -67,11 +68,15 @@ const adoptOrCreatePayee = async ({
  *
  * 1. **Exact lookup.** A merchant that already resolves to a payee or alias keeps it; the model's
  *    answer is ignored.
- * 2. **No choice** (Wallet, or a model that named none): the resolver every incoming row uses
- *    (fuzzy link, then promotion at the first sighting).
- * 3. **A candidate** the model picked from the list becomes the payee, and the raw spelling is saved
+ * 2. **Core match.** The one payee whose core name matches the merchant (legal forms, case and
+ *    punctuation aside, a typo apart, see `matchMerchantCore`) wins over the model's answer, and the
+ *    spelling becomes its alias.
+ * 3. **No choice** (Wallet, or a model that named none): the resolver every incoming row uses
+ *    (fuzzy link, then promotion at the first sighting). When the merchant is as close to several
+ *    payees, nothing is guessed: the row is logged without a payee for the owner to pick.
+ * 4. **A candidate** the model picked from the list becomes the payee, and the raw spelling is saved
  *    as an alias when it normalizes differently and is not on the ignored list.
- * 4. **A new name.** An existing payee of that name is adopted, never created twice, so a name the
+ * 5. **A new name.** An existing payee of that name is adopted, never created twice, so a name the
  *    namespace already holds cannot fail the payment. If the raw merchant is on the ignored list no
  *    payee is created and the row is logged without one, as the resolver does. Otherwise the payee is
  *    created (its logo is resolved after the commit) and the raw spelling becomes its alias.
@@ -105,12 +110,14 @@ export const applyPayeeChoice = async ({
     });
 
   try {
-    if (normalizedRaw) {
-      const exact = await resolveNormalizedName({ userId, normalized: normalizedRaw });
-      if (exact) return exact.payeeId;
+    const match = raw ? await runInSavepoint(() => matchIngestMerchant({ userId, rawMerchant: raw })) : null;
+    if (match?.kind === 'exact') return match.payeeId;
+    if (match?.kind === 'unique') {
+      await learnMerchantSpelling({ payeeId: match.payeeId, rawMerchant: raw });
+      return match.payeeId;
     }
 
-    if (!choice) return await resolveByRow();
+    if (!choice) return match?.kind === 'ambiguous' ? null : await resolveByRow();
 
     const ignored = normalizedRaw ? await isPayeeNameIgnored({ userId, normalizedName: normalizedRaw }) : false;
 

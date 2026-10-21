@@ -123,6 +123,45 @@ describe('payee resolution of a notification', () => {
     expect(await aliasesOf({ payeeId: wolt.id })).toContain('wolt tbilisi ge');
   });
 
+  it('links a merchant a typo and a legal form away to the existing payee, whatever the model answers', async () => {
+    const nordCoffee = await helpers.createPayee({ payload: { name: 'Nord Coffee' }, raw: true });
+    mockNotificationParsing({
+      answer: () => answer({ merchant: 'NORD COFEE COMPANY LTD', payee: { candidateId: null, newName: 'Nord Cofee' } }),
+    });
+    const secret = await setUp();
+
+    const res = await ingestHelpers.postIngestEvent({ secret, body: push({ merchant: 'NORD COFEE COMPANY LTD' }) });
+
+    expect(res.body.response.outcome).toBe('logged');
+    const { payeeId } = await payeeOf({ requestId: res.body.response.requestId });
+    expect(payeeId).toBe(nordCoffee.id);
+    expect((await helpers.listPayees({ raw: true })).map((payee) => payee.name)).toEqual(['Nord Coffee']);
+    expect(await aliasesOf({ payeeId: nordCoffee.id })).toContain('nord cofee company ltd');
+    expect((await Transactions.findOne({ where: { payeeId: nordCoffee.id } }))!.note).toBeNull();
+  });
+
+  it('shows the model the categories its payee candidates usually get', async () => {
+    const secret = await setUp();
+    const account = await helpers.createAccount({ raw: true });
+    const barCafe = await helpers.addCustomCategory({ name: 'Bar, cafe', color: '#336699', raw: true });
+    const nordCoffee = await helpers.createPayee({ payload: { name: 'Nord Coffee' }, raw: true });
+    await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({
+        accountId: account.id,
+        payeeId: nordCoffee.id,
+        categoryId: barCafe.id,
+      }),
+      raw: true,
+    });
+    const prompts = mockNotificationParsing({
+      answer: () => answer({ merchant: 'NORD COFFEE', payee: { candidateId: 'p1', newName: null } }),
+    });
+
+    await ingestHelpers.postIngestEvent({ secret, body: push({ merchant: 'NORD COFFEE' }) });
+
+    expect(prompts[0]).toContain('id|name|known spellings|usual categories\np1|Nord Coffee||Bar, cafe');
+  });
+
   it('creates no payee and no alias for a merchant on the ignored list, and still logs the payment', async () => {
     await helpers.addIgnoredName({ rawName: 'PAYPAL *SOMETHING', raw: true });
     mockNotificationParsing({

@@ -6,6 +6,8 @@ interface PromptPayeeCandidate {
   name: string;
   /** A few of the payee's known spellings. */
   aliases: readonly string[];
+  /** The categories the owner usually gives the payee, the most frequent first. */
+  usualCategories?: readonly string[];
 }
 
 /** The app a notification came from, as the device named it. */
@@ -81,7 +83,8 @@ TIME
 PAYEE
 14. payee names the business behind the merchant text. Choose from the PAYEE CANDIDATES list or give a new name.
    - Return { candidateId } with the id of a candidate ("p1") only when the candidate is the same business as the merchant.
-   - Ignore payment-processor prefixes ("SP *", "SQ *", "PAYPAL *", "GOOGLE *"), domain endings (".COM"), city and country, store numbers, terminal codes and letter case when comparing.
+   - Ignore payment-processor prefixes ("SP *", "SQ *", "PAYPAL *", "GOOGLE *"), domain endings (".COM"), legal forms ("LTD", "LLC", "Company", "შპს", "ООО"), city and country, store numbers, terminal codes, letter case and small typos when comparing.
+   - A candidate's usual categories tell what kind of business it is. When several candidates look alike, prefer the one whose kind of business fits the merchant.
    - Never match on a generic word alone ("market", "cafe", "shop", "pharmacy", a city name).
    - Otherwise return { newName } with the clean brand name: the business as people say it ("Wolt", "Coffee Lab"), without prefixes, cities, store numbers or capital-letter shouting.
    - For a transfer to or from a person, or when the text names no business, payee is null.
@@ -133,8 +136,8 @@ export const buildNotificationUserMessage = ({
 
   const candidateRows = candidates.length
     ? [
-        'id|name|known spellings',
-        ...candidates.map(({ alias, name, aliases }) =>
+        'id|name|known spellings|usual categories',
+        ...candidates.map(({ alias, name, aliases, usualCategories = [] }) =>
           [
             alias,
             cell({ value: name, max: 100 }),
@@ -142,6 +145,7 @@ export const buildNotificationUserMessage = ({
               .slice(0, PAYEE_ALIASES_SHOWN)
               .map((spelling) => cell({ value: spelling, max: 100 }))
               .join('; '),
+            usualCategories.map((category) => cell({ value: category, max: 60 })).join('; '),
           ].join('|'),
         ),
       ].join('\n')

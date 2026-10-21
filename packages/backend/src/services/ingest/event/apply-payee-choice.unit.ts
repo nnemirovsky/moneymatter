@@ -10,6 +10,10 @@ jest.mock('@services/payees/payee-namespace', () => ({
   resolveNormalizedName: jest.fn(),
 }));
 jest.mock('@services/payees/resolve-payee-for-incoming-row', () => ({ resolvePayeeForIncomingRow: jest.fn() }));
+jest.mock('../payee/resolve-ingest-payee', () => ({
+  matchIngestMerchant: jest.fn(),
+  learnMerchantSpelling: jest.fn(),
+}));
 
 import Payees from '@models/payees.model';
 import { runInSavepoint } from '@services/common/run-in-savepoint';
@@ -17,6 +21,7 @@ import { createPayee } from '@services/payees';
 import { ensureAliasExists, isPayeeNameIgnored, resolveNormalizedName } from '@services/payees/payee-namespace';
 import { resolvePayeeForIncomingRow } from '@services/payees/resolve-payee-for-incoming-row';
 
+import { learnMerchantSpelling, matchIngestMerchant } from '../payee/resolve-ingest-payee';
 import { applyPayeeChoice } from './apply-payee-choice';
 
 const findPayee = jest.mocked(Payees.findOne);
@@ -25,6 +30,8 @@ const addAlias = jest.mocked(ensureAliasExists);
 const isIgnored = jest.mocked(isPayeeNameIgnored);
 const resolveName = jest.mocked(resolveNormalizedName);
 const resolveRow = jest.mocked(resolvePayeeForIncomingRow);
+const matchMerchant = jest.mocked(matchIngestMerchant);
+const learnSpelling = jest.mocked(learnMerchantSpelling);
 
 const USER = 7;
 const REQUEST = 'req-1';
@@ -38,17 +45,44 @@ beforeEach(() => {
   isIgnored.mockResolvedValue(false);
   resolveName.mockResolvedValue(null);
   resolveRow.mockResolvedValue(null);
+  matchMerchant.mockResolvedValue({ kind: 'none' });
 });
 
 describe('applyPayeeChoice', () => {
   it('keeps the payee an exact lookup finds and ignores what the model chose', async () => {
-    resolveName.mockResolvedValueOnce({ payeeId: 'wolt', name: 'Wolt', via: 'alias' });
+    matchMerchant.mockResolvedValueOnce({ kind: 'exact', payeeId: 'wolt' });
 
     const result = await apply({ rawMerchant: 'WOLT.COM TBILISI', choice: { type: 'new', name: 'Something' } });
 
     expect(result).toBe('wolt');
     expect(create).not.toHaveBeenCalled();
     expect(addAlias).not.toHaveBeenCalled();
+    expect(learnSpelling).not.toHaveBeenCalled();
+  });
+
+  it('takes the one payee the core name matches over what the model chose, and learns the spelling', async () => {
+    matchMerchant.mockResolvedValueOnce({ kind: 'unique', payeeId: 'nord', distance: 1 });
+
+    const result = await apply({ rawMerchant: 'NORD COFEE COMPANY LTD', choice: { type: 'new', name: 'Nord Cofee' } });
+
+    expect(result).toBe('nord');
+    expect(learnSpelling).toHaveBeenCalledWith({ payeeId: 'nord', rawMerchant: 'NORD COFEE COMPANY LTD' });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('logs no payee when the merchant is as close to several payees and the model chose none', async () => {
+    matchMerchant.mockResolvedValueOnce({
+      kind: 'ambiguous',
+      candidates: [
+        { payeeId: 'a', name: 'Nord Coffea', distance: 1 },
+        { payeeId: 'b', name: 'Nord Coffee', distance: 1 },
+      ],
+    });
+
+    const result = await apply({ rawMerchant: 'NORD COFFEX', choice: null });
+
+    expect(result).toBeNull();
+    expect(resolveRow).not.toHaveBeenCalled();
   });
 
   it('falls back to the incoming-row resolver when the model chose nothing', async () => {
@@ -117,9 +151,7 @@ describe('applyPayeeChoice', () => {
     });
 
     it('adopts a payee that already has the name instead of creating one', async () => {
-      resolveName
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({ payeeId: 'wolt', name: 'Wolt', via: 'canonical' });
+      resolveName.mockResolvedValueOnce({ payeeId: 'wolt', name: 'Wolt', via: 'canonical' });
 
       const result = await apply({ rawMerchant: 'WOLT TBILISI GE', choice: { type: 'new', name: 'Wolt' } });
 
@@ -130,7 +162,6 @@ describe('applyPayeeChoice', () => {
 
     it('adopts the winner when a concurrent notification created the name first', async () => {
       resolveName
-        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({ payeeId: 'coffee-lab', name: 'Coffee Lab', via: 'canonical' });
       create.mockRejectedValue(new ConflictError({ message: 'taken' }));
