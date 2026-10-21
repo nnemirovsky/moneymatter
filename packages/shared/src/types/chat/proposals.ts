@@ -161,6 +161,26 @@ export interface ChatProposalResult {
   alsoApplied?: string[];
 }
 
+/** What the card of a parked notification payment shows of it, for the one card kind that is not a field list. */
+export interface ChatIngestRequestSummary {
+  /** The park reason: `unknownAccount` needs an account, the others need a yes. */
+  reason: string | null;
+  /** The payee or merchant, else the app. */
+  counterparty: string | null;
+  /** The app the notification came from. */
+  sourceName: string | null;
+  amount: number | null;
+  currencyCode: string | null;
+  direction: 'debit' | 'credit' | null;
+  cardName: string | null;
+  cardLastDigits: string | null;
+  time: string | null;
+  /** The line saying why the payment waits. */
+  summary: string | null;
+  /** What approving on an account would teach: a link for the card, or the source's default account. */
+  willLearn: 'card' | 'sourceDefault' | null;
+}
+
 export interface ChatProposalCard {
   id: string;
   status: ChatProposalStatus;
@@ -180,6 +200,8 @@ export interface ChatProposalCard {
    */
   target?: ChatCardField[];
   affected?: ChatCardAffected;
+  /** Set on the card of a parked notification payment, which shows the payment instead of a field list. */
+  ingestRequest?: ChatIngestRequestSummary;
   /** Related records that are not zero, by count name (`splitCount`, `transferTwinCount`, ...); the card lists them. */
   counts?: Record<string, number>;
   /** Display names of the records the arguments point at, by `chatEntityRefKey`; see `ChatProposalPreview.labels`. */

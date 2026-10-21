@@ -328,6 +328,8 @@
           "empty": "No sources yet. They appear after the first notification arrives.",
           "unknownApp": "Unknown app",
           "sender": "From {sender}",
+          "logTo": "Log to",
+          "logToPlaceholder": "Ask me each time",
           "modes": {
             "auto": "Trusted",
             "pending": "Waiting",

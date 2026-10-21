@@ -80,7 +80,12 @@
 
   <SetupCodeDialog :code="setupCode" @close="clear" />
 
-  <CardLinkDialog v-model:open="isLinkOpen" :initial-label="linkTarget?.cardLabel ?? ''" @saved="handleLinked" />
+  <CardLinkDialog
+    v-model:open="isLinkOpen"
+    :initial-label="linkTarget?.cardLabel ?? ''"
+    :initial-last-digits="linkTarget?.lastDigits ?? null"
+    @saved="handleLinked"
+  />
 
   <ResponsiveAlertDialog
     v-model:open="isOfferOpen"
@@ -138,6 +143,8 @@ const MANUAL_GUIDE_DOCS_PATH = '/integrations/ios-automation/';
 interface LinkOffer {
   cardLabel: string;
   count: number;
+  /** The digits a waiting notification shows for the card, to pre-fill the link. */
+  lastDigits?: string | null;
 }
 
 const { t } = useI18n({ useScope: 'global' });

@@ -38,6 +38,18 @@
           </p>
         </div>
 
+        <div class="w-full @lg/integrations:w-64 @lg/integrations:shrink-0" data-testid="notification-source-log-to">
+          <AccountSelectField
+            :model-value="defaultAccountOf({ source })"
+            :accounts="mappableAccounts"
+            :label="$t(`${LABEL_ROOT}.logTo`)"
+            :placeholder="$t(`${LABEL_ROOT}.logToPlaceholder`)"
+            :disabled="isBusy"
+            clearable
+            @update:model-value="setDefaultAccount({ source, account: $event })"
+          />
+        </div>
+
         <div class="flex gap-2 self-start @lg/integrations:self-center">
           <Button
             v-if="source.mode === 'muted'"
@@ -101,10 +113,18 @@ import { Button } from '@/components/lib/ui/button';
 import { Callout } from '@/components/lib/ui/callout';
 import { StatusBadge, type Variant } from '@/components/lib/ui/status-badge';
 import { useInvalidatingMutation } from '@/composable/data-queries/use-invalidating-mutation';
-import type { NotificationSourceDto, NotificationSourceMode } from '@bt/shared/types';
+import AccountSelectField from '@/components/fields/account-select-field.vue';
+import { useAccountsStore } from '@/stores/accounts';
+import type {
+  AccountModel,
+  NotificationSourceDto,
+  NotificationSourceMode,
+  UpdateNotificationSourcePayload,
+} from '@bt/shared/types';
 import { useQuery } from '@tanstack/vue-query';
 import { computed, ref } from 'vue';
 
+import { getMappableAccounts } from '../ios-automation';
 import { getSourceName } from '../notification-sources';
 
 defineOptions({
@@ -132,7 +152,7 @@ const sources = computed(() => (data.value ?? []).filter((source) => source.mode
 const invalidateKeys = [VUE_QUERY_CACHE_KEYS.notificationSources, VUE_QUERY_CACHE_KEYS.cardPaymentRequests];
 
 const { mutateAsync: update, isPending: isUpdating } = useInvalidatingMutation({
-  mutationFn: (variables: { id: NotificationSourceDto['id']; mode: 'approved' | 'muted' }) =>
+  mutationFn: (variables: { id: NotificationSourceDto['id'] } & UpdateNotificationSourcePayload) =>
     updateNotificationSource(variables),
   invalidateKeys,
   errorKey: `${LABEL_ROOT}.saveError`,
@@ -145,6 +165,14 @@ const { mutateAsync: forget, isPending: isForgetting } = useInvalidatingMutation
   errorKey: `${LABEL_ROOT}.forgetDialog.error`,
 });
 
+const accountsStore = useAccountsStore();
+
+/** The accounts a payment may be logged on: the ones the server accepts as a source default. */
+const mappableAccounts = computed(() => getMappableAccounts({ accounts: accountsStore.accounts ?? [] }));
+
+const defaultAccountOf = ({ source }: { source: NotificationSourceDto }): AccountModel | null =>
+  mappableAccounts.value.find((account) => account.id === source.defaultAccountId) ?? null;
+
 const isBusy = computed(() => isUpdating.value || isForgetting.value);
 
 const isForgetOpen = ref(false);
@@ -153,6 +181,22 @@ const forgetTarget = ref<NotificationSourceDto | null>(null);
 const setMode = async ({ source, mode }: { source: NotificationSourceDto; mode: 'approved' | 'muted' }) => {
   try {
     await update({ id: source.id, mode });
+  } catch {
+    // useInvalidatingMutation already told the user what failed.
+  }
+};
+
+const setDefaultAccount = async ({
+  source,
+  account,
+}: {
+  source: NotificationSourceDto;
+  account: AccountModel | null;
+}) => {
+  if ((account?.id ?? null) === source.defaultAccountId) return;
+
+  try {
+    await update({ id: source.id, defaultAccountId: account?.id ?? null });
   } catch {
     // useInvalidatingMutation already told the user what failed.
   }
