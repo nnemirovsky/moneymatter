@@ -9,6 +9,7 @@ import { CATEGORIZATION_SCOPE, queueCategorizationJob } from '@services/ai-categ
 
 import { buildLoggedSummary } from './build-logged-summary';
 import { cardPaymentTimings } from './constants';
+import { pickHistoryCategory } from './pick-history-category';
 
 interface CategorizedAnswer {
   summary: string;
@@ -21,16 +22,37 @@ const readCategorization = ({ userId, transactionId }: { userId: number; transac
     planned: 'include',
     access: { creator: userId },
     balanceAdjustments: 'include',
-    attributes: ['id', 'categoryId', 'categorizationMeta', 'isPlanned'],
+    attributes: ['id', 'categoryId', 'categorizationMeta', 'isPlanned', 'payeeId', 'time'],
   });
+
+/** Whether the row still carries the category its payee's past payments usually got. */
+const keepsHistoryCategory = async ({
+  userId,
+  transaction,
+}: {
+  userId: number;
+  transaction: { id: RecordId; payeeId: RecordId | null; categoryId: RecordId; time: Date };
+}): Promise<boolean> => {
+  if (!transaction.payeeId) return false;
+
+  const historyCategoryId = await pickHistoryCategory({
+    ownerUserId: userId,
+    payeeId: transaction.payeeId,
+    asOf: transaction.time,
+    excludeTransactionId: transaction.id,
+  });
+
+  return historyCategoryId === transaction.categoryId;
+};
 
 /**
  * Hands a freshly logged payment to the AI categorization queue, after its transaction committed,
  * and waits for the answer only when there is something to wait for.
  *
  * - A job is queued for every row the AI may still decide: not planned (AI skips plans), no
- *   `categorizationMeta` (an `enforce` payee or a rule already decided), and an AI client that
- *   resolves for the owner. A `hint` or history category stays on the row until the AI overrides
+ *   `categorizationMeta` (an `enforce` payee or a rule already decided), not in the category the
+ *   payee's past payments usually got (the owner's own history beats a generic guess), and an AI
+ *   client that resolves for the owner. A `hint` category stays on the row until the AI overrides
  *   it, exactly as for bank rows.
  * - Only a row still in the user's default category waits: the request polls it until the AI has
  *   stamped it or the budget is spent. A row with a category already answers at once with that
@@ -56,6 +78,7 @@ export const categorizeAfterCommit = async ({
   try {
     const transaction = await readCategorization({ userId, transactionId });
     if (!transaction || transaction.isPlanned || transaction.categorizationMeta) return null;
+    if (await keepsHistoryCategory({ userId, transaction })) return null;
 
     const aiConfiguration = await resolveAIConfiguration({ userId, feature: AI_FEATURE.categorization });
     if (!aiConfiguration) return null;

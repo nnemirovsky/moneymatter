@@ -196,10 +196,10 @@ describe('card payment AI categorization', () => {
     expect((await storedTransaction(logged)).categoryId).toBe(coffee.id);
   }, 60_000);
 
-  it('queues a history-categorized row without waiting and lets the AI override it later', async () => {
+  it("keeps the category the payee's history gives and queues no AI job", async () => {
     enableAi();
-    const [history, coffee] = await Promise.all([createCategory('Lunch'), createCategory(AI_CATEGORY)]);
-    aiAnswers({ delayMs: 1_500 });
+    const [history] = await Promise.all([createCategory('Lunch'), createCategory(AI_CATEGORY)]);
+    aiAnswers();
     const { account, secret } = await linkCard();
     const payee = await helpers.createPayee({ payload: helpers.buildPayeePayload({ name: MERCHANT }), raw: true });
     await helpers.createTransaction({
@@ -216,10 +216,10 @@ describe('card payment AI categorization', () => {
 
     expect(logged.categoryPending).toBe(false);
     expect(logged.summary).toMatch(/ → Lunch$/);
-    expect(queueAdd).toHaveBeenCalledTimes(1);
-
-    await waitForAiCategory(logged);
-    expect((await storedTransaction(logged)).categoryId).toBe(coffee.id);
+    expect(queueAdd).not.toHaveBeenCalled();
+    const tx = await storedTransaction(logged);
+    expect(tx.categoryId).toBe(history.id);
+    expect(tx.categorizationMeta ?? null).toBeNull();
   }, 60_000);
 
   it('queues nothing for an enforce payee category', async () => {
