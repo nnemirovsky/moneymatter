@@ -295,8 +295,9 @@ describe('ProposalCard', () => {
         canApply: { ok: false as const, reasonKey: 'chat.cards.notPending' },
       };
       vi.mocked(editChatProposal).mockResolvedValue(paymentCard({ account: 'acc-raif' }));
-      // A failed card starts folded; opened, its picker still takes another account.
-      const wrapper = await expand(mountCard({ card: failed, inbox: true }));
+      // The picker is an action left to the owner, so the failed card starts open.
+      const wrapper = mountCard({ card: failed, inbox: true });
+      expect(foldToggle(wrapper).attributes('aria-expanded')).toBe('true');
 
       const picker = wrapper.findComponent(AccountSelectField);
       expect(picker.props('disabled')).toBe(false);
@@ -688,10 +689,10 @@ describe('ProposalCard', () => {
 
     it('shows a failed card with the error and a way to try again', async () => {
       vi.mocked(refreshChatProposal).mockResolvedValue(createCard());
-      const wrapper = await expand(
-        mountCard({ card: createCard({ status: 'failed', error: { message: 'Account is archived' } }) }),
-      );
+      // Refresh, edit and reject are still the owner's to take, so the card starts open.
+      const wrapper = mountCard({ card: createCard({ status: 'failed', error: { message: 'Account is archived' } }) });
 
+      expect(foldToggle(wrapper).attributes('aria-expanded')).toBe('true');
       expect(wrapper.text()).toContain('Failed');
       expect(wrapper.text()).toContain('This change could not be applied. Nothing was changed.');
       expect(wrapper.find('[data-testid="card-error"]').text()).toBe('Account is archived');
@@ -702,9 +703,9 @@ describe('ProposalCard', () => {
     });
 
     it('translates the error key of a card whose preview failed', async () => {
-      const wrapper = await expand(
-        mountCard({ card: createCard({ status: 'failed', error: { messageKey: 'chat.cards.targetNotFound' } }) }),
-      );
+      const wrapper = mountCard({
+        card: createCard({ status: 'failed', error: { messageKey: 'chat.cards.targetNotFound' } }),
+      });
 
       expect(wrapper.find('[data-testid="card-error"]').text()).toBe('The record this change targets was not found.');
     });
@@ -745,7 +746,7 @@ describe('ProposalCard', () => {
         ...overrides,
       });
 
-    it.each(['pending', 'stale', 'applying', 'unknown'] as const)('keeps a %s card open', (status) => {
+    it.each(['pending', 'stale', 'failed', 'applying', 'unknown'] as const)('keeps a %s card open', (status) => {
       const wrapper = mountCard({ card: updateCard({ status }) });
 
       expect(foldToggle(wrapper).attributes('aria-expanded')).toBe('true');
@@ -753,7 +754,7 @@ describe('ProposalCard', () => {
       expect(wrapper.find('[data-testid="card-summary"]').exists()).toBe(false);
     });
 
-    it.each(['applied', 'rejected', 'failed', 'blocked', 'superseded', 'expired'] as const)(
+    it.each(['applied', 'rejected', 'blocked', 'superseded', 'expired'] as const)(
       'folds a %s card to its header and a one-line summary of the record',
       (status) => {
         const wrapper = mountCard({ card: updateCard({ status }) });

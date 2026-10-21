@@ -37,6 +37,7 @@ import CardDependencies from './card-dependencies.vue';
 import CardFieldEditor from './card-field-editor.vue';
 import CardField from './card-field.vue';
 import CardSources from './card-sources.vue';
+import { startsFolded } from './card-fold';
 import { ingestSummaryParts, summaryFields } from './card-summary';
 import IngestRequestBody from './ingest-request-body.vue';
 import {
@@ -104,16 +105,6 @@ const OPEN_STATUSES: readonly ChatProposalStatus[] = ['pending', 'stale', 'faile
 const RESOLVED_ELSEWHERE = 'resolvedElsewhere';
 const CONFLICT_REASONS = ['revision', 'notPending', 'blocked', 'expired', 'stale', 'unavailable'] as const;
 type ConflictReason = (typeof CONFLICT_REASONS)[number];
-
-/** Statuses that leave the owner nothing to decide: such a card starts folded to its header and a summary. */
-const FOLDED_STATUSES: readonly ChatProposalStatus[] = [
-  'applied',
-  'rejected',
-  'failed',
-  'blocked',
-  'superseded',
-  'expired',
-];
 
 const isOpen = computed(() => OPEN_STATUSES.includes(props.card.status));
 const isPending = computed(() => props.card.status === 'pending');
@@ -352,8 +343,9 @@ const isDetailsOpen = ref(false);
 
 // --- Fold ---
 
-// Decided once, when the card first shows: a card the owner just approved stays open with its result.
-const isExpanded = ref(!FOLDED_STATUSES.includes(props.card.status));
+// Decided once, when the card first shows: a card the owner just approved stays open with its result. A card in an
+// open status always shows the action row (Reject at least), and a parked payment's account picker with it.
+const isExpanded = ref(!startsFolded({ status: props.card.status, offersAction: isOpen.value }));
 const bodyId = useId();
 
 const summaryText = computed(() => {
