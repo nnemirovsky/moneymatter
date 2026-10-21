@@ -170,7 +170,7 @@ test.describe('iOS Automation', () => {
     expect(code.startsWith(SETUP_CODE_PREFIX)).toBe(true);
 
     await page.getByTestId('setup-code-copy').click();
-    await waitForSuccessToast({ page });
+    await expect(page.getByTestId('setup-code-copy')).toHaveText('Copied');
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(code);
 
     await page.getByTestId('setup-code-done').click();
