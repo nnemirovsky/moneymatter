@@ -5,6 +5,7 @@ import Transactions from '@models/transactions.model';
 import { RateLimitService } from '@services/common/rate-limit.service';
 import * as helpers from '@tests/helpers';
 import { enableServerModel, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
+import { approveCardAsIs, confirmCardOf } from '@tests/helpers/ingest-cards';
 import * as ingestHelpers from '@tests/helpers/ingest-tokens';
 import { mockNotificationParsing } from '@tests/helpers/notification-ai';
 import { addMinutes, format, startOfDay, subDays } from 'date-fns';
@@ -223,10 +224,15 @@ describe('twin and settlement rules', () => {
 
       const payees = await helpers.listPayees({ raw: true });
       expect(payees.map((payee) => payee.name)).toEqual(['Wolt']);
-      // The other bank's spelling is learned as an alias of the one payee.
-      const aliases = (await helpers.getPayeeById({ id: payees[0]!.id, raw: true })).aliases ?? [];
-      expect(aliases.map((alias) => alias.normalizedName)).toContain('wolt com tbilisi');
       expect(await helpers.listUnconfirmedCardPayments({ raw: true })).toHaveLength(1);
+      // Every source's spelling becomes an alias of the one payee once the owner confirms the payment.
+      const aliasesOfWolt = async () =>
+        ((await helpers.getPayeeById({ id: payees[0]!.id, raw: true })).aliases ?? []).map(
+          (alias) => alias.normalizedName,
+        );
+      expect(await aliasesOfWolt()).not.toContain('wolt com tbilisi');
+      await approveCardAsIs({ card: await confirmCardOf({ transactionId: row.id }) });
+      expect(await aliasesOfWolt()).toContain('wolt com tbilisi');
 
       const account = await helpers.getAccount({ id: gel.id, raw: true });
       expect(account.currentBalance).toBe(1000 - 29.41);

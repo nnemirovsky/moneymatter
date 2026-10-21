@@ -1,7 +1,7 @@
 import { normalizePayeeName } from '../../payees/normalize-name';
 
 /** A past payment to the payee, as far as the note suggestion reads it. */
-export interface NoteHistoryRow {
+interface NoteHistoryRow {
   note: string | null;
   amount: number;
   time: Date;
