@@ -26,10 +26,12 @@ import {
 import { createTransaction } from '@services/transactions';
 import { accountHasPlannedRows } from '@services/transactions/planned-matching';
 import { linkTransactions } from '@services/transactions/transactions-linking/link-transactions';
+import { getStoredUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { Op, Sequelize } from 'sequelize';
 
 import { encryptCredentials } from '../utils/credential-encryption';
 import { notifyPlannedConfirmations } from '../utils/notify-planned-confirmations';
+import { bankSyncRecordedZone } from '../utils/recorded-zone';
 import { writeBankBalanceWithHistory } from '../utils/write-bank-balance-with-history';
 import { type HistoryItem, type WalletBalance, WalutomatApiClient, WalutomatHttpError } from './api-client';
 import { linkCrossProviderTransfers } from './cross-provider-linking';
@@ -318,6 +320,8 @@ export class WalutomatProvider extends BaseBankDataProvider {
         });
 
         const now = new Date();
+        // Every row of this sync is judged against `now` and one stored zone.
+        const userZone = await getStoredUserTimeZone({ userId });
         let fromDate: Date;
         if (latestTransaction) {
           fromDate = new Date(latestTransaction.time);
@@ -391,6 +395,7 @@ export class WalutomatProvider extends BaseBankDataProvider {
 
           const operationAmount = parseFloat(item.operationAmount);
           const isExpense = operationAmount < 0;
+          const time = new Date(item.ts);
 
           const createResult = await createTransaction({
             originalId: item.transactionId,
@@ -398,7 +403,8 @@ export class WalutomatProvider extends BaseBankDataProvider {
             externalReference:
               detail({ item, key: 'partnerOrderId' }) ?? detail({ item, key: 'providerOperationId' }) ?? null,
             amount: Money.fromDecimal(Math.abs(operationAmount)),
-            time: new Date(item.ts),
+            time,
+            ...bankSyncRecordedZone({ time, syncedAt: now, userZone }),
             externalData: {
               historyItemId: item.historyItemId,
               transactionId: item.transactionId,

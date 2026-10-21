@@ -1,3 +1,4 @@
+import { zoneOffsetMinutes } from '@bt/shared/time-zone';
 import type { RecordId } from '@bt/shared/types';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
@@ -39,11 +40,13 @@ import { createTransaction } from '@services/transactions';
 import { accountHasPlannedRows } from '@services/transactions/planned-matching';
 import { getExchangeRate } from '@services/user-exchange-rate/get-exchange-rate.service';
 import { getUserSettings } from '@services/user-settings/get-user-settings';
+import { getStoredUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { addDays, subDays } from 'date-fns';
 import { Op, Sequelize } from 'sequelize';
 
 import { encryptCredentials } from '../utils/credential-encryption';
 import { notifyPlannedConfirmations } from '../utils/notify-planned-confirmations';
+import { bankSyncRecordedZone } from '../utils/recorded-zone';
 import { writeBankBalanceWithHistory } from '../utils/write-bank-balance-with-history';
 import { EnableBankingApiClient, isAspspDateRangeRejection } from './api-client';
 import {
@@ -810,6 +813,8 @@ export class EnableBankingProvider extends BaseBankDataProvider {
           });
 
           const to = new Date();
+          // Every row of this sync is judged against `to` (the sync's start) and one stored zone.
+          const userZone = await getStoredUserTimeZone({ userId });
 
           // Incremental: `from` anchored to last tx, pulled back to the oldest payment the
           // previous sync saw pending. That payment books under its original date, so a
@@ -1007,6 +1012,7 @@ export class EnableBankingProvider extends BaseBankDataProvider {
               const updates: Partial<{
                 originalId: string;
                 time: Date;
+                utcOffsetMinutes: number;
                 note: string;
                 externalReference: string;
                 externalData: typeof tx.metadata;
@@ -1039,6 +1045,10 @@ export class EnableBankingProvider extends BaseBankDataProvider {
               const storedSyncNote = syncGeneratedNote({ tx: existingTx });
               if ((bookingDateAppeared || pendingBecameBooked) && existingTx.time.getTime() !== tx.date.getTime()) {
                 updates.time = tx.date;
+                // The row keeps its zone; only the offset follows the new time.
+                if (existingTx.timeZone) {
+                  updates.utcOffsetMinutes = zoneOffsetMinutes({ zone: existingTx.timeZone, instant: tx.date });
+                }
               }
               if (bookingDateAppeared || updates.originalId || pendingBecameBooked) {
                 // Merge, never replace: create-time keys the incoming payload omits
@@ -1101,6 +1111,7 @@ export class EnableBankingProvider extends BaseBankDataProvider {
               externalReference: getReferenceNumber({ externalData: tx.metadata }),
               amount: Money.fromCents(Math.abs(tx.amount)), // Ensure positive value
               time: tx.date,
+              ...bankSyncRecordedZone({ time: tx.date, syncedAt: to, userZone }),
               externalData: {
                 ...tx.metadata,
                 merchantName: merchantNameClean || undefined,

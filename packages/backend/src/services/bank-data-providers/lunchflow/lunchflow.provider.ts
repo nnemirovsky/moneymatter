@@ -26,11 +26,13 @@ import {
 } from '@services/bank-data-providers';
 import { createTransaction } from '@services/transactions';
 import { accountHasPlannedRows } from '@services/transactions/planned-matching';
+import { getStoredUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { Op, Sequelize } from 'sequelize';
 
 import { clampSyncStartToLink } from '../utils/clamp-sync-start-to-link';
 import { encryptCredentials } from '../utils/credential-encryption';
 import { notifyPlannedConfirmations } from '../utils/notify-planned-confirmations';
+import { bankSyncRecordedZone } from '../utils/recorded-zone';
 import { writeBankBalanceWithHistory } from '../utils/write-bank-balance-with-history';
 import { LunchFlowApiClient } from './api-client';
 import {
@@ -289,6 +291,10 @@ export class LunchFlowProvider extends BaseBankDataProvider {
         const apiClient = new LunchFlowApiClient(apiKey);
         const accountId = parseInt(account.externalId, 10);
 
+        // Every row of this sync is judged against one moment and one stored zone.
+        const syncedAt = new Date();
+        const userZone = await getStoredUserTimeZone({ userId });
+
         let transactionsResponse: LunchFlowApiTransactionsResponse;
         try {
           transactionsResponse = await apiClient.getTransactions({ accountId });
@@ -371,12 +377,14 @@ export class LunchFlowProvider extends BaseBankDataProvider {
           }
 
           const isExpense = tx.amount < 0;
+          const time = new Date(tx.date);
 
           const createResult = await createTransaction({
             originalId: tx.id!,
             note: tx.description || tx.merchant || '',
             amount: Money.fromDecimal(Math.abs(tx.amount)),
-            time: new Date(tx.date),
+            time,
+            ...bankSyncRecordedZone({ time, syncedAt, userZone }),
             externalData: {
               merchant: tx.merchant,
               description: tx.description,
