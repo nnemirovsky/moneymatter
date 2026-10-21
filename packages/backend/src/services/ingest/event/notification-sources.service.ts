@@ -1,9 +1,7 @@
 import {
-  ACCOUNT_STATUSES,
   buildSourceKey,
   getDefaultSourceMode,
   isConversationalApp,
-  isDedicatedFlowAccountCategory,
   type NotificationDropReason,
   type NotificationSourceDto,
   type RecordId,
@@ -11,8 +9,6 @@ import {
 } from '@bt/shared/types';
 import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
 import { t } from '@i18n/index';
-import { NotFoundError } from '@js/errors';
-import Accounts from '@models/accounts.model';
 import { connection } from '@models/connection';
 import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
@@ -21,6 +17,7 @@ import { runAfterCommit } from '@services/common/run-after-commit';
 import { withTransaction } from '@services/common/with-transaction';
 import { Op, QueryTypes } from 'sequelize';
 
+import { assertUsableAccount } from '../usable-account';
 import { enqueueNotificationProcessing } from './notification-queue';
 import { UNCLASSIFIED_PARK_REASONS } from './stored-parse';
 
@@ -165,22 +162,6 @@ export const listNotificationSources = async ({ userId }: { userId: number }): P
   return sources.map((source) => toSourceDto({ source }));
 };
 
-/** A default account is one the user owns that takes manual payments: not archived, not a loan or vehicle. */
-const assertDefaultAccount = async ({ userId, accountId }: { userId: number; accountId: RecordId }): Promise<void> => {
-  const account = await Accounts.findOne({
-    where: { id: accountId, userId },
-    attributes: ['id', 'status', 'accountCategory'],
-  });
-
-  if (
-    !account ||
-    account.status === ACCOUNT_STATUSES.archived ||
-    isDedicatedFlowAccountCategory(account.accountCategory)
-  ) {
-    throw new NotFoundError({ message: t({ key: 'notificationSources.accountNotFound' }) });
-  }
-};
-
 const updateNotificationSourceImpl = async ({
   userId,
   id,
@@ -195,7 +176,13 @@ const updateNotificationSourceImpl = async ({
     message: t({ key: 'notificationSources.sourceNotFound' }),
   });
 
-  if (defaultAccountId) await assertDefaultAccount({ userId, accountId: defaultAccountId });
+  if (defaultAccountId) {
+    await assertUsableAccount({
+      userId,
+      accountId: defaultAccountId,
+      message: t({ key: 'notificationSources.accountNotFound' }),
+    });
+  }
 
   await source.update({
     ...(mode !== undefined && { mode }),

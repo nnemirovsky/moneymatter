@@ -9,22 +9,16 @@ import { Money } from '@common/types/money';
 import Accounts from '@models/accounts.model';
 import { connection } from '@models/connection';
 import { findOneTransaction } from '@models/transactions-query';
-import { DOMAIN_EVENTS, eventBus, type IngestPaymentLoggedPayload } from '@services/common/event-bus';
+import { DOMAIN_EVENTS, eventBus, type IngestPaymentUpdatedPayload } from '@services/common/event-bus';
 import { Op, QueryTypes } from 'sequelize';
 
 import { convertToAccountCurrency } from '../card-payment/convert-to-account-currency';
 import { readUserLocale } from '../card-payment/read-user-locale';
+import { ingestMarkersOf } from '../ingest-markers';
 import { findCardRows } from '../resolve-card-account';
 import { composeCorrection } from './compose-correction';
 import { correctionOf } from './read-ingest-suggestions';
 import { applyRanking, isBalanceShort, rankByCoverage, type ShortBalanceCandidate } from './short-balance-rule';
-
-interface IngestMarkers {
-  requestId?: RecordId;
-  pipeline?: 'cardPayment' | 'notification';
-  cardLastDigits?: string;
-  balanceBefore?: { amount: number; currencyCode: string };
-}
 
 const amountOf = ({ money, currencyCode }: { money: Money; currencyCode: string }) => ({
   amount: money.toNumber(),
@@ -61,7 +55,7 @@ export const suggestShortBalanceCorrection = async ({
   });
   if (!transaction || transaction.transactionType !== TRANSACTION_TYPES.expense) return false;
 
-  const ingest = (transaction.externalData?.ingest ?? {}) as IngestMarkers;
+  const ingest = ingestMarkersOf({ externalData: transaction.externalData });
   if (!ingest.balanceBefore || correctionOf({ externalData: transaction.externalData })) return false;
 
   const balanceBefore = Money.fromDecimal(ingest.balanceBefore.amount);
@@ -150,14 +144,8 @@ export const suggestShortBalanceCorrection = async ({
   );
 
   // The one confirm card of this transaction shows the suggestion.
-  const payload: IngestPaymentLoggedPayload = {
-    userId,
-    accountId: transaction.accountId,
-    transactionId,
-    requestId: ingest.requestId ?? ('' as RecordId),
-    pipeline: ingest.pipeline ?? 'notification',
-  };
-  eventBus.emit(DOMAIN_EVENTS.INGEST_PAYMENT_LOGGED, payload);
+  const payload: IngestPaymentUpdatedPayload = { userId, transactionId };
+  eventBus.emit(DOMAIN_EVENTS.INGEST_PAYMENT_UPDATED, payload);
 
   return true;
 };

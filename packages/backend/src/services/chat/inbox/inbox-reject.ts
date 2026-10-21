@@ -11,8 +11,13 @@ import { updateNotificationSource } from '@services/ingest/event/notification-so
 import { dismissDuplicateSuggestion } from '@services/transactions/reconciliation/duplicate-suggestions';
 import { dismissTransferSuggestion } from '@services/transactions/transactions-linking/dismiss-transfer-suggestion.service';
 
-import { LOG_INGEST_REQUEST_TOOL, MERGE_DUPLICATES_TOOL, SET_NOTIFICATION_SOURCE_TOOL } from './inbox-items';
-import { CONFIRM_TOOL, LINK_TRANSFER_TOOL } from './inbox-resolution';
+import {
+  CONFIRM_TOOL,
+  LINK_TRANSFER_TOOL,
+  LOG_INGEST_REQUEST_TOOL,
+  MERGE_DUPLICATES_TOOL,
+  SET_NOTIFICATION_SOURCE_TOOL,
+} from './inbox-transitions';
 
 /** A record that was settled between the card being shown and the reject is nothing to undo. */
 const ignoreSettled = async ({ fn }: { fn: () => Promise<unknown> }): Promise<void> => {

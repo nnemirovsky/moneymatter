@@ -1,26 +1,29 @@
 import { ACCOUNT_TYPES, type IngestShortBalanceCorrection, type RecordId } from '@bt/shared/types';
 import { Money } from '@common/types/money';
+import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
 import { t } from '@i18n/index';
-import { ConflictError, NotFoundError, ValidationError } from '@js/errors';
-import Accounts from '@models/accounts.model';
+import { ConflictError, ValidationError } from '@js/errors';
 import { connection } from '@models/connection';
 import { findOneTransaction } from '@models/transactions-query';
-import { DOMAIN_EVENTS, eventBus, type IngestPaymentLoggedPayload } from '@services/common/event-bus';
+import { DOMAIN_EVENTS, eventBus, type IngestPaymentUpdatedPayload } from '@services/common/event-bus';
 import { runAfterCommit } from '@services/common/run-after-commit';
 import { withTransaction } from '@services/common/with-transaction';
 import { updateTransaction } from '@services/transactions/update-transaction';
 import { QueryTypes } from 'sequelize';
 
+import { assertUsableAccount } from '../usable-account';
 import { correctionOf } from './read-ingest-suggestions';
 
 const loadOpenCorrection = async ({ userId, transactionId }: { userId: number; transactionId: RecordId }) => {
-  const transaction = await findOneTransaction({
-    where: { id: transactionId },
-    planned: 'include',
-    access: { accountOwner: userId },
-    balanceAdjustments: 'exclude',
+  const transaction = await findOrThrowNotFound({
+    query: findOneTransaction({
+      where: { id: transactionId },
+      planned: 'include',
+      access: { accountOwner: userId },
+      balanceAdjustments: 'exclude',
+    }),
+    message: t({ key: 'transactions.notFound' }),
   });
-  if (!transaction) throw new NotFoundError({ message: t({ key: 'transactions.notFound' }) });
 
   const correction = correctionOf({ externalData: transaction.externalData });
   if (!correction || correction.status !== 'open') {
@@ -61,25 +64,9 @@ const settleCorrection = async ({
   );
 };
 
-const emitLogged = async ({ userId, transactionId }: { userId: number; transactionId: RecordId }) => {
-  const transaction = await findOneTransaction({
-    where: { id: transactionId },
-    planned: 'include',
-    access: { accountOwner: userId },
-    balanceAdjustments: 'exclude',
-    attributes: ['id', 'accountId', 'externalData'],
-  });
-  if (!transaction) return;
-
-  const ingest = (transaction.externalData?.ingest ?? {}) as Partial<IngestPaymentLoggedPayload>;
-  const payload: IngestPaymentLoggedPayload = {
-    userId,
-    accountId: transaction.accountId,
-    transactionId,
-    requestId: ingest.requestId ?? ('' as RecordId),
-    pipeline: ingest.pipeline ?? 'notification',
-  };
-  await runAfterCommit({ fn: () => eventBus.emit(DOMAIN_EVENTS.INGEST_PAYMENT_LOGGED, payload) });
+const emitUpdated = async ({ userId, transactionId }: { userId: number; transactionId: RecordId }) => {
+  const payload: IngestPaymentUpdatedPayload = { userId, transactionId };
+  await runAfterCommit({ fn: () => eventBus.emit(DOMAIN_EVENTS.INGEST_PAYMENT_UPDATED, payload) });
 };
 
 const approveCorrectionImpl = async ({
@@ -101,11 +88,12 @@ const approveCorrectionImpl = async ({
   const candidate = correction.candidates.find((entry) => entry.accountId === targetId);
   if (!candidate) throw new ValidationError({ message: t({ key: 'ingest.correctionAccountNotOffered' }) });
 
-  const target = await Accounts.findOne({
-    where: { id: targetId, userId },
-    attributes: ['id', 'type', 'currencyCode'],
+  // The suggestion was built from active accounts; the target may have been archived since.
+  const target = await assertUsableAccount({
+    userId,
+    accountId: targetId,
+    message: t({ key: 'accounts.accountNotFoundForTransaction' }),
   });
-  if (!target) throw new NotFoundError({ message: t({ key: 'accounts.accountNotFoundForTransaction' }) });
 
   // The payment keeps what the card was charged as the original amount: the figure it was logged with,
   // unless it already carried one (a payment converted when it was first logged).
@@ -126,7 +114,7 @@ const approveCorrectionImpl = async ({
   });
 
   await settleCorrection({ transactionId, status: 'applied', accountId: target.id });
-  await emitLogged({ userId, transactionId });
+  await emitUpdated({ userId, transactionId });
 
   return { transactionId, accountId: target.id };
 };
@@ -147,7 +135,7 @@ const dismissCorrectionImpl = async ({
 }): Promise<{ transactionId: RecordId }> => {
   await loadOpenCorrection({ userId, transactionId });
   await settleCorrection({ transactionId, status: 'dismissed' });
-  await emitLogged({ userId, transactionId });
+  await emitUpdated({ userId, transactionId });
 
   return { transactionId };
 };

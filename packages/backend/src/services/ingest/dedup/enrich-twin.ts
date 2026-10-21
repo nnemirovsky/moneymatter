@@ -7,6 +7,7 @@ import { runAfterCommit } from '@services/common/run-after-commit';
 import { updateTransaction } from '@services/transactions/update-transaction';
 import { QueryTypes } from 'sequelize';
 
+import { ingestMarkersOf, type IngestMarkers } from '../ingest-markers';
 import { TAP_SLOT, type IngestSourceEntry } from './source-slots';
 import { inferBankTime } from './twin-rule';
 
@@ -29,15 +30,8 @@ interface TwinEnrichment {
   cardLastDigits: string | null;
 }
 
-interface IngestData {
-  requestId?: RecordId;
-  pipeline?: 'cardPayment' | 'notification';
-  sources?: IngestSourceEntry[];
-  cardLastDigits?: string;
-}
-
-const readIngestData = ({ transaction }: { transaction: Transactions }): IngestData =>
-  (transaction.externalData?.ingest as IngestData | undefined) ?? {};
+const readIngestData = ({ transaction }: { transaction: Transactions }): IngestMarkers =>
+  ingestMarkersOf({ externalData: transaction.externalData });
 
 /**
  * The sources a row holds. A tap logged before the slots existed has none recorded, only its

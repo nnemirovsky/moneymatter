@@ -29,6 +29,13 @@ export const DOMAIN_EVENTS = {
    */
   INGEST_PAYMENT_LOGGED: 'ingest:payment-logged',
   /**
+   * Emitted when a logged payment's ingest suggestions changed after the logging commit (a short-balance
+   * correction was stored or settled, a conversion pair was found). The inbox refreshes the cards of the
+   * row; it carries no request, because no request was logged.
+   * Payload: @type IngestPaymentUpdatedPayload
+   */
+  INGEST_PAYMENT_UPDATED: 'ingest:payment-updated',
+  /**
    * Emitted after the commit of a notification request that parked: it waits for the owner and the
    * inbox posts its card (an unknown account, an own transfer, a doubtful read, a source to approve).
    * Payload: @type IngestRequestParkedPayload
@@ -52,6 +59,11 @@ export interface IngestPaymentLoggedPayload {
   /** The ingest request that produced the row. */
   requestId: string;
   pipeline: 'cardPayment' | 'notification';
+}
+
+export interface IngestPaymentUpdatedPayload {
+  userId: number;
+  transactionId: string;
 }
 
 export interface IngestRequestParkedPayload {

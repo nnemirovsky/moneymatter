@@ -5,12 +5,13 @@ import { withTransaction } from '@services/common/with-transaction';
 import { Op, QueryTypes } from 'sequelize';
 
 import { notifyThreadUpdated } from '../threads/thread-events';
-import { OPEN_CARD_STATUSES } from './inbox-transitions';
-
-/** The tools whose cards the inbox posts for a payment the pipeline logged. */
-export const CONFIRM_TOOL = 'confirm_ingest_payment';
-/** The existing tool whose card asks to link the two legs of a currency conversion as a transfer. */
-export const LINK_TRANSFER_TOOL = 'link_transfer';
+import {
+  CONFIRM_TOOL,
+  LINK_TRANSFER_TOOL,
+  LOG_INGEST_REQUEST_TOOL,
+  OPEN_CARD_STATUSES,
+  SET_NOTIFICATION_SOURCE_TOOL,
+} from './inbox-transitions';
 
 /** Why the card was closed without the owner acting on it. */
 const RESOLVED_ELSEWHERE = 'resolvedElsewhere';
@@ -159,10 +160,10 @@ export const sweepOrphanedInboxCards = async (): Promise<number> => {
             NOT EXISTS (SELECT 1 FROM "Transactions" AS t WHERE t."id"::text = p."args"->>'baseTxId' AND t."deletedAt" IS NULL AND t."transferId" IS NULL)
             OR NOT EXISTS (SELECT 1 FROM "Transactions" AS t WHERE t."id"::text = p."args"->>'oppositeTxId' AND t."deletedAt" IS NULL AND t."transferId" IS NULL)
           ))
-          OR (p."toolName" = 'log_ingest_request' AND NOT EXISTS (
+          OR (p."toolName" = :requestTool AND NOT EXISTS (
             SELECT 1 FROM "IngestRequests" AS r WHERE r."id"::text = p."args"->>'requestId' AND r."status" = 'parked'
           ))
-          OR (p."toolName" = 'set_notification_source' AND NOT EXISTS (
+          OR (p."toolName" = :sourceTool AND NOT EXISTS (
             SELECT 1 FROM "NotificationSources" AS s WHERE s."id"::text = p."args"->>'sourceId' AND s."mode" = 'pending'
           ))
         )`,
@@ -171,6 +172,8 @@ export const sweepOrphanedInboxCards = async (): Promise<number> => {
         statuses: [...OPEN_CARD_STATUSES],
         confirmTool: CONFIRM_TOOL,
         linkTool: LINK_TRANSFER_TOOL,
+        requestTool: LOG_INGEST_REQUEST_TOOL,
+        sourceTool: SET_NOTIFICATION_SOURCE_TOOL,
       },
       type: QueryTypes.SELECT,
     },

@@ -3,7 +3,7 @@ import { connection } from '@models/connection';
 import { findTransactions } from '@models/transactions-query';
 import type Transactions from '@models/transactions.model';
 import { getDismissalsForUser } from '@models/transfer-suggestion-dismissals.model';
-import { DOMAIN_EVENTS, eventBus, type IngestPaymentLoggedPayload } from '@services/common/event-bus';
+import { DOMAIN_EVENTS, eventBus, type IngestPaymentUpdatedPayload } from '@services/common/event-bus';
 import { Op, QueryTypes } from 'sequelize';
 
 import { convertToAccountCurrency } from '../card-payment/convert-to-account-currency';
@@ -16,11 +16,6 @@ const CANDIDATE_LIMIT = 50;
 
 const oppositeType = ({ type }: { type: TRANSACTION_TYPES }) =>
   type === TRANSACTION_TYPES.expense ? TRANSACTION_TYPES.income : TRANSACTION_TYPES.expense;
-
-interface IngestMarkers {
-  requestId?: RecordId;
-  pipeline?: 'cardPayment' | 'notification';
-}
 
 const markLeg = async ({
   transactionId,
@@ -38,19 +33,9 @@ const markLeg = async ({
   );
 };
 
-const emitLogged = ({ userId, transaction }: { userId: number; transaction: Transactions }) => {
-  const ingest = transaction.externalData?.ingest as IngestMarkers | undefined;
-  // Only a row the ingest wrote has an inbox card to update.
-  if (!ingest?.requestId) return;
-
-  const payload: IngestPaymentLoggedPayload = {
-    userId,
-    accountId: transaction.accountId,
-    transactionId: transaction.id,
-    requestId: ingest.requestId,
-    pipeline: ingest.pipeline ?? 'notification',
-  };
-  eventBus.emit(DOMAIN_EVENTS.INGEST_PAYMENT_LOGGED, payload);
+const emitUpdated = ({ userId, transactionId }: { userId: number; transactionId: RecordId }) => {
+  const payload: IngestPaymentUpdatedPayload = { userId, transactionId };
+  eventBus.emit(DOMAIN_EVENTS.INGEST_PAYMENT_UPDATED, payload);
 };
 
 /**
@@ -170,8 +155,8 @@ export const suggestConversionPair = async ({
 
   await markLeg({ transactionId: transaction.id, suggestion });
   await markLeg({ transactionId: best.counterpart.id, suggestion });
-  emitLogged({ userId, transaction });
-  emitLogged({ userId, transaction: best.counterpart });
+  emitUpdated({ userId, transactionId: transaction.id });
+  emitUpdated({ userId, transactionId: best.counterpart.id });
 
   return true;
 };

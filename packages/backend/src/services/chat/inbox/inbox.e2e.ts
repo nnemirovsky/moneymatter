@@ -1,4 +1,5 @@
 import {
+  ACCOUNT_STATUSES,
   TRANSACTION_TRANSFER_NATURE,
   type ChatProposalCard,
   type ChatProposalStatus,
@@ -253,6 +254,38 @@ describe('Automation inbox', () => {
       expect(page.messages[0]!.parts).toEqual([{ type: 'proposal', id: expect.any(String), proposalId: card.id }]);
     });
 
+    it('refuses to move the payment to an archived account or a loan, and keeps it unconfirmed', async () => {
+      const { main, secret } = await setUp();
+      const res = await wallet({ secret, body: `${BASE} 43.60` });
+      const card = await waitForCard({ toolName: CONFIRM });
+      const transactionId = (await IngestRequests.findByPk(res.body.response.requestId))!.transactionId!;
+      const archived = await account({ name: 'Archived' });
+      await helpers.updateAccount({ id: archived.id, payload: { status: ACCOUNT_STATUSES.archived } });
+      const loan = await helpers.createLoan({
+        payload: helpers.buildCreateLoanPayload({ currencyCode: BASE }),
+        raw: true,
+      });
+
+      for (const accountId of [archived.id, loan.id]) {
+        const edited = await helpers.editChatProposal({
+          proposalId: card.id,
+          payload: {
+            revision: (await cardById({ id: card.id })).revision,
+            args: {
+              ...card.fields.reduce((acc, field) => ({ ...acc, [field.path]: field.value }), {}),
+              accountId,
+            },
+          },
+          raw: true,
+        });
+        const approved = await approve({ card: edited });
+
+        expect(approved.statusCode).toBe(ERROR_CODES.ValidationError);
+      }
+      expect((await Transactions.findOne({ where: { id: transactionId } }))!.accountId).toBe(main.id);
+      expect(await unconfirmedIds()).toEqual([transactionId]);
+    });
+
     it('confirms the payment on approve and leaves it as it was logged', async () => {
       const { main, secret } = await setUp();
       const res = await wallet({ secret, body: `${BASE} 43.60` });
@@ -434,7 +467,33 @@ describe('Automation inbox', () => {
 
         expect(approved.statusCode).toBe(200);
         expect((await Transactions.findOne())!.accountId).toBe(gel.id);
+        expect((await Transactions.findOne())!.amount.toNumber()).toBe(29.41);
         expect(await balanceOf({ id: gel.id })).toBe(10 - 29.41);
+        expect(await unconfirmedIds()).toEqual([]);
+      });
+
+      it('applies the amount the owner entered when keeping the account the payment was logged to', async () => {
+        const { gel, card } = await setUpShortCard();
+
+        const edited = await helpers.editChatProposal({
+          proposalId: card.id,
+          payload: {
+            revision: card.revision,
+            args: {
+              ...card.fields.reduce((acc, field) => ({ ...acc, [field.path]: field.value }), {}),
+              accountId: gel.id,
+              amount: 30,
+            },
+          },
+          raw: true,
+        });
+        const approved = await approve({ card: edited });
+
+        expect(approved.statusCode).toBe(200);
+        const tx = (await Transactions.findOne())!;
+        expect(tx.accountId).toBe(gel.id);
+        expect(tx.amount.toNumber()).toBe(30);
+        expect(await balanceOf({ id: gel.id })).toBe(10 - 30);
         expect(await unconfirmedIds()).toEqual([]);
       });
     });
@@ -481,7 +540,8 @@ describe('Automation inbox', () => {
 
     it('closes the cards of both rows of a merge and confirms the survivor', async () => {
       const { secret, card, transactionId } = await loggedWithCard();
-      const second = await wallet({ secret, body: `${BASE} 43.60` });
+      // Another amount: the same text within seconds would fold into the first request.
+      const second = await wallet({ secret, body: `${BASE} 44.60` });
       const otherTx = (await IngestRequests.findByPk(second.body.response.requestId))!;
       await until(async () => (await inboxCards({ toolName: CONFIRM })).length === 2, {
         timeout: 20_000,

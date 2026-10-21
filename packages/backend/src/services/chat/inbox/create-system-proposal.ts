@@ -13,7 +13,7 @@ import { storeProposal } from '../proposals/create-proposal';
 import { toChatProposalCard } from '../proposals/to-chat-proposal-card';
 import { notifyThreadUpdated } from '../threads/thread-events';
 import { getLiveInboxThread } from './inbox-thread';
-import { inboxConfig } from './inbox-transitions';
+import { inboxConfig, OPEN_CARD_STATUSES } from './inbox-transitions';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -120,7 +120,7 @@ export const refreshSystemProposal = withTransaction(
     args: Record<string, unknown>;
   }): Promise<boolean> => {
     const row = await ChatProposals.findOne({ where: { id: proposalId, userId }, lock: true });
-    if (!row || !['pending', 'stale', 'failed'].includes(row.status)) return false;
+    if (!row || !OPEN_CARD_STATUSES.includes(row.status)) return false;
 
     const policy = resolveToolPolicy({ name: row.toolName, args });
     if (!policy) return false;

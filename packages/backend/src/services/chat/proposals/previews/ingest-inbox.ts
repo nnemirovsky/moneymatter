@@ -6,6 +6,7 @@ import { correctionOf } from '@services/ingest/corrections/read-ingest-suggestio
 import { decryptNotificationText } from '@services/ingest/event/notification-text';
 import { describeSource } from '@services/ingest/event/source-label';
 import { readStoredParse } from '@services/ingest/event/stored-parse';
+import { isUnconfirmedIngest } from '@services/ingest/ingest-markers';
 
 import { hashTargetIds } from '../snapshot';
 import { forUpdate, PreviewError, serializeRow, targetNotFound } from './preview-helpers';
@@ -35,8 +36,7 @@ export const resolveConfirmIngestPayment: PreviewResolver = async ({ userId, arg
   });
   if (!tx) throw targetNotFound({ what: 'payment' });
 
-  const ingest = tx.externalData?.ingest as { unconfirmed?: unknown } | undefined;
-  if (ingest?.unconfirmed !== true) {
+  if (!isUnconfirmedIngest({ externalData: tx.externalData })) {
     throw new PreviewError({
       messageKey: 'chat.cards.ingestAlreadyConfirmed',
       message: 'This payment is already confirmed',

@@ -4,12 +4,16 @@ import {
   DOMAIN_EVENTS,
   eventBus,
   type IngestPaymentLoggedPayload,
+  type IngestPaymentUpdatedPayload,
   type IngestRequestParkedPayload,
 } from '@services/common/event-bus';
 
 import { postRequestCard, safely, syncConfirmCard, syncTransferCard } from './inbox-items';
 
-const handlePaymentLogged = async ({ userId, transactionId }: IngestPaymentLoggedPayload): Promise<void> => {
+const handlePaymentLogged = async ({
+  userId,
+  transactionId,
+}: IngestPaymentLoggedPayload | IngestPaymentUpdatedPayload): Promise<void> => {
   await safely({
     what: 'post or update the confirm card',
     fn: () => syncConfirmCard({ userId, transactionId: transactionId as RecordId }),
@@ -29,11 +33,14 @@ const handleRequestParked = async ({ userId, requestId }: IngestRequestParkedPay
 
 /**
  * Subscribes the inbox to the ingest pipeline: a logged payment gets its one confirm card (or has it
- * updated), a parked notification gets the card its reason calls for. A failure is logged and never
+ * updated, as it does when its suggestions change), a parked notification gets the card its reason calls for. A failure is logged and never
  * reaches the pipeline, which has already answered the shortcut.
  */
 export function registerInboxListeners(): void {
   eventBus.on(DOMAIN_EVENTS.INGEST_PAYMENT_LOGGED, (payload: IngestPaymentLoggedPayload) => {
+    void handlePaymentLogged(payload);
+  });
+  eventBus.on(DOMAIN_EVENTS.INGEST_PAYMENT_UPDATED, (payload: IngestPaymentUpdatedPayload) => {
     void handlePaymentLogged(payload);
   });
   eventBus.on(DOMAIN_EVENTS.INGEST_REQUEST_PARKED, (payload: IngestRequestParkedPayload) => {

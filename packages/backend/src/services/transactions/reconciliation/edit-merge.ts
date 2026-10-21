@@ -5,6 +5,7 @@ import {
   planEditMerge,
 } from '@services/bank-data-providers/enablebanking/utils/plan-edit-merge';
 import { syncGeneratedNote } from '@services/bank-data-providers/enablebanking/utils/transaction-metadata';
+import { ingestMarkersOf } from '@services/ingest/ingest-markers';
 
 type EditMergeValuesToMove = Extract<ReturnType<typeof planEditMerge>, { action: 'merge' }>['valuesToMove'];
 
@@ -38,11 +39,11 @@ const machineBaselineOf = ({ row }: { row: EditMergeRow }): MachineBaseline => {
     return { note: syncGeneratedNote({ tx: row }), paymentType: PAYMENT_TYPES.bankTransfer };
   }
 
-  const ingest = row.externalData?.ingest as { systemNote?: unknown; systemCategoryId?: unknown } | undefined;
+  const ingest = ingestMarkersOf({ externalData: row.externalData });
   const cardPayment = row.externalData?.cardPayment as { merchant?: unknown } | undefined;
-  const systemNote = typeof ingest?.systemNote === 'string' ? ingest.systemNote : null;
+  const systemNote = typeof ingest.systemNote === 'string' ? ingest.systemNote : null;
   const merchant = typeof cardPayment?.merchant === 'string' ? cardPayment.merchant : null;
-  const systemCategoryId = typeof ingest?.systemCategoryId === 'string' ? ingest.systemCategoryId : undefined;
+  const systemCategoryId = typeof ingest.systemCategoryId === 'string' ? ingest.systemCategoryId : undefined;
 
   return {
     note: systemNote ?? merchant,

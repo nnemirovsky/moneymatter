@@ -1,8 +1,8 @@
 import { ACCOUNT_TYPES, API_ERROR_CODES, type RecordId } from '@bt/shared/types';
 import { Money } from '@common/types/money';
+import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
 import { t } from '@i18n/index';
-import { ConflictError, CustomError, ERROR_CODES, LockedError, NotFoundError, ValidationError } from '@js/errors';
-import Accounts from '@models/accounts.model';
+import { ConflictError, CustomError, ERROR_CODES, LockedError, ValidationError } from '@js/errors';
 import { findOneTransaction } from '@models/transactions-query';
 import type Transactions from '@models/transactions.model';
 import Users from '@models/users.model';
@@ -15,14 +15,8 @@ import { updateTransaction } from '@services/transactions/update-transaction';
 
 import { approveCorrection, dismissCorrection } from './corrections/apply-correction';
 import { correctionOf } from './corrections/read-ingest-suggestions';
-
-/** What the confirm card was built from, stored on the row when the card was posted or refreshed. */
-interface StoredBaseline {
-  accountId?: string;
-  amount?: number;
-  payeeId?: string | null;
-  categoryId?: string;
-}
+import { type ConfirmBaseline, ingestMarkersOf, isUnconfirmedIngest } from './ingest-markers';
+import { assertUsableAccount } from './usable-account';
 
 const loadUnconfirmedPayment = async ({
   userId,
@@ -31,24 +25,21 @@ const loadUnconfirmedPayment = async ({
   userId: number;
   transactionId: RecordId;
 }): Promise<Transactions> => {
-  const tx = await findOneTransaction({
-    where: { id: transactionId },
-    planned: 'include',
-    access: { accountOwner: userId },
-    balanceAdjustments: 'exclude',
-    lock: true,
+  return findOrThrowNotFound({
+    query: findOneTransaction({
+      where: { id: transactionId },
+      planned: 'include',
+      access: { accountOwner: userId },
+      balanceAdjustments: 'exclude',
+      lock: true,
+    }),
+    message: t({ key: 'transactions.notFound' }),
   });
-  if (!tx) throw new NotFoundError({ message: t({ key: 'transactions.notFound' }) });
-
-  return tx;
 };
 
-const isUnconfirmed = ({ tx }: { tx: Transactions }): boolean =>
-  (tx.externalData?.ingest as { unconfirmed?: unknown } | undefined)?.unconfirmed === true;
-
-const baselineOf = ({ tx }: { tx: Transactions }): StoredBaseline =>
-  ((tx.externalData?.ingest as { confirmBaseline?: StoredBaseline } | undefined)?.confirmBaseline ??
-    {}) as StoredBaseline;
+/** What the confirm card was built from, stored on the row when the card was posted or refreshed. */
+const baselineOf = ({ tx }: { tx: Transactions }): Partial<ConfirmBaseline> =>
+  ingestMarkersOf({ externalData: tx.externalData }).confirmBaseline ?? {};
 
 interface ConfirmParams {
   userId: number;
@@ -70,14 +61,17 @@ const planEdits = async ({
   tx,
   baseline,
   params,
-  skipAccountAndAmount,
+  accountSettled,
+  amountSettled,
 }: {
   userId: number;
   tx: Transactions;
-  baseline: StoredBaseline;
+  baseline: Partial<ConfirmBaseline>;
   params: ConfirmParams;
-  /** The correction already moved the payment and set its amount. */
-  skipAccountAndAmount: boolean;
+  /** The account is decided already: a correction moved the payment, or the owner kept the logged one. */
+  accountSettled: boolean;
+  /** A correction moved the payment and set its amount. */
+  amountSettled: boolean;
 }): Promise<Omit<Parameters<typeof updateTransaction>[0], 'id' | 'userId'> | null> => {
   const update: Omit<Parameters<typeof updateTransaction>[0], 'id' | 'userId'> = {};
   let changed = false;
@@ -85,32 +79,33 @@ const planEdits = async ({
   const baselineAccountId = baseline.accountId ?? tx.accountId;
   const baselineAmount = baseline.amount ?? tx.amount.toNumber();
 
-  if (!skipAccountAndAmount) {
-    const movesAccount = params.accountId !== undefined && params.accountId !== baselineAccountId;
-    const changesAmount = params.amount !== undefined && params.amount !== baselineAmount;
+  const movesAccount = !accountSettled && params.accountId !== undefined && params.accountId !== baselineAccountId;
+  const changesAmount = !amountSettled && params.amount !== undefined && params.amount !== baselineAmount;
 
-    if (movesAccount) {
-      const target = await Accounts.findOne({ where: { id: params.accountId, userId } });
-      if (!target) throw new NotFoundError({ message: t({ key: 'accounts.accountNotFoundForTransaction' }) });
+  if (movesAccount) {
+    const target = await assertUsableAccount({
+      userId,
+      accountId: params.accountId!,
+      message: t({ key: 'accounts.accountNotFoundForTransaction' }),
+    });
 
-      if (target.currencyCode !== tx.currencyCode) {
-        // The row's amount is in its old account's currency; the owner has to state it in the new one.
-        if (params.amount === undefined || !changesAmount) {
-          throw new ValidationError({ message: t({ key: 'ingest.confirmAmountNeeded' }) });
-        }
-        update.originalAmount = tx.originalAmount ?? tx.amount;
-        update.originalCurrencyCode = tx.originalCurrencyCode ?? tx.currencyCode;
+    if (target.currencyCode !== tx.currencyCode) {
+      // The row's amount is in its old account's currency; the owner has to state it in the new one.
+      if (params.amount === undefined || !changesAmount) {
+        throw new ValidationError({ message: t({ key: 'ingest.confirmAmountNeeded' }) });
       }
-
-      update.accountId = target.id;
-      update.isPlanned = target.type !== ACCOUNT_TYPES.system;
-      changed = true;
+      update.originalAmount = tx.originalAmount ?? tx.amount;
+      update.originalCurrencyCode = tx.originalCurrencyCode ?? tx.currencyCode;
     }
 
-    if (changesAmount) {
-      update.amount = Money.fromDecimal(params.amount!);
-      changed = true;
-    }
+    update.accountId = target.id;
+    update.isPlanned = target.type !== ACCOUNT_TYPES.system;
+    changed = true;
+  }
+
+  if (changesAmount) {
+    update.amount = Money.fromDecimal(params.amount!);
+    changed = true;
   }
 
   if (params.payeeId !== undefined && params.payeeId !== (baseline.payeeId ?? tx.payeeId ?? null)) {
@@ -132,14 +127,16 @@ const planEdits = async ({
  * - An open short-balance correction is part of the same decision. The card offers the account the
  *   correction suggests: keeping that account (or choosing another candidate) moves the payment there
  *   with the estimated or entered amount; choosing the account the payment is on closes the correction.
- * - Account, amount, payee and category apply only when changed against what the card showed.
+ * - Account, amount, payee and category apply only when changed against what the card showed. Keeping
+ *   the logged account closes the correction and still applies an amount the owner entered.
  * - The row stops being unconfirmed and the inbox card closes.
  */
 export const confirmIngestedPayment = withTransaction(
   async (params: ConfirmParams): Promise<{ transactionId: RecordId; moved: boolean; edited: boolean }> => {
     const { userId, transactionId } = params;
     const tx = await loadUnconfirmedPayment({ userId, transactionId });
-    if (!isUnconfirmed({ tx })) throw new ConflictError({ message: t({ key: 'ingest.alreadyConfirmed' }) });
+    if (!isUnconfirmedIngest({ externalData: tx.externalData }))
+      throw new ConflictError({ message: t({ key: 'ingest.alreadyConfirmed' }) });
 
     const baseline = baselineOf({ tx });
     const stored = correctionOf({ externalData: tx.externalData });
@@ -168,7 +165,8 @@ export const confirmIngestedPayment = withTransaction(
       tx: fresh,
       baseline,
       params,
-      skipAccountAndAmount: correctionOpen,
+      accountSettled: correctionOpen,
+      amountSettled: moved,
     });
     if (edits) await updateTransaction({ id: transactionId, userId, keepIngestUnconfirmed: true, ...edits });
 

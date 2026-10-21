@@ -1,35 +1,21 @@
-import { ACCOUNT_STATUSES, isDedicatedFlowAccountCategory, type RecordId } from '@bt/shared/types';
+import type { RecordId } from '@bt/shared/types';
+import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
 import { t } from '@i18n/index';
-import { ConflictError, NotFoundError, ValidationError } from '@js/errors';
+import { ConflictError, ValidationError } from '@js/errors';
 import { logger } from '@js/utils/logger';
-import Accounts from '@models/accounts.model';
 import IngestRequests from '@models/ingest-requests.model';
 import { runAfterCommit } from '@services/common/run-after-commit';
 import { withTransaction } from '@services/common/with-transaction';
 
 import { isWaitingRequest } from '../card-payment/process-ingest-request';
 import { readUserLocale } from '../card-payment/read-user-locale';
+import { assertUsableAccount } from '../usable-account';
 import { enqueueNotificationProcessing } from './notification-queue';
 import { prepareNotificationRetry } from './prepare-notification-retry';
 import { readStoredParse } from './stored-parse';
 
 /** The park reasons whose payment the owner can log from the inbox card. */
 const APPROVABLE_REASONS = ['unknownAccount', 'ownTransfer', 'lowConfidence'];
-
-const assertUsableAccount = async ({ userId, accountId }: { userId: number; accountId: RecordId }): Promise<void> => {
-  const account = await Accounts.findOne({
-    where: { id: accountId, userId },
-    attributes: ['id', 'status', 'accountCategory'],
-  });
-
-  if (
-    !account ||
-    account.status === ACCOUNT_STATUSES.archived ||
-    isDedicatedFlowAccountCategory(account.accountCategory)
-  ) {
-    throw new NotFoundError({ message: t({ key: 'accounts.accountNotFoundForTransaction' }) });
-  }
-};
 
 /**
  * The owner's yes on a parked payment: the account (and direction) they chose are stored with the
@@ -51,11 +37,10 @@ export const approveParkedRequest = withTransaction(
     accountId?: RecordId;
     direction?: 'debit' | 'credit';
   }): Promise<{ requestId: RecordId; queued: true }> => {
-    const row = await IngestRequests.findOne({
-      where: { id: requestId, userId, pipeline: 'notification' },
-      lock: true,
+    const row = await findOrThrowNotFound({
+      query: IngestRequests.findOne({ where: { id: requestId, userId, pipeline: 'notification' }, lock: true }),
+      message: t({ key: 'ingest.requestNotFound' }),
     });
-    if (!row) throw new NotFoundError({ message: t({ key: 'ingest.requestNotFound' }) });
 
     if (!isWaitingRequest({ row }) || row.status !== 'parked' || !APPROVABLE_REASONS.includes(row.reason ?? '')) {
       throw new ConflictError({ message: t({ key: 'ingest.requestNotWaiting' }) });
@@ -67,7 +52,13 @@ export const approveParkedRequest = withTransaction(
     if (row.reason === 'unknownAccount' && !accountId) {
       throw new ValidationError({ message: t({ key: 'ingest.accountRequired' }) });
     }
-    if (accountId) await assertUsableAccount({ userId, accountId });
+    if (accountId) {
+      await assertUsableAccount({
+        userId,
+        accountId,
+        message: t({ key: 'accounts.accountNotFoundForTransaction' }),
+      });
+    }
 
     await row.update({
       parsed: {

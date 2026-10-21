@@ -12,17 +12,20 @@ import { withTransaction } from '@services/common/with-transaction';
 import { correctionOf, transferSuggestionOf } from '@services/ingest/corrections/read-ingest-suggestions';
 import { chooseSurvivor } from '@services/ingest/dedup/choose-survivor';
 import { readStoredParse } from '@services/ingest/event/stored-parse';
+import { isUnconfirmedIngest, type ConfirmBaseline } from '@services/ingest/ingest-markers';
 import { Op, QueryTypes } from 'sequelize';
 
 import { createSystemProposal, refreshSystemProposal } from './create-system-proposal';
-import { CONFIRM_TOOL, findCardsOfTransactions, LINK_TRANSFER_TOOL, resolveCardsElsewhere } from './inbox-resolution';
+import { findCardsOfTransactions, resolveCardsElsewhere } from './inbox-resolution';
 import { lockInbox } from './inbox-thread';
-import { OPEN_CARD_STATUSES } from './inbox-transitions';
-
-/** The tools the inbox posts cards for, besides the confirm card and the existing "link as transfer". */
-export const LOG_INGEST_REQUEST_TOOL = 'log_ingest_request';
-export const SET_NOTIFICATION_SOURCE_TOOL = 'set_notification_source';
-export const MERGE_DUPLICATES_TOOL = 'merge_duplicate_transactions';
+import {
+  CONFIRM_TOOL,
+  LINK_TRANSFER_TOOL,
+  LOG_INGEST_REQUEST_TOOL,
+  MERGE_DUPLICATES_TOOL,
+  OPEN_CARD_STATUSES,
+  SET_NOTIFICATION_SOURCE_TOOL,
+} from './inbox-transitions';
 
 /** Park reasons whose request gets a card of its own; the others have no action the owner can take. */
 const REQUEST_CARD_REASONS = ['unknownAccount', 'ownTransfer', 'lowConfidence'];
@@ -35,16 +38,7 @@ const REQUEST_CARD_REASONS = ['unknownAccount', 'ownTransfer', 'lowConfidence'];
 export const parkHasInboxCard = ({ reason }: { reason: string }): boolean =>
   reason === 'sourceNotApproved' || REQUEST_CARD_REASONS.includes(reason);
 
-/** The values of a payment a confirm card offers for editing; also what the card was built from. */
-interface ConfirmBaseline {
-  accountId: string;
-  amount: number;
-  payeeId: string | null;
-  categoryId: string;
-}
-
-const isUnconfirmed = ({ tx }: { tx: Transactions }): boolean =>
-  (tx.externalData?.ingest as { unconfirmed?: unknown } | undefined)?.unconfirmed === true;
+const isUnconfirmed = ({ tx }: { tx: Transactions }): boolean => isUnconfirmedIngest({ externalData: tx.externalData });
 
 const openCorrectionOf = ({ tx }: { tx: Transactions }): IngestShortBalanceCorrection | null => {
   const correction = correctionOf({ externalData: tx.externalData });

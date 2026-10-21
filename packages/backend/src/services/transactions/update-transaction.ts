@@ -26,6 +26,7 @@ import { calculateRefAmountOrNull } from '@services/calculate-ref-amount.service
 import { settleTransactionCards } from '@services/chat/inbox/inbox-resolution';
 import { DOMAIN_EVENTS, eventBus } from '@services/common/event-bus';
 import { assertCurrencyCodesVisible } from '@services/currencies/assert-currency-codes-visible';
+import { isUnconfirmedIngest } from '@services/ingest/ingest-markers';
 import { assertLoanEditAllowed } from '@services/loans/assert-loan-edit-allowed';
 import { deriveImpliedDestinationAmount } from '@services/loans/implied-destination-amount';
 import {
@@ -601,7 +602,7 @@ const unlinkOppositeTransaction = async (params: HelperFunctionsArgs) => {
 };
 
 const isUnconfirmedIngestRow = ({ tx }: { tx: Transactions.default }): boolean =>
-  (tx.externalData?.ingest as { unconfirmed?: unknown } | undefined)?.unconfirmed === true;
+  isUnconfirmedIngest({ externalData: tx.externalData });
 
 const isUpdatingTransferTx = (payload: UpdateTransactionParams, prevData: Transactions.default) => {
   // nature label only affects reporting; the bookkeeping path is identical for both transfer kinds.
