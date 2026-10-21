@@ -1,18 +1,15 @@
 import { uploadChatAttachment } from '@/api/chat';
 import { ApiErrorResponseError } from '@/js/errors';
-import { CHAT_ATTACHMENTS_PER_MESSAGE, type ChatAttachment, type ChatPageContext } from '@bt/shared/types';
+import { fitImageForUpload } from '@/pages/import-export/statement-parser/utils/fit-image-for-upload';
+import { CHAT_ATTACHMENTS_PER_MESSAGE, type ChatAttachment } from '@bt/shared/types';
 import { flushPromises, mount } from '@vue/test-utils';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createChatI18n } from './cards/card-test-fixtures';
 import ChatComposer from './chat-composer.vue';
 
 vi.mock('@/api/chat', () => ({ uploadChatAttachment: vi.fn() }));
-vi.mock('./chat-context-label', () => ({
-  useChatContextLabel: () => ({
-    label: ({ context }: { context: ChatPageContext }) => (context.entity ? 'Account: Main card' : null),
-  }),
-}));
+vi.mock('@/pages/import-export/statement-parser/utils/fit-image-for-upload', () => ({ fitImageForUpload: vi.fn() }));
 
 const attachment = ({ id, fileName }: { id: string; fileName: string }): ChatAttachment => ({
   id,
@@ -28,13 +25,10 @@ const attachment = ({ id, fileName }: { id: string; fileName: string }): ChatAtt
   createdAt: '2026-03-05T10:00:00.000Z',
 });
 
-const ACCOUNT_CONTEXT: ChatPageContext = { route: 'dashboard.account', entity: { kind: 'account', id: 'a1' } };
-
 const mountComposer = (props: Partial<InstanceType<typeof ChatComposer>['$props']> = {}) =>
   mount(ChatComposer, {
     props: {
       isStreaming: false,
-      context: null,
       ensureThread: vi.fn().mockResolvedValue('thread-1'),
       ...props,
     },
@@ -57,9 +51,42 @@ const pdf = ({ name = 'statement.pdf', size = 1024 } = {}) => {
   return file;
 };
 
+const stubMatchMedia = ({ matches }: { matches: boolean }) => {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+    })),
+  );
+};
+
 describe('ChatComposer', () => {
+  describe('keyboard hint', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('shows the Enter / Shift+Enter hint with a fine pointer', () => {
+      stubMatchMedia({ matches: false });
+
+      expect(mountComposer().find('p').exists()).toBe(true);
+    });
+
+    it('hides the hint on touch devices without hover', () => {
+      stubMatchMedia({ matches: true });
+
+      expect(mountComposer().find('p').exists()).toBe(false);
+    });
+  });
+
   beforeEach(() => {
     vi.mocked(uploadChatAttachment).mockReset();
+    vi.mocked(fitImageForUpload).mockReset();
   });
 
   describe('sending', () => {
@@ -127,48 +154,24 @@ describe('ChatComposer', () => {
     });
   });
 
-  describe('page context', () => {
-    it('shows what the chat sees as a chip', () => {
-      const wrapper = mountComposer({ context: ACCOUNT_CONTEXT });
+  describe('layout', () => {
+    it('is one 44px line when empty: the attach button, the textarea and the send button share a height', () => {
+      const wrapper = mountComposer();
 
-      expect(wrapper.find('[data-testid="context-chip"]').text()).toContain('Account: Main card');
+      expect(wrapper.find('[data-testid="attach"]').classes()).toContain('size-11');
+      expect(wrapper.find('[data-testid="send"]').classes()).toContain('size-11');
+      expect(wrapper.find('textarea').classes()).toContain('min-h-11');
+      expect(wrapper.find('textarea').attributes('rows')).toBe('1');
     });
 
-    it('has no chip for a page that tells nothing', () => {
-      expect(
-        mountComposer({ context: { route: 'dashboard.settings.general' } })
-          .find('[data-testid="context-chip"]')
-          .exists(),
-      ).toBe(false);
+    it('keeps the buttons at the bottom as the textarea grows', () => {
+      const row = mountComposer().find('[data-testid="send"]').element.parentElement!;
+
+      expect(row.className).toContain('items-end');
     });
 
-    it('sends the context with the message', async () => {
-      const wrapper = mountComposer({ context: ACCOUNT_CONTEXT });
-
-      await type({ wrapper, text: 'Hello' });
-      await wrapper.find('[data-testid="send"]').trigger('click');
-
-      expect(wrapper.emitted('send')).toEqual([[{ text: 'Hello', attachmentIds: [], pageContext: ACCOUNT_CONTEXT }]]);
-    });
-
-    it('drops the context when the chip is removed', async () => {
-      const wrapper = mountComposer({ context: ACCOUNT_CONTEXT });
-
-      await wrapper.find('[data-testid="context-remove"]').trigger('click');
-      await type({ wrapper, text: 'Hello' });
-      await wrapper.find('[data-testid="send"]').trigger('click');
-
-      expect(wrapper.find('[data-testid="context-chip"]').exists()).toBe(false);
-      expect(wrapper.emitted('send')).toEqual([[{ text: 'Hello', attachmentIds: [] }]]);
-    });
-
-    it('shows the chip again for the context of another page', async () => {
-      const wrapper = mountComposer({ context: ACCOUNT_CONTEXT });
-      await wrapper.find('[data-testid="context-remove"]').trigger('click');
-
-      await wrapper.setProps({ context: { route: 'dashboard.account', entity: { kind: 'account', id: 'a2' } } });
-
-      expect(wrapper.find('[data-testid="context-chip"]').exists()).toBe(true);
+    it('has no page context chip: a conversation keeps its own in the header', () => {
+      expect(mountComposer().find('[data-testid="context-chip"]').exists()).toBe(false);
     });
   });
 
@@ -248,6 +251,46 @@ describe('ChatComposer', () => {
 
       expect(uploadChatAttachment).not.toHaveBeenCalled();
       expect(wrapper.find('[data-testid="attachment-problem"]').text()).toBe('huge.pdf is larger than 10 MB.');
+    });
+
+    it('uploads the converted JPEG for an iPhone HEIC photo', async () => {
+      const converted = new File(['jpeg'], 'IMG_0001.jpg', { type: 'image/jpeg' });
+      vi.mocked(fitImageForUpload).mockResolvedValue(converted);
+      vi.mocked(uploadChatAttachment).mockResolvedValue(attachment({ id: 'att-1', fileName: 'IMG_0001.jpg' }));
+      const wrapper = mountComposer();
+
+      await pick({ wrapper, files: [new File(['heic'], 'IMG_0001.HEIC', { type: 'image/heic' })] });
+
+      expect(uploadChatAttachment).toHaveBeenCalledWith({ threadId: 'thread-1', file: converted, password: undefined });
+      expect(wrapper.find('[data-testid="attachment-problem"]').exists()).toBe(false);
+    });
+
+    it('says so when the browser cannot decode an image, without uploading it', async () => {
+      vi.mocked(fitImageForUpload).mockRejectedValue(new Error('decode'));
+      const wrapper = mountComposer();
+
+      await pick({ wrapper, files: [new File(['heic'], 'IMG_0002.HEIC', { type: 'image/heic' })] });
+
+      expect(uploadChatAttachment).not.toHaveBeenCalled();
+      expect(wrapper.find('[data-testid="attachment-problem"]').text()).toContain(
+        'IMG_0002.HEIC could not be read as an image',
+      );
+    });
+
+    it('shows the reason the server refused a file', async () => {
+      vi.mocked(uploadChatAttachment).mockRejectedValue(
+        new ApiErrorResponseError('Unsupported file type.', {
+          code: 'ValidationError',
+          message: 'Unsupported file type.',
+        } as never),
+      );
+      const wrapper = mountComposer();
+
+      await pick({ wrapper, files: [pdf()] });
+
+      expect(wrapper.find('[data-testid="attachment-problem"]').text()).toBe(
+        'statement.pdf could not be attached: Unsupported file type.',
+      );
     });
 
     it('says when a file could not be attached', async () => {

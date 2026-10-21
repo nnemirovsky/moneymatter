@@ -101,6 +101,15 @@
     "ukNote": "Latin script everywhere. As a leading modifier it takes a hyphen: «AI-категоризація», «AI-помічник», «AI-модель»."
   },
   {
+    "term": "AI allowance",
+    "partOfSpeech": "noun",
+    "definition": "The monthly spending cap on MoneyMatter's included AI, shared by every AI feature; it resets on the 1st. Not a provider rate limit.",
+    "translatable": true,
+    "uk": "ліміт AI",
+    "ukAvoid": ["ліміт запитів", "квота AI"],
+    "ukNote": "«місячний ліміт AI»; used up = «Ліміт AI вичерпано»."
+  },
+  {
     "term": "AI assistant",
     "partOfSpeech": "noun",
     "definition": "An AI chat app, such as Claude or ChatGPT, that the user connects to MoneyMatter to ask about their data. The landing-page help chatbot is also called 'the assistant'.",
@@ -126,6 +135,15 @@
     "uk": "AI-модель",
     "ukAvoid": ["модель ШІ", "AI модель"],
     "ukNote": "Follows the AI decision (hyphenated leading modifier). Tab and section title: «AI-моделі». A bare \"model\" stays «модель»."
+  },
+  {
+    "term": "AI review",
+    "partOfSpeech": "noun",
+    "definition": "Optional switch on the Transfer matching page: AI checks each suggested pair and shows only those that look like real transfers, labelled Likely or Possible.",
+    "translatable": true,
+    "uk": "AI-перевірка",
+    "ukAvoid": ["ШІ-перевірка", "AI перевірка"],
+    "ukNote": "Follows the AI decision (hyphenated leading modifier)."
   },
   {
     "term": "airdrop",

@@ -1,4 +1,10 @@
-import { PAYMENT_TYPES, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES, type ChatMessagePart } from '@bt/shared/types';
+import {
+  PAYMENT_TYPES,
+  SUBSCRIPTION_FREQUENCIES,
+  TRANSACTION_TRANSFER_NATURE,
+  TRANSACTION_TYPES,
+  type ChatMessagePart,
+} from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
 import ChatProposals from '@models/chat-proposals.model';
 import * as helpers from '@tests/helpers';
@@ -376,11 +382,9 @@ describe('AI SDK chat runner', () => {
   it('puts the page context in the prompt as data, without ids the user does not own', async () => {
     const account = await helpers.createAccount({ raw: true });
     const { script, threadId } = await arrange({ turns: [{ text: 'This account has a balance.' }] });
-
-    await send({
+    await helpers.updateChatThread({
       threadId,
       payload: {
-        text: 'How is this account doing?',
         pageContext: {
           route: 'account',
           entity: { kind: 'account', id: account.id },
@@ -389,10 +393,81 @@ describe('AI SDK chat runner', () => {
       },
     });
 
+    await send({ threadId, payload: { text: 'How is this account doing?' } });
+
     const system = String(script.requests[0]!.messages![0]!.content);
     expect(system).toContain(account.id);
     expect(system).not.toContain(FOREIGN_ID);
     expect(system).toMatch(/<<<UNTRUSTED kind=pageContext nonce=[0-9a-f]{32}>>>[\s\S]*account[\s\S]*<<<END /);
+  });
+
+  it('names a subscription and the transaction open in its drawer from the database', async () => {
+    const account = await helpers.createAccount({ raw: true });
+    const subscription = await helpers.createSubscription({
+      name: 'Netflix',
+      frequency: SUBSCRIPTION_FREQUENCIES.monthly,
+      startDate: '2026-10-01',
+      expectedAmount: 15,
+      expectedCurrencyCode: global.BASE_CURRENCY.code,
+      accountId: account.id,
+      raw: true,
+    });
+    const [transaction] = await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({ accountId: account.id }),
+      raw: true,
+    });
+    const { script, threadId } = await arrange({ turns: [{ text: 'It renews monthly.' }] });
+
+    await helpers.updateChatThread({
+      threadId,
+      payload: {
+        pageContext: {
+          route: 'dashboard.planned.subscription-details',
+          entity: { kind: 'subscription', id: subscription.id },
+          focus: { kind: 'transaction', id: transaction!.id },
+          selection: { kind: 'transaction', ids: [transaction!.id, FOREIGN_ID], total: 2 },
+        },
+      },
+    });
+    await send({ threadId, payload: { text: 'When does this renew?' } });
+
+    const system = String(script.requests[0]!.messages![0]!.content);
+    expect(system).toContain(`open subscription: ${subscription.id} (Netflix)`);
+    expect(system).toContain(`in the open drawer or dialog, transaction: ${transaction!.id}`);
+    expect(system).toContain(`selected transaction ids (2 in all): ${transaction!.id}`);
+    expect(system).not.toContain(FOREIGN_ID);
+  });
+
+  it('names a tracker, and leaves out a tracker the user does not own or a kind it does not know', async () => {
+    const tracker = await helpers.createTracker({ name: 'Groceries limit', raw: true });
+    const { script, threadId } = await arrange({ turns: [{ text: 'On track.' }, { text: 'Fine.' }] });
+
+    await helpers.updateChatThread({
+      threadId,
+      payload: {
+        pageContext: { route: 'dashboard.planned.tracker-details', entity: { kind: 'tracker', id: tracker.id } },
+      },
+    });
+    await send({ threadId, payload: { text: 'Am I on track here?' } });
+    await helpers.updateChatThread({
+      threadId,
+      payload: {
+        pageContext: {
+          route: 'dashboard.planned.tracker-details',
+          entity: { kind: 'tracker', id: FOREIGN_ID },
+          focus: { kind: 'notAKindYet' as never, id: tracker.id },
+        },
+      },
+    });
+    await send({ threadId, payload: { text: 'And here?' } });
+
+    const first = String(script.requests[0]!.messages![0]!.content);
+    expect(first).toContain(`open tracker: ${tracker.id} (Groceries limit)`);
+    const second = String(script.requests[1]!.messages![0]!.content);
+    expect(second).toContain('page: dashboard.planned.tracker-details');
+    expect(second).not.toContain(FOREIGN_ID);
+    expect(second).not.toContain('open tracker');
+    expect(second).not.toContain('notAKindYet');
   });
 
   it('labels a table entity cell with the entity name from the database, never with the model label', async () => {

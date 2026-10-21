@@ -3,10 +3,11 @@ import { isInboxLocked, isInboxThread } from '@/components/chat/chat-inbox';
 import InputField from '@/components/fields/input-field.vue';
 import { Button } from '@/components/lib/ui/button';
 import { DesktopOnlyTooltip } from '@/components/lib/ui/tooltip';
+import { useChatContextLabel } from '@/components/chat/chat-context-label';
 import { useDateLocale } from '@/composable/use-date-locale';
 import { cn } from '@/lib/utils';
 import type { ChatThreadSearchHit } from '@bt/shared/types';
-import { InboxIcon, PencilIcon, PinIcon, PinOffIcon, Trash2Icon } from '@lucide/vue';
+import { InboxIcon, MapPinIcon, PencilIcon, PinIcon, PinOffIcon, Trash2Icon } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -25,6 +26,14 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const { formatDistanceToNow } = useDateLocale();
+const { label: contextLabel } = useChatContextLabel();
+
+/** Where the conversation started, kept for the whole thread; absent when it has no page. */
+const startedFrom = computed(() =>
+  props.thread.pageContext
+    ? contextLabel({ context: props.thread.pageContext, names: props.thread.pageContextNames })
+    : null,
+);
 
 const isRenaming = ref(false);
 const draft = ref('');
@@ -97,6 +106,14 @@ const finishRename = ({ save }: { save: boolean }) => {
           </span>
         </span>
         <span class="text-muted-foreground truncate text-xs">{{ thread.snippet || lastActivity }}</span>
+        <span
+          v-if="startedFrom"
+          class="text-muted-foreground/80 flex min-w-0 items-center gap-1 text-xs"
+          data-testid="thread-context"
+        >
+          <MapPinIcon class="size-3 shrink-0" aria-hidden="true" />
+          <span class="truncate" :title="startedFrom">{{ startedFrom }}</span>
+        </span>
       </button>
 
       <div

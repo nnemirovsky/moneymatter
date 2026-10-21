@@ -182,8 +182,11 @@ export const EXPLICIT_POLICIES: Readonly<Record<string, ExplicitPolicy>> = {
   toggle_subscription_active: { kind: 'update', entity: 'subscription', targetFields: ['id'] },
   detect_subscription_candidates: { entity: 'subscription' },
   dismiss_subscription_candidate: { entity: 'subscription' },
-  link_transactions_to_subscription: { entity: 'subscription' },
-  unlink_transactions_from_subscription: { entity: 'subscription' },
+  link_transactions_to_subscription: { entity: 'subscription', previewResolver: 'linkTransactionsToSubscription' },
+  unlink_transactions_from_subscription: {
+    entity: 'subscription',
+    previewResolver: 'unlinkTransactionsFromSubscription',
+  },
   accept_subscription_candidate: { entity: 'subscription' },
   pay_subscription_period: { entity: 'subscription' },
   skip_subscription_period: { entity: 'subscription' },

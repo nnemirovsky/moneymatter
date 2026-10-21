@@ -1,4 +1,4 @@
-import type { ChatThread } from '@bt/shared/types';
+import type { ChatPageContext, ChatThread } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { ConflictError } from '@js/errors';
 import { withTransaction } from '@services/common/with-transaction';
@@ -10,6 +10,7 @@ import { getChatRetentionDays } from './retention.service';
 import { assertSelectableConnection, resolveThreadModel } from './thread-connection';
 import { notifyThreadUpdated } from './thread-events';
 import { computeThreadExpiry } from './thread-expiry';
+import { normalizeThreadPageContext, withPageContextNames } from './thread-page-context';
 import { toChatThread } from './to-chat-thread';
 
 interface UpdateThreadParams {
@@ -21,6 +22,8 @@ interface UpdateThreadParams {
   connectionId?: string | null;
   /** A model of the thread's connection, or null for its own model. A switch of connection resets it first. */
   modelId?: string | null;
+  /** Replaces the thread's page, or removes it with null. */
+  pageContext?: ChatPageContext | null;
 }
 
 /** What was checked with the provider before the transaction: the connection the model was checked on. */
@@ -35,7 +38,7 @@ interface CheckedSelection {
 class StaleSelectionError extends Error {}
 
 const updateThreadImpl = async (
-  { userId, threadId, title, pinned, connectionId, modelId }: UpdateThreadParams,
+  { userId, threadId, title, pinned, connectionId, modelId, pageContext }: UpdateThreadParams,
   checked: CheckedSelection,
 ): Promise<ChatThread> => {
   // Settings before thread, the order `setChatRetention` locks in.
@@ -75,6 +78,8 @@ const updateThreadImpl = async (
   }
 
   if (checked.modelId !== undefined) thread.modelId = checked.modelId;
+  // A page is only context for the next message, so a run in flight does not stop it from changing.
+  if (pageContext !== undefined) thread.pageContext = pageContext;
 
   await thread.save();
 
@@ -113,6 +118,9 @@ const checkSelection = async (params: UpdateThreadParams): Promise<CheckedSelect
   };
 };
 
+const normalizeContext = async ({ userId, pageContext }: UpdateThreadParams) =>
+  pageContext === undefined ? undefined : normalizeThreadPageContext({ userId, context: pageContext });
+
 export const updateThread = async (params: UpdateThreadParams): Promise<ChatThread> => {
   const hasSelection = params.connectionId !== undefined || params.modelId !== undefined;
   let thread: ChatThread | undefined;
@@ -124,7 +132,7 @@ export const updateThread = async (params: UpdateThreadParams): Promise<ChatThre
       : { connectionId: null, modelId: undefined };
 
     try {
-      thread = await updateThreadTransactional(params, checked);
+      thread = await updateThreadTransactional({ ...params, pageContext: await normalizeContext(params) }, checked);
     } catch (error) {
       if (!(error instanceof StaleSelectionError)) throw error;
       if (attempt > 0) throw new ConflictError({ message: t({ key: 'chat.runInProgress' }) });
@@ -132,5 +140,5 @@ export const updateThread = async (params: UpdateThreadParams): Promise<ChatThre
   }
 
   notifyThreadUpdated({ userId: params.userId, threadId: thread.id });
-  return thread;
+  return (await withPageContextNames({ userId: params.userId, threads: [thread] }))[0]!;
 };

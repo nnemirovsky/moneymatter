@@ -2,6 +2,7 @@ import { BANK_PROVIDER_TYPE } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { describe, expect, it } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
+import { FRONTEND_BASE_URL } from '@root/config';
 import * as helpers from '@tests/helpers';
 import { VALID_MONOBANK_TOKEN } from '@tests/mocks/monobank/mock-api';
 
@@ -62,7 +63,25 @@ describe('Bank Data Providers controller', () => {
         expect(provider).toBeDefined();
         expect(provider!.redirectUrl).toBe('https://budget.example.test/bank-callback');
       } finally {
-        process.env.ENABLE_BANKING_REDIRECT_URL = previous;
+        if (previous === undefined) delete process.env.ENABLE_BANKING_REDIRECT_URL;
+        else process.env.ENABLE_BANKING_REDIRECT_URL = previous;
+      }
+    });
+
+    it('falls back to the frontend origin callback when no Enable Banking redirect URL is configured', async () => {
+      const previous = process.env.ENABLE_BANKING_REDIRECT_URL;
+      delete process.env.ENABLE_BANKING_REDIRECT_URL;
+
+      try {
+        const { providers } = await helpers.withSelfHost(() =>
+          helpers.bankDataProviders.getSupportedBankProviders({ raw: true }),
+        );
+        const provider = providers.find((p) => p.type === BANK_PROVIDER_TYPE.ENABLE_BANKING);
+
+        expect(provider!.redirectUrl).toBe(`${FRONTEND_BASE_URL}/bank-callback`);
+      } finally {
+        if (previous === undefined) delete process.env.ENABLE_BANKING_REDIRECT_URL;
+        else process.env.ENABLE_BANKING_REDIRECT_URL = previous;
       }
     });
   });

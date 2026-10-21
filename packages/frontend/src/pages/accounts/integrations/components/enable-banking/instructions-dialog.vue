@@ -84,6 +84,24 @@
                     :value="callbackUrl"
                   />
                 </div>
+                <Callout v-if="isInsecureSelfHostCallback" variant="warning" class="my-1">
+                  <i18n-t keypath="pages.integrations.instructionsDialog.step1.steps.httpsRequired" tag="p">
+                    <template #envVar>
+                      <code class="bg-muted rounded px-1 font-mono break-all">ENABLE_BANKING_REDIRECT_URL</code>
+                    </template>
+                    <template #example>
+                      <code class="bg-muted rounded px-1 font-mono break-all"
+                        >https://budget.example.com/bank-callback</code
+                      >
+                    </template>
+                    <template #link>
+                      <ExternalLink
+                        :href="EXTERNAL_URLS.enableBankingHttpsSetup"
+                        :text="t('pages.integrations.instructionsDialog.step1.steps.httpsRequiredLink')"
+                      />
+                    </template>
+                  </i18n-t>
+                </Callout>
                 <div class="flex flex-wrap gap-1">
                   <span class="font-semibold">{{
                     t('pages.integrations.instructionsDialog.step1.steps.appDescription')
@@ -261,10 +279,13 @@
 
 <script lang="ts" setup>
 import { type BankProvider, listProviders } from '@/api/bank-data-providers';
+import { config } from '@/common/config';
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const';
 import ClickToCopy from '@/components/common/click-to-copy.vue';
 import ExternalLink from '@/components/external-link.vue';
 import UiButton from '@/components/lib/ui/button/Button.vue';
+import { Callout } from '@/components/lib/ui/callout';
+import { EXTERNAL_URLS } from '@bt/shared/const/external-urls';
 import { BANK_PROVIDER_TYPE } from '@bt/shared/types';
 import { InfoIcon, TriangleAlertIcon } from '@lucide/vue';
 import { useQuery } from '@tanstack/vue-query';
@@ -293,5 +314,9 @@ const { data: providers } = useQuery({
 
 const callbackUrl = computed(
   () => providers.value?.find((p) => p.type === BANK_PROVIDER_TYPE.ENABLE_BANKING)?.redirectUrl,
+);
+
+const isInsecureSelfHostCallback = computed(
+  () => config.isSelfHost && !!callbackUrl.value && !callbackUrl.value.startsWith('https://'),
 );
 </script>

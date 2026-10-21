@@ -27,6 +27,7 @@ export enum AI_FEATURE {
   trackerMatching = 'tracker_matching',
   notificationParsing = 'notification_parsing',
   duplicateMatching = 'duplicate_matching',
+  transferMatching = 'transfer_matching',
   // Future features:
   // insights = 'insights',
 }

@@ -330,7 +330,9 @@ describe('list_transfer_suggestions', () => {
   const RANGE = { from: '2026-09-01T00:00:00.000Z', to: '2026-10-01T00:00:00.000Z' };
 
   it('declares the same fields as the REST body schema', () => {
-    expect(Object.keys(tool.config.inputSchema!).toSorted()).toEqual(Object.keys(bulkScanBodySchema.shape).toSorted());
+    // AI review spends the user's AI allowance on every scan, so it stays a choice made in the app.
+    const { aiReview: _aiReview, ...restBody } = bulkScanBodySchema.shape;
+    expect(Object.keys(tool.config.inputSchema!).toSorted()).toEqual(Object.keys(restBody).toSorted());
   });
 
   it('accepts a range with a limit up to 50 and refuses 51, 0 or a missing bound', () => {
@@ -361,7 +363,14 @@ describe('list_transfer_suggestions', () => {
       }[];
     };
 
-    expect(bulkScan).toHaveBeenCalledWith({ userId: 42, ...RANGE, limit: 20, offset: 0, includeOutOfWallet: false });
+    expect(bulkScan).toHaveBeenCalledWith({
+      userId: 42,
+      ...RANGE,
+      limit: 20,
+      offset: 0,
+      includeOutOfWallet: false,
+      aiReview: false,
+    });
     expect(data.total).toBe(1);
     expect(data.items[0]!.expense).toMatchObject({ id: ID_1, payee: { id: PAYEE_ID, name: 'Starbucks' } });
     expect(data.items[0]!.matches[0]).toMatchObject({ transaction: { id: ID_2, payee: null }, confidence: 87 });
@@ -373,7 +382,14 @@ describe('list_transfer_suggestions', () => {
 
     const data = await call({ tool, args: { ...RANGE, limit: 5, offset: 10, includeOutOfWallet: true } });
 
-    expect(bulkScan).toHaveBeenCalledWith({ userId: 42, ...RANGE, limit: 5, offset: 10, includeOutOfWallet: true });
+    expect(bulkScan).toHaveBeenCalledWith({
+      userId: 42,
+      ...RANGE,
+      limit: 5,
+      offset: 10,
+      includeOutOfWallet: true,
+      aiReview: false,
+    });
     expect(data).toEqual({ total: 0, items: [] });
   });
 

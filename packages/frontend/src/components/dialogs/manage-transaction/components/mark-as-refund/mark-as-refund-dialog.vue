@@ -21,7 +21,6 @@ import RecordsList from './refund-records-list.vue';
 
 const props = defineProps<{
   transactionType: TRANSACTION_TYPES;
-  disabled?: boolean;
   isRecordCreation: boolean;
   refunds: RefundsAnoterTx;
   refundedBy: RefundedByAnotherTxs;
@@ -71,6 +70,8 @@ const isSplitDialogOpen = ref(false);
 const openDialog = () => {
   isDialogOpen.value = true;
 };
+
+defineExpose({ open: openDialog });
 
 const selectedOption = ref<'refunds' | 'refunded'>('refunds');
 
@@ -367,11 +368,7 @@ const hasSmallOptions = computed(() => {
 
 <template>
   <div>
-    <slot name="trigger" :open="openDialog">
-      <Button class="w-full" :disabled="disabled" variant="secondary" @click="openDialog">
-        {{ $t('dialogs.manageTransaction.markAsRefund.linkRefund') }}
-      </Button>
-    </slot>
+    <slot name="trigger" :open="openDialog" />
 
     <!-- Main Dialog -->
     <ResponsiveDialog

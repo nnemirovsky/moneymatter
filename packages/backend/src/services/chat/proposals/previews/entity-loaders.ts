@@ -48,6 +48,7 @@ import VentureEvents from '@models/venture/venture-events.model';
 import VenturePlatforms from '@models/venture/venture-platforms.model';
 import { countCategoryTransactions } from '@services/categories/count-category-transactions';
 import { canUserAccessResource } from '@services/sharing/auth/can-user-access-resource.service';
+import { getSubscriptionTagIds } from '@services/subscriptions/subscription-tags';
 import { Op, type Model, type ModelStatic, type WhereOptions } from 'sequelize';
 
 import {
@@ -335,16 +336,23 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
     optional: true,
   }),
 
-  // Deleting a subscription unlinks its transactions and drops its periods.
-  subscription: owned({
-    model: Subscriptions,
-    related: async ({ id }) => ({
-      counts: {
-        linkedTransactionCount: await SubscriptionTransactions.count({ where: { subscriptionId: id } }),
-        periodCount: await SubscriptionPeriods.count({ where: { subscriptionId: id } }),
-      },
-    }),
-  }),
+  // Deleting a subscription unlinks its transactions and drops its periods. Its tags live in a join
+  // table, so they are added to the row for the card to show the set an update replaces.
+  subscription: async (params) => {
+    const loadedSubscription = await owned({
+      model: Subscriptions,
+      related: async ({ id }) => ({
+        counts: {
+          linkedTransactionCount: await SubscriptionTransactions.count({ where: { subscriptionId: id } }),
+          periodCount: await SubscriptionPeriods.count({ where: { subscriptionId: id } }),
+        },
+      }),
+    })(params);
+    if (!loadedSubscription?.row) return loadedSubscription;
+
+    const tagIds = await getSubscriptionTagIds({ subscriptionId: params.targets[0]! });
+    return { ...loadedSubscription, row: { ...loadedSubscription.row, tagIds: tagIds.toSorted() } };
+  },
 
   loan: owned({ model: LoanDetails, key: 'accountId' }),
 

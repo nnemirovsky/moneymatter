@@ -101,15 +101,15 @@ const showArchiveSuggestion = computed(() => canManage.value && shouldSuggestArc
     :class="
       cn(
         TRACKER_ROW_GRID,
-        'hover:bg-foreground/5 has-[a:focus-visible]:bg-foreground/5 relative text-[13px] transition-colors',
+        'hover:bg-foreground/5 has-[a:focus-visible]:bg-foreground/5 relative transition-colors',
         isArchived && 'opacity-60',
       )
     "
   >
-    <TrackerLogo :tracker="tracker" class="size-7 rounded-[7px]" />
+    <TrackerLogo :tracker="tracker" class="size-8 rounded-lg" />
 
     <div class="min-w-0">
-      <div class="flex min-w-0 items-center gap-1.5 font-semibold">
+      <div class="flex min-w-0 items-center gap-2 font-medium">
         <RouterLink
           :to="{ name: ROUTES_NAMES.plannedTrackerDetails, params: { id: tracker.id } }"
           class="truncate outline-none after:absolute after:inset-0"
@@ -118,7 +118,7 @@ const showArchiveSuggestion = computed(() => canManage.value && shouldSuggestArc
         </RouterLink>
         <span
           v-if="isCategory"
-          class="bg-primary/15 text-primary-text shrink-0 rounded-full px-2 py-px text-[11px] font-semibold"
+          class="bg-primary/15 text-primary-text shrink-0 rounded-full px-2 py-0.5 text-xs font-medium"
         >
           {{ $t('budgets.list.row.auto') }}
         </span>
@@ -127,7 +127,7 @@ const showArchiveSuggestion = computed(() => canManage.value && shouldSuggestArc
       <div
         v-for="caption in captions"
         :key="caption.key"
-        :class="cn('text-muted-foreground truncate text-[11px]', caption.class)"
+        :class="cn('text-muted-foreground mt-0.5 truncate text-xs', caption.class)"
       >
         <template v-for="(piece, index) in caption.pieces" :key="piece.key">
           <template v-if="index > 0"> · </template>
@@ -142,12 +142,12 @@ const showArchiveSuggestion = computed(() => canManage.value && shouldSuggestArc
         <div class="bg-muted h-3 w-full rounded" />
         <div class="bg-muted h-1.25 rounded-full" />
       </div>
-      <span v-else-if="!tracker.limitAmount" class="text-muted-foreground text-xs">
+      <span v-else-if="!tracker.limitAmount" class="text-muted-foreground text-sm">
         {{ $t('budgets.list.row.noLimit') }}
       </span>
-      <span v-else-if="utilizationRate === null" class="text-muted-foreground text-xs">—</span>
+      <span v-else-if="utilizationRate === null" class="text-muted-foreground text-sm">—</span>
       <div v-else class="grid gap-1">
-        <div class="text-muted-foreground flex justify-between text-xs">
+        <div class="text-muted-foreground flex justify-between text-sm">
           <span>{{ $t('budgets.list.used') }}</span>
           <span :class="cn('font-semibold tabular-nums', tone.text)">{{ Math.round(utilizationRate) }}%</span>
         </div>
@@ -159,7 +159,7 @@ const showArchiveSuggestion = computed(() => canManage.value && shouldSuggestArc
       <Button
         v-if="showArchiveSuggestion"
         variant="ghost"
-        class="border-warning-text text-warning-text hover:bg-warning-text/10 hover:text-warning-text relative z-10 h-auto rounded-full border border-dashed px-2 py-0.5 text-[11px] font-semibold"
+        class="border-warning-text text-warning-text hover:bg-warning-text/10 hover:text-warning-text relative z-10 h-auto rounded-full border border-dashed px-2 py-0.5 text-xs font-medium"
         @click="emit('suggest-archive')"
       >
         {{ $t('budgets.list.row.archiveSuggestion') }}
@@ -168,7 +168,7 @@ const showArchiveSuggestion = computed(() => canManage.value && shouldSuggestArc
         v-else-if="statusText && timeStatus?.kind !== 'ended'"
         :class="
           cn(
-            'inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap',
+            'inline-flex rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap',
             timeStatus?.kind === 'active' ? 'bg-success-text/15 text-success-text' : 'bg-primary/15 text-primary-text',
           )
         "
@@ -183,14 +183,14 @@ const showArchiveSuggestion = computed(() => canManage.value && shouldSuggestArc
         v-else-if="stats"
         :class="
           cn(
-            'font-semibold whitespace-nowrap tabular-nums',
+            'text-sm font-medium whitespace-nowrap tabular-nums',
             stats.balance >= 0 ? 'text-app-income-color' : 'text-app-expense-color',
           )
         "
       >
         {{ formatShortBaseCurrency({ amount: stats.balance }) }}
       </span>
-      <span v-else-if="isStatsError" class="text-muted-foreground">—</span>
+      <span v-else-if="isStatsError" class="text-muted-foreground text-sm">—</span>
     </div>
 
     <TrackerRowMenu :tracker="tracker" class="relative z-10" />

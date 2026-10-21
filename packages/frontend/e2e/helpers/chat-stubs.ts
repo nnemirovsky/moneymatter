@@ -18,6 +18,8 @@ export interface StubThread {
   connectionId: string | null;
   /** A model of that connection picked for the thread; null is the connection's own model. */
   modelId: string | null;
+  /** The page the conversation is about, as the API stores it; null is none. */
+  pageContext: Json | null;
   messages: Json[];
 }
 
@@ -120,6 +122,8 @@ const asListItem = ({ thread, query }: { thread: StubThread; query: string }) =>
   usage: ZERO_USAGE,
   connectionId: thread.connectionId,
   modelId: thread.modelId,
+  pageContext: thread.pageContext,
+  pageContextNames: {},
   createdAt: NOW,
   ...(query ? { snippet: `…${thread.title}…` } : {}),
 });
@@ -150,6 +154,7 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
         lastMessageAt: NOW,
         connectionId: null,
         modelId: null,
+        pageContext: null,
         messages: [],
         ...thread,
       };
@@ -273,6 +278,7 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
         id: `thread-${stub.threads.length + 1}`,
         connectionId: 'connectionId' in (body ?? {}) ? (body!.connectionId as string | null) : stub.defaultConnectionId,
         modelId: 'modelId' in (body ?? {}) ? (body!.modelId as string | null) : stub.defaultModelId,
+        pageContext: (body?.pageContext as Json | null | undefined) ?? null,
       });
       return ok({ route, response: asListItem({ thread, query: '' }), status: 201 });
     }
@@ -301,6 +307,7 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
           thread.modelId = null;
         }
         if (body && 'modelId' in body) thread.modelId = body.modelId as string | null;
+        if (body && 'pageContext' in body) thread.pageContext = body.pageContext as Json | null;
         return ok({ route, response: asListItem({ thread, query: '' }) });
       }
       if (method === 'DELETE') {

@@ -327,7 +327,6 @@ import {
   usePayee,
   useUpdatePayee,
 } from '@/composable/data-queries/payees';
-import { provideChatPageContext } from '@/composable/chat/use-chat-page-context';
 import { useBaseCurrency } from '@/composable/data-queries/currencies';
 import { useNotificationCenter } from '@/components/notification-center';
 import { useCategoriesStore, useTagsStore } from '@/stores';
@@ -371,7 +370,6 @@ const { t, locale } = useI18n();
 const { addSuccessNotification, addErrorNotification } = useNotificationCenter();
 
 const payeeId = computed(() => String(route.params.id));
-provideChatPageContext(() => ({ entity: { kind: 'payee', id: payeeId.value } }));
 
 const { data: payeeData, refetch } = usePayee({ id: payeeId });
 

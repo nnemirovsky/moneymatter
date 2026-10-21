@@ -1,4 +1,4 @@
-import type { ChatMessageStatus, ChatPageContext } from './messages';
+import type { ChatMessageStatus } from './messages';
 
 /** The user's answer to a clarification card. It travels in the message body, so it works for read-only users too. */
 export interface ChatClarificationAnswerInput {
@@ -14,7 +14,6 @@ export interface ChatClarificationAnswerInput {
 export interface ChatSendMessageRequest {
   text: string;
   attachmentIds?: string[];
-  pageContext?: ChatPageContext;
   clarificationAnswer?: ChatClarificationAnswerInput;
 }
 

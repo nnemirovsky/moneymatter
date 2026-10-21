@@ -8,12 +8,13 @@ jest.mock('@modelcontextprotocol/sdk/server/mcp.js', () =>
 );
 
 /**
- * A client that loads every tool up front pays for the whole `tools/list` result. 301,000 bytes
- * is about 75k tokens; the budget leaves room for the Apple Pay tools and the settings schema's
- * enums (`update_user_settings` lists every push group). Lazy clients such as Claude Code only pay
- * for names.
+ * A client that loads every tool up front pays for the whole `tools/list` result. 320,000 bytes
+ * is about 80k tokens; the budget leaves room for the Apple Pay tools. Lazy clients such as
+ * Claude Code only pay for names. It was 300,000 until the write tools gained the REST fields they
+ * lacked (a subscription's matching rules, the payee and transaction details, the settlement leg of an investment trade, a tracker's logo, ...), which added
+ * about 20,000 bytes.
  */
-const TOOLS_LIST_BUDGET_BYTES = 301_000;
+const TOOLS_LIST_BUDGET_BYTES = 320_000;
 
 describe('MCP tools/list size', () => {
   it('stays within the budget', async () => {

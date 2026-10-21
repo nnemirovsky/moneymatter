@@ -13,6 +13,7 @@ import { resolveMergePayees } from './merge-payees';
 import { resolveApplyPayeeTags } from './payee-tags';
 import { resolveMergeDuplicateTransactions, resolveRemoveDuplicateTransactions } from './reconciliation';
 import { resolveRevertSubscriptionPeriod } from './revert-subscription-period';
+import { resolveLinkTransactionsToSubscription, resolveUnlinkTransactionsFromSubscription } from './subscription-links';
 import type { PreviewResolver } from './types';
 import { resolveUpdateSubscriptionPeriod } from './update-subscription-period';
 
@@ -37,6 +38,8 @@ export const PREVIEW_RESOLVERS: Record<PreviewResolverName, PreviewResolver> = {
   ignorePayeeName: resolveIgnorePayeeName,
   revertSubscriptionPeriod: resolveRevertSubscriptionPeriod,
   updateSubscriptionPeriod: resolveUpdateSubscriptionPeriod,
+  linkTransactionsToSubscription: resolveLinkTransactionsToSubscription,
+  unlinkTransactionsFromSubscription: resolveUnlinkTransactionsFromSubscription,
   budgetPlanAssignment: resolveBudgetPlanAssignment,
   confirmIngestPayment: resolveConfirmIngestPayment,
   ingestRequest: resolveIngestRequest,

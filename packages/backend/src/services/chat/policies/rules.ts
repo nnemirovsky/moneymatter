@@ -28,6 +28,8 @@ export const PREVIEW_RESOLVER_NAMES = [
   'ignorePayeeName',
   'revertSubscriptionPeriod',
   'updateSubscriptionPeriod',
+  'linkTransactionsToSubscription',
+  'unlinkTransactionsFromSubscription',
   'budgetPlanAssignment',
   'confirmIngestPayment',
   'ingestRequest',

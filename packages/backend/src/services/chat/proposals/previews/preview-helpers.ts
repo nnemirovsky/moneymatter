@@ -189,18 +189,26 @@ const toTransactionRow = ({ row }: { row: TransactionSampleSource }): ChatTableR
   note: row.note ? row.note : null,
 });
 
+/** Columns a resolver adds to the transaction table, with the cells of each row. */
+interface ExtraTransactionColumns<Row> {
+  columns: ChatTableColumn[];
+  cells: (params: { row: Row }) => ChatTableRow;
+}
+
 /** The affected block of a card that lists transactions: the full count and the first rows. */
-export function transactionsAffected({
+export function transactionsAffected<Row extends TransactionSampleSource>({
   rows,
   count,
+  extra,
 }: {
-  rows: TransactionSampleSource[];
+  rows: Row[];
   count: number;
+  extra?: ExtraTransactionColumns<Row>;
 }): ChatCardAffected {
   return {
     count,
-    columns: TRANSACTION_COLUMNS,
-    rows: rows.slice(0, SAMPLE_ROW_LIMIT).map((row) => toTransactionRow({ row })),
+    columns: [...TRANSACTION_COLUMNS, ...(extra?.columns ?? [])],
+    rows: rows.slice(0, SAMPLE_ROW_LIMIT).map((row) => ({ ...toTransactionRow({ row }), ...extra?.cells({ row }) })),
     truncated: count > SAMPLE_ROW_LIMIT,
   };
 }

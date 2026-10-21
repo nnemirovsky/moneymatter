@@ -4,7 +4,7 @@ import { useAccountsStore } from '@/stores/accounts';
 import { useCategoriesStore } from '@/stores/categories/categories';
 import { useCurrenciesStore } from '@/stores/currencies';
 import { useTagsStore } from '@/stores/tags';
-import type { AccountModel, ChatEntityKind, ChatProposalCard } from '@bt/shared/types';
+import { type AccountModel, type ChatEntityKind, type ChatProposalCard, chatEntityRefKey } from '@bt/shared/types';
 import { storeToRefs } from 'pinia';
 import { type MaybeRefOrGetter, computed, toValue } from 'vue';
 
@@ -29,7 +29,8 @@ const idsOf = ({ value }: { value: unknown }): string[] => {
 /**
  * Names the records of a card from the stores the app keeps. Accounts, categories, tags and
  * currencies are in memory already; payees are read one at a time, only the ones the card mentions.
- * A record the app has no list of (a budget, a loan) has no name here, and the card shows its kind.
+ * A record the app has no list of (a subscription, a transaction, a budget) is named by the server, which
+ * sends the names with the card; one that has no name in either place shows its kind.
  */
 export const useCardLookups = ({ card }: { card: MaybeRefOrGetter<ChatProposalCard> }): CardLookups => {
   const { accountsRecord, systemAccounts } = storeToRefs(useAccountsStore());
@@ -63,7 +64,7 @@ export const useCardLookups = ({ card }: { card: MaybeRefOrGetter<ChatProposalCa
       case 'customCurrency':
         return id;
       default:
-        return null;
+        return toValue(card).labels?.[chatEntityRefKey({ kind, id })] ?? null;
     }
   };
 

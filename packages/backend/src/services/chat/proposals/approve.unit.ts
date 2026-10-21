@@ -7,6 +7,8 @@ import { Op } from 'sequelize';
 
 // The import chains of the services behind the catalog's tools open Redis connections.
 jest.mock('@services/categories.service', () => ({ getCategories: jest.fn() }));
+// The names of the records a card points at come from the database; these suites run without one.
+jest.mock('./card-labels', () => ({ resolveCardLabels: jest.fn(async () => ({})) }));
 jest.mock('@services/accounts.service', () => ({ getAccounts: jest.fn() }));
 jest.mock('../../mcp/auth', () => ({ buildMcpAuthInfo: jest.fn() }));
 jest.mock('../threads/thread-events', () => ({ notifyThreadUpdated: jest.fn() }));

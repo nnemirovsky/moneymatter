@@ -51,6 +51,14 @@ export function describeField({
   }
   if (isNumber && MONEY_FIELD.test(key)) return { display: { kind: 'money' }, editable: { type: 'money' } };
 
+  // A subscription's matching rules are a list of small objects; the card reads them as sentences.
+  if (key === 'matchingRules') return { display: { kind: 'matchingRules' }, editable: null };
+
+  // A list of presets (reminder offsets) reads as its options, one name each.
+  if (schema.type === 'array' && Array.isArray(simplify({ node: schema.items }).enum)) {
+    return { display: { kind: 'enum' }, editable: null };
+  }
+
   if (Array.isArray(schema.enum)) {
     return { display: { kind: 'enum' }, editable: { type: 'enum', options: schema.enum.map(String) } };
   }

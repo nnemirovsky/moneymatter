@@ -25,6 +25,9 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
 import ChatComposer from './chat-composer.vue';
 import ChatConnectionPicker from './chat-connection-picker.vue';
+import { isSameChatContext, toThreadContext } from './chat-context';
+import ChatContextChip from './chat-context-chip.vue';
+import { useChatContextLabel } from './chat-context-label';
 import ChatEmptyState from './chat-empty-state.vue';
 import { isInboxThread } from './chat-inbox';
 import ChatMessage from './chat-message.vue';
@@ -32,7 +35,10 @@ import ChatMessage from './chat-message.vue';
 const props = defineProps<{
   /** The thread to show; `null` is a conversation that has not started. */
   threadId: string | null;
-  /** The page the chat was opened on, offered to the composer as a chip. */
+  /**
+   * The page the user is on. A conversation that has not started takes it as its context; one that has keeps
+   * its own and only offers this one as a switch. Null on the Chat page, whose new conversations start without.
+   */
   context: ChatPageContext | null;
 }>();
 
@@ -77,6 +83,50 @@ const isInbox = computed(() => isInboxThread({ thread: thread.value }));
 const composerRef = ref<InstanceType<typeof ChatComposer> | null>(null);
 const scrollAreaRef = ref<InstanceType<typeof ScrollArea> | null>(null);
 const isSending = ref(false);
+
+const { label: contextLabel } = useChatContextLabel();
+
+// A conversation that has not started follows the page it is on; removing the chip drops that page until
+// another one comes along. Once it has started, its context is the stored one, whatever page it is opened on.
+const dismissedPage = ref<ChatPageContext | null>(null);
+const createdWithContext = ref<ChatPageContext | null>(null);
+const currentPage = computed(() => (props.context ? toThreadContext({ context: props.context }) : null));
+const threadContext = computed<ChatPageContext | null>(() => {
+  if (activeThreadId.value === null) {
+    const isDismissed =
+      dismissedPage.value !== null && isSameChatContext({ a: dismissedPage.value, b: currentPage.value });
+    return isDismissed ? null : currentPage.value;
+  }
+  // Until the stored thread has loaded, the conversation shows the context it was created with.
+  return thread.value ? thread.value.pageContext : createdWithContext.value;
+});
+const threadContextLabel = computed(() =>
+  threadContext.value ? contextLabel({ context: threadContext.value, names: thread.value?.pageContextNames }) : null,
+);
+const canUseCurrentPage = computed(() => {
+  if (activeThreadId.value === null || !thread.value || !currentPage.value) return false;
+  if (contextLabel({ context: currentPage.value }) === null) return false;
+  return !isSameChatContext({ a: currentPage.value, b: thread.value.pageContext });
+});
+
+const onRemoveContext = async () => {
+  if (activeThreadId.value === null) {
+    dismissedPage.value = currentPage.value;
+    return;
+  }
+  await updateThread.mutateAsync({ threadId: activeThreadId.value, payload: { pageContext: null } }).catch(() => {
+    // The mutation reports the failure; the chip stays.
+  });
+};
+
+const onUseCurrentPage = async () => {
+  if (activeThreadId.value === null || !currentPage.value) return;
+  await updateThread
+    .mutateAsync({ threadId: activeThreadId.value, payload: { pageContext: currentPage.value } })
+    .catch(() => {
+      // The mutation reports the failure; the thread keeps its page.
+    });
+};
 
 /** A feature whose status is not known yet is treated as configured: a slow answer must not flash "connect a model". */
 const isConfigured = computed(() => {
@@ -204,6 +254,7 @@ const buildCreateRequest = (): ChatCreateThreadRequest => {
   return {
     ...(connectionId === undefined ? {} : { connectionId }),
     ...(modelId === undefined ? {} : { modelId }),
+    ...(threadContext.value && threadContextLabel.value !== null ? { pageContext: threadContext.value } : {}),
   };
 };
 
@@ -238,6 +289,7 @@ const ensureThread = (): Promise<string> => {
   creatingThread ??= createThread
     .mutateAsync(buildCreateRequest())
     .then((created) => {
+      createdWithContext.value = created.pageContext ?? null;
       activeThreadId.value = created.id;
       // The stored thread is still loading; until it has, the picker names the connection it was created on.
       pickedConnectionId.value = created.connectionId;
@@ -266,22 +318,8 @@ const sendPayload = async ({ payload }: { payload: ChatSendMessageRequest }) => 
   }
 };
 
-const onSend = ({
-  text,
-  attachmentIds,
-  pageContext,
-}: {
-  text: string;
-  attachmentIds: string[];
-  pageContext?: ChatPageContext;
-}) =>
-  sendPayload({
-    payload: {
-      text,
-      ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
-      ...(pageContext ? { pageContext } : {}),
-    },
-  });
+const onSend = ({ text, attachmentIds }: { text: string; attachmentIds: string[] }) =>
+  sendPayload({ payload: { text, ...(attachmentIds.length > 0 ? { attachmentIds } : {}) } });
 
 const onAnswer = ({ answer }: { answer: ChatClarificationAnswerInput }) =>
   sendPayload({ payload: { text: '', clarificationAnswer: answer } });
@@ -339,7 +377,16 @@ onMounted(scrollToBottom);
       :disabled="isBusy || updateThread.isPending.value"
       @select="(connectionId) => onPickConnection({ connectionId })"
       @select-model="(modelId) => onPickModel({ modelId })"
-    />
+    >
+      <template v-if="threadContextLabel || canUseCurrentPage" #default>
+        <ChatContextChip
+          :label="threadContextLabel"
+          :can-use-current-page="canUseCurrentPage"
+          @remove="onRemoveContext"
+          @use-current-page="onUseCurrentPage"
+        />
+      </template>
+    </ChatConnectionPicker>
 
     <ScrollArea ref="scrollAreaRef" class="min-h-0 flex-1" :scroll-y="onScroll">
       <div class="mx-auto flex w-full max-w-3xl flex-col gap-5 px-3 py-4 @sm/chat-conversation:px-5">
@@ -408,7 +455,6 @@ onMounted(scrollToBottom);
         ref="composerRef"
         :is-streaming="chatRun.isStreaming.value"
         :disabled="!isConfigured"
-        :context="context"
         :ensure-thread="ensureThread"
         @send="onSend"
         @cancel="chatRun.cancel()"

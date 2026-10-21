@@ -25,6 +25,12 @@ const WEBP_BYTES = Buffer.concat([
   Buffer.from('WEBP', 'latin1'),
   Buffer.alloc(64, 1),
 ]);
+/** `ftyp` box of an iPhone HEIC photo: the server cannot decode it, the browser converts it first. */
+const HEIC_BYTES = Buffer.concat([
+  Buffer.from([0x00, 0x00, 0x00, 0x18]),
+  Buffer.from('ftypheic', 'latin1'),
+  Buffer.alloc(64, 1),
+]);
 const ZIP_BYTES = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.alloc(64, 0)]);
 
 const CSV = 'date,description,amount\n2026-10-01,Coffee,-3.50\n2026-10-02,Salary,2500.00\n';
@@ -231,6 +237,25 @@ describe('Chat attachments', () => {
       expect(result.errorMessage).toMatch(/unsupported file type/i);
     });
 
+    it('answers 422 with a HEIC-specific message for an iPhone HEIC photo', async () => {
+      const threadId = await createThreadId();
+
+      const result = await helpers.uploadChatAttachment({ threadId, file: HEIC_BYTES, filename: 'IMG_0001.HEIC' });
+
+      expect(result.statusCode).toBe(ERROR_CODES.ValidationError);
+      expect(result.errorMessage).toMatch(/HEIC/);
+    });
+
+    it('takes a large screenshot-sized image just under the model limit, with no text in it', async () => {
+      const threadId = await createThreadId();
+      const large = Buffer.concat([PNG_BYTES, Buffer.alloc(STATEMENT_IMAGE_MAX_BYTES - PNG_BYTES.length, 1)]);
+
+      const result = await helpers.uploadChatAttachment({ threadId, file: large, filename: 'Screenshot.png' });
+
+      expect(result.statusCode).toBe(201);
+      expect(result.attachment).toMatchObject({ kind: 'image', excerpt: null });
+    });
+
     it('answers 422 for an empty body and for a file too small to be real', async () => {
       const threadId = await createThreadId();
 
@@ -248,6 +273,7 @@ describe('Chat attachments', () => {
       const result = await helpers.uploadChatAttachment({ threadId, file: big });
 
       expect(result.statusCode).toBe(ERROR_CODES.ValidationError);
+      expect(result.errorMessage).toMatch(/over 3\.75MB/);
     });
 
     it('answers 429 from the 31st upload in the window', async () => {

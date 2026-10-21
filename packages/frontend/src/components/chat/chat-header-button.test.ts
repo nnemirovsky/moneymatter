@@ -67,9 +67,9 @@ describe('ChatHeaderButton', () => {
     expect(useChatPanelStore().isOpen).toBe(false);
   });
 
-  it('opens the Chat page without a context for a page that tells nothing', async () => {
+  it('opens the Chat page without a context when the page tells nothing', async () => {
     isMobile.value = true;
-    context.value = { route: ROUTES_NAMES.settingsGeneral };
+    context.value = {};
 
     await mountButton().find('button').trigger('click');
 

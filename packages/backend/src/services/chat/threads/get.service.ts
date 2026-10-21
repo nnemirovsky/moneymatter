@@ -8,6 +8,7 @@ import { Op, type WhereOptions } from 'sequelize';
 import { expireDueCards } from '../proposals/card-expiry';
 import { loadCards } from '../proposals/card-load';
 import { findThreadOrThrow } from './find-thread';
+import { withPageContextNames } from './thread-page-context';
 import { toChatMessage, toChatThread } from './to-chat-thread';
 
 /**
@@ -82,7 +83,7 @@ export const getThread = async ({
     .map((row) => toChatMessage({ row }));
 
   return {
-    thread: toChatThread({ row: thread }),
+    thread: (await withPageContextNames({ userId, threads: [toChatThread({ row: thread })] }))[0]!,
     messages,
     hasMore: newestFirst.length > limit,
     cards: await loadPageCards({ userId, messages }),

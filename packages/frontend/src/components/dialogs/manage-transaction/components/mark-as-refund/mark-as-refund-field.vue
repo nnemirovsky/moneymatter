@@ -5,7 +5,7 @@ import { useCategoriesStore } from '@/stores';
 import { TRANSACTION_TYPES, TransactionSplitModel } from '@bt/shared/types';
 import { SplitIcon } from '@lucide/vue';
 import { storeToRefs } from 'pinia';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { RefundWithSplit, RefundedByAnotherTxs, RefundsAnoterTx } from '../../types';
@@ -41,6 +41,9 @@ const emit = defineEmits<{
 
 const { categoriesMap } = storeToRefs(useCategoriesStore());
 
+const dialogRef = ref<InstanceType<typeof MarkAsRefundDialog> | null>(null);
+defineExpose({ open: () => dialogRef.value?.open() });
+
 // `null` marks an existing link as deliberately removed; `undefined` means "never had one".
 const clearedValue = () => (props.isThereOriginalRefunds ? null : undefined);
 
@@ -71,8 +74,8 @@ const refundTransactions = computed<RefundWithSplit[]>(() => {
   return [];
 });
 
-// An empty `refundedBy` array must fall back to the default trigger: rendering the
-// linked layout with zero rows would leave no way to open the picker or unlink.
+// An empty `refundedBy` array counts as unlinked, so the parent keeps offering its "Link refund" chip.
+// A linked layout with zero rows would leave no way to open the picker or unlink.
 const isLinked = computed(() => refundTransactions.value.length > 0);
 
 // Get split category info for display
@@ -94,11 +97,11 @@ const getSplitInfo = (refund: RefundWithSplit) => {
 
 <template>
   <MarkAsRefundDialog
+    ref="dialogRef"
     :key="transactionType"
     :refunds="refunds"
     :refunded-by="refundedBy"
     :transaction-type="transactionType"
-    :disabled="disabled"
     :is-record-creation="isRecordCreation"
     :current-transaction-splits="currentTransactionSplits"
     :current-amount="currentAmount"

@@ -116,11 +116,18 @@ export interface BulkTransferScanBody {
   limit?: number;
   offset?: number;
   includeOutOfWallet?: boolean;
+  /** Has the AI drop unrelated pairs. The response then holds every match at once, unpaginated. */
+  aiReview?: boolean;
 }
+
+export const TRANSFER_AI_VERDICTS = ['likely', 'possible', 'unlikely'] as const;
+export type TransferAiVerdict = (typeof TRANSFER_AI_VERDICTS)[number];
 
 export interface BulkTransferScanMatch {
   transaction: TransactionModel;
   confidence: number;
+  /** Set on an AI-reviewed scan; `unlikely` pairs are left out of the response. */
+  ai?: { verdict: Exclude<TransferAiVerdict, 'unlikely'>; reason: string };
 }
 
 export interface BulkTransferScanItem {

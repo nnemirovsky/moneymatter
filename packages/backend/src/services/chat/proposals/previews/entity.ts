@@ -44,9 +44,11 @@ export const resolveEntityPreview: PreviewResolver = async ({ userId, args, poli
   const twins = legs.slice(1);
   const deletesTwins = policy.kind === 'delete' && twins.length > 0;
   const removes = entity.removes + (deletesTwins ? twins.length : 0);
-  const warnings: ChatCardWarning[] = deletesTwins
-    ? [{ key: 'chat.warnings.transferTwinsOfRow', params: { count: twins.length } }]
-    : [];
+  const warnings: ChatCardWarning[] = [
+    ...(deletesTwins ? [{ key: 'chat.warnings.transferTwinsOfRow', params: { count: twins.length } }] : []),
+    // A payee delete that also ignores the names adds them to the ignore list, which nothing here undoes.
+    ...(policy.name === 'delete_payee' && args.ignoreFuture === true ? [{ key: 'chat.warnings.payeesIgnored' }] : []),
+  ];
 
   return {
     preview: {

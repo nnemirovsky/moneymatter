@@ -86,7 +86,7 @@ describe('bulkScanTransferRecommendations', () => {
       await helpers.createTransaction({
         payload: helpers.buildTransactionPayload({
           accountId: account2.id,
-          amount: 540,
+          amount: 520,
           transactionType: TRANSACTION_TYPES.income,
           time: subDays(today, 5).toISOString(),
         }),

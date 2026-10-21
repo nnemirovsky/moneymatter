@@ -9,7 +9,7 @@ import {
 } from '@/composable/data-queries/chat';
 import { notifyMutationError } from '@/composable/data-queries/use-invalidating-mutation';
 import { useChatPresence } from '@/composable/use-chat-presence';
-import type { ChatMessage, ChatProposalCard, ChatThread } from '@bt/shared/types';
+import type { ChatMessage, ChatPageContext, ChatProposalCard, ChatThread } from '@bt/shared/types';
 import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { computed, defineComponent, h, ref, shallowRef } from 'vue';
@@ -24,6 +24,14 @@ vi.mock('@/composable/data-queries/chat', () => ({
   useUpdateChatThread: vi.fn(),
 }));
 vi.mock('@/composable/chat/use-chat-run', () => ({ useChatRun: vi.fn() }));
+vi.mock('./chat-context-label', () => ({
+  useChatContextLabel: () => ({
+    label: ({ context, names = {} }: { context: ChatPageContext; names?: Record<string, string> }) => {
+      if (context.entity) return `Subscription: ${names[`${context.entity.kind}:${context.entity.id}`] ?? 'unnamed'}`;
+      return context.route ? 'Transactions' : null;
+    },
+  }),
+}));
 vi.mock('@/composable/data-queries/ai-settings', () => ({ useAiSettings: vi.fn() }));
 vi.mock('@/composable/data-queries/use-invalidating-mutation', () => ({ notifyMutationError: vi.fn() }));
 vi.mock('@/composable/use-chat-presence', () => ({ useChatPresence: vi.fn() }));
@@ -74,7 +82,7 @@ const MessageStub = defineComponent({
 
 const fill = vi.fn();
 const ComposerStub = defineComponent({
-  props: ['isStreaming', 'disabled', 'context', 'ensureThread'],
+  props: ['isStreaming', 'disabled', 'ensureThread'],
   emits: ['send', 'cancel'],
   setup: (props, { emit, expose }) => {
     expose({ fill });
@@ -83,7 +91,7 @@ const ComposerStub = defineComponent({
         'data-testid': 'composer',
         'data-streaming': String(props.isStreaming),
         'data-disabled': String(props.disabled),
-        onClick: () => emit('send', { text: 'Ask', attachmentIds: ['att-1'], pageContext: { route: 'x' } }),
+        onClick: () => emit('send', { text: 'Ask', attachmentIds: ['att-1'] }),
         onDblclick: () => emit('cancel'),
       });
   },
@@ -93,16 +101,19 @@ const PickerStub = defineComponent({
   props: ['connectionId', 'modelId', 'disabled'],
   emits: ['select', 'select-model'],
   setup:
-    (props, { emit }) =>
+    (props, { emit, slots }) =>
     () =>
-      h('button', {
-        'data-testid': 'picker',
-        'data-connection': String(props.connectionId),
-        'data-model': String(props.modelId),
-        'data-disabled': String(props.disabled),
-        onClick: () => emit('select', 'c-picked'),
-        onDblclick: () => emit('select-model', 'm-picked'),
-      }),
+      h('div', [
+        h('button', {
+          'data-testid': 'picker',
+          'data-connection': String(props.connectionId),
+          'data-model': String(props.modelId),
+          'data-disabled': String(props.disabled),
+          onClick: () => emit('select', 'c-picked'),
+          onDblclick: () => emit('select-model', 'm-picked'),
+        }),
+        slots.default?.(),
+      ]),
 });
 
 const EmptyStub = defineComponent({
@@ -144,9 +155,12 @@ const state = {
 // The mocked state is shared, so a conversation left mounted would keep reacting to the next test's changes.
 const mounted: Array<ReturnType<typeof mount>> = [];
 
-const mountConversation = ({ threadId = 'thread-1' }: { threadId?: string | null } = {}) => {
+const mountConversation = ({
+  threadId = 'thread-1',
+  context = null,
+}: { threadId?: string | null; context?: ChatPageContext | null } = {}) => {
   const wrapper = mount(ChatConversation, {
-    props: { threadId, context: null },
+    props: { threadId, context },
     global: {
       plugins: [createChatI18n()],
       stubs: {
@@ -339,15 +353,13 @@ describe('ChatConversation', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  it('sends a message to the thread with its attachments and context', async () => {
+  it('sends a message to the thread with its attachments', async () => {
     const wrapper = mountConversation();
 
     await wrapper.find('[data-testid="composer"]').trigger('click');
     await flushPromises();
 
-    expect(send).toHaveBeenCalledWith({
-      payload: { text: 'Ask', attachmentIds: ['att-1'], pageContext: { route: 'x' } },
-    });
+    expect(send).toHaveBeenCalledWith({ payload: { text: 'Ask', attachmentIds: ['att-1'] } });
     expect(mutateAsync).not.toHaveBeenCalled();
   });
 
@@ -376,6 +388,129 @@ describe('ChatConversation', () => {
     expect(mutateAsync).toHaveBeenCalledTimes(1);
     expect(wrapper.emitted('thread-created')).toEqual([['new-thread']]);
     expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  describe('page context of the thread', () => {
+    const SUBSCRIPTION: ChatPageContext = {
+      route: 'dashboard.planned.subscription-details',
+      entity: { kind: 'subscription', id: 's1' },
+    };
+    const TRANSACTIONS: ChatPageContext = { route: 'dashboard.transactions' };
+
+    const storedThread = (overrides: Partial<ChatThread> = {}) =>
+      ({
+        id: 'thread-1',
+        connectionId: 'c-thread',
+        modelId: null,
+        pageContext: SUBSCRIPTION,
+        pageContextNames: { 'subscription:s1': 'Spotify' },
+        ...overrides,
+      }) as ChatThread;
+
+    it('shows the context the thread keeps, with the name the server read', () => {
+      state.thread.value = storedThread();
+
+      const wrapper = mountConversation({ threadId: 'thread-1', context: null });
+
+      expect(wrapper.find('[data-testid="context-chip"]').text()).toContain('Subscription: Spotify');
+      expect(wrapper.find('[data-testid="context-use-page"]').exists()).toBe(false);
+    });
+
+    it('shows a neutral name when the entity is gone', () => {
+      state.thread.value = storedThread({ pageContextNames: {} });
+
+      const wrapper = mountConversation({ threadId: 'thread-1' });
+
+      expect(wrapper.find('[data-testid="context-chip"]').text()).toContain('Subscription: unnamed');
+    });
+
+    it('shows no chip for a thread without context, even on a page with one', () => {
+      state.thread.value = storedThread({ pageContext: null });
+
+      const wrapper = mountConversation({ threadId: 'thread-1', context: null });
+
+      expect(wrapper.find('[data-testid="context-chip"]').exists()).toBe(false);
+    });
+
+    it('offers "Use this page" when the page differs, and does not switch by itself', async () => {
+      state.thread.value = storedThread();
+
+      const wrapper = mountConversation({ threadId: 'thread-1', context: TRANSACTIONS });
+
+      expect(wrapper.find('[data-testid="context-chip"]').text()).toContain('Subscription: Spotify');
+      expect(updateMutateAsync).not.toHaveBeenCalled();
+
+      await wrapper.find('[data-testid="context-use-page"]').trigger('click');
+
+      expect(updateMutateAsync).toHaveBeenCalledWith({ threadId: 'thread-1', payload: { pageContext: TRANSACTIONS } });
+    });
+
+    it("does not offer it when the page is the thread's own, whatever order the server keeps keys in", () => {
+      state.thread.value = storedThread({ pageContext: { entity: SUBSCRIPTION.entity, route: SUBSCRIPTION.route } });
+
+      const wrapper = mountConversation({ threadId: 'thread-1', context: SUBSCRIPTION });
+
+      expect(wrapper.find('[data-testid="context-use-page"]').exists()).toBe(false);
+    });
+
+    it('offers the current page to a thread that has none', () => {
+      state.thread.value = storedThread({ pageContext: null });
+
+      const wrapper = mountConversation({ threadId: 'thread-1', context: TRANSACTIONS });
+
+      expect(wrapper.find('[data-testid="context-chip"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="context-use-page"]').exists()).toBe(true);
+    });
+
+    it('ignores the drawer and the ticked rows of the page it takes', async () => {
+      state.thread.value = storedThread({ pageContext: null });
+      const wrapper = mountConversation({
+        threadId: 'thread-1',
+        context: {
+          ...TRANSACTIONS,
+          focus: { kind: 'transaction', id: 't1' },
+          selection: { kind: 'transaction', ids: ['t1'] },
+        },
+      });
+
+      await wrapper.find('[data-testid="context-use-page"]').trigger('click');
+
+      expect(updateMutateAsync).toHaveBeenCalledWith({ threadId: 'thread-1', payload: { pageContext: TRANSACTIONS } });
+    });
+
+    it('removes the context from the thread', async () => {
+      state.thread.value = storedThread();
+      const wrapper = mountConversation({ threadId: 'thread-1' });
+
+      await wrapper.find('[data-testid="context-remove"]').trigger('click');
+
+      expect(updateMutateAsync).toHaveBeenCalledWith({ threadId: 'thread-1', payload: { pageContext: null } });
+    });
+
+    it('starts a new conversation on the page it is on, and creates the thread with it', async () => {
+      const wrapper = mountConversation({ threadId: null, context: TRANSACTIONS });
+      expect(wrapper.find('[data-testid="context-chip"]').text()).toContain('Transactions');
+
+      await wrapper.find('[data-testid="composer"]').trigger('click');
+      await flushPromises();
+
+      expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ pageContext: TRANSACTIONS }));
+    });
+
+    it('starts a new conversation without context when there is no page, or when the chip was removed', async () => {
+      const none = mountConversation({ threadId: null, context: null });
+      await none.find('[data-testid="composer"]').trigger('click');
+      await flushPromises();
+      expect(mutateAsync.mock.calls[0]![0]).not.toHaveProperty('pageContext');
+
+      mutateAsync.mockClear();
+      const removed = mountConversation({ threadId: null, context: TRANSACTIONS });
+      await removed.find('[data-testid="context-remove"]').trigger('click');
+      expect(updateMutateAsync).not.toHaveBeenCalled();
+      await removed.find('[data-testid="composer"]').trigger('click');
+      await flushPromises();
+      expect(mutateAsync.mock.calls[0]![0]).not.toHaveProperty('pageContext');
+    });
   });
 
   it('reports a message that could not be sent', async () => {

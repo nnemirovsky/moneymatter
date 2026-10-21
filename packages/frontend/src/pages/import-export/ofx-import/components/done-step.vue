@@ -58,6 +58,11 @@ function viewTransactions() {
   store.reset();
   router.push({ name: ROUTES_NAMES.transactions, query: { batchId } });
 }
+function findTransfers() {
+  const range = store.parsedResult?.dateRange;
+  store.reset();
+  router.push({ name: ROUTES_NAMES.optimizationsTransfers, query: { from: range?.from, to: range?.to } });
+}
 </script>
 <template>
   <div v-if="summary" class="space-y-6">
@@ -125,6 +130,9 @@ function viewTransactions() {
     >
     <div class="flex gap-3">
       <UiButton @click="viewTransactions">{{ $t('pages.importExport.ofxImport.done.viewTransactions') }}</UiButton
+      ><UiButton variant="outline" @click="findTransfers">{{
+        $t('pages.importExport.importResults.findTransfers')
+      }}</UiButton
       ><UiButton variant="ghost" @click="store.reset()">{{
         $t('pages.importExport.ofxImport.done.importAnother')
       }}</UiButton>

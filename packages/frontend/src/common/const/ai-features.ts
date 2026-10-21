@@ -1,5 +1,6 @@
 import { type AIFeatureStatus, AI_FEATURE } from '@bt/shared/types';
 import {
+  ArrowLeftRightIcon,
   BellRingIcon,
   FileTextIcon,
   GitMergeIcon,
@@ -152,6 +153,21 @@ const AI_FEATURE_DISPLAY_INFO: Record<ConfigurableAIFeature, AIFeatureDisplayInf
       needs: ['textOnly', 'runsOften', 'structuredAnswers'],
       whyKey: 'settings.ai.modelGuide.why.duplicateMatching',
       picksKey: 'settings.ai.modelGuide.picks.duplicateMatching',
+    },
+    howItWorksKeys: [],
+  },
+  [AI_FEATURE.transferMatching]: {
+    nameKey: 'common.aiFeatures.transferMatching.name',
+    descriptionKey: 'common.aiFeatures.transferMatching.description',
+    icon: ArrowLeftRightIcon,
+    // Two transactions per row in, a short verdict per pair out
+    tokensPerUnit: { input: 90, output: 25 },
+    unitLabelKey: 'settings.ai.modelSelector.modelInfo.per100Pairs',
+    modelGuide: {
+      tier: 'light',
+      needs: ['textOnly', 'structuredAnswers'],
+      whyKey: 'settings.ai.modelGuide.why.transferMatching',
+      picksKey: 'settings.ai.modelGuide.picks.transferMatching',
     },
     howItWorksKeys: [],
   },

@@ -1,13 +1,13 @@
 import { useUserSettings } from '@/composable/data-queries/user-settings';
-import type { TransactionOptionalField } from '@bt/shared/types';
+import { TRANSACTION_OPTIONAL_FIELDS, type TransactionOptionalField } from '@bt/shared/types';
 import { computed } from 'vue';
 
 // Applies only until the user saves the setting once; an explicit empty list stays empty.
-const DEFAULT_OPTIONAL_FIELDS: TransactionOptionalField[] = ['originalAmount'];
+const DEFAULT_OPTIONAL_FIELDS: TransactionOptionalField[] = [...TRANSACTION_OPTIONAL_FIELDS];
 
 /**
  * Read/write access to the per-user "optional transaction fields" preference. The transaction form
- * renders such a field when it is enabled here or already holds a value; the settings page flips it.
+ * offers an "add" chip for each field enabled here; a field that already holds a value always renders.
  */
 export const useOptionalFields = () => {
   const { data: userSettings, patchAsync, isPatching } = useUserSettings();

@@ -161,6 +161,9 @@
       <UiButton variant="outline" @click="handleViewTransactions">
         {{ $t('pages.importExport.csvImport.results.viewTransactions') }}
       </UiButton>
+      <UiButton variant="outline" @click="handleFindTransfers">
+        {{ $t('pages.importExport.importResults.findTransfers') }}
+      </UiButton>
       <UiButton @click="handleNewImport">
         {{ $t('pages.importExport.csvImport.results.startNewImport') }}
       </UiButton>
@@ -225,6 +228,11 @@ const handleViewTransactions = () => {
   // route doesn't currently support a batch filter via query param, so we
   // navigate to the transactions list directly.
   router.push({ name: ROUTES_NAMES.transactions });
+};
+
+const handleFindTransfers = () => {
+  const dates = store.validRows.map((row) => row.date).sort();
+  router.push({ name: ROUTES_NAMES.optimizationsTransfers, query: { from: dates[0], to: dates.at(-1) } });
 };
 
 const handleNewImport = () => {

@@ -55,6 +55,7 @@ export const FALLBACK_SERVER_MODELS: Partial<Record<AI_FEATURE, ServerModel & { 
   [AI_FEATURE.trackerMatching]: { provider: AI_PROVIDER.google, model: 'gemini-3.5-flash-lite' },
   [AI_FEATURE.notificationParsing]: { provider: AI_PROVIDER.google, model: 'gemini-3.5-flash-lite' },
   [AI_FEATURE.duplicateMatching]: { provider: AI_PROVIDER.google, model: 'gemini-3.5-flash-lite' },
+  [AI_FEATURE.transferMatching]: { provider: AI_PROVIDER.google, model: 'gemini-3.5-flash-lite' },
 };
 
 /**

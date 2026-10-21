@@ -35,6 +35,7 @@ export const bulkScanBodySchema = withDateOrder(
     limit: z.number().int().positive().max(BULK_SCAN_MAX_LIMIT).optional().default(BULK_SCAN_DEFAULT_LIMIT),
     offset: z.number().int().min(0).optional().default(0),
     includeOutOfWallet: z.boolean().optional().default(false),
+    aiReview: z.boolean().optional().default(false),
   }),
 );
 

@@ -82,6 +82,67 @@ describe('CardField', () => {
     expect(wrapper.text()).toContain('Work');
   });
 
+  it('shows the first records of a long list and counts the rest', () => {
+    const ids = Array.from({ length: 8 }, (_, index) => `tx-${index + 1}`);
+    const wrapper = mountField({
+      field: buildField({
+        path: 'transactionIds',
+        value: ids,
+        display: { kind: 'entity' },
+        editable: { type: 'entity', entity: 'transaction' },
+      }),
+      names: Object.fromEntries(ids.map((id) => [`transaction:${id}`, `Payment ${id}`])),
+    });
+
+    expect(wrapper.text()).toContain('Payment tx-5');
+    expect(wrapper.text()).not.toContain('Payment tx-6');
+    expect(wrapper.text()).toContain('and 3 more');
+  });
+
+  it('reads matching rules as sentences, with the account named', () => {
+    const wrapper = mountField({
+      field: buildField({
+        path: 'matchingRules',
+        value: {
+          rules: [
+            { field: 'note', operator: 'contains_any', value: ['netflix', 'nflx'] },
+            { field: 'amount', operator: 'between', value: { min: 9, max: 11.5 }, currencyCode: 'USD' },
+            { field: 'transactionType', operator: 'equals', value: 'expense' },
+            { field: 'accountId', operator: 'equals', value: 'acc-1' },
+          ],
+        },
+        display: { kind: 'matchingRules' },
+      }),
+      names: { 'account:acc-1': 'Main card' },
+    });
+
+    expect(wrapper.get('[data-testid="field-value"]').text()).toBe(
+      'Note contains “netflix”, “nflx”; Amount from 9 to 11.5 USD; Type is Expense; Account is Main card',
+    );
+  });
+
+  it('shows the matching rules before an edit beside the new ones', () => {
+    const wrapper = mountField({
+      field: buildField({
+        path: 'matchingRules',
+        value: { rules: [] },
+        before: { rules: [{ field: 'note', operator: 'contains_any', value: ['spotify'] }] },
+        display: { kind: 'matchingRules' },
+      }),
+    });
+
+    expect(wrapper.get('[data-testid="field-value"]').text()).toBe('No rules');
+    expect(wrapper.get('[data-testid="field-before"]').text()).toBe('Was Note contains “spotify”');
+  });
+
+  it('names every option of a list of presets', () => {
+    const wrapper = mountField({
+      field: buildField({ path: 'remindBefore', value: ['0_days', '1_week'], display: { kind: 'enum' } }),
+    });
+
+    expect(wrapper.get('[data-testid="field-value"]').text()).toBe('On the due date, 1 week before');
+  });
+
   it('falls back to the entity kind when the name is not known', () => {
     const wrapper = mountField({
       field: buildField({

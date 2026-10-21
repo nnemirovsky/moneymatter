@@ -58,7 +58,8 @@
         "modelInfo": {
           "estimatedCost": "Орієнт. вартість:",
           "per100Transactions": "за 100 транзакцій",
-          "includedInSubscription": "Входить у вашу підписку"
+          "includedInSubscription": "Входить у вашу підписку",
+          "per100Pairs": "за 100 пар"
         },
         "notifications": {
           "updateSuccess": "Модель успішно оновлено",
@@ -101,7 +102,8 @@
           "receiptParsing": "Модель переглядає сам файл інвойсу, тому їй потрібно вміти читати зображення й PDF.",
           "trackerMatching": "Коротка повторювана задача, яка запускається щодня. Невелика модель добре з нею впорається, а витрати залишаться низькими.",
           "notificationParsing": "Читає коротке сповіщення й заповнює кілька полів, за кожним платежем. Невелика швидка модель добре з цим впорається, а витрати залишаться низькими.",
-          "duplicateMatching": "Порівнює один платіж з коротким списком схожих. Невелика швидка модель добре з цим впорається, а витрати залишаться низькими."
+          "duplicateMatching": "Порівнює один платіж з коротким списком схожих. Невелика швидка модель добре з цим впорається, а витрати залишаться низькими.",
+          "transferMatching": "Читає короткі пари транзакцій і відповідає одним словом, тому достатньо легкої, недорогої моделі."
         },
         "picks": {
           "categorization": "Gemini Flash Lite · Claude Haiku",
@@ -110,7 +112,8 @@
           "receiptParsing": "Gemini Flash · Claude Sonnet",
           "trackerMatching": "Gemini Flash Lite · Claude Haiku",
           "notificationParsing": "Gemini Flash Lite · Claude Haiku",
-          "duplicateMatching": "Gemini Flash Lite · Claude Haiku"
+          "duplicateMatching": "Gemini Flash Lite · Claude Haiku",
+          "transferMatching": "Gemini Flash Lite · Claude Haiku"
         },
         "verdict": {
           "fit": "Добре підходить",

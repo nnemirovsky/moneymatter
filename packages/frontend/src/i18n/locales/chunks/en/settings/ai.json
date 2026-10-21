@@ -58,7 +58,8 @@
         "modelInfo": {
           "estimatedCost": "Est. cost:",
           "per100Transactions": "per 100 txns",
-          "includedInSubscription": "Included in your subscription"
+          "includedInSubscription": "Included in your subscription",
+          "per100Pairs": "per 100 pairs"
         },
         "notifications": {
           "updateSuccess": "Model updated successfully",
@@ -101,7 +102,8 @@
           "receiptParsing": "The model looks at the invoice file itself, so it has to read images and PDFs.",
           "trackerMatching": "A short, repetitive job that runs every day. A small model handles it well and keeps the cost down.",
           "notificationParsing": "Reads a short notification and fills in a few fields, on every payment. A small, fast model handles it well and keeps the cost down.",
-          "duplicateMatching": "Compares one payment with a short list of look-alikes. A small, fast model handles it well and keeps the cost down."
+          "duplicateMatching": "Compares one payment with a short list of look-alikes. A small, fast model handles it well and keeps the cost down.",
+          "transferMatching": "Reads short pairs of transactions and answers with a one-word verdict, so a light, cheap model is enough."
         },
         "picks": {
           "categorization": "Gemini Flash Lite · Claude Haiku",
@@ -110,7 +112,8 @@
           "receiptParsing": "Gemini Flash · Claude Sonnet",
           "trackerMatching": "Gemini Flash Lite · Claude Haiku",
           "notificationParsing": "Gemini Flash Lite · Claude Haiku",
-          "duplicateMatching": "Gemini Flash Lite · Claude Haiku"
+          "duplicateMatching": "Gemini Flash Lite · Claude Haiku",
+          "transferMatching": "Gemini Flash Lite · Claude Haiku"
         },
         "verdict": {
           "fit": "Good fit",

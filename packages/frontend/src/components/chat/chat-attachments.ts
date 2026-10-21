@@ -11,8 +11,12 @@ export interface ChatAttachmentProblem {
 
 const BYTES_PER_MEGABYTE = 1024 * 1024;
 
-/** What the server reads: images, PDFs, CSV and plain text. It checks the bytes again; this keeps the obvious misses off the network. */
-const SUPPORTED_EXTENSIONS = ['.pdf', '.csv', '.txt', '.png', '.jpg', '.jpeg', '.webp'] as const;
+/**
+ * What the composer takes: images, PDFs, CSV and plain text. HEIC/HEIF is converted to JPEG in the browser
+ * before upload, since the server never decodes images. The server checks the bytes again; this keeps the
+ * obvious misses off the network.
+ */
+const SUPPORTED_EXTENSIONS = ['.pdf', '.csv', '.txt', '.png', '.jpg', '.jpeg', '.webp', '.heic', '.heif'] as const;
 const SUPPORTED_MIME_TYPES = [
   'application/pdf',
   'text/csv',
@@ -20,6 +24,8 @@ const SUPPORTED_MIME_TYPES = [
   'image/png',
   'image/jpeg',
   'image/webp',
+  'image/heic',
+  'image/heif',
 ] as const;
 
 /** The value for the file picker's `accept`. */
@@ -90,3 +96,7 @@ export const planChatAttachments = ({
 
   return { accepted, problems };
 };
+
+/** Whether the browser should decode and re-encode the file before upload: HEIC/HEIF, or any large image. */
+export const isImageFile = ({ file }: { file: File }): boolean =>
+  file.type.startsWith('image/') || /\.(png|jpe?g|webp|heic|heif)$/i.test(file.name);

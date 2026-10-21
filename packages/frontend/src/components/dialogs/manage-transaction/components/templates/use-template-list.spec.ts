@@ -3,20 +3,17 @@ import {
   ACCOUNT_STATUSES,
   ACCOUNT_TYPES,
   type AccountModel,
-  PAYMENT_TYPES,
   type RecordId,
   TRANSACTION_TYPES,
   type TransactionTemplateModel,
 } from '@bt/shared/types';
 import { describe, expect, it, vi } from 'vitest';
 import { type EmitFn, type ShortEmitsToObject } from 'vue';
-import type { ComposerTranslation } from 'vue-i18n';
 
 import {
   EMPTY_FIELD_LABEL,
   type TemplateListEmits,
   type TemplateListProps,
-  getTemplateHiddenFields,
   useTemplateList,
 } from './use-template-list';
 
@@ -26,10 +23,6 @@ vi.mock('vue-i18n', () => ({
 
 const ACCOUNT_ID = '00000000-0000-0000-0000-0000000000a1' as RecordId;
 const CATEGORY_ID = '00000000-0000-0000-0000-0000000000c1' as RecordId;
-
-// Echoes the key so a spec assertion reads as the key the UI renders.
-const t = ((key: string, named?: Record<string, unknown>) =>
-  named ? `${key}:${JSON.stringify(named)}` : key) as unknown as ComposerTranslation;
 
 const createTemplate = (overrides: Partial<TransactionTemplateModel> = {}): TransactionTemplateModel =>
   ({
@@ -45,24 +38,6 @@ const createTemplate = (overrides: Partial<TransactionTemplateModel> = {}): Tran
     tagIds: [],
     ...overrides,
   }) as TransactionTemplateModel;
-
-describe('getTemplateHiddenFields', () => {
-  it('is empty when the template carries none of them', () => {
-    expect(getTemplateHiddenFields({ template: createTemplate(), t })).toBe('');
-  });
-
-  it('names the payment type, the tag count and the note', () => {
-    const template = createTemplate({
-      paymentType: PAYMENT_TYPES.cash,
-      tagIds: ['tag-a', 'tag-b'] as RecordId[],
-      note: 'Latte',
-    });
-
-    expect(getTemplateHiddenFields({ template, t })).toBe(
-      'common.paymentTypes.cash · dialogs.manageTransaction.templates.tagsCount:{"count":2} · dialogs.manageTransaction.form.noteLabel',
-    );
-  });
-});
 
 const createAccount = (overrides: Partial<AccountModel> = {}): AccountModel =>
   ({

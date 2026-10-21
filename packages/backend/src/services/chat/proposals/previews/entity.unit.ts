@@ -69,6 +69,16 @@ describe('entity preview resolver', () => {
     expect(affectedCount).toBeUndefined();
   });
 
+  it('warns that a payee delete with ignoreFuture adds the names to the ignore list', async () => {
+    stubLoader({ kind: 'payee', result: loaded({ row: { id: ID, name: 'Netflix' } }) });
+
+    const plain = await resolve({ toolName: 'delete_payee', args: { id: ID } });
+    const ignoring = await resolve({ toolName: 'delete_payee', args: { id: ID, ignoreFuture: true } });
+
+    expect(plain.warnings).toBeUndefined();
+    expect(ignoring.warnings).toEqual([{ key: 'chat.warnings.payeesIgnored' }]);
+  });
+
   it('passes the targets in the order the policy names them', async () => {
     const loader = stubLoader({ kind: 'budgetPlanLine', result: loaded() });
 

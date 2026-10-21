@@ -1,4 +1,4 @@
-import type { ChatEntityRef } from './fields';
+import type { ChatEntityKind, ChatEntityRef } from './fields';
 import type { ChatProposalCard } from './proposals';
 import type { ChatThread, ChatUsage } from './threads';
 import type { ChatVisualSpec } from './visuals';
@@ -13,7 +13,12 @@ export type ChatAttachmentKind = 'image' | 'pdf' | 'csv' | 'text';
 export interface ChatPageContext {
   /** Route name. */
   route?: string;
+  /** The entity the page is about. */
   entity?: ChatEntityRef;
+  /** The entity in an open drawer or dialog; it is what "this" means while it is open. */
+  focus?: ChatEntityRef;
+  /** The rows ticked on the page: their kind, the first ids and how many there are in all. */
+  selection?: { kind: ChatEntityKind; ids: string[]; total?: number };
   filters?: Record<string, unknown>;
   period?: { from: string; to: string };
 }

@@ -5,7 +5,11 @@ import {
   serializeSpendingsByCategoriesByType,
 } from '@root/serializers/stats.serializer';
 
-import { getSpendingsByCategories, getSpendingsByCategoriesByType } from '../get-spendings-by-categories';
+import {
+  getMonthlySpendingsByCategoriesByType,
+  getSpendingsByCategories,
+  getSpendingsByCategoriesByType,
+} from '../get-spendings-by-categories';
 
 type SpendingsByCategoriesParams = Omit<Parameters<typeof getSpendingsByCategories>[0], 'decimals'>;
 
@@ -27,4 +31,18 @@ export const getSpendingsByCategoriesByTypeReport = async (
   const spendings = await getSpendingsByCategoriesByType(removeUndefinedKeys({ ...params, decimals }));
 
   return serializeSpendingsByCategoriesByType({ spendings, decimals });
+};
+
+/** Income and expense per category in the base currency, grouped for every calendar month in the range. */
+export const getMonthlySpendingsByCategoriesReport = async (
+  params: Omit<Parameters<typeof getMonthlySpendingsByCategoriesByType>[0], 'decimals'>,
+) => {
+  const decimals = await getBaseCurrencyDecimals({ userId: params.userId });
+
+  const months = await getMonthlySpendingsByCategoriesByType(removeUndefinedKeys({ ...params, decimals }));
+
+  return months.map(({ month, categories }) => ({
+    month,
+    categories: serializeSpendingsByCategoriesByType({ spendings: categories, decimals }),
+  }));
 };

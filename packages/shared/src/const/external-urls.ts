@@ -6,4 +6,6 @@ export const EXTERNAL_URLS = {
   // Feedback board: where users submit and upvote requests
   featurebaseBoard: 'https://moneymatter.featurebase.app/',
   docs: 'https://docs.moneymatter.app',
+  enableBankingHttpsSetup:
+    'https://github.com/letehaha/moneymatter/blob/main/self-hosting/docs/troubleshooting.md#enable-banking-url-uses-unsupported-scheme',
 } as const;

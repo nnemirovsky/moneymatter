@@ -4,22 +4,29 @@ import * as Dialog from '@/components/lib/ui/dialog';
 import * as Drawer from '@/components/lib/ui/drawer';
 import DocsLink from '@/components/common/docs-link.vue';
 import ResponsiveDialog from '@/components/common/responsive-dialog.vue';
+import { Button } from '@/components/lib/ui/button';
 import { Card } from '@/components/lib/ui/card';
+import { DesktopOnlyTooltip } from '@/components/lib/ui/tooltip';
+import { useAiSettings } from '@/composable/data-queries/ai-settings';
 import { ScrollArea } from '@/components/lib/ui/scroll-area';
+import { SCROLL_AREA_IDS } from '@/components/lib/ui/scroll-area/types';
+import { useScrollAreaContainer } from '@/composable/scroll-area-container';
 import { useNotificationCenter } from '@/components/notification-center';
 import { useManageTransactionDialog } from '@/components/transactions-list/use-manage-transaction-dialog';
 import { cn } from '@/lib/utils';
 import { VUE_QUERY_GLOBAL_PREFIXES } from '@/common/const/vue-query';
 import { useWindowBreakpoints } from '@/composable/window-breakpoints';
 import { useVirtualizedInfiniteScroll } from '@/composable/virtualized-infinite-scroll';
-import type { TransactionModel, RecordId, BulkTransferScanItem } from '@bt/shared/types';
+import { AI_FEATURE, type TransactionModel, type RecordId, type BulkTransferScanItem } from '@bt/shared/types';
 import { useMutation, useQueryClient } from '@tanstack/vue-query';
 import type { Period } from '@/composable/use-period-navigation';
-import { endOfMonth, startOfMonth, subMonths } from 'date-fns';
+import { endOfDay, endOfMonth, isValid, parseISO, startOfDay, startOfMonth, subMonths } from 'date-fns';
+import { useRoute } from 'vue-router';
 import { SearchXIcon, SparklesIcon } from '@lucide/vue';
 import { computed, defineAsyncComponent, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { createReusableTemplate } from '@vueuse/core';
+import { createReusableTemplate, useLocalStorage, useResizeObserver } from '@vueuse/core';
+import { ApiErrorResponseError } from '@/js/errors';
 
 import ExpenseListItem from './components/expense-list-item.vue';
 import ScanControls from './components/scan-controls.vue';
@@ -41,11 +48,21 @@ const [UseDialogTemplate, SlotContent] = createReusableTemplate();
 
 const PAGE_SIZE = 20;
 
-const period = ref<Period>({
-  from: startOfMonth(subMonths(new Date(), 2)),
-  to: endOfMonth(new Date()),
-});
+const route = useRoute();
+const queryFrom = parseISO(String(route.query.from));
+const queryTo = parseISO(String(route.query.to));
+const hasQueryPeriod = isValid(queryFrom) && isValid(queryTo);
+
+const period = ref<Period>(
+  hasQueryPeriod
+    ? { from: startOfDay(queryFrom), to: endOfDay(queryTo) }
+    : { from: startOfMonth(subMonths(new Date(), 2)), to: endOfMonth(new Date()) },
+);
 const includeOutOfWallet = ref(false);
+const aiReview = useLocalStorage('optimizations:transfers:ai-review', false);
+// Automatic re-scans would spend the user's AI allowance behind their back, so only the Scan button runs one.
+const lastScanUsedAi = ref(false);
+const canAutoRescan = () => !lastScanUsedAi.value && !aiReview.value;
 
 // Accumulated scan results across pages
 const allItems = ref<BulkTransferScanItem[]>([]);
@@ -62,7 +79,7 @@ const selectedItem = computed<BulkTransferScanItem | null>(() => {
 });
 
 const hasScanned = ref(false);
-const hasNextPage = computed(() => allItems.value.length < totalCount.value);
+const hasNextPage = computed(() => !lastScanUsedAi.value && allItems.value.length < totalCount.value);
 
 // Manage transaction dialog
 const {
@@ -78,16 +95,32 @@ const {
 
 // Re-scan when either edit dialog closes (user may have edited amount/date)
 watch([isDialogVisible, isLoanDialogVisible], ([visible, loanVisible]) => {
-  if (!visible && !loanVisible && hasScanned.value) {
+  if (!visible && !loanVisible && hasScanned.value && canAutoRescan()) {
     freshScan();
   }
 });
 
-// Virtual scroll for left panel
+// Desktop scrolls the list inside its panel; single-panel scrolls the whole page.
 const leftScrollAreaRef = ref<InstanceType<typeof ScrollArea> | null>(null);
-const leftPanelScrollElement = computed<HTMLElement | null>(
-  () => (leftScrollAreaRef.value?.viewportRef as { viewportElement?: HTMLElement } | null)?.viewportElement ?? null,
+const pageScrollContainer = useScrollAreaContainer(SCROLL_AREA_IDS.dashboard);
+const leftPanelScrollElement = computed<HTMLElement | null>(() =>
+  isSinglePanel.value
+    ? (pageScrollContainer.value?.viewportElement ?? null)
+    : ((leftScrollAreaRef.value?.viewportRef as { viewportElement?: HTMLElement } | null)?.viewportElement ?? null),
 );
+const pageRef = ref<HTMLElement | null>(null);
+const listRef = ref<HTMLElement | null>(null);
+const scrollMargin = ref(0);
+const measureScrollMargin = () => {
+  const el = listRef.value;
+  const scrollEl = leftPanelScrollElement.value;
+  scrollMargin.value =
+    isSinglePanel.value && el && scrollEl
+      ? el.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollEl.scrollTop
+      : 0;
+};
+watch([listRef, isSinglePanel], measureScrollMargin);
+useResizeObserver(pageRef, measureScrollMargin);
 
 const { virtualRows, totalSize } = useVirtualizedInfiniteScroll<BulkTransferScanItem>({
   items: allItems,
@@ -95,6 +128,7 @@ const { virtualRows, totalSize } = useVirtualizedInfiniteScroll<BulkTransferScan
   fetchNextPage: loadNextPage,
   isFetchingNextPage: isFetchingPage,
   parentRef: leftPanelScrollElement,
+  scrollMargin,
   estimateSize: () => 52,
   overscan: 10,
   getItemKey: (index) => allItems.value[index]?.expense.id ?? index,
@@ -123,33 +157,61 @@ async function loadNextPage() {
   }
 }
 
+const WEAK_CONFIDENCE = 70;
+const { getFeatureStatus } = useAiSettings();
+const showAiRescanHint = computed(() => {
+  if (lastScanUsedAi.value || !getFeatureStatus(AI_FEATURE.transferMatching)?.servedBy) return false;
+  const weak = allItems.value.filter((item) => item.matches.every((m) => m.confidence < WEAK_CONFIDENCE)).length;
+  return weak >= allItems.value.length / 4;
+});
+
+function rescanWithAi() {
+  aiReview.value = true;
+  scanFromScratch();
+}
+
+// Auto re-scans keep the stale list to avoid a flash; a user-started scan shows the loading state.
+function scanFromScratch() {
+  allItems.value = [];
+  totalCount.value = 0;
+  freshScan();
+}
+
 // Fresh scan (resets pagination)
 const isScanning = ref(false);
 
 async function freshScan() {
   if (isScanning.value) return;
   isScanning.value = true;
+  const usedAi = aiReview.value;
 
   try {
     const data = await bulkScanTransferRecommendations({
       from: period.value.from.toISOString(),
       to: period.value.to.toISOString(),
       includeOutOfWallet: includeOutOfWallet.value,
+      aiReview: usedAi,
       offset: 0,
       limit: PAGE_SIZE,
     });
 
+    lastScanUsedAi.value = usedAi;
     allItems.value = data.items;
     totalCount.value = data.total;
     currentOffset.value = data.items.length;
     selectedItemIndex.value = 0;
     hasScanned.value = true;
-  } catch {
-    addErrorNotification(t('optimizations.transferSuggestions.notifications.scanError'));
+  } catch (error) {
+    addErrorNotification(
+      (usedAi && error instanceof ApiErrorResponseError && error.data.message) ||
+        t('optimizations.transferSuggestions.notifications.scanError'),
+    );
   } finally {
     isScanning.value = false;
   }
 }
+
+if (hasQueryPeriod) freshScan();
 
 // Link mutation
 const linkMutation = useMutation({
@@ -180,7 +242,7 @@ const linkMutation = useMutation({
     addSuccessNotification(t('optimizations.transferSuggestions.notifications.linkSuccess'));
 
     // Background re-fetch to recalculate confidence scores
-    freshScan();
+    if (canAutoRescan()) freshScan();
   },
   onError: (_err, _vars, context) => {
     if (context?.previous) {
@@ -270,111 +332,168 @@ function handleTransactionClick(tx: TransactionModel, oppositeTx: TransactionMod
 
 <template>
   <div
-    class="flex h-[calc(100dvh-var(--header-height))] flex-col gap-4 overflow-hidden p-4 max-md:h-[calc(100dvh-var(--header-height)-var(--bottom-navbar-height))] md:p-6"
+    ref="pageRef"
+    :class="
+      cn(
+        'flex w-full max-w-5xl flex-col gap-4 p-4 md:p-6',
+        !isSinglePanel && 'h-[calc(100dvh-var(--header-height))] overflow-hidden',
+      )
+    "
   >
-    <!-- Header -->
-    <div class="shrink-0">
-      <h1 class="text-2xl font-bold tracking-tight">
-        {{ $t('optimizations.title') }}
-      </h1>
-      <p class="text-muted-foreground mt-1 text-sm">
-        {{ $t('optimizations.transferSuggestions.description') }}
-        <DocsLink path="/transfers-and-refunds/link-existing-transactions/#find-pairs-with-transfer-matching" />
-      </p>
-    </div>
-
-    <!-- Scan Controls -->
-    <ScanControls
-      v-model:period="period"
-      v-model:include-out-of-wallet="includeOutOfWallet"
-      :is-loading="isScanning"
-      class="shrink-0"
-      @scan="freshScan()"
-    />
-
-    <!-- Count header -->
-    <div v-if="hasScanned && totalCount > 0" class="text-muted-foreground shrink-0 text-sm">
-      {{ totalCount }} {{ $t('optimizations.transferSuggestions.potentialTransfersFound') }}
-    </div>
+    <header class="flex shrink-0 flex-wrap items-end justify-between gap-3">
+      <div class="grid min-w-0 gap-1">
+        <p class="text-muted-foreground text-xs font-bold tracking-widest uppercase">{{ $t('optimizations.title') }}</p>
+        <h1 class="text-2xl font-bold tracking-tight">
+          {{ $t('optimizations.cards.transfers.title') }}
+        </h1>
+        <p class="text-muted-foreground text-sm">{{ $t('optimizations.transferSuggestions.description') }}</p>
+      </div>
+      <DocsLink
+        path="/transfers-and-refunds/link-existing-transactions/#find-pairs-with-transfer-matching"
+        class="text-sm font-semibold"
+      />
+    </header>
 
     <!-- Main container — always rendered, holds either content or empty/initial/loading states -->
-    <Card class="flex min-h-0 flex-1 overflow-hidden">
-      <template v-if="hasScanned && allItems.length > 0">
-        <!-- Left panel: virtualized expense list -->
-        <ScrollArea ref="leftScrollAreaRef" class="w-full shrink-0 lg:w-80 lg:border-r">
-          <div :style="{ height: `${totalSize}px`, width: '100%', position: 'relative' }">
-            <div
-              v-for="virtualRow in virtualRows"
-              :key="String(virtualRow.key)"
-              :style="{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                transform: `translateY(${virtualRow.start}px)`,
-              }"
-            >
-              <template v-if="virtualRow.index < allItems.length">
-                <div class="px-2 py-0.5">
-                  <ExpenseListItem
-                    :item="allItems[virtualRow.index]!"
-                    :is-selected="selectedItemIndex === virtualRow.index"
-                    @select="handleSelectExpense(virtualRow.index)"
-                  />
-                </div>
-              </template>
-              <template v-else>
-                <div class="text-muted-foreground flex items-center justify-center py-3 text-xs">
-                  {{ $t('optimizations.transferSuggestions.scanning') }}
-                </div>
-              </template>
-            </div>
-          </div>
-        </ScrollArea>
+    <Card class="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <ScanControls
+        v-model:period="period"
+        v-model:include-out-of-wallet="includeOutOfWallet"
+        v-model:ai-review="aiReview"
+        :is-loading="isScanning"
+        class="shrink-0"
+        @scan="scanFromScratch"
+      />
 
-        <!-- Right panel: suggestions (desktop) -->
-        <div class="hidden min-w-0 flex-1 overflow-hidden lg:flex">
-          <SuggestionsPanel
-            :selected-item="selectedItem"
-            :is-linking="linkMutation.isPending.value"
-            :is-skipping="skipMutation.isPending.value"
-            @link="handleLink"
-            @skip="handleSkip"
-            @record-click="handleTransactionClick"
-          />
-        </div>
-      </template>
-
-      <!-- Empty state (after scan, no results) -->
       <div
-        v-else-if="hasScanned && allItems.length === 0 && !isScanning"
-        class="flex flex-1 flex-col items-center justify-center gap-3 px-6"
+        v-if="hasScanned && totalCount > 0"
+        class="text-muted-foreground flex shrink-0 items-center justify-between gap-2 border-b px-4 py-2 text-sm"
       >
-        <SearchXIcon class="text-muted-foreground size-12" />
-        <div class="text-center">
-          <p class="font-medium">{{ $t('optimizations.transferSuggestions.empty.title') }}</p>
-          <p class="text-muted-foreground mt-1 text-sm">
-            {{ $t('optimizations.transferSuggestions.empty.description') }}
-          </p>
-        </div>
+        <span>
+          <span class="text-foreground font-semibold">{{ totalCount }}</span>
+          {{ $t('optimizations.transferSuggestions.potentialTransfersFound') }}
+        </span>
+        <DesktopOnlyTooltip
+          v-if="showAiRescanHint && isSinglePanel"
+          :content="$t('optimizations.transferSuggestions.aiReview.rescanHintTooltip')"
+          content-class-name="max-w-xs"
+        >
+          <Button variant="ghost-primary" size="sm" class="-my-1 h-7 gap-1.5" @click="rescanWithAi">
+            <SparklesIcon class="size-3.5" />
+            {{ $t('optimizations.transferSuggestions.aiReview.rescanHint') }}
+          </Button>
+        </DesktopOnlyTooltip>
       </div>
 
-      <!-- Initial state (before first scan) -->
-      <div v-else-if="!hasScanned && !isScanning" class="flex flex-1 flex-col items-center justify-center gap-3 px-6">
-        <SparklesIcon class="text-muted-foreground size-12" />
-        <div class="text-center">
-          <p class="font-medium">{{ $t('optimizations.transferSuggestions.initial.title') }}</p>
-          <p class="text-muted-foreground mt-1 max-w-md text-sm">
-            {{ $t('optimizations.transferSuggestions.initial.description') }}
-          </p>
-        </div>
-      </div>
+      <div class="flex min-h-0 flex-1 overflow-hidden">
+        <template v-if="hasScanned && allItems.length > 0">
+          <!-- Left panel: virtualized expense list -->
+          <component
+            :is="isSinglePanel ? 'div' : ScrollArea"
+            ref="leftScrollAreaRef"
+            class="w-full shrink-0 lg:w-80 lg:border-r"
+          >
+            <div ref="listRef" :style="{ height: `${totalSize}px`, width: '100%', position: 'relative' }">
+              <div
+                v-for="virtualRow in virtualRows"
+                :key="String(virtualRow.key)"
+                :style="{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${virtualRow.start - scrollMargin}px)`,
+                }"
+              >
+                <template v-if="virtualRow.index < allItems.length">
+                  <div class="px-2 py-0.5">
+                    <ExpenseListItem
+                      :item="allItems[virtualRow.index]!"
+                      :is-selected="selectedItemIndex === virtualRow.index"
+                      @select="handleSelectExpense(virtualRow.index)"
+                    />
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="text-muted-foreground flex items-center justify-center py-3 text-xs">
+                    {{ $t('optimizations.transferSuggestions.scanning') }}
+                  </div>
+                </template>
+              </div>
+            </div>
+          </component>
 
-      <!-- Loading state -->
-      <div v-else-if="isScanning && allItems.length === 0" class="flex flex-1 items-center justify-center">
-        <div class="flex flex-col items-center gap-3">
-          <div class="bg-primary/30 size-8 animate-ping rounded-full" />
-          <p class="text-muted-foreground text-sm">{{ $t('optimizations.transferSuggestions.scanning') }}</p>
+          <!-- Right panel: suggestions (desktop) -->
+          <div class="hidden min-w-0 flex-1 flex-col overflow-hidden lg:flex">
+            <div v-if="showAiRescanHint" class="bg-primary/10 @container shrink-0 border-b px-4 py-2.5 text-sm">
+              <div class="flex flex-col gap-2 @lg:flex-row @lg:items-center @lg:gap-3">
+                <div class="flex min-w-0 flex-1 gap-2.5">
+                  <SparklesIcon class="text-primary-text mt-0.5 size-4 shrink-0" />
+                  <div class="min-w-0">
+                    <p class="font-semibold">
+                      {{ $t('optimizations.transferSuggestions.aiReview.rescanBanner.title') }}
+                    </p>
+                    <p class="text-muted-foreground">
+                      {{ $t('optimizations.transferSuggestions.aiReview.rescanBanner.body') }}
+                    </p>
+                  </div>
+                </div>
+                <Button size="sm" class="ml-6.5 shrink-0 self-start @lg:ml-0 @lg:self-center" @click="rescanWithAi">
+                  {{ $t('optimizations.transferSuggestions.aiReview.rescanHint') }}
+                </Button>
+              </div>
+            </div>
+            <SuggestionsPanel
+              :selected-item="selectedItem"
+              :is-linking="linkMutation.isPending.value"
+              :is-skipping="skipMutation.isPending.value"
+              @link="handleLink"
+              @skip="handleSkip"
+              @record-click="handleTransactionClick"
+            />
+          </div>
+        </template>
+
+        <!-- Empty state (after scan, no results) -->
+        <div
+          v-else-if="hasScanned && allItems.length === 0 && !isScanning"
+          class="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-12"
+        >
+          <SearchXIcon class="text-muted-foreground size-12" />
+          <div class="text-center">
+            <p class="font-medium">{{ $t('optimizations.transferSuggestions.empty.title') }}</p>
+            <p class="text-muted-foreground mt-1 text-sm">
+              {{ $t('optimizations.transferSuggestions.empty.description') }}
+            </p>
+          </div>
+        </div>
+
+        <!-- Initial state (before first scan) -->
+        <div
+          v-else-if="!hasScanned && !isScanning"
+          class="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-12"
+        >
+          <SparklesIcon class="text-muted-foreground size-12" />
+          <div class="text-center">
+            <p class="font-medium">{{ $t('optimizations.transferSuggestions.initial.title') }}</p>
+            <p class="text-muted-foreground mt-1 max-w-md text-sm">
+              {{ $t('optimizations.transferSuggestions.initial.description') }}
+            </p>
+          </div>
+        </div>
+
+        <!-- Loading state -->
+        <div v-else-if="isScanning && allItems.length === 0" class="flex flex-1 items-center justify-center py-12">
+          <div class="flex flex-col items-center gap-3">
+            <div class="bg-primary/30 size-8 animate-ping rounded-full" />
+            <p class="text-muted-foreground text-sm">
+              {{
+                aiReview
+                  ? $t('optimizations.transferSuggestions.aiReview.reviewing')
+                  : $t('optimizations.transferSuggestions.scanning')
+              }}
+            </p>
+          </div>
         </div>
       </div>
     </Card>

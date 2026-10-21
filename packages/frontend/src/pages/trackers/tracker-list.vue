@@ -109,7 +109,7 @@ const openArchivePrompt = ({ tracker }: { tracker: TrackerModel }) => {
 
 const chipClass = ({ active }: { active: boolean }) =>
   cn(
-    'h-6 rounded-full px-2.5 text-[11px] font-semibold shadow-none',
+    'h-7 rounded-full px-3 text-sm font-medium shadow-none',
     active && 'bg-foreground text-background hover:bg-foreground/90',
   );
 </script>
@@ -117,7 +117,7 @@ const chipClass = ({ active }: { active: boolean }) =>
 <template>
   <Card class="@container/trackers overflow-hidden rounded-xl">
     <div class="divide-border divide-y">
-      <div class="flex flex-wrap items-center gap-2 px-3 py-2.5 @2xl/trackers:px-3.5">
+      <div class="flex flex-wrap items-center gap-2 px-3 py-2.5 @2xl/trackers:px-4">
         <div class="min-w-40 flex-1">
           <InputField
             v-model="search"
@@ -173,18 +173,18 @@ const chipClass = ({ active }: { active: boolean }) =>
 
       <template v-if="isPending">
         <template v-for="(rowCount, groupIndex) in SKELETON_GROUPS" :key="groupIndex">
-          <div class="bg-muted/40 px-3.5 py-2.5">
-            <div class="bg-muted h-2.5 w-20 animate-pulse rounded" />
+          <div class="bg-muted/40 px-4 py-2.5">
+            <div class="bg-muted h-3 w-20 animate-pulse rounded" />
           </div>
           <div v-for="row in rowCount" :key="row" :class="cn(TRACKER_ROW_GRID, 'animate-pulse')" aria-hidden="true">
-            <div class="bg-muted size-7 rounded-[7px]" />
+            <div class="bg-muted size-8 rounded-lg" />
             <div class="grid gap-1.5">
-              <div class="bg-muted h-3 w-2/5 rounded" />
-              <div class="bg-muted h-2.5 w-1/4 rounded" />
+              <div class="bg-muted h-4 w-2/5 rounded" />
+              <div class="bg-muted h-3 w-1/4 rounded" />
             </div>
             <div class="bg-muted hidden h-1.5 rounded-full @2xl/trackers:block" />
             <div class="bg-muted hidden h-4.5 w-16 rounded-full @2xl/trackers:block" />
-            <div class="bg-muted ml-auto h-3 w-14 rounded" />
+            <div class="bg-muted ml-auto h-4 w-14 rounded" />
             <div class="bg-muted mx-auto size-4 rounded" />
           </div>
         </template>
@@ -197,7 +197,7 @@ const chipClass = ({ active }: { active: boolean }) =>
           <TargetIcon class="size-5" />
         </div>
         <p class="text-sm font-semibold">{{ $t('budgets.list.emptyState.title') }}</p>
-        <p class="text-muted-foreground max-w-[36ch] text-xs leading-relaxed">
+        <p class="text-muted-foreground max-w-[36ch] text-sm leading-relaxed">
           {{ $t('budgets.list.emptyState.description') }}
         </p>
         <Button size="sm" class="mt-1.5" @click="emit('create')">
@@ -217,7 +217,7 @@ const chipClass = ({ active }: { active: boolean }) =>
               : $t('budgets.list.noMatch.titleNoQuery')
           }}
         </p>
-        <p class="text-muted-foreground max-w-[36ch] text-xs leading-relaxed">
+        <p class="text-muted-foreground max-w-[36ch] text-sm leading-relaxed">
           {{ $t('budgets.list.noMatch.description') }}
         </p>
         <Button
@@ -238,7 +238,7 @@ const chipClass = ({ active }: { active: boolean }) =>
             variant="ghost"
             :class="
               cn(
-                'bg-muted/40 text-muted-foreground hover:bg-muted/60 h-auto w-full justify-start gap-2 rounded-none px-3.5 py-2 text-[11px] font-bold tracking-[0.08em] uppercase',
+                'bg-muted/40 text-muted-foreground hover:bg-muted/60 h-auto w-full justify-start gap-2 rounded-none px-4 py-2 text-xs font-bold tracking-[0.08em] uppercase',
                 !showArchived && 'opacity-60',
               )
             "
@@ -253,7 +253,7 @@ const chipClass = ({ active }: { active: boolean }) =>
           </Button>
           <div
             v-else
-            class="bg-muted/40 text-muted-foreground flex items-center gap-2 px-3.5 py-2 text-[11px] font-bold tracking-[0.08em] uppercase"
+            class="bg-muted/40 text-muted-foreground flex items-center gap-2 px-4 py-2 text-xs font-bold tracking-[0.08em] uppercase"
           >
             {{ $t(GROUP_LABEL_KEYS[group.key]) }}
             <span class="font-medium tracking-normal normal-case">· {{ group.items.length }}</span>
@@ -269,7 +269,7 @@ const chipClass = ({ active }: { active: boolean }) =>
             @suggest-archive="openArchivePrompt({ tracker })"
           />
 
-          <div v-if="group.hiddenCount > 0" class="flex justify-center px-3.5 py-1.5">
+          <div v-if="group.hiddenCount > 0" class="flex justify-center px-4 py-1.5">
             <Button variant="ghost" size="sm" class="text-muted-foreground" @click="showAllEnded = true">
               {{ $t('budgets.list.showMoreEnded', { count: group.hiddenCount }) }}
             </Button>

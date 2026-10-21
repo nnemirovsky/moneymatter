@@ -43,7 +43,10 @@
     <meta property="twitter:image" content="https://moneymatter.app/og-image.jpg" />
 
     <!-- Additional SEO -->
-    <meta name="theme-color" content="#7355be" />
+    <!-- Same as --background, so the status bar / safe area is a clean surface instead of a purple tint.
+         The in-app theme switch rewrites these (see color-theme.ts). -->
+    <meta name="theme-color" content="#f7f6f4" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b0908" media="(prefers-color-scheme: dark)" />
   </head>
   <body>
     <noscript>

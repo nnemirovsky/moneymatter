@@ -5,7 +5,7 @@ sidebar:
   order: 2
 ---
 
-import { Aside, Steps } from '@astrojs/starlight/components';
+import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 import Screenshot from '~/components/screenshot.astro';
 
 Sometimes both sides of a transfer are already in MoneyMatter as separate transactions: an expense on one account and an income on another. This usually happens when both accounts are imported or connected to a bank. Linking the two turns them into one transfer, without deleting or changing either of them.
@@ -72,23 +72,24 @@ Both sections only list transactions of the opposite type: incomes when you star
 1. In the sidebar, open **Transactions**, then **Optimizations**.
 2. Click the **Transfer matching** card.
 3. Click the button with the calendar icon (it shows the current date range) and pick a range. Presets include **Last 3 months**, **Last 6 months**, **Last year**, **This year** and **Previous year**. The page starts on the last three months.
-4. Optionally tick **Include out-of-wallet transfers**. See [Out of Wallet transactions](#out-of-wallet-transactions).
-5. Click **Scan**.
+4. Optionally switch on **Out-of-wallet transfers**. See [Out of Wallet transactions](#out-of-wallet-transactions).
+5. Optionally switch on **AI review** to keep only the pairs that look like real transfers. See **AI review** below.
+6. Click **Scan**.
 
 </Steps>
 
 When the scan finishes, you'll see how many potential transfers were found.
 
 - The left column lists the expenses that have at least one possible match, newest first, each with its number of matches.
-- The right column, **Suggestions for**, shows up to 4 incomes that could be the other side of the selected expense. Each has a confidence score and two buttons, **Skip** and **Link**. On a narrow screen, the suggestions open in a dialog instead.
+- The right column, **Suggestions for**, shows up to 4 incomes that could be the other side of the selected expense. Each has a confidence score and two buttons, **Reject** and **Link**. On a narrow screen, the suggestions open in a dialog instead.
 
 <Screenshot
   src="/screenshots/transfers-and-refunds/transfer-matching-results.png"
-  alt="The Transfer matching page after a scan, with the date range and Scan controls, the number of potential transfers found, a list of expenses on the left and a matching income with a 98% confidence score and Skip and Link buttons on the right."
-  hint="Open /transactions/optimizations/transfers with at least two expense/income pairs across different accounts in the last 3 months. Click Scan, then select an expense with a high-confidence match. Show the controls row, the 'potential transfers found' line, the left list with one expense selected, and the right panel with the match showing its confidence, Skip and Link."
+  alt="The Transfer matching page after a scan without AI review: the date range, Out-of-wallet transfers and AI review switches and Scan, the number of potential transfers found, the expense list on the left, and on the right a Many pairs scored below 70% banner with Review with AI above two 98% matches for an $800 expense, each with Reject and Link."
+  hint="Open /transactions/optimizations/transfers as the seeded docs user with a few expense/income pairs between Everyday Checking and a second manual account (the SimpleFIN demo adds weaker matches that bring up the banner). Leave AI review off, click Scan and select the $800 Monthly savings expense, which has two matches. Crop to the card from the controls row down to the middle of the list."
 />
 
-Click the expense under **Suggestions for**, or any suggested income, to open it in **Edit Transaction**. Clicking an expense in the left column only selects it. When you close the dialog, the page scans again so the results stay up to date.
+Click the expense under **Suggestions for**, or any suggested income, to open it in **Edit Transaction**. Clicking an expense in the left column only selects it. When you close the dialog, the page scans again so the results stay up to date, unless **AI review** is on.
 
 ### How pairs are found
 
@@ -108,18 +109,37 @@ The score is out of 100 and is shown as a percentage. It adds up three things:
 - up to **30 points** for how close the two dates are;
 - **20 points** if both transactions are in the same currency.
 
-The dot next to the score is green at 75% or more, amber from 50%, and red below 50%.
+Pairs that score below 50% aren't shown. The dot next to the score is green at 75% or more and amber below that.
+
+### AI review <Badge text="Plus" variant="tip" />
+
+The confidence score only looks at amounts and dates, so a restaurant bill can match an unrelated salary of a similar amount. **AI review** reads both sides of each pair too: payees, notes, categories and accounts. It shows only the pairs that look like real transfers, and marks each one **Likely** or **Possible** with a short reason. **Likely** pairs come first. Pairs the AI isn't sure about stay in the list.
+
+<Screenshot
+  src="/screenshots/transfers-and-refunds/transfer-matching-ai-review.png"
+  alt="The Transfer matching page after a scan with AI review on: three potential transfers left, and the selected $800 expense's match marked Likely with the reason Note names your checking account; same amount a day later."
+  hint="Same data as the results screenshot. Switch on AI review, click Scan and select the $800 Monthly savings expense. The bulk-scan response was mocked with fixed verdicts so the result doesn't depend on a model. Crop to the card from the controls row to just below the match."
+/>
+
+Switch on **AI review** next to **Scan**, then click **Scan**. The **?** button next to it explains what it does and what it costs. If a scan without AI review finds many pairs below 70%, the page suggests it: click **Review with AI** to scan again with it on.
+
+- **Nothing is rejected for you.** A pair AI review leaves out isn't rejected. Switch **AI review** off and scan again to see every match.
+- **All results load at once,** so a long date range takes a few seconds.
+- **The page doesn't scan again on its own** while AI review is on, after you link a pair or edit a transaction. Click **Scan** when you want fresh results.
+- **This browser remembers the switch** for your next visit.
+
+Each scan uses your monthly AI allowance, or your own model if you've added one. In **AI Settings** the feature is called **Transfer matching**, and you can pick its model there. See [Which plan includes AI](/ai/ai-features/#which-plan-includes-ai). When AI review can't run, it shows a lock with the reason: **Plus** without Plus or your own model, the reset date once the allowance is used up, or **Set up** when no model answers. Click it to see how to fix it.
 
 ### Link a suggestion
 
 Click **Link** next to the income you want. The **Link as transfer?** dialog shows which account the money went from and to, and both amounts. Click **Link** to confirm. You'll see "Transactions linked as transfer".
 
-### Skip a suggestion
+### Reject a suggestion
 
-Click **Skip** if a suggestion isn't a transfer, for example a purchase and a salary that happen to be the same amount. Confirm in **Skip this suggestion?**. You can tick **Don't show this confirmation again** to skip without asking next time, in this browser.
+Click **Reject** if a suggestion isn't a transfer, for example a purchase and a salary that happen to be the same amount. Confirm in **Reject this suggestion?**. You can tick **Don't show this confirmation again** to reject without asking next time, in this browser.
 
-<Aside type="caution" title="Skipping can't be undone">
-A skipped pair is hidden from Transfer matching for good. Skipping only affects this page: both transactions stay as they are, and you can still link them from the transaction itself with **Link the other side**, where skipped pairs still show up.
+<Aside type="caution" title="Rejecting can't be undone">
+A rejected pair is hidden from Transfer matching for good. Rejecting only affects this page: both transactions stay as they are, and you can still link them from the transaction itself with **Link the other side**, where rejected pairs still show up.
 </Aside>
 
 ### Out of Wallet transactions
