@@ -24,7 +24,6 @@ const thread = ref<{
   expiresAt: string | null;
   pinned: boolean;
   kind?: string;
-  inboxState?: string | null;
 } | null>(null);
 
 // Both reach into the API layer; their own suites cover them.
@@ -70,7 +69,6 @@ const mountPage = () =>
       plugins: [createChatI18n()],
       stubs: {
         ChatUsageChip: { template: '<span data-testid="usage" />' },
-        ChatInboxActions: { template: '<div data-testid="inbox-actions" />' },
         DesktopOnlyTooltip: { template: '<div><slot /></div>' },
       },
     },
@@ -191,7 +189,7 @@ describe('Chat page', () => {
   });
 
   describe('automation inbox thread', () => {
-    const openInbox = ({ pinned = true }: { pinned?: boolean } = {}) => {
+    const openInbox = () => {
       route.name = ROUTES_NAMES.chatThread;
       route.params = { threadId: 'inbox-1' };
       thread.value = {
@@ -199,49 +197,26 @@ describe('Chat page', () => {
         title: 'Automation inbox',
         usage: { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 },
         expiresAt: null,
-        pinned,
+        pinned: true,
         kind: 'automationInbox',
-        inboxState: pinned ? 'live' : 'closed',
       };
     };
 
-    it('shows the inbox controls and no usage chip', () => {
+    it('shows no usage chip, and no archive or clear controls: the inbox prunes itself', () => {
       openInbox();
 
       const wrapper = mountPage();
 
-      expect(wrapper.find('[data-testid="inbox-actions"]').exists()).toBe(true);
       expect(wrapper.find('[data-testid="usage"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="inbox-actions"]').exists()).toBe(false);
     });
 
-    it('says MoneyMatter keeps a live inbox pinned instead of promising a deletion date', () => {
+    it('says the inbox is always pinned instead of promising a deletion date', () => {
       openInbox();
 
       expect(mountPage().find('[data-testid="chat-expiry"]').text()).toBe(
-        'MoneyMatter keeps this pinned while it has items',
+        'Always pinned. Resolved items are cleared out on their own.',
       );
-    });
-
-    it('shows the inbox controls on a closed inbox too, where archiving is already done', () => {
-      openInbox({ pinned: false });
-
-      expect(mountPage().find('[data-testid="inbox-actions"]').exists()).toBe(true);
-    });
-
-    it('shows no inbox controls on a chat thread', () => {
-      route.name = ROUTES_NAMES.chatThread;
-      route.params = { threadId: 'thread-1' };
-      thread.value = {
-        id: 'thread-1',
-        title: 'Chat',
-        usage: { inputTokens: 1, outputTokens: 1, cachedInputTokens: 0 },
-        expiresAt: null,
-        pinned: false,
-        kind: 'chat',
-        inboxState: null,
-      };
-
-      expect(mountPage().find('[data-testid="inbox-actions"]').exists()).toBe(false);
     });
   });
 

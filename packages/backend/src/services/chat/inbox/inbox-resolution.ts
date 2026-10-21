@@ -11,7 +11,7 @@ import {
   LOG_INGEST_REQUEST_TOOL,
   OPEN_CARD_STATUSES,
   SET_NOTIFICATION_SOURCE_TOOL,
-} from './inbox-transitions';
+} from './inbox-config';
 
 /** Why the card was closed without the owner acting on it. */
 const RESOLVED_ELSEWHERE = 'resolvedElsewhere';
@@ -22,7 +22,7 @@ const RESOLVED_ELSEWHERE = 'resolvedElsewhere';
  * edited in the ledger). The card ends `rejected` with `statusReason: 'resolvedElsewhere'`. A card
  * that is already decided is left as it is, so the call is safe from the card's own approve and reject.
  *
- * The thread is re-evaluated and the clients told once the surrounding transaction commits.
+ * The clients are told once the surrounding transaction commits.
  */
 export const resolveCardsElsewhere = withTransaction(
   async ({ proposalIds }: { proposalIds: ReadonlyArray<string | null | undefined> }): Promise<number> => {
@@ -37,11 +37,7 @@ export const resolveCardsElsewhere = withTransaction(
 
     const threads = new Map(rows.map((row) => [row.threadId as string, row.userId]));
     await runAfterCommit({
-      fn: async () => {
-        // Loaded here, not at the top: this module is imported by the transaction services, and the
-        // thread code pulls in the whole model registry.
-        const { reevaluateInboxThreads } = await import('./inbox-thread');
-        await reevaluateInboxThreads({ threadIds: [...threads.keys()] });
+      fn: () => {
         for (const [threadId, userId] of threads) notifyThreadUpdated({ userId, threadId });
       },
     });

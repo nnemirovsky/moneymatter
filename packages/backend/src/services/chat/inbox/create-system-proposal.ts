@@ -12,8 +12,8 @@ import { computeCardState } from '../proposals/card-state';
 import { storeProposal } from '../proposals/create-proposal';
 import { toChatProposalCard } from '../proposals/to-chat-proposal-card';
 import { notifyThreadUpdated } from '../threads/thread-events';
-import { getLiveInboxThread } from './inbox-thread';
-import { inboxConfig, OPEN_CARD_STATUSES } from './inbox-transitions';
+import { inboxConfig, OPEN_CARD_STATUSES } from './inbox-config';
+import { getInboxThread, pruneInboxThread } from './inbox-thread';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -26,7 +26,7 @@ interface SystemProposal {
 }
 
 /**
- * Posts one card in the user's live inbox thread, without a run: MoneyMatter itself is the author.
+ * Posts one card in the user's inbox thread, without a run: MoneyMatter itself is the author.
  *
  * - The card is a normal proposal of `toolName` with `args`: the owner approves, edits or rejects it
  *   through the same routes as an assistant card, and the preview, snapshot and confirmation come
@@ -34,7 +34,7 @@ interface SystemProposal {
  * - It lives `inboxConfig.cardTtlDays`; expiry resolves nothing, the record behind it stays open.
  * - A card whose preview cannot be computed (the record is gone) is not posted: `null`.
  *
- * Runs under the inbox lock, so a burst of items finds one live thread, and so the caller's
+ * Runs under the inbox lock, so a burst of items finds one thread, and so the caller's
  * "is there already a card for this?" check is race-free when it runs in the same transaction.
  */
 export const createSystemProposal = withTransaction(
@@ -53,7 +53,7 @@ export const createSystemProposal = withTransaction(
     const state = await computeCardState({ userId, policy, args, parents: [] });
     if (state.error) return null;
 
-    const thread: ChatThreads = await getLiveInboxThread({ userId });
+    const thread: ChatThreads = await getInboxThread({ userId });
 
     // The assistant side of the thread, written by the server: no user message, no run.
     const proposalId = randomUUID();
@@ -98,6 +98,8 @@ export const createSystemProposal = withTransaction(
     await runAfterCommit({ fn: () => notifyThreadUpdated({ userId, threadId: thread.id }) });
     // The one place a new inbox item is posted, so the one place that raises its push.
     await runAfterCommit({ fn: () => emitInboxItem({ userId, threadId: thread.id }) });
+    // A new item can push the oldest resolved one past what the user keeps.
+    await runAfterCommit({ fn: () => pruneInboxThread({ userId, threadId: thread.id }) });
 
     return { proposalId, threadId: thread.id, messageId: message.id, card: toChatProposalCard({ row, parents: [] }) };
   },

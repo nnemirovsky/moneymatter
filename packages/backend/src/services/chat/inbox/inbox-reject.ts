@@ -17,7 +17,7 @@ import {
   LOG_INGEST_REQUEST_TOOL,
   MERGE_DUPLICATES_TOOL,
   SET_NOTIFICATION_SOURCE_TOOL,
-} from './inbox-transitions';
+} from './inbox-config';
 
 /** A record that was settled between the card being shown and the reject is nothing to undo. */
 const ignoreSettled = async ({ fn }: { fn: () => Promise<unknown> }): Promise<void> => {

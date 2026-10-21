@@ -13,8 +13,6 @@ describe('isReadOnlyAllowed', () => {
       { method: 'DELETE', path: `/chat/threads/${ID}`, allowed: true },
       { method: 'POST', path: `/chat/threads/${ID}/attachments`, allowed: true },
       { method: 'POST', path: `/chat/threads/${ID}/messages`, allowed: true },
-      { method: 'POST', path: `/chat/threads/${ID}/clear-resolved`, allowed: true },
-      { method: 'POST', path: `/chat/threads/${ID}/archive`, allowed: true },
       { method: 'POST', path: `/chat/runs/${ID}/cancel`, allowed: true },
       { method: 'POST', path: `/chat/proposals/${ID}/refresh`, allowed: true },
       { method: 'POST', path: `/chat/proposals/${ID}/reject`, allowed: true },

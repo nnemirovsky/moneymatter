@@ -7,7 +7,7 @@ import {
   type ChatApproveRequest,
   type ChatAttachment,
   type ChatCancelRunResponse,
-  type ChatClearResolvedResponse,
+  type ChatBadgeTotal,
   type ChatDefaultConnection,
   type ChatCardActionResponse,
   type ChatEditProposalRequest,
@@ -122,32 +122,6 @@ export async function deleteChatThread<R extends boolean | undefined = undefined
   return makeRequest<void, R>({ method: 'delete', url: `/chat/threads/${threadId}`, raw });
 }
 
-/** Deletes the messages of an automation inbox thread whose cards are no longer waiting. */
-export async function clearResolvedChatThread<R extends boolean | undefined = undefined>({
-  threadId,
-  raw,
-}: {
-  threadId: string;
-  raw?: R;
-}) {
-  return makeRequest<ChatClearResolvedResponse, R>({
-    method: 'post',
-    url: `/chat/threads/${threadId}/clear-resolved`,
-    raw,
-  });
-}
-
-/** Closes a live automation inbox thread early. */
-export async function archiveChatThread<R extends boolean | undefined = undefined>({
-  threadId,
-  raw,
-}: {
-  threadId: string;
-  raw?: R;
-}) {
-  return makeRequest<ChatThread, R>({ method: 'post', url: `/chat/threads/${threadId}/archive`, raw });
-}
-
 /** `retentionDays` is typed wide so a test can send a value the API must refuse. */
 export async function setChatRetention<R extends boolean | undefined = undefined>({
   retentionDays,
@@ -157,6 +131,22 @@ export async function setChatRetention<R extends boolean | undefined = undefined
   raw?: R;
 }) {
   return makeRequest<ChatSettings, R>({ method: 'put', url: '/chat/settings', payload: { retentionDays }, raw });
+}
+
+/** Sends what a test names, so it can also send nothing or a value the API must refuse. */
+export async function updateChatSettings<R extends boolean | undefined = undefined>({
+  payload,
+  raw,
+}: {
+  payload: { retentionDays?: ChatRetentionDays | number | null; inboxKeepResolved?: number };
+  raw?: R;
+}) {
+  return makeRequest<ChatSettings, R>({ method: 'put', url: '/chat/settings', payload, raw });
+}
+
+/** `GET /chat/badge`: the sum of every thread's badge. */
+export async function getChatBadgeTotal<R extends boolean | undefined = undefined>({ raw }: { raw?: R } = {}) {
+  return makeRequest<ChatBadgeTotal, R>({ method: 'get', url: '/chat/badge', raw });
 }
 
 export interface UploadChatAttachmentResult {

@@ -5,18 +5,18 @@ import { withTransaction } from '@services/common/with-transaction';
 import { randomUUID } from 'crypto';
 
 import { notifyThreadUpdated } from '../threads/thread-events';
-import { getLiveInboxThread } from './inbox-thread';
+import { getInboxThread, pruneInboxThread } from './inbox-thread';
 
 /**
- * Posts one informational line in the user's live inbox thread, written by the server: a message with
- * a single notice part and no card. It asks nothing of the owner and raises no push; "Clear resolved"
- * removes it with the other messages that no longer wait.
+ * Posts one informational line in the user's inbox thread, written by the server: a message with a
+ * single notice part and no card. It asks nothing of the owner and raises no push; it counts as a
+ * resolved item, which the inbox prunes like the others.
  *
- * Runs under the inbox lock, so it finds the same live thread as the cards posted at the same time.
+ * Runs under the inbox lock, so it finds the same thread as the cards posted at the same time.
  */
 export const createInboxNotice = withTransaction(
   async ({ userId, key, params }: { userId: number; key: string; params: ChatNoticeParams }): Promise<void> => {
-    const thread = await getLiveInboxThread({ userId });
+    const thread = await getInboxThread({ userId });
 
     await ChatMessages.create({
       threadId: thread.id,
@@ -31,5 +31,6 @@ export const createInboxNotice = withTransaction(
     await runAfterCommit({
       fn: () => notifyThreadUpdated({ userId, threadId: thread.id }),
     });
+    await runAfterCommit({ fn: () => pruneInboxThread({ userId, threadId: thread.id }) });
   },
 );

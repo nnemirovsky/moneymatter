@@ -1,12 +1,11 @@
 import {
   approveAllChatMessage,
-  archiveChatThread,
-  clearResolvedChatThread,
   approveChatProposal,
   commentOnChatProposal,
   createChatThread,
   deleteChatThread,
   editChatProposal,
+  getChatBadgeTotal,
   getChatDefaultConnection,
   getChatThread,
   listChatAppliedCards,
@@ -32,6 +31,7 @@ const THREAD_PAGE_SIZE = 100;
 const THREAD_LIST_PAGE_SIZE = 30;
 const APPLIED_PAGE_SIZE = 30;
 const THREAD_LIST_STALE_TIME_MS = 30 * 1000;
+const BADGE_REFETCH_INTERVAL_MS = 5 * 60 * 1000;
 
 const threadKey = ({ threadId }: { threadId: string | null }) => [...VUE_QUERY_CACHE_KEYS.chatThread, threadId];
 
@@ -175,25 +175,31 @@ export const useDeleteChatThread = () => {
   });
 };
 
-const INBOX_ACTION_INVALIDATE_KEYS = [[...VUE_QUERY_CACHE_KEYS.chatThreads], [...VUE_QUERY_CACHE_KEYS.chatThread]];
+/**
+ * The sum of every thread's badge, for the AI chat entry of the navigation. It sits under the thread list
+ * key, so whatever refreshes the list refreshes it; the SSE channel brings other tabs' changes and new
+ * replies, and the interval covers a channel that dropped.
+ */
+export const useChatBadgeTotal = () => {
+  const queryClient = useQueryClient();
+  const { on } = useSSE();
 
-/** Clears the resolved items of the automation inbox; the cards still waiting stay. */
-export const useClearResolvedChatThread = () =>
-  useInvalidatingMutation({
-    mutationFn: clearResolvedChatThread,
-    invalidateKeys: INBOX_ACTION_INVALIDATE_KEYS,
-    errorKey: 'chat.errors.threadAction',
+  const query = useQuery({
+    queryKey: [...VUE_QUERY_CACHE_KEYS.chatThreads, 'badge'],
+    queryFn: getChatBadgeTotal,
+    staleTime: THREAD_LIST_STALE_TIME_MS,
+    refetchInterval: BADGE_REFETCH_INTERVAL_MS,
   });
 
-/** Closes the automation inbox early so the next item starts a fresh one. */
-export const useArchiveChatThread = () =>
-  useInvalidatingMutation({
-    mutationFn: archiveChatThread,
-    invalidateKeys: INBOX_ACTION_INVALIDATE_KEYS,
-    errorKey: 'chat.errors.threadAction',
+  const stopListening = on(SSE_EVENT_TYPES.CHAT_THREAD_UPDATED, () => {
+    queryClient.invalidateQueries({ queryKey: [...VUE_QUERY_CACHE_KEYS.chatThreads, 'badge'] });
   });
+  onScopeDispose(stopListening);
 
-/** The retention days, and every thread's expiry they set. */
+  return computed(() => query.data.value?.total ?? 0);
+};
+
+/** The chat settings (history retention, resolved inbox items kept), and every thread's expiry they set. */
 export const useUpdateChatSettings = () =>
   useInvalidatingMutation({
     mutationFn: updateChatSettings,

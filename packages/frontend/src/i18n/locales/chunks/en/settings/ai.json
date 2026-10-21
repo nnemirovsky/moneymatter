@@ -358,6 +358,14 @@
           "pinnedNote": "Pinned conversations are never deleted automatically. Cards you have not approved expire after 24 hours, pinned or not.",
           "saved": "History retention updated"
         },
+        "inbox": {
+          "title": "Automation inbox",
+          "description": "Resolved items are removed once they are older than your conversation history, and past the number you keep here, oldest first. Items still waiting for you are never removed.",
+          "label": "Resolved items to keep",
+          "hint": "From {min} to {max}",
+          "invalid": "Enter a whole number from {min} to {max}",
+          "saved": "Inbox limit updated"
+        },
         "applied": {
           "link": "Applied changes",
           "linkDescription": "Every change you approved in chat. Each record goes with its conversation.",

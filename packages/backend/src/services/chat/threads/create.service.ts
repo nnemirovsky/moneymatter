@@ -51,6 +51,7 @@ const createThreadImpl = async ({
     modelId,
     pageContext,
     lastMessageAt,
+    lastReadAt: lastMessageAt,
     expiresAt: computeThreadExpiry({ lastMessageAt, pinned: false, retentionDays }),
   });
 

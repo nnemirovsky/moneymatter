@@ -7,6 +7,7 @@ import { assertInboxThreadDetachable } from '../inbox/inbox-thread';
 import { hasActiveRun } from '../runs/run-lease';
 import { findThreadOrThrow } from './find-thread';
 import { getChatRetentionDays } from './retention.service';
+import { withBadgeCounts } from './thread-badges';
 import { assertSelectableConnection, resolveThreadModel } from './thread-connection';
 import { notifyThreadUpdated } from './thread-events';
 import { computeThreadExpiry } from './thread-expiry';
@@ -41,11 +42,11 @@ const updateThreadImpl = async (
   { userId, threadId, title, pinned, connectionId, modelId, pageContext }: UpdateThreadParams,
   checked: CheckedSelection,
 ): Promise<ChatThread> => {
-  // Settings before thread, the order `setChatRetention` locks in.
+  // Settings before thread, the order `setChatSettings` locks in.
   const retentionDays = pinned === undefined ? null : await getChatRetentionDays({ userId, lock: true });
   const thread = await findThreadOrThrow({ userId, threadId, lock: true });
 
-  // The inbox keeps its live and open threads pinned; unpinning one would let them expire.
+  // The inbox is pinned for good; unpinning it would let it expire.
   if (pinned === false) assertInboxThreadDetachable({ thread });
 
   if (title !== undefined) {
@@ -140,5 +141,6 @@ export const updateThread = async (params: UpdateThreadParams): Promise<ChatThre
   }
 
   notifyThreadUpdated({ userId: params.userId, threadId: thread.id });
-  return (await withPageContextNames({ userId: params.userId, threads: [thread] }))[0]!;
+  const [named] = await withPageContextNames({ userId: params.userId, threads: [thread] });
+  return (await withBadgeCounts({ userId: params.userId, threads: [named!] }))[0]!;
 };

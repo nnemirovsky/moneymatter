@@ -2,12 +2,12 @@ import type { ChatMessage, ChatProposalCard, ChatThreadWithMessages } from '@bt/
 import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
 import { t } from '@i18n/index';
 import ChatMessages from '@models/chat-messages.model';
-import { markThreadNotificationsRead } from '@services/notifications';
 import { Op, type WhereOptions } from 'sequelize';
 
 import { expireDueCards } from '../proposals/card-expiry';
 import { loadCards } from '../proposals/card-load';
 import { findThreadOrThrow } from './find-thread';
+import { markThreadRead, withBadgeCounts } from './thread-badges';
 import { withPageContextNames } from './thread-page-context';
 import { toChatMessage, toChatThread } from './to-chat-thread';
 
@@ -50,8 +50,8 @@ export const getThread = async ({
   limit: number;
 }): Promise<ChatThreadWithMessages> => {
   const thread = await findThreadOrThrow({ userId, threadId });
-  // Opening a thread answers the pushes about it.
-  await markThreadNotificationsRead({ userId, threadId });
+  // Opening a thread reads its replies and answers the pushes about it.
+  await markThreadRead({ userId, threadId });
 
   let where: WhereOptions = { threadId };
   if (before) {
@@ -83,7 +83,12 @@ export const getThread = async ({
     .map((row) => toChatMessage({ row }));
 
   return {
-    thread: (await withPageContextNames({ userId, threads: [toChatThread({ row: thread })] }))[0]!,
+    thread: (
+      await withBadgeCounts({
+        userId,
+        threads: await withPageContextNames({ userId, threads: [toChatThread({ row: thread })] }),
+      })
+    )[0]!,
     messages,
     hasMore: newestFirst.length > limit,
     cards: await loadPageCards({ userId, messages }),

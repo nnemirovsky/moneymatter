@@ -27,7 +27,7 @@ const hit = (overrides: Partial<ChatThreadSearchHit> = {}): ChatThreadSearchHit 
   connectionId: null,
   modelId: null,
   kind: 'chat',
-  inboxState: null,
+  badgeCount: 0,
   pageContext: null,
   pageContextNames: {},
   createdAt: '2026-03-05T10:00:00.000Z',
@@ -159,47 +159,59 @@ describe('ThreadListItem', () => {
     });
   });
 
-  describe('automation inbox', () => {
-    const inbox = (inboxState: 'live' | 'open' | 'closed') =>
-      hit({ kind: 'automationInbox', inboxState, title: 'Automation inbox', pinned: inboxState !== 'closed' });
+  describe('badge', () => {
+    it('ends the title row with what waits in the thread', () => {
+      const wrapper = mountItem({ thread: hit({ badgeCount: 3 }) });
 
-    it('carries an inbox badge with its state', () => {
-      expect(
-        mountItem({ thread: inbox('live') })
-          .find('[data-testid="inbox-badge"]')
-          .text(),
-      ).toBe('Collecting');
-      expect(
-        mountItem({ thread: inbox('open') })
-          .find('[data-testid="inbox-badge"]')
-          .text(),
-      ).toBe('Full');
-      expect(
-        mountItem({ thread: inbox('closed') })
-          .find('[data-testid="inbox-badge"]')
-          .text(),
-      ).toBe('Closed');
+      const badge = wrapper.find('[data-testid="thread-badge"]');
+      expect(badge.text()).toBe('3');
+      expect(badge.attributes('aria-label')).toBe('3 new or waiting items');
+      // The title and the badge share one row; the title takes what the badge leaves.
+      const row = badge.element.parentElement!;
+      expect(row.contains(wrapper.find('[data-testid="thread-title"]').element)).toBe(true);
+      expect(row.className).toContain('gap-2');
     });
 
-    it.each(['live', 'open'] as const)('locks the pin and the delete while the inbox is %s', (state) => {
-      const wrapper = mountItem({ thread: inbox(state) });
+    it('caps a large count at 99+', () => {
+      expect(
+        mountItem({ thread: hit({ badgeCount: 140 }) })
+          .find('[data-testid="thread-badge"]')
+          .text(),
+      ).toBe('99+');
+    });
+
+    it('shows no badge when nothing waits', () => {
+      expect(mountItem().find('[data-testid="thread-badge"]').exists()).toBe(false);
+    });
+  });
+
+  it('keeps the actions out of the row: they float over its end on hover, or sit in a menu on touch', () => {
+    const wrapper = mountItem();
+
+    const actions = wrapper.find('[data-testid="thread-actions"]');
+    expect(actions.classes()).toEqual(expect.arrayContaining(['absolute', 'opacity-0', 'pointer-coarse:hidden']));
+    expect(wrapper.find('[data-testid="thread-menu"]').classes()).toContain('pointer-coarse:inline-flex');
+  });
+
+  describe('automation inbox', () => {
+    const inbox = () => hit({ kind: 'automationInbox', title: 'Automation inbox', pinned: true });
+
+    it('carries no state label: the inbox is one permanent thread', () => {
+      expect(mountItem({ thread: inbox() }).text()).not.toMatch(/Collecting|Full|Closed/);
+    });
+
+    it('locks the pin and the delete for good', () => {
+      const wrapper = mountItem({ thread: inbox() });
 
       expect(wrapper.find('[data-testid="thread-pin"]').attributes('disabled')).toBeDefined();
       expect(wrapper.find('[data-testid="thread-delete"]').attributes('disabled')).toBeDefined();
     });
 
-    it('lets a closed inbox be unpinned and deleted like a chat', () => {
-      const wrapper = mountItem({ thread: inbox('closed') });
+    it('leaves the pin and the delete of a chat thread free', () => {
+      const wrapper = mountItem({ thread: hit({ pinned: true }) });
 
       expect(wrapper.find('[data-testid="thread-pin"]').attributes('disabled')).toBeUndefined();
       expect(wrapper.find('[data-testid="thread-delete"]').attributes('disabled')).toBeUndefined();
-    });
-
-    it('shows no badge on a chat thread and leaves its pin free', () => {
-      const wrapper = mountItem({ thread: hit({ pinned: true }) });
-
-      expect(wrapper.find('[data-testid="inbox-badge"]').exists()).toBe(false);
-      expect(wrapper.find('[data-testid="thread-pin"]').attributes('disabled')).toBeUndefined();
     });
   });
 });

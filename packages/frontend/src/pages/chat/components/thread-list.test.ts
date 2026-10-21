@@ -51,7 +51,7 @@ const hit = (overrides: Partial<ChatThreadSearchHit> & { id: string }): ChatThre
   connectionId: null,
   modelId: null,
   kind: 'chat',
-  inboxState: null,
+  badgeCount: 0,
   pageContext: null,
   pageContextNames: {},
   createdAt: '2026-03-05T10:00:00.000Z',

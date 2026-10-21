@@ -6,22 +6,22 @@ import {
   ATTACHMENT_FILENAME_HEADER,
   CHAT_DOCUMENT_PASSWORD_HEADER,
   type ChatAppliedPage,
+  type ChatBadgeTotal,
   type ChatApproveAllRequest,
   type ChatApproveAllResponse,
   type ChatApproveRequest,
   type ChatAttachment,
   type ChatCancelRunResponse,
   type ChatCardActionResponse,
-  type ChatClearResolvedResponse,
   type ChatCreateThreadRequest,
   type ChatDefaultConnection,
   type ChatEditProposalRequest,
   type ChatProposalCard,
-  type ChatRetentionDays,
   type ChatRunEvent,
   type ChatSendMessageRequest,
   type ChatSendMessageResponse,
   type ChatSettings,
+  type ChatSettingsUpdate,
   type ChatThread,
   type ChatThreadListPage,
   type ChatThreadWithMessages,
@@ -78,19 +78,12 @@ export const deleteChatThread = async ({ threadId }: { threadId: string }): Prom
   await api.delete(`/chat/threads/${threadId}`);
 };
 
-/** Deletes the messages of an inbox thread whose cards no longer wait; the waiting ones stay. */
-export const clearResolvedChatThread = ({ threadId }: { threadId: string }): Promise<ChatClearResolvedResponse> =>
-  api.post(`/chat/threads/${threadId}/clear-resolved`);
+/** Sends only the settings the update names; the answer carries all of them. */
+export const updateChatSettings = (update: ChatSettingsUpdate): Promise<ChatSettings> =>
+  api.put('/chat/settings', update);
 
-/** Closes an inbox thread early; refused (409) while a card still waits. */
-export const archiveChatThread = ({ threadId }: { threadId: string }): Promise<ChatThread> =>
-  api.post(`/chat/threads/${threadId}/archive`);
-
-export const updateChatSettings = ({
-  retentionDays,
-}: {
-  retentionDays: ChatRetentionDays | null;
-}): Promise<ChatSettings> => api.put('/chat/settings', { retentionDays });
+/** What waits across every thread, for the AI chat entry of the navigation. */
+export const getChatBadgeTotal = (): Promise<ChatBadgeTotal> => api.get('/chat/badge');
 
 export const uploadChatAttachment = ({
   threadId,

@@ -18,8 +18,6 @@ import { Op, QueryTypes } from 'sequelize';
 
 import { refreshProposal } from '../proposals/refresh';
 import { createSystemProposal, refreshSystemProposal } from './create-system-proposal';
-import { findCardsOfTransactions, resolveCardsElsewhere } from './inbox-resolution';
-import { lockInbox } from './inbox-thread';
 import {
   CONFIRM_TOOL,
   LINK_TRANSFER_TOOL,
@@ -27,7 +25,9 @@ import {
   MERGE_DUPLICATES_TOOL,
   OPEN_CARD_STATUSES,
   SET_NOTIFICATION_SOURCE_TOOL,
-} from './inbox-transitions';
+} from './inbox-config';
+import { findCardsOfTransactions, resolveCardsElsewhere } from './inbox-resolution';
+import { lockInbox } from './inbox-thread';
 
 /** Park reasons whose request gets a card of its own; the others have no action the owner can take. */
 const REQUEST_CARD_REASONS = ['unknownAccount', 'ownTransfer', 'lowConfidence', 'unverifiedParse'];

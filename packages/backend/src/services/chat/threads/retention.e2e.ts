@@ -1,4 +1,4 @@
-import { CHAT_RETENTION_OPTIONS } from '@bt/shared/types';
+import { CHAT_INBOX_KEEP_RESOLVED, CHAT_RETENTION_OPTIONS } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
 import ChatThreads from '@models/chat-threads.model';
@@ -23,7 +23,7 @@ describe('Chat retention (PUT /chat/settings)', () => {
     const response = await helpers.setChatRetention({ retentionDays: 7 });
 
     expect(response.statusCode).toBe(200);
-    expect(response.body.response).toEqual({ retentionDays: 7 });
+    expect(response.body.response).toEqual({ retentionDays: 7, inboxKeepResolved: CHAT_INBOX_KEEP_RESOLVED.default });
     const recentRow = await readThread({ threadId: recent.id });
     expect(recentRow.expiresAt!.getTime()).toBe(recentRow.lastMessageAt.getTime() + 7 * DAY_MS);
     const oldRow = await readThread({ threadId: old.id });
@@ -49,7 +49,10 @@ describe('Chat retention (PUT /chat/settings)', () => {
     const response = await helpers.setChatRetention({ retentionDays: null });
 
     expect(response.statusCode).toBe(200);
-    expect(response.body.response).toEqual({ retentionDays: null });
+    expect(response.body.response).toEqual({
+      retentionDays: null,
+      inboxKeepResolved: CHAT_INBOX_KEEP_RESOLVED.default,
+    });
     expect((await readThread({ threadId: existing.id })).expiresAt).toBeNull();
     expect(await helpers.readStoredChatRetention({ userId: await helpers.getTestUserId() })).toBeNull();
 

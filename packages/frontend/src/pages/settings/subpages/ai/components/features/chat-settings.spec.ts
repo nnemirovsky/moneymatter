@@ -14,7 +14,9 @@ vi.mock('@/composable/data-queries/user-settings', () => ({ useUserSettings: vi.
 
 const mutateAsync = vi.fn();
 const isPending = ref(false);
-const settingsData = ref<{ ai?: { chat?: { retentionDays?: number | null } } } | undefined>({});
+const settingsData = ref<{ ai?: { chat?: { retentionDays?: number | null; inboxKeepResolved?: number } } } | undefined>(
+  {},
+);
 
 /** The select reports the option the user picked; the real one renders its options in a portal. */
 const SelectStub = defineComponent({
@@ -133,5 +135,45 @@ describe('ChatSettings', () => {
     const link = mountSettings().findComponent(RouterLinkStub);
 
     expect(link.props('to')).toEqual({ name: ROUTES_NAMES.settingsAiChatApplied });
+  });
+
+  describe('resolved inbox items', () => {
+    const input = (wrapper: ReturnType<typeof mountSettings>) => wrapper.find('[data-testid="inbox-keep-input"] input');
+    const save = (wrapper: ReturnType<typeof mountSettings>) => wrapper.find('[data-testid="inbox-keep-form"]');
+
+    it('shows 100 for someone who never chose, and the stored number otherwise', () => {
+      expect((input(mountSettings()).element as HTMLInputElement).value).toBe('100');
+
+      settingsData.value = { ai: { chat: { inboxKeepResolved: 250 } } };
+      expect((input(mountSettings()).element as HTMLInputElement).value).toBe('250');
+    });
+
+    it('writes a new number through the chat settings endpoint', async () => {
+      const wrapper = mountSettings();
+
+      await input(wrapper).setValue('300');
+      await save(wrapper).trigger('submit');
+      await flushPromises();
+
+      expect(mutateAsync).toHaveBeenCalledWith({ inboxKeepResolved: 300 });
+    });
+
+    it.each(['9', '1001', ''])('refuses %j and says what it takes', async (value) => {
+      const wrapper = mountSettings();
+
+      await input(wrapper).setValue(value);
+      await save(wrapper).trigger('submit');
+
+      expect(mutateAsync).not.toHaveBeenCalled();
+      expect(wrapper.text()).toContain('Enter a whole number from 10 to 1000');
+    });
+
+    it('does not write the number that is already stored', async () => {
+      const wrapper = mountSettings();
+
+      await save(wrapper).trigger('submit');
+
+      expect(mutateAsync).not.toHaveBeenCalled();
+    });
   });
 });
