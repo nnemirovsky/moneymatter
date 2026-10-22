@@ -346,6 +346,15 @@ describe('POST /ingest/event', () => {
       expect(tx).toMatchObject({ timeZone: null, utcOffsetMinutes: 240 });
     });
 
+    it('logs a notification whose time states an impossible offset without one', async () => {
+      const { secret } = await setUpWithCard();
+
+      await send({ secret, body: notification({ time: hourAgoWithOffset({ offsetMinutes: 1439 }) }) });
+
+      const [tx] = await helpers.getTransactions({ raw: true });
+      expect(tx).toMatchObject({ timeZone: null, utcOffsetMinutes: null });
+    });
+
     it('records the setting zone for a blank time', async () => {
       const { secret } = await setUpWithCard();
       await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Tbilisi' } });

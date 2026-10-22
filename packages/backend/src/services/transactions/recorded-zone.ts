@@ -1,4 +1,4 @@
-import { zoneOffsetMinutes } from '@bt/shared/time-zone';
+import { usableOffsetMinutes, zoneOffsetMinutes } from '@bt/shared/time-zone';
 
 interface StoredZonePair {
   timeZone: string | null;
@@ -22,7 +22,7 @@ export const deriveStoredZone = ({
     return { timeZone, utcOffsetMinutes: zoneOffsetMinutes({ zone: timeZone, instant: time }) };
   }
 
-  return { timeZone: null, utcOffsetMinutes: utcOffsetMinutes ?? null };
+  return { timeZone: null, utcOffsetMinutes: usableOffsetMinutes({ offsetMinutes: utcOffsetMinutes }) };
 };
 
 /**

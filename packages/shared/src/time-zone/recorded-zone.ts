@@ -5,6 +5,21 @@ export interface RecordedZone {
   utcOffsetMinutes: number | null;
 }
 
+/** The widest offset the `utcOffsetMinutes` column holds (UTC+14:00 is the largest real one). */
+export const MAX_UTC_OFFSET_MINUTES = 840;
+
+/**
+ * The stated offset when it can be an offset of a real zone, else `null`. A malformed or
+ * buggy source can send `+23:59`; its instant is still right, but the offset is not stored.
+ */
+export const usableOffsetMinutes = ({ offsetMinutes }: { offsetMinutes?: number | null }): number | null =>
+  offsetMinutes !== undefined &&
+  offsetMinutes !== null &&
+  Number.isInteger(offsetMinutes) &&
+  Math.abs(offsetMinutes) <= MAX_UTC_OFFSET_MINUTES
+    ? offsetMinutes
+    : null;
+
 /**
  * Decides which zone and offset a transaction records for `instant`:
  * 1. `explicitZone` given: that zone, offset derived from it;
@@ -32,13 +47,13 @@ export function resolveRecordedZone({
     return { timeZone: explicitZone, utcOffsetMinutes: zoneOffsetMinutes({ zone: explicitZone, instant }) };
   }
 
-  const hasOffset = offsetMinutes !== undefined && offsetMinutes !== null;
+  const stated = usableOffsetMinutes({ offsetMinutes });
 
-  if (hasOffset) {
-    if (candidateZone && zoneOffsetMinutes({ zone: candidateZone, instant }) === offsetMinutes) {
-      return { timeZone: candidateZone, utcOffsetMinutes: offsetMinutes };
+  if (stated !== null) {
+    if (candidateZone && zoneOffsetMinutes({ zone: candidateZone, instant }) === stated) {
+      return { timeZone: candidateZone, utcOffsetMinutes: stated };
     }
-    return { timeZone: null, utcOffsetMinutes: offsetMinutes };
+    return { timeZone: null, utcOffsetMinutes: stated };
   }
 
   if (candidateZone) {

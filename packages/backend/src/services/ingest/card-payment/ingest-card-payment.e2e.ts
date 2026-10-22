@@ -136,6 +136,17 @@ describe('POST /ingest/card-payment', () => {
       expect(await loggedRow({ res })).toMatchObject({ timeZone: null, utcOffsetMinutes: 120 });
     });
 
+    it.each([900, 1439])(
+      'logs a payment whose time states an impossible offset (%i minutes) without one',
+      async (m) => {
+        const { secret } = await setUp();
+
+        const res = await send({ secret, body: payment({ time: hourAgoWithOffset({ offsetMinutes: m }) }) });
+
+        expect(await loggedRow({ res })).toMatchObject({ timeZone: null, utcOffsetMinutes: null });
+      },
+    );
+
     it('records the setting zone for a blank time', async () => {
       const { secret } = await setUp();
       await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Tbilisi' } });

@@ -1855,6 +1855,13 @@ describe('Execute Import endpoint (async)', () => {
       expect(matching).toMatchObject({ timeZone: 'Asia/Tbilisi', utcOffsetMinutes: 240 });
     });
 
+    it('imports a cell that states an impossible offset without recording it', async () => {
+      const tx = await importOne({ date: '2026-06-01T23:30:00+15:30' });
+
+      expect(tx).toMatchObject({ timeZone: null, utcOffsetMinutes: null });
+      expect(new Date(tx.time).toISOString()).toBe('2026-06-01T08:00:00.000Z');
+    });
+
     it('keeps only the offset when the cell offset does not match the request zone', async () => {
       const tx = await importOne({ date: '2026-06-01T23:30:00+02:00', timezone: 'Asia/Tbilisi' });
 

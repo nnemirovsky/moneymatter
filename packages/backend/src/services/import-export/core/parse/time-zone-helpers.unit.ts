@@ -131,6 +131,15 @@ describe('resolveRecordedZone', () => {
     });
   });
 
+  it('treats an offset beyond +-14:00 as not stated', () => {
+    expect(resolveRecordedZone({ instant, offsetMinutes: 900 })).toEqual({ timeZone: null, utcOffsetMinutes: null });
+    expect(resolveRecordedZone({ instant, offsetMinutes: -1439, candidateZone: 'Asia/Tbilisi' })).toEqual({
+      timeZone: 'Asia/Tbilisi',
+      utcOffsetMinutes: 240,
+    });
+    expect(resolveRecordedZone({ instant, offsetMinutes: 840 })).toEqual({ timeZone: null, utcOffsetMinutes: 840 });
+  });
+
   it('4: a candidate alone derives the offset', () => {
     expect(resolveRecordedZone({ instant, candidateZone: 'Asia/Tbilisi' })).toEqual({
       timeZone: 'Asia/Tbilisi',
