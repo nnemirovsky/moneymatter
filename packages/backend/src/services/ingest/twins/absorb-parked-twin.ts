@@ -8,10 +8,12 @@ import { resolveCardsElsewhere } from '@services/chat/inbox/inbox-resolution';
  * request it repeats (`duplicateOfId`), loses its text and its card closes. Its reading stays, so the
  * request it joined can still learn the card the twin named.
  *
- * Rows are locked in the order an approval locks them (the card, then the request) and a row another
- * transaction holds is skipped, never waited for: an owner approving the twin's card at that moment
- * keeps it, and nothing can wait on a cycle. Returns whether the twin was absorbed. The twin of a
- * request that is being parked is the request itself, already locked by the caller (`holdsRowLock`).
+ * Another waiting request is locked in the order an approval locks it (its card, then the request) and
+ * read again under the lock: an approval that got there first has moved the request on, and it is left
+ * alone (`false`); a short holder of the card (a refresh, a reject) is waited for, so a twin is never
+ * missed because of one. Because both sides take the card first, nothing can wait on a cycle. The
+ * twin of a request that is being parked is the request itself, already locked by the caller
+ * (`holdsRowLock`). Returns whether the twin was absorbed.
  */
 export const absorbParkedTwin = async ({
   twin,
@@ -22,19 +24,13 @@ export const absorbParkedTwin = async ({
   intoRequestId: RecordId;
   holdsRowLock?: boolean;
 }): Promise<boolean> => {
-  if (twin.proposalId) {
-    const card = await ChatProposals.findOne({
-      where: { id: twin.proposalId },
-      attributes: ['id'],
-      lock: true,
-      skipLocked: true,
-    });
-    if (!card) return false;
+  let row: IngestRequests | null = twin;
+  if (!holdsRowLock) {
+    if (twin.proposalId) {
+      await ChatProposals.findOne({ where: { id: twin.proposalId }, attributes: ['id'], lock: true });
+    }
+    row = await IngestRequests.findOne({ where: { id: twin.id, status: 'parked' }, lock: true });
   }
-
-  const row = holdsRowLock
-    ? twin
-    : await IngestRequests.findOne({ where: { id: twin.id, status: 'parked' }, lock: true, skipLocked: true });
   if (!row) return false;
 
   await row.update({
