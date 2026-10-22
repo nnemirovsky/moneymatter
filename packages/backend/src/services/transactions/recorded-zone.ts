@@ -1,4 +1,5 @@
 import { usableOffsetMinutes, zoneOffsetMinutes } from '@bt/shared/time-zone';
+import { getStoredUserTimeZone } from '@services/user-settings/get-user-time-zone';
 
 interface StoredZonePair {
   timeZone: string | null;
@@ -53,3 +54,17 @@ export const deriveZoneUpdate = ({
 
   return {};
 };
+
+/**
+ * The zone a request that creates a row records: the one it names (`null` is a caller's deliberate
+ * "no zone"), else the user's stored zone, else nothing. API callers that leave the zone out are
+ * where the user is now, the same reading `resolveRecordedZone` gives a time without an offset.
+ */
+export const zoneForCreateRequest = async ({
+  userId,
+  timeZone,
+}: {
+  userId: number;
+  timeZone: string | null | undefined;
+}): Promise<string | null | undefined> =>
+  timeZone !== undefined ? timeZone : ((await getStoredUserTimeZone({ userId })) ?? undefined);

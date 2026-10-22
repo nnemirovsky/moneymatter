@@ -5,6 +5,7 @@ import { serializeAccount } from '@root/serializers/accounts.serializer';
 import { getAccountById } from '@services/accounts.service';
 import { adjustAccountBalance } from '@services/accounts/balance-adjustment';
 import { attachAccountCurrencyMeta } from '@services/currencies/effective-currency';
+import { zoneForCreateRequest } from '@services/transactions/recorded-zone';
 import { z } from 'zod';
 
 export default createController(
@@ -32,7 +33,7 @@ export default createController(
       targetBalance,
       note,
       time,
-      timeZone,
+      timeZone: await zoneForCreateRequest({ userId, timeZone }),
     });
 
     const account = await getAccountById({ id: accountId, userId });

@@ -335,4 +335,90 @@ describe('Transaction time zone', () => {
       expect(row!.utcOffsetMinutes).toBe(-240);
     });
   });
+  describe('a request without a zone from a user with a stored zone', () => {
+    const storeZone = () => helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Tbilisi' } });
+
+    it('records the stored zone on a created transaction', async () => {
+      await storeZone();
+      const { tx } = await createWithZone({});
+
+      expect(tx.timeZone).toBe('Asia/Tbilisi');
+      expect(tx.utcOffsetMinutes).toBe(240);
+    });
+
+    it('keeps null when the caller sends null on purpose', async () => {
+      await storeZone();
+      const { tx } = await createWithZone({ timeZone: null });
+
+      expect(tx.timeZone).toBeNull();
+      expect(tx.utcOffsetMinutes).toBeNull();
+    });
+
+    it('lets a zone sent by the caller win', async () => {
+      await storeZone();
+      const { tx } = await createWithZone({ timeZone: 'America/New_York' });
+
+      expect(tx.timeZone).toBe('America/New_York');
+    });
+
+    it('records the stored zone on a balance adjustment', async () => {
+      await storeZone();
+      const account = await helpers.createAccount({ raw: true });
+
+      const result = await helpers.balanceAdjustment({
+        id: account.id,
+        payload: { targetBalance: asDecimal(500), time: SUMMER },
+        raw: true,
+      });
+
+      const row = await Transactions.findByPk(result.transaction!.id);
+      expect(row).toMatchObject({ timeZone: 'Asia/Tbilisi', utcOffsetMinutes: 240 });
+    });
+
+    it('records the stored zone on an account to portfolio transfer', async () => {
+      await storeZone();
+      const [portfolio, account] = await Promise.all([
+        helpers.createPortfolio({ payload: helpers.buildPortfolioPayload({ name: 'Stored' }), raw: true }),
+        helpers.createAccount({ raw: true }),
+      ]);
+
+      const transfer = await helpers.accountToPortfolioTransfer({
+        portfolioId: portfolio.id,
+        payload: { accountId: account.id, amount: '50', date: '2026-07-15' },
+        raw: true,
+      });
+
+      const row = await Transactions.findByPk(transfer.transactionId!);
+      expect(row).toMatchObject({ timeZone: 'Asia/Tbilisi', utcOffsetMinutes: 240 });
+    });
+
+    it('records the stored zone on a subscription payment', async () => {
+      await storeZone();
+      const account = await helpers.createAccount({ raw: true });
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const subscription = await helpers.createSubscription({
+        name: 'Stored',
+        type: SUBSCRIPTION_TYPES.subscription,
+        frequency: SUBSCRIPTION_FREQUENCIES.monthly,
+        startDate: today,
+        dueDate: today,
+        accountId: account.id,
+        expectedAmount: 10,
+        expectedCurrencyCode: global.BASE_CURRENCY.code,
+        raw: true,
+      });
+      const { periods } = await helpers.getSubscriptionPeriods({ id: subscription.id, raw: true });
+
+      await helpers.markSubscriptionPeriodPaid({
+        id: subscription.id,
+        periodId: periods[0]!.id,
+        createTransaction: true,
+        time: SUMMER,
+        raw: true,
+      });
+
+      const [paid] = await helpers.getTransactions({ accountIds: [account.id], raw: true });
+      expect(paid).toMatchObject({ timeZone: 'Asia/Tbilisi', utcOffsetMinutes: 240 });
+    });
+  });
 });

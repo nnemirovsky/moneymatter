@@ -243,7 +243,13 @@ describe('Planned transactions – merge on sync', () => {
       });
 
       const [plan] = await helpers.createPlannedTransaction({
-        payload: { accountId, amount: 250, time: addDays(startOfDay(now), 2).toISOString(), note: 'Rent' },
+        payload: {
+          accountId,
+          amount: 250,
+          time: addDays(startOfDay(now), 2).toISOString(),
+          note: 'Rent',
+          timeZone: null,
+        },
         raw: true,
       });
       await helpers.linkTransactionsToSubscription({ id: subscription.id, transactionIds: [plan!.id], raw: true });
@@ -731,7 +737,13 @@ describe('Bank sync – recorded time zone', () => {
     const { connectionId, accountId } = await anchoredAccount({ anchorTime: subDays(startOfDay(now), 10) });
 
     const [plan] = await helpers.createPlannedTransaction({
-      payload: { accountId, amount: 250, time: addDays(startOfDay(now), 2).toISOString(), note: 'Rent' },
+      payload: {
+        accountId,
+        amount: 250,
+        time: addDays(startOfDay(now), 2).toISOString(),
+        note: 'Rent',
+        timeZone: null,
+      },
       raw: true,
     });
     expect(plan).toMatchObject({ timeZone: null });

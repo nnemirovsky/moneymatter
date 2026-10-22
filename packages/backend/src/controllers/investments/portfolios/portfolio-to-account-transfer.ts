@@ -7,6 +7,7 @@ import {
 } from '@common/lib/zod/custom-types';
 import { createController } from '@controllers/helpers/controller-factory';
 import { portfolioToAccountTransfer } from '@services/investments/portfolios/transfers';
+import { zoneForCreateRequest } from '@services/transactions/recorded-zone';
 import { z } from 'zod';
 
 import { serializeTransferResponse } from './serialize-transfer';
@@ -35,7 +36,9 @@ export default createController(schema, async ({ user, params, body }) => {
     currencyCode: body.currencyCode,
     date: body.date,
     description: body.description || null,
-    timeZone: body.timeZone,
+    timeZone: body.existingTransactionId
+      ? body.timeZone
+      : await zoneForCreateRequest({ userId: user.id, timeZone: body.timeZone }),
     existingTransactionId: body.existingTransactionId,
   });
 
