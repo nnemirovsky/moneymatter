@@ -8,7 +8,7 @@ import { withTransaction } from '@services/common/with-transaction';
 
 import { buildLoggedSummary } from '../card-payment/build-logged-summary';
 import { absorbParkedTwin } from '../twins/absorb-parked-twin';
-import { findParkedTwins, probeOf, TWIN_PARK_REASONS } from '../twins/find-parked-twins';
+import { findJoinedTwins, findParkedTwins, joinedSlots, probeOf, TWIN_PARK_REASONS } from '../twins/find-parked-twins';
 import { lockTwins } from '../twins/lock-twins';
 import type { StoredParse } from './stored-parse';
 
@@ -50,7 +50,14 @@ const parkNotificationImpl = async ({
   if (parsed?.payment && TWIN_PARK_REASONS.includes(reason)) {
     await lockTwins({ userId: row.userId });
     const probe = await probeOf({ request: row, payment: parsed.payment });
-    const [found] = probe ? await findParkedTwins({ userId: row.userId, requestId: row.id, probe }) : [];
+    const [found] = probe
+      ? await findParkedTwins({
+          userId: row.userId,
+          requestId: row.id,
+          probe,
+          takenSlots: await joinedSlots({ twins: await findJoinedTwins({ userId: row.userId, requestId: row.id }) }),
+        })
+      : [];
     const twin = found?.request;
     if (twin) {
       await row.update({

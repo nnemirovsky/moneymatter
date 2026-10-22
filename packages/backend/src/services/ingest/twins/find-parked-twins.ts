@@ -31,6 +31,7 @@ export const probeOf = async ({
     payment: stored,
     time,
     slot: slotOfNotification({ sourceKey: source?.sourceKey ?? null, stage: stored.stage }),
+    sourceKey: source?.sourceKey ?? null,
   };
 };
 
@@ -101,6 +102,7 @@ export const findParkedTwins = async ({
 
     twins.push({ request: candidate, probe: other });
     taken.add(other.slot);
+    for (const held of candidateHeld) taken.add(held);
   }
 
   return twins;

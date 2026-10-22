@@ -226,7 +226,8 @@
               "contextUnreadable": "The text could not be read as an order, so nothing was added.",
               "contextExpired": "No payment came in time, so nothing was added.",
               "contextConfirmed": "The payment was already confirmed, so nothing was changed."
-            }
+            },
+            "parkedTwin": "The same payment was already waiting on another request, so this one joined it."
           },
           "retry": "Retry",
           "retryAria": "Retry the payment at {name}",

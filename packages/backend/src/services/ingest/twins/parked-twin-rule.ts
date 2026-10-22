@@ -10,6 +10,8 @@ export interface TwinProbe {
   time: Date;
   /** The dedup slot of the source that told of it (`wallet-notification`, `bank:<source>:<stage>`). */
   slot: string;
+  /** The source's key, when it has one. */
+  sourceKey?: string | null;
 }
 
 interface Figure {
