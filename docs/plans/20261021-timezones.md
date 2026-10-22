@@ -687,7 +687,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - Modify: `packages/frontend/src/components/chat/visuals/format-visual-value.ts`, `packages/frontend/src/pages/settings/subpages/ai/pages/chat-applied-changes.vue`, `packages/frontend/src/pages/accounts/integrations/ios-automation/components/{payment-request-summary,unconfirmed-payments}.vue`, `packages/frontend/src/pages/optimizations/reconciliation/components/merge-dialog.vue`, `packages/frontend/src/pages/settings/subpages/general/rows/transaction-rows.vue` (the new optional field's label)
 - Specs beside each changed util; i18n `en` + `uk`
 
-- [ ] write failing vitest:
+- [x] write failing vitest:
   - `date-field` with `timeZone: 'Asia/Tbilisi'` shows `2026-10-21 16:00` for `12:00Z` and emits `12:00Z` back when 16:00 is typed;
   - `prepareTxCreationParams` sends `timeZone`;
   - the balance-adjustment, mark-paid and both portfolio-transfer API calls send `timeZone`;
@@ -696,8 +696,16 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - the list tooltip text with and without a second zone;
   - `hasDistinctRecordedZone` for `null`/`null`, a same-offset zone, a different zone and an offset-only row;
   - a `null` row in the list, the table, the dialog and a chat card renders exactly what it renders today in the viewing zone (no caption, no second line, empty zone field with the "Unknown" placeholder)
-- [ ] implement; the dialog caption reads "Recorded in America/New_York: 08:00 GMT-4" when the row's zone differs
-- [ ] gate: frontend the changed spec files
+- [x] implement; the dialog caption reads "Recorded in America/New_York: 08:00 GMT-4" when the row's zone differs
+- [x] gate: frontend the changed spec files
+
+- ➕ `timeZone` joins `TRANSACTION_OPTIONAL_FIELDS` here (deferred from Task 3). `useOptionalFields` leaves it out of the defaults, so the setting row and chip are opt-in; the field also mounts on its own when the row's zone differs.
+- ➕ `date-field` applies its `timeZone` (default: the viewing zone) only in `dateTime` mode; date-only mode keeps browser days, because its callers (filters, presets) are moved in Task 13.
+- ➕ The frontend formats with `format(new TZDate(date, zone), pattern)`, not `{ in: tz() }` (CJS typings, Task 9). New helpers in `time-zone.ts`: `hasDistinctRecordedZone`, `formatRecordedZoneLine`, `getTransactionTimeTooltip`, `formatDateWithTime`.
+- ➕ One caption serves both cases: the dialog shows "Recorded in <zone>: <time> <label>" under the time whenever the form's zone (a picked one included) reads differently from the viewing zone. The separate "= 08:00 in New York" wording was dropped.
+- ➕ The update body carries `timeZone` only when the user picked a zone other than the stored one.
+- ➕ `portfolioToAccountTransfer` has no caller in the UI today; its API function sends `timeZone` and is tested, but no dialog was changed. The account to portfolio transfer made from the transaction dialog sends the viewing zone through its API call.
+- ⚠️ `ios-automation.spec.ts` "names the row iOS Automation and says bank notifications are logged too" fails on its own (en copy no longer contains "bank notifications"); unrelated to this task.
 
 ### Task 12: Bulk zone edits: API, MCP and the list action
 
