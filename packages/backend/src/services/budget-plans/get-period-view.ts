@@ -22,7 +22,7 @@ import { Op } from 'sequelize';
 
 import { getPlanActivity } from './activity/get-plan-activity';
 import { getPlanCash } from './activity/get-plan-cash';
-import { addUtcDays } from './date-ranges';
+import { tomorrowIn } from './date-ranges';
 import { findPlan } from './find-plan';
 import { FoldedPeriodView, foldPlan } from './fold/fold-plan';
 import { foldPool } from './fold/fold-pool';
@@ -59,13 +59,11 @@ const periodPool = async ({
   plan,
   views,
   periodId,
-  today,
   decimals,
 }: {
   plan: BudgetPlans;
   views: FoldedPeriodView[];
   periodId: RecordId;
-  today: string;
   decimals: number;
 }): Promise<{ pool: BudgetPlanPool; nextReadyToAssign: number | null } | null> => {
   if (!plan.poolFrom) return null;
@@ -74,8 +72,10 @@ const periodPool = async ({
   if (view.period.startDate < poolFrom) return null;
 
   const poolViews = views.filter((entry) => entry.period.startDate >= poolFrom);
-  const tomorrow = addUtcDays({ date: today, days: 1 });
   const zone = await getUserTimeZone({ userId: plan.userId });
+  // The pool's cash is read as of the start of tomorrow in the plan owner's zone, so every
+  // transaction up to now is inside it.
+  const tomorrow = tomorrowIn({ zone });
   const { opening, closing: cash } = await getPlanCash({
     plan,
     zone,
@@ -399,7 +399,7 @@ export const getPeriodView = async ({
   const views = foldPlan(foldInput);
   const view = views[index]!;
   const explicitViews = plan.poolFrom ? foldPlan({ ...foldInput, explicitFutureOnly: true }) : [];
-  const poolResult = plan.poolFrom ? await periodPool({ plan, views: explicitViews, periodId, today, decimals }) : null;
+  const poolResult = plan.poolFrom ? await periodPool({ plan, views: explicitViews, periodId, decimals }) : null;
 
   const asks = evaluateGoals({ plan, view, views, goals });
   const next = explicitViews[index + 1];

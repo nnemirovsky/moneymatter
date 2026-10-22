@@ -1,4 +1,5 @@
 import { zonedDayStart } from '@bt/shared/time-zone';
+import { localDay } from '@common/lib/time-zones/tz-options';
 import { toUtcDateString } from '@common/utils/date';
 
 import { MS_PER_DAY } from './periods/period-enumerator';
@@ -15,6 +16,10 @@ export const zonedInstant = ({ date, zone }: { date: string | Date; zone: string
 
 export const addUtcDays = ({ date, days }: { date: string; days: number }): string =>
   toUtcDateString(new Date(utcInstant({ date }).getTime() + days * MS_PER_DAY));
+
+/** The plan day after today in `zone`: the first moment of it is later than every transaction up to now. */
+export const tomorrowIn = ({ zone, now = new Date() }: { zone: string; now?: Date }): string =>
+  addUtcDays({ date: localDay({ zone, now }), days: 1 });
 
 /** Half-open day ranges `[from, until)`, `until: null` = open end. */
 export interface DateRange {
