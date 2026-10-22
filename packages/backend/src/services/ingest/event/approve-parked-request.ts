@@ -10,6 +10,9 @@ import { withTransaction } from '@services/common/with-transaction';
 
 import { isWaitingRequest } from '../card-payment/process-ingest-request';
 import { readUserLocale } from '../card-payment/read-user-locale';
+import { absorbParkedTwin, findJoinedTwins } from '../twins/absorb-parked-twin';
+import { findParkedTwins, probeOf } from '../twins/find-parked-twins';
+import { lockTwins } from '../twins/lock-twins';
 import { assertUsableAccount } from '../usable-account';
 import { learnAccountChoice, type AccountLesson } from './learn-account-choice';
 import { enqueueNotificationProcessing } from './notification-queue';
@@ -75,6 +78,32 @@ export const approveParkedRequest = withTransaction(
       row.reason === 'unknownAccount' && accountId
         ? await learnAccountChoice({ userId, accountId, payment: stored.payment, source, payload: row.payload })
         : null;
+
+    // The same payment told by another source (Wallet's notification and the bank's push) is one payment:
+    // the twins that joined this request, and the ones still waiting on a card of their own, are settled
+    // with it and their cards are learned on the same account. Logging the payment twice is what this
+    // prevents.
+    await lockTwins({ userId });
+    const probe = await probeOf({ request: row, payment: stored.payment });
+    const waitingTwins = probe ? await findParkedTwins({ userId, requestId, probe }) : [];
+    for (const twin of waitingTwins) await absorbParkedTwin({ twin, intoRequestId: requestId });
+    if (row.reason === 'unknownAccount' && accountId) {
+      for (const twin of await findJoinedTwins({ userId, requestId })) {
+        const twinPayment = readStoredParse({ value: twin.parsed })?.payment;
+        if (!twinPayment) continue;
+
+        const twinSource = twin.sourceId
+          ? await NotificationSources.findOne({ where: { id: twin.sourceId, userId } })
+          : null;
+        await learnAccountChoice({
+          userId,
+          accountId,
+          payment: twinPayment,
+          source: twinSource,
+          payload: twin.payload,
+        });
+      }
+    }
 
     // Every other waiting payment the same card or source resolves goes through the pipeline now, each with
     // its own confirm card; nothing is confirmed on the owner's behalf.

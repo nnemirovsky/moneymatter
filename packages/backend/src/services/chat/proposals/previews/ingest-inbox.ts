@@ -9,6 +9,7 @@ import { describeSource, sourceAppName } from '@services/ingest/event/source-lab
 import { readStoredParse } from '@services/ingest/event/stored-parse';
 import { findWaitingSiblings, siblingMatchOf } from '@services/ingest/event/waiting-siblings';
 import { ingestMarkersOf, isUnconfirmedIngest } from '@services/ingest/ingest-markers';
+import { findJoinedTwins } from '@services/ingest/twins/absorb-parked-twin';
 
 import { hashTargetIds } from '../snapshot';
 import { forUpdate, PreviewError, serializeRow, targetNotFound } from './preview-helpers';
@@ -113,12 +114,28 @@ export const resolveIngestRequest: PreviewResolver = async ({ userId, args, lock
   const match = willLearn && payment ? siblingMatchOf({ payment, sourceId: request.sourceId }) : null;
   const alsoWaiting = match ? (await findWaitingSiblings({ userId, match, excludeRequestId: request.id })).length : 0;
 
+  // The same payment told by other sources joined this request: the card names them, and approving links
+  // their cards to the account too.
+  const alsoSeenIn: { sourceName: string | null; cardName: string | null; cardLastDigits: string | null }[] = [];
+  for (const twin of await findJoinedTwins({ userId, requestId: request.id })) {
+    const twinPayment = readStoredParse({ value: twin.parsed })?.payment;
+    const twinSource = twin.sourceId
+      ? await NotificationSources.findOne({ where: { id: twin.sourceId, userId } })
+      : null;
+    alsoSeenIn.push({
+      sourceName: sourceAppName({ source: twinSource, payload: twin.payload }),
+      cardName: twinPayment?.cardName ?? null,
+      cardLastDigits: twinPayment?.cardLastDigits ?? null,
+    });
+  }
+
   return {
     preview: {
       before: {
         id: request.id,
         reason: request.reason,
         alsoWaiting,
+        alsoSeenIn,
         name: payment?.merchant ?? describeSource({ source: null, payload: request.payload }),
         sourceName: sourceAppName({ source, payload: request.payload }),
         summary: request.summary,

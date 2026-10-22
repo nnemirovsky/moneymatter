@@ -74,6 +74,20 @@ const selectedAccount = computed(
   () => props.lookups.accounts().find((account) => account.id === props.accountId) ?? null,
 );
 
+/** The other sources that told of this same payment, and the cards approving links to the account. */
+const alsoSeenText = computed(() => {
+  const others = props.payment.alsoSeenIn ?? [];
+  if (!others.length) return null;
+
+  const names = others
+    .map((other) => [other.sourceName, other.cardName ?? (other.cardLastDigits ? `•${other.cardLastDigits}` : null)])
+    .map((parts) => parts.filter(Boolean).join(' '))
+    .filter(Boolean)
+    .join(', ');
+
+  return t(`${LABEL_ROOT}.alsoSeenIn`, { sources: names });
+});
+
 /** What approving on the chosen account teaches, said before the owner approves. */
 const lessonText = computed(() => {
   const account = selectedAccount.value;
@@ -154,6 +168,9 @@ const lessonText = computed(() => {
         {{ $t(`${LABEL_ROOT}.accountHint`) }}
       </p>
       <template v-else-if="lessonText">
+        <p v-if="alsoSeenText" class="text-muted-foreground text-xs" data-testid="ingest-also-seen">
+          {{ alsoSeenText }}
+        </p>
         <p class="text-muted-foreground text-xs" data-testid="ingest-lesson">{{ lessonText }}</p>
         <p v-if="payment.alsoWaiting > 0" class="text-muted-foreground text-xs" data-testid="ingest-siblings">
           {{

@@ -1,11 +1,15 @@
 import type { IngestRequestReason, RecordId } from '@bt/shared/types';
 import IngestRequests from '@models/ingest-requests.model';
 import { resolveCardsElsewhere } from '@services/chat/inbox/inbox-resolution';
+import { refreshProposal } from '@services/chat/proposals/refresh';
 import { DOMAIN_EVENTS, eventBus, type IngestRequestParkedPayload } from '@services/common/event-bus';
 import { runAfterCommit } from '@services/common/run-after-commit';
 import { withTransaction } from '@services/common/with-transaction';
 
 import { buildLoggedSummary } from '../card-payment/build-logged-summary';
+import { absorbParkedTwin } from '../twins/absorb-parked-twin';
+import { findParkedTwins, probeOf, TWIN_PARK_REASONS } from '../twins/find-parked-twins';
+import { lockTwins } from '../twins/lock-twins';
 import type { StoredParse } from './stored-parse';
 
 /**
@@ -13,6 +17,17 @@ import type { StoredParse } from './stored-parse';
  * `received`, so of two jobs that raced for one request the second finds the first one's outcome and
  * changes nothing.
  */
+
+/** The card of the request a twin joined shows the twin: bring it up to date. A card that is gone has nothing to refresh. */
+const refreshTwinCard = async ({ userId, proposalId }: { userId: number; proposalId: RecordId | null }) => {
+  if (!proposalId) return;
+
+  try {
+    await refreshProposal({ userId, proposalId });
+  } catch {
+    // A card that is settled or gone has nothing to refresh.
+  }
+};
 
 const parkNotificationImpl = async ({
   requestId,
@@ -29,6 +44,24 @@ const parkNotificationImpl = async ({
 }): Promise<boolean> => {
   const row = await IngestRequests.findOne({ where: { id: requestId }, lock: true });
   if (!row || row.status !== 'received') return false;
+
+  // The same payment told by two sources (Wallet's notification and the bank's push) waits as one card:
+  // this request joins the one already waiting instead of asking the owner twice.
+  if (parsed?.payment && TWIN_PARK_REASONS.includes(reason)) {
+    await lockTwins({ userId: row.userId });
+    const probe = await probeOf({ request: row, payment: parsed.payment });
+    const [twin] = probe ? await findParkedTwins({ userId: row.userId, requestId: row.id, probe }) : [];
+    if (twin) {
+      await row.update({
+        parsed: parsed as unknown as Record<string, unknown>,
+        ...(cardLabel !== undefined && { cardLabel }),
+      });
+      await absorbParkedTwin({ twin: row, intoRequestId: twin.id });
+      await runAfterCommit({ fn: () => refreshTwinCard({ userId: row.userId, proposalId: twin.proposalId }) });
+
+      return true;
+    }
+  }
 
   await row.update({
     status: 'parked',

@@ -13,6 +13,7 @@ import { applyHeldContexts } from '../context/apply-held-contexts';
 import { processContextNotification } from '../context/process-context-notification';
 import { enqueueAfterPaymentLogged } from '../follow-up-queue';
 import { dropParkedHoldRelease } from '../hold-release/drop-hold-release';
+import { absorbWaitingTwins } from '../twins/absorb-waiting-twins';
 import { listNonZeroCurrencies } from './balance-authority';
 import type { ClassifiedNotification, ParsedPayment } from './classify-notification';
 import { notificationTimings } from './constants';
@@ -315,6 +316,11 @@ export const processNotification = async ({
   }
 
   if (result.kind === 'skipped' || result.kind === 'dropped') return 'done';
+
+  // The same payment told by another source may wait on a card of its own: it is this payment now.
+  if (result.kind === 'logged') {
+    await absorbWaitingTwins({ request: row, payment: toStoredPayment({ payment: reading.payment }) });
+  }
 
   if (result.kind === 'park') {
     // Before the park, so a dropped notification never gets an inbox card.

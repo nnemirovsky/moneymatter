@@ -600,7 +600,8 @@
         "learnCardNamed": "Future payments on {card} will go to {account}.",
         "learnSource": "Future {source} payments will go to {account}.",
         "siblings": "{count} other waiting payment will be logged on {account} too, and wait for your OK. | {count} other waiting payments will be logged on {account} too, and wait for your OK.",
-        "unknownCounterparty": "Unknown"
+        "unknownCounterparty": "Unknown",
+        "alsoSeenIn": "The same payment was also reported by {sources}. Approving links those cards to this account too."
       },
       "sourceSettled": "This source is not waiting for approval any more.",
       "matchingRules": {

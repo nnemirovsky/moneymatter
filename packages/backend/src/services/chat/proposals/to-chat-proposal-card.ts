@@ -111,8 +111,19 @@ const ingestRequestOf = ({
     summary: textOf({ value: before.summary }),
     willLearn: lesson,
     alsoWaiting: typeof before.alsoWaiting === 'number' ? before.alsoWaiting : 0,
+    alsoSeenIn: alsoSeenInOf({ value: before.alsoSeenIn }),
   };
 };
+
+/** The other sources that told of the same payment, as the preview stored them. */
+const alsoSeenInOf = ({ value }: { value: unknown }): ChatIngestRequestSummary['alsoSeenIn'] =>
+  Array.isArray(value)
+    ? value.map((item: Record<string, unknown>) => ({
+        sourceName: textOf({ value: item.sourceName }),
+        cardName: textOf({ value: item.cardName }),
+        cardLastDigits: textOf({ value: item.cardLastDigits }),
+      }))
+    : [];
 
 const isIngestRequestCard = ({ row }: { row: Pick<ChatProposalRow, 'toolName'> }): boolean =>
   row.toolName === LOG_INGEST_REQUEST_TOOL_NAME;
