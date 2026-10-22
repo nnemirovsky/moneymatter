@@ -281,13 +281,10 @@ export async function runTimeZoneBackfill({
       (isRevaluedAccount({ account, baseCurrencyCode }) ? revalued : incremental).push(accountId);
     }
 
-    const loanRows = moved.filter(
-      (row) =>
-        row.transferNature === TRANSACTION_TRANSFER_NATURE.transfer_to_loan ||
-        row.transferNature === TRANSACTION_TRANSFER_NATURE.transfer_out_wallet,
-    );
-    if (loanRows.length)
-      problems.push(`${loanRows.length} rows are loan or wallet transfer legs, which this run does not handle`);
+    // A loan's balance history is owned by `recomputeLoanBalance`. A `transfer_out_wallet` row (a balance
+    // adjustment or an import's wallet leg) moves its account balance like any other row.
+    const loanRows = moved.filter((row) => row.transferNature === TRANSACTION_TRANSFER_NATURE.transfer_to_loan);
+    if (loanRows.length) problems.push(`${loanRows.length} rows are loan transfer legs, which this run does not handle`);
 
     const before = await latestBalances({ accountIds });
     const report: BackfillReport = {

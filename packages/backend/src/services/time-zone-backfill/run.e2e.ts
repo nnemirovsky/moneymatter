@@ -100,6 +100,24 @@ describe('time zone backfill', () => {
     }
   });
 
+  it('moves a wallet-transfer row like any other row', async () => {
+    const base = await helpers.createAccount({ raw: true });
+    await create({
+      accountId: base.id,
+      time: '2026-03-11T01:00:00.000Z',
+      transferNature: TRANSACTION_TRANSFER_NATURE.transfer_out_wallet,
+    });
+
+    const report = await runTimeZoneBackfill({
+      apply: true,
+      groups: groups({ early: 1, late: 0 }),
+      ...importWindow(),
+    });
+
+    expect(report.problems).toEqual([]);
+    expect(report.groups[0]!.rows).toBe(1);
+  });
+
   it('refuses to apply when a group count differs from the expectation', async () => {
     await seed();
 
