@@ -14,6 +14,7 @@ import { QueryTypes } from 'sequelize';
 import { formatSummary } from '../card-payment/format-summary';
 import type { StoredParse } from '../event/stored-parse';
 import { ingestMarkersOf, isUnconfirmedIngest } from '../ingest-markers';
+import { isSameMerchant } from '../twins/parked-twin-rule';
 import { lockContext } from './context-lock';
 import type { StoredContext } from './context-types';
 import { findContextCandidates } from './find-context-payment';
@@ -107,9 +108,12 @@ const applyContextImpl = async ({
   }
 
   const noteEligible = isNoteReplaceable({ note: tx.note, systemNote: markers.systemNote });
-  const note = noteEligible
-    ? t({ key: 'ingest.contextNote', variables: { store: context.store, service: context.service }, locale })
-    : null;
+  // A store that is the service itself ("Temu order from Temu") says nothing the payee does not: no note.
+  const redundant = isSameMerchant({ left: context.store, right: context.service });
+  const note =
+    noteEligible && !redundant
+      ? t({ key: 'ingest.contextNote', variables: { store: context.store, service: context.service }, locale })
+      : null;
   const categoryEligible =
     Boolean(categoryId) &&
     categoryId !== tx.categoryId &&

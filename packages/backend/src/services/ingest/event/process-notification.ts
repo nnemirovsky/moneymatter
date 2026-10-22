@@ -70,7 +70,7 @@ const read = async ({
   const sourceLabel = describeSource({ source, payload: row.payload });
 
   // A context source's notifications describe a purchase and never become a payment.
-  if (source?.mode === 'context') {
+  if (source?.mode === 'context' || (source && row.payload.oneOffContext === true)) {
     await processContextNotification({ row, source, locale });
 
     return { kind: 'done' };

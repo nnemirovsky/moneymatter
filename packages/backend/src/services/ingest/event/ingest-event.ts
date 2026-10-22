@@ -1,4 +1,6 @@
 import {
+  isMailApp,
+  matchAmountGate,
   isContextApp,
   isConversationalApp,
   type CardPaymentRejectionReason,
@@ -18,6 +20,7 @@ import { ingestCardPayment } from '../card-payment/ingest-card-payment';
 import { parkFailedRequest } from '../card-payment/park-failed-request';
 import { readUserLocale } from '../card-payment/read-user-locale';
 import { sanitizeForJsonb } from '../card-payment/sanitize-payload';
+import { senderMatchesRecentPayment } from '../context/recent-payment-match';
 import { getGateStrictness } from '../gate-strictness.service';
 import { notificationLimits } from './constants';
 import { computeNotificationFingerprint, isFoldedRepeat } from './notification-fingerprint';
@@ -122,12 +125,15 @@ const recordNotificationImpl = async ({
   notification,
   sourceKey,
   fingerprint,
+  oneOffContext,
 }: {
   userId: number;
   tokenId: RecordId | null;
   notification: ParsedNotification;
   sourceKey: string;
   fingerprint: string;
+  /** The sender is read once as context for a payment just made, though its source is still undecided. */
+  oneOffContext: boolean;
 }): Promise<RecordedNotification> => {
   const folded = await findFoldedOriginal({ userId, fingerprint, time: notification.time });
   // A repeat stores nothing, not even its text.
@@ -149,6 +155,7 @@ const recordNotificationImpl = async ({
       bundleId: notification.bundleId,
       time: notification.time.toISOString(),
       timeProvided: notification.timeProvided,
+      ...(oneOffContext && { oneOffContext: true }),
       ...(notification.timeZone && { timeZone: notification.timeZone }),
       ...(notification.timeOffsetMinutes !== null && { timeOffsetMinutes: notification.timeOffsetMinutes }),
     },
@@ -230,7 +237,21 @@ const ingestNotification = async ({
     await updateNotificationSource({ userId, id: source.id, mode: 'context' });
     source = await findNotificationSource({ userId, sourceKey });
   }
-  const contextApp = source ? source.mode === 'context' : isContextApp({ appName: notification.app });
+  // A sender the owner has not decided on, named after a merchant just paid, is read once as context.
+  const strictness = await getGateStrictness({ userId });
+  const showsAmount =
+    matchAmountGate({
+      text: [notification.title, notification.subtitle, notification.body].filter(Boolean).join('\n'),
+      strictness,
+    }) !== null;
+  const oneOffContext =
+    !showsAmount &&
+    source?.mode === 'pending' &&
+    source.conversational &&
+    isMailApp({ appName: notification.app }) &&
+    (await senderMatchesRecentPayment({ userId, sender: notification.title }));
+  const contextApp =
+    oneOffContext || (source ? source.mode === 'context' : isContextApp({ appName: notification.app }));
 
   const prefiltered = prefilterNotification({
     bundleId: notification.bundleId,
@@ -238,7 +259,7 @@ const ingestNotification = async ({
     title: notification.title,
     subtitle: notification.subtitle,
     body: notification.body,
-    strictness: await getGateStrictness({ userId }),
+    strictness,
     contextApp,
   });
   if (!prefiltered.pass) {
@@ -267,7 +288,7 @@ const ingestNotification = async ({
     throw new TooManyRequests({ message: t({ key: 'ingest.rateLimited', locale }) });
   }
 
-  const recorded = await recordNotification({ userId, tokenId, notification, sourceKey, fingerprint });
+  const recorded = await recordNotification({ userId, tokenId, notification, sourceKey, fingerprint, oneOffContext });
   if (recorded.replay) {
     return { kind: 'notification', response: { outcome: 'duplicate', requestId: recorded.requestId, notify: false } };
   }
@@ -292,20 +313,30 @@ const ingestNotification = async ({
 
 /**
  * The first step of the handshake for a messaging or mail notification without an amount. It reads the
- * app and the sender and answers `send: 'yes'` only when that sender is a context source. It stores
- * nothing, creates no source and counts nothing, so an unknown sender leaves no trace.
+ * app and the sender and answers `send: 'yes'` when that sender is a context source, or names a merchant
+ * the owner paid in the last half hour (a mail sender only; then the sender becomes a source waiting for the
+ * owner's choice). Any other sender leaves no trace: nothing is stored, no source is created, nothing is counted.
  */
 const probeSender = async ({ userId, body }: { userId: number; body: unknown }): Promise<IngestEventResult> => {
   const app = readProbeApp({ body });
-  const source = await findNotificationSource({
-    userId,
-    sourceKey: getNotificationSourceKey({ app: { bundleId: app.bundleId, appName: app.app, title: app.title } }),
-  });
+  const appIdentity = { bundleId: app.bundleId, appName: app.app, title: app.title };
+  const sourceKey = getNotificationSourceKey({ app: appIdentity });
+  const source = await findNotificationSource({ userId, sourceKey });
 
-  return {
-    kind: 'notification',
-    response: { outcome: 'probe', notify: false, ...(source?.mode === 'context' && { send: 'yes' as const }) },
-  };
+  let send = source?.mode === 'context';
+  // A sender that names a merchant the owner has just paid is offered as a context source: its row is made
+  // (the sender and the app, no text) and this one notification is sent to be read for that payment.
+  if (
+    !send &&
+    isMailApp({ appName: app.app }) &&
+    (!source || source.mode === 'pending') &&
+    (await senderMatchesRecentPayment({ userId, sender: app.title }))
+  ) {
+    await touchNotificationSource({ userId, sourceKey, app: appIdentity });
+    send = true;
+  }
+
+  return { kind: 'notification', response: { outcome: 'probe', notify: false, ...(send && { send: 'yes' as const }) } };
 };
 
 /**
