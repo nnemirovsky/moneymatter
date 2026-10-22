@@ -1,4 +1,5 @@
 import { afterEach } from '@jest/globals';
+import { CHAT_WRITE_PRELOAD_TOOLS } from '@services/chat/policies/core-tools';
 import { HttpResponse, http } from 'msw';
 
 import { CUSTOM_ENDPOINT_BASE_URL } from './mock-api';
@@ -185,7 +186,27 @@ export function createChatScript({
       );
     }
 
-    const turn = typeof next === 'function' ? next(body) : next;
+    let turn = typeof next === 'function' ? next(body) : next;
+
+    // The common write tools are not offered on every step: a model that wants one finds it first.
+    // A script that calls one the request does not offer gets that find step inserted before its
+    // turn, which stays queued, so a script keeps reading as the change it makes.
+    const offered = new Set((body.tools ?? []).map((tool) => tool.function.name));
+    const undiscovered = (turn.toolCalls ?? [])
+      .map((call) => call.name)
+      .filter((name) => CHAT_WRITE_PRELOAD_TOOLS.includes(name) && !offered.has(name));
+    if (offered.size > 0 && undiscovered.length > 0) {
+      queue.unshift(next);
+      turn = {
+        toolCalls: [
+          {
+            id: 'call_find_writes',
+            name: 'find_capabilities',
+            arguments: { query: undiscovered.map((name) => name.replaceAll('_', ' ')).join(' ') },
+          },
+        ],
+      };
+    }
 
     if (turn.error) {
       return HttpResponse.json(

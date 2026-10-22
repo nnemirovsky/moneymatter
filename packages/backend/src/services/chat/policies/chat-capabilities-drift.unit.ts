@@ -29,7 +29,12 @@ import { createProposal } from '../proposals/create-proposal';
 import { PREVIEW_RESOLVERS } from '../proposals/previews';
 import { ENTITY_LOADERS } from '../proposals/previews/entity-loaders';
 import { buildChatToolkit } from '../toolkit/build-toolkit';
-import { CHAT_CORE_TOOL_REASONS, CHAT_CORE_TOOLS } from './core-tools';
+import {
+  CHAT_CORE_TOOL_REASONS,
+  CHAT_CORE_TOOLS,
+  CHAT_WRITE_PRELOAD_REASONS,
+  CHAT_WRITE_PRELOAD_TOOLS,
+} from './core-tools';
 import { UNMAPPED_ID_FIELDS } from './entity-fields';
 import { CHAT_ARGS_ONLY_TOOLS, CHAT_EXCLUDED_TOOLS } from './excluded';
 import {
@@ -45,8 +50,11 @@ import { HIGH_IMPACT_TOOLS, PREVIEW_RESOLVER_NAMES } from './rules';
 
 const EN_CHAT_PATH = path.resolve(__dirname, '../../../../../frontend/src/i18n/locales/chunks/en/pages/chat.json');
 
-/** The schema budget for the core catalog tools every chat step sends; the rest is found through `find_capabilities`. */
-const CORE_SCHEMA_BUDGET_BYTES = 44 * 1024;
+/** The schema budget for the core catalog tools every chat step sends (reads); the rest is found through `find_capabilities`. */
+const CORE_SCHEMA_BUDGET_BYTES = 20 * 1024;
+
+/** The write tools a turn with an attachment or earlier cards starts with, on top of the core. */
+const WRITE_PRELOAD_SCHEMA_BUDGET_BYTES = 28 * 1024;
 
 /** The chat-native tools (find_capabilities, ask_clarification, render_*, read_attachment, run_analysis, set_thread_title) have a budget of their own. */
 const NATIVE_SCHEMA_BUDGET_BYTES = 12 * 1024;
@@ -278,25 +286,42 @@ describe('chat capability drift', () => {
   });
 
   // Check 5
-  it('lists a reason for every core tool and keeps the list about 35 tools long', () => {
+  it('lists a reason for every core and preloaded tool, with reads in the core and writes preloaded', () => {
+    const catalog = new Map(getToolCatalog().map((entry) => [entry.name, entry]));
+
     expect([...CHAT_CORE_TOOLS].toSorted()).toEqual(Object.keys(CHAT_CORE_TOOL_REASONS).toSorted());
-    expect(CHAT_CORE_TOOLS.length).toBeGreaterThanOrEqual(30);
-    expect(CHAT_CORE_TOOLS.length).toBeLessThanOrEqual(40);
-    expect(new Set(CHAT_CORE_TOOLS).size).toBe(CHAT_CORE_TOOLS.length);
+    expect([...CHAT_WRITE_PRELOAD_TOOLS].toSorted()).toEqual(Object.keys(CHAT_WRITE_PRELOAD_REASONS).toSorted());
+    expect(CHAT_CORE_TOOLS.length).toBeGreaterThanOrEqual(15);
+    expect(CHAT_CORE_TOOLS.length).toBeLessThanOrEqual(25);
+    expect(new Set([...CHAT_CORE_TOOLS, ...CHAT_WRITE_PRELOAD_TOOLS]).size).toBe(
+      CHAT_CORE_TOOLS.length + CHAT_WRITE_PRELOAD_TOOLS.length,
+    );
     for (const name of CHAT_CORE_TOOLS) {
+      expect([name, catalog.get(name)?.access]).toEqual([name, 'read']);
       expect([name, CHAT_CORE_TOOL_REASONS[name]!.length > 10]).toEqual([name, true]);
+      expect([name, name in CHAT_EXCLUDED_TOOLS]).toEqual([name, false]);
+    }
+    for (const name of CHAT_WRITE_PRELOAD_TOOLS) {
+      expect([name, catalog.get(name)?.access]).toEqual([name, 'write']);
+      expect([name, CHAT_WRITE_PRELOAD_REASONS[name]!.length > 10]).toEqual([name, true]);
       expect([name, name in CHAT_EXCLUDED_TOOLS]).toEqual([name, false]);
     }
   });
 
-  it('keeps the model-facing schemas of the core tools within 44 KB, and those of the chat-native tools within their own budget', () => {
-    const toolkit = buildChatToolkit({ run: makeChatRun().run });
-    const active = new Set(toolkit.activeToolNames());
-    const offered = toolkit.tools.filter((tool) => active.has(tool.name));
+  it('keeps the schemas an answer turn sends within budget, and those of a turn that starts with the writes', () => {
+    const answer = buildChatToolkit({ run: makeChatRun().run });
+    const change = buildChatToolkit({ run: { ...makeChatRun().run, preloadWrites: true } });
+    const offeredBy = ({ toolkit }: { toolkit: ReturnType<typeof buildChatToolkit> }) => {
+      const active = new Set(toolkit.activeToolNames());
+      return toolkit.tools.filter((tool) => active.has(tool.name));
+    };
+    const offered = offeredBy({ toolkit: answer });
     const core = offered.filter((tool) => CHAT_CORE_TOOLS.includes(tool.name));
     const native = offered.filter((tool) => tool.kind === 'native');
 
-    for (const name of CHAT_CORE_TOOLS) expect([name, active.has(name)]).toEqual([name, true]);
+    for (const name of CHAT_CORE_TOOLS)
+      expect([name, offered.some((tool) => tool.name === name)]).toEqual([name, true]);
+    // An answer turn offers no write tool; discovery adds them.
     expect(offered.length).toBe(core.length + native.length);
     expect(core).toHaveLength(CHAT_CORE_TOOLS.length);
     expect(native.map((tool) => tool.name).toSorted()).toEqual([
@@ -313,6 +338,15 @@ describe('chat capability drift', () => {
     expect(schemaBytes({ tools: core })).toBeLessThanOrEqual(CORE_SCHEMA_BUDGET_BYTES);
     expect(schemaBytes({ tools: native })).toBeGreaterThan(1_000);
     expect(schemaBytes({ tools: native })).toBeLessThanOrEqual(NATIVE_SCHEMA_BUDGET_BYTES);
+
+    const preloaded = offeredBy({ toolkit: change }).filter((tool) => CHAT_WRITE_PRELOAD_TOOLS.includes(tool.name));
+    expect(preloaded.map((tool) => tool.name).toSorted()).toEqual([...CHAT_WRITE_PRELOAD_TOOLS].toSorted());
+    expect(schemaBytes({ tools: preloaded })).toBeGreaterThan(3_000);
+    expect(schemaBytes({ tools: preloaded })).toBeLessThanOrEqual(WRITE_PRELOAD_SCHEMA_BUDGET_BYTES);
+    // eslint-disable-next-line no-console
+    console.info(
+      `schema bytes: core ${schemaBytes({ tools: core })}, native ${schemaBytes({ tools: native })}, preloaded writes ${schemaBytes({ tools: preloaded })}`,
+    );
   });
 
   // Check 6

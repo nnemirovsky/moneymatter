@@ -1,21 +1,22 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema, type Tool } from '@modelcontextprotocol/sdk/types.js';
 
-import { CHAT_CORE_TOOLS } from '../policies/core-tools';
 import type { ChatToolDefinition, ChatToolkit } from '../toolkit/types';
 import { createUseCapabilityTool, USE_CAPABILITY_TOOL } from './use-capability';
 
 const UNKNOWN_TOOL_HINT = `Tools that are not in your tool list are called through ${USE_CAPABILITY_TOOL}; find_capabilities searches them.`;
 
 /**
- * The tools a bridge session offers: the core set, the chat-native tools and the dispatcher. The
- * list is the same for the whole session; the rest of the catalog is reached through `use_capability`.
+ * The tools a bridge session offers: the core reads, the preloaded writes when the run starts with
+ * them, the chat-native tools and the dispatcher. The list is the same for the whole session, so a
+ * tool `find_capabilities` finds joins it only through `use_capability`.
  */
 function offeredTools({ toolkit }: { toolkit: ChatToolkit }): Map<string, ChatToolDefinition> {
   const offered = new Map<string, ChatToolDefinition>();
+  const base = new Set(toolkit.baseToolNames());
 
   for (const tool of toolkit.tools) {
-    if (tool.kind === 'native' || CHAT_CORE_TOOLS.includes(tool.name)) offered.set(tool.name, tool);
+    if (tool.kind === 'native' || base.has(tool.name)) offered.set(tool.name, tool);
   }
   const dispatcher = createUseCapabilityTool({ toolkit });
   offered.set(dispatcher.name, dispatcher);

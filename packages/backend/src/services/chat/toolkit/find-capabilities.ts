@@ -9,6 +9,24 @@ import { toolSuccess } from './result-text';
 import type { ChatToolContext } from './types';
 
 const DEFAULT_MATCHES = 5;
+
+/**
+ * Words people use for a change that its tool's name and description do not hold ("log a coffee" for
+ * `create_transaction`). The common write tools are found by search and not offered on every step, so
+ * a request in everyday words has to reach them; a hint weighs more than a description word.
+ */
+const SEARCH_HINTS: Readonly<Record<string, string>> = {
+  create_transaction: 'log add record new expense income spent spend paid pay bought purchase payment coffee receipt',
+  update_transaction: 'edit fix change correct modify rename recategorize categorize move date amount note',
+  delete_transaction: 'remove delete erase duplicate wrong entry',
+  bulk_update_transactions: 'recategorize categorize move retag many all several rename change fix',
+  bulk_delete_transactions: 'remove delete erase duplicates duplicate many all several filter',
+  assign_tags_to_transaction: 'tag tags label retag',
+  create_category: 'add new make category',
+  create_tag: 'add new make tag label',
+  create_payee: 'add new make merchant payee',
+  create_account: 'add new make open account wallet card',
+};
 const MAX_MATCHES = 8;
 
 const wordsOf = ({ text }: { text: string }): string[] =>
@@ -26,8 +44,19 @@ const wordsOf = ({ text }: { text: string }): string[] =>
  * A tool whose whole name is the query wins, and a shorter name wins a tie, so "delete account"
  * finds `delete_account` before `delete_account_group`.
  */
-function score({ queryWords, name, description }: { queryWords: string[]; name: string; description: string }): number {
+function score({
+  queryWords,
+  name,
+  description,
+  hints = '',
+}: {
+  queryWords: string[];
+  name: string;
+  description: string;
+  hints?: string;
+}): number {
   const nameWords = wordsOf({ text: name });
+  const hintWords = new Set(wordsOf({ text: hints }));
   const descriptionWords = new Set(wordsOf({ text: description }));
 
   let total = 0;
@@ -37,6 +66,8 @@ function score({ queryWords, name, description }: { queryWords: string[]; name: 
       total += 3;
       inName++;
     } else if (nameWords.some((nameWord) => nameWord.startsWith(word) || word.startsWith(nameWord))) {
+      total += 2;
+    } else if (hintWords.has(word)) {
       total += 2;
     } else if (descriptionWords.has(word)) {
       total += 1;
@@ -62,7 +93,7 @@ export function createFindCapabilitiesTool({ ctx }: { ctx: ChatToolContext }) {
   return defineNativeTool({
     name: 'find_capabilities',
     description:
-      'Search the tools not offered by default (settings, loans, investments, imports, ...) by what you want to do. Returns names, descriptions and input schemas, and makes the matches callable from your next step.',
+      'Search the tools not offered by default (changes to transactions, categories, tags, payees and accounts; settings, loans, investments, imports, ...) by what you want to do. Returns names, descriptions and input schemas, and makes the matches callable from your next step.',
     shape: {
       query: z.string().trim().min(1).max(200).describe('What you want to do, in a few words, e.g. "delete account"'),
       limit: z.number().int().min(1).max(MAX_MATCHES).optional().describe('How many tools to return (default 5)'),
@@ -74,7 +105,12 @@ export function createFindCapabilitiesTool({ ctx }: { ctx: ChatToolContext }) {
         .filter((entry) => !(entry.name in CHAT_EXCLUDED_TOOLS))
         .map((entry) => ({
           entry,
-          score: score({ queryWords, name: entry.name, description: entry.description }),
+          score: score({
+            queryWords,
+            name: entry.name,
+            description: entry.description,
+            hints: SEARCH_HINTS[entry.name],
+          }),
         }))
         .filter(({ score: value }) => value > 0)
         .toSorted((a, b) => b.score - a.score || a.entry.name.length - b.entry.name.length)

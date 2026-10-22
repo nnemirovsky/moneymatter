@@ -58,6 +58,7 @@ const fakeToolkit = ({ runId }: { runId: string }): ChatToolkit => {
   return {
     tools: [tool],
     getTool: ({ name }) => (name === tool.name ? tool : undefined),
+    baseToolNames: () => [tool.name],
     activeToolNames: () => [tool.name],
     isAwaitingClarification: () => false,
     getReadResult: () => null,
