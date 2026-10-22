@@ -10,6 +10,8 @@ import { withTransaction } from '@services/common/with-transaction';
 
 import { isWaitingRequest } from '../card-payment/process-ingest-request';
 import { readUserLocale } from '../card-payment/read-user-locale';
+import { absorbParkedTwin } from '../twins/absorb-parked-twin';
+import { findJoinedTwins, findParkedTwins, joinedSlots, probeOf, TWIN_PARK_REASONS } from '../twins/find-parked-twins';
 import { assertUsableAccount } from '../usable-account';
 import { learnAccountChoice, type AccountLesson } from './learn-account-choice';
 import { enqueueNotificationProcessing } from './notification-queue';
@@ -18,7 +20,7 @@ import { readStoredParse } from './stored-parse';
 import { rerunWaitingSiblings, siblingMatchOf } from './waiting-siblings';
 
 /** The park reasons whose payment the owner can log from the inbox card. */
-const APPROVABLE_REASONS = ['unknownAccount', 'ownTransfer', 'lowConfidence', 'unverifiedParse'];
+const APPROVABLE_REASONS = TWIN_PARK_REASONS;
 
 /**
  * The owner's yes on a parked payment: the account (and direction) they chose are stored with the
@@ -76,6 +78,49 @@ export const approveParkedRequest = withTransaction(
         ? await learnAccountChoice({ userId, accountId, payment: stored.payment, source, payload: row.payload })
         : null;
 
+    // The same payment told by another source (Wallet's notification and the bank's push) is one payment:
+    // the twins that joined this request, and the ones still waiting on a card of their own, are settled
+    // with it and their cards are learned on the same account. Logging the payment twice is what this
+    // prevents.
+    const joined = await findJoinedTwins({ userId, requestId });
+    const probe = await probeOf({ request: row, payment: stored.payment });
+    const waitingTwins = probe
+      ? await findParkedTwins({
+          userId,
+          requestId,
+          probe,
+          takenSlots: await joinedSlots({ twins: joined }),
+        })
+      : [];
+    const absorbedTwins: IngestRequests[] = [];
+    for (const { request: twin } of waitingTwins) {
+      if (await absorbParkedTwin({ twin, intoRequestId: requestId })) absorbedTwins.push(twin);
+    }
+
+    // The cards the twins named are learned on the same account, and what waits on them goes through too.
+    let alsoQueuedByTwins = 0;
+    if (accountId) {
+      for (const twin of [...joined, ...absorbedTwins]) {
+        const twinPayment = readStoredParse({ value: twin.parsed })?.payment;
+        if (!twinPayment) continue;
+
+        const twinSource = twin.sourceId
+          ? await NotificationSources.findOne({ where: { id: twin.sourceId, userId } })
+          : null;
+        const lesson = await learnAccountChoice({
+          userId,
+          accountId,
+          payment: twinPayment,
+          source: twinSource,
+          payload: twin.payload,
+        });
+        const twinMatch = lesson ? siblingMatchOf({ payment: twinPayment, sourceId: twin.sourceId }) : null;
+        if (twinMatch) {
+          alsoQueuedByTwins += await rerunWaitingSiblings({ userId, match: twinMatch, excludeRequestId: requestId });
+        }
+      }
+    }
+
     // Every other waiting payment the same card or source resolves goes through the pipeline now, each with
     // its own confirm card; nothing is confirmed on the owner's behalf.
     const match = learned ? siblingMatchOf({ payment: stored.payment, sourceId: row.sourceId }) : null;
@@ -107,6 +152,6 @@ export const approveParkedRequest = withTransaction(
       },
     });
 
-    return { requestId, queued: true, learned, alsoQueued };
+    return { requestId, queued: true, learned, alsoQueued: alsoQueued + alsoQueuedByTwins };
   },
 );

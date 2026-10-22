@@ -269,7 +269,8 @@ export type NotificationIgnoreReason = (typeof NOTIFICATION_IGNORE_REASONS)[numb
 
 /**
  * Why a request is in the state it is in: a park, ignore or rejection reason, `holdReleased` for a
- * `dismissed` request that cancelled out against the opposite payment (a hold and its release), or
+ * `dismissed` request that cancelled out against the opposite payment (a hold and its release), `parkedTwin` for a
+ * `dismissed` request that is the same payment as another waiting request, or
  * `interrupted` for a request whose processing died before it recorded an outcome.
  */
 export type IngestRequestReason =
@@ -279,6 +280,7 @@ export type IngestRequestReason =
   | NotificationIgnoreReason
   | ContextIgnoreReason
   | 'holdReleased'
+  | 'parkedTwin'
   | 'interrupted';
 
 /** One request a client sent to the card-payment endpoint, as Settings lists it. */

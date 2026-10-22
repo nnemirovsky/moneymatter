@@ -200,6 +200,7 @@ describe('ProposalCard', () => {
           summary: 'Needs your OK in MoneyMatter: 3000 RUB at Salary',
           willLearn,
           alsoWaiting: 0,
+          alsoSeenIn: [],
         },
       });
 

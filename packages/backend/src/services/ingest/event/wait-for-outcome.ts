@@ -35,6 +35,14 @@ const toResponse = ({ row, locale }: { row: IngestRequests; locale: string }): N
     case 'held':
       return { outcome: 'held', requestId: row.id, notify: false };
 
+    case 'dismissed':
+      // The same payment already waits for the owner on a card of its own, which answers for both.
+      if (row.reason === 'parkedTwin') {
+        return { outcome: 'duplicate', requestId: row.duplicateOfId ?? row.id, notify: false };
+      }
+
+      return { outcome: 'dropped', requestId: row.id, notify: false };
+
     case 'ignored':
       return { outcome: 'ignored', requestId: row.id, ...(row.reason && { reason: row.reason }), notify: false };
 

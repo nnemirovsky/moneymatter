@@ -1,6 +1,7 @@
 import type { RecordId } from '@bt/shared/types';
 import { NOTIFICATION_SOURCE_TRUSTED_MODES } from '@bt/shared/types';
 import { ExchangeRateUnavailableError } from '@js/errors';
+import { logger } from '@js/utils/logger';
 import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
 import { isBaseCurrencyChangeLocked } from '@services/currencies/base-currency-lock';
@@ -13,6 +14,7 @@ import { applyHeldContexts } from '../context/apply-held-contexts';
 import { processContextNotification } from '../context/process-context-notification';
 import { enqueueAfterPaymentLogged } from '../follow-up-queue';
 import { dropParkedHoldRelease } from '../hold-release/drop-hold-release';
+import { absorbWaitingTwins } from '../twins/absorb-waiting-twins';
 import { listNonZeroCurrencies } from './balance-authority';
 import type { ClassifiedNotification, ParsedPayment } from './classify-notification';
 import { notificationTimings } from './constants';
@@ -315,6 +317,16 @@ export const processNotification = async ({
   }
 
   if (result.kind === 'skipped' || result.kind === 'dropped') return 'done';
+
+  // The same payment told by another source may wait on a card of its own: it is this payment now.
+  if (result.kind === 'logged') {
+    try {
+      await absorbWaitingTwins({ request: row, payment: toStoredPayment({ payment: reading.payment }) });
+    } catch (error) {
+      // The payment is logged and must not be retried for this: a twin left waiting is settled by the owner.
+      logger.error({ message: 'Failed to settle the twins of a logged payment', error: error as Error });
+    }
+  }
 
   if (result.kind === 'park') {
     // Before the park, so a dropped notification never gets an inbox card.

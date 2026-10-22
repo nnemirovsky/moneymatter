@@ -181,6 +181,8 @@ export interface ChatIngestRequestSummary {
   willLearn: 'card' | 'sourceDefault' | null;
   /** How many other waiting payments the same choice logs too; each gets its own confirm card. */
   alsoWaiting: number;
+  /** Other sources that told of this same payment (Wallet and the bank); approving links their cards too. */
+  alsoSeenIn: { sourceName: string | null; cardName: string | null; cardLastDigits: string | null }[];
 }
 
 export interface ChatProposalCard {
