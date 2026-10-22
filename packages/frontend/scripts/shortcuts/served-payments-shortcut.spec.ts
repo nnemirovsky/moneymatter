@@ -63,7 +63,7 @@ const canDecode = existsSync(SERVED_FILE) && ['plutil', 'openssl', 'aea', 'aa'].
  * file does not have yet. Set this to false in the commit that adds the re-signed file
  * (public/shortcuts/README.md, "Signing"), so the action comparison guards the served file again.
  */
-const SERVED_FILE_AWAITS_RESIGNING = true;
+const SERVED_FILE_AWAITS_RESIGNING = false;
 
 /** The iPhone re-signs the shortcut, so bytes differ; actions and triggers are what must survive. */
 describe.skipIf(!canDecode)('the served iOS 27 shortcut (public/shortcuts/log-payments.shortcut)', () => {
