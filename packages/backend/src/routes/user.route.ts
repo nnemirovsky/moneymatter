@@ -52,6 +52,7 @@ import {
   revokeIngestTokenController,
 } from '@controllers/ingest/ingest-tokens.controller';
 import {
+  createContextSourceController,
   deleteNotificationSourceController,
   listNotificationSourcesController,
   updateNotificationSourceController,
@@ -289,6 +290,7 @@ router.put('/settings/card-payments/gate-strictness', setGateStrictnessControlle
 // Apps and senders that send notifications: the user approves, mutes or forgets each, and picks the
 // account its payments land on when the text names no card.
 router.get('/settings/notification-sources', listNotificationSourcesController);
+router.post('/settings/notification-sources', createContextSourceController);
 router.patch('/settings/notification-sources/:id', updateNotificationSourceController);
 router.delete('/settings/notification-sources/:id', deleteNotificationSourceController);
 

@@ -8,17 +8,14 @@ import type { StoredContext } from './context-types';
 import { findContextCandidates, findContextRepeat, findHeldContexts } from './find-context-payment';
 import { normalizeStore } from './normalize-store';
 import { isPipelineCategory, pickContextCategory } from './pick-context-category';
-import { pickContextPaymentWithAi } from './pick-context-payment-with-ai';
 import { pickContextPayment } from './pick-context-payment';
+import { pickContextPaymentWithAi } from './pick-context-payment-with-ai';
 import { ignoreContext } from './settle-context';
 
 const MAX_ATTEMPTS = 3;
 
 /** What the matching did with a context notification. `summary` is the banner of an applied one. */
-export type ContextResolution =
-  | { kind: 'enriched'; summary: string }
-  | { kind: 'held' }
-  | { kind: 'ignored' };
+export type ContextResolution = { kind: 'enriched'; summary: string } | { kind: 'held' } | { kind: 'ignored' };
 
 /**
  * Matches one context notification to a payment and settles its request, for a notification that has
@@ -62,7 +59,12 @@ export const resolveContext = async ({
     // The first notification of an order ("accepted") starts a new one even when the same store was
     // ordered from earlier; every later stage of an order that is known repeats it.
     if (context.status !== 'accepted') {
-      const repeat = await findContextRepeat({ userId, service: context.service, store: context.store, excludeRequestId: requestId });
+      const repeat = await findContextRepeat({
+        userId,
+        service: context.service,
+        store: context.store,
+        excludeRequestId: requestId,
+      });
       if (repeat) {
         await ignoreContext({ requestId, reason: 'contextRepeat', parsed: reduced });
 
@@ -95,7 +97,8 @@ export const resolveContext = async ({
         return stored &&
           stored.service === context.service &&
           normalizeStore({ value: stored.store }) !== wanted &&
-          Math.abs(new Date(stored.at).getTime() - time.getTime()) <= contextConfig.lookbackMs + contextConfig.lookaheadMs
+          Math.abs(new Date(stored.at).getTime() - time.getTime()) <=
+            contextConfig.lookbackMs + contextConfig.lookaheadMs
           ? [{ store: stored.store, at: stored.at }]
           : [];
       });

@@ -170,7 +170,10 @@ describe('context apps', () => {
   });
 
   it('gives a seeded app its service, hints and excludes', () => {
-    expect(findContextApp({ appName: 'Bolt Food' })).toMatchObject({ service: 'Bolt Food', hints: ['bolt food', 'bolt.eu/f'] });
+    expect(findContextApp({ appName: 'Bolt Food' })).toMatchObject({
+      service: 'Bolt Food',
+      hints: ['bolt food', 'bolt.eu/f'],
+    });
     expect(findContextApp({ appName: 'Amazon' })?.excludes).toContain('prime');
     expect(findContextApp({ appName: 'TBC' })).toBeNull();
   });

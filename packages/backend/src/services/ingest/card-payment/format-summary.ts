@@ -111,7 +111,11 @@ export const formatSummary = ({ summary, locale }: { summary: CardPaymentSummary
       });
 
     case 'contextHeld':
-      return t({ key: 'ingest.summary.contextHeld', variables: { store: summary.store, service: summary.service }, locale });
+      return t({
+        key: 'ingest.summary.contextHeld',
+        variables: { store: summary.store, service: summary.service },
+        locale,
+      });
 
     case 'parked':
       if (summary.reason === 'unknownCard') {

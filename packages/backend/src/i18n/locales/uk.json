@@ -1035,8 +1035,7 @@
   },
   "notificationSources": {
     "sourceNotFound": "Джерело сповіщень не знайдено.",
-    "accountNotFound": "Рахунок не знайдено.",
-    "contextNotAllowed": "Застосунки повідомлень і пошти не можуть бути джерелами контексту."
+    "accountNotFound": "Рахунок не знайдено."
   },
   "notifications": {
     "push": {

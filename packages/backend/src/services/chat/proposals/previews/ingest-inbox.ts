@@ -1,4 +1,4 @@
-import { matchAmountGate } from '@bt/shared/types';
+import { matchAmountGate, type ChatCardWarning } from '@bt/shared/types';
 import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
 import { findOneTransaction } from '@models/transactions-query';
@@ -66,7 +66,7 @@ export const resolveConfirmIngestPayment: PreviewResolver = async ({ userId, arg
     },
     snapshot: snapshotOf({ id: tx.id }),
     ...((correction || context?.guess) && {
-      warnings: [
+      warnings: <ChatCardWarning[]>[
         ...(correction
           ? [
               {

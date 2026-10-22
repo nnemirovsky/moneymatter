@@ -14,7 +14,10 @@ describe('parseContextNotification', () => {
       store: 'Urban Roastery&Coffee',
       status: 'accepted',
     });
-    expect(read({ body: `Order confirmed! — ${text}` })).toEqual({ store: 'Urban Roastery&Coffee', status: 'accepted' });
+    expect(read({ body: `Order confirmed! — ${text}` })).toEqual({
+      store: 'Urban Roastery&Coffee',
+      status: 'accepted',
+    });
     expect(read({ title: 'Order confirmed! — Urban Roastery&Coffee has accepted your order!' })).toEqual({
       store: 'Urban Roastery&Coffee',
       status: 'accepted',
@@ -34,7 +37,10 @@ describe('parseContextNotification', () => {
       store: 'Pizza Planet',
       status: 'delivered',
     });
-    expect(read({ body: 'Pizza Planet has cancelled your order' })).toEqual({ store: 'Pizza Planet', status: 'cancelled' });
+    expect(read({ body: 'Pizza Planet has cancelled your order' })).toEqual({
+      store: 'Pizza Planet',
+      status: 'cancelled',
+    });
   });
 
   it('reads a status line that names no store as having none', () => {
@@ -50,7 +56,9 @@ describe('parseContextNotification', () => {
 
 describe('normalizeStore', () => {
   it('treats two spellings of one store as equal', () => {
-    expect(normalizeStore({ value: 'Urban Roastery&Coffee' })).toBe(normalizeStore({ value: 'urban roastery & coffee' }));
+    expect(normalizeStore({ value: 'Urban Roastery&Coffee' })).toBe(
+      normalizeStore({ value: 'urban roastery & coffee' }),
+    );
   });
 
   it('keeps different stores apart', () => {

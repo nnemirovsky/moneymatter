@@ -30,7 +30,12 @@ import {
   updateNotificationSource,
 } from './notification-sources.service';
 import { encryptNotificationText } from './notification-text';
-import { parseNotificationPayload, readEventKind, type ParsedNotification } from './parse-notification-payload';
+import {
+  parseNotificationPayload,
+  readEventKind,
+  readProbeApp,
+  type ParsedNotification,
+} from './parse-notification-payload';
 import { prefilterNotification } from './prefilter-notification';
 import { waitForOutcome } from './wait-for-outcome';
 
@@ -284,9 +289,28 @@ const ingestNotification = async ({
 };
 
 /**
+ * The first step of the handshake for a messaging or mail notification without an amount. It reads the
+ * app and the sender and answers `send: 'yes'` only when that sender is a context source. It stores
+ * nothing, creates no source and counts nothing, so an unknown sender leaves no trace.
+ */
+const probeSender = async ({ userId, body }: { userId: number; body: unknown }): Promise<IngestEventResult> => {
+  const app = readProbeApp({ body });
+  const source = await findNotificationSource({
+    userId,
+    sourceKey: getNotificationSourceKey({ app: { bundleId: app.bundleId, appName: app.app, title: app.title } }),
+  });
+
+  return {
+    kind: 'notification',
+    response: { outcome: 'probe', notify: false, ...(source?.mode === 'context' && { send: 'yes' as const }) },
+  };
+};
+
+/**
  * Handles one `POST /ingest/event`. `kind` decides the path and is never guessed: a missing or
  * unknown one is refused before anything is read.
  *
+ * - `notificationProbe` answers whether to send the text of a messaging or mail notification (`probeSender`).
  * - `walletTransaction` runs the card-payment pipeline unchanged (its own record, processing and
  *   answer).
  * - `notification` is checked, in this order: the body; the idempotency key (a repeat is answered
@@ -313,6 +337,8 @@ export const ingestEvent = async ({
 
   const kind = readEventKind({ body });
   if (kind === null) throw reject({ reason: 'invalidKind', locale });
+
+  if (kind === 'notificationProbe') return probeSender({ userId, body });
 
   const isDryRun = (body as Record<string, unknown>).dryRun === true;
   if (kind === 'walletTransaction' || isDryRun) {

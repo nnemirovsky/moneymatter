@@ -52,7 +52,16 @@ export interface CreateIngestTokenResponse {
  * (declined, a code, a promo, information); its text is wiped. `held` is a context notification waiting
  * for its payment and `enriched` one that was applied to a payment's row.
  */
-export const INGEST_REQUEST_STATUSES = ['received', 'logged', 'parked', 'rejected', 'dismissed', 'ignored', 'held', 'enriched'] as const;
+export const INGEST_REQUEST_STATUSES = [
+  'received',
+  'logged',
+  'parked',
+  'rejected',
+  'dismissed',
+  'ignored',
+  'held',
+  'enriched',
+] as const;
 
 export type IngestRequestStatus = (typeof INGEST_REQUEST_STATUSES)[number];
 

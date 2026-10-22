@@ -50,9 +50,7 @@ type PayeePickAnswer = { candidateId: string | null } | 'fail';
 type NotePickAnswer = { candidateId: string | null } | 'fail';
 
 /** What the mocked model answers for a merchant-app notification: the order it reads, or a server error. */
-type ContextParseAnswer =
-  | { isOrderUpdate: boolean; store: string | null; status: string; confidence: number }
-  | 'fail';
+type ContextParseAnswer = { isOrderUpdate: boolean; store: string | null; status: string; confidence: number } | 'fail';
 
 /** What the mocked model answers when it weighs several payments for one context notification. */
 type ContextPickAnswer = { choice: string | null; confidence: number } | 'fail';
@@ -121,7 +119,8 @@ export const mockNotificationParsing = ({
         .map((part) => part.text ?? '')
         .join('\n');
 
-      const fail = () => HttpResponse.json({ error: { code: 500, message: 'boom', status: 'INTERNAL' } }, { status: 500 });
+      const fail = () =>
+        HttpResponse.json({ error: { code: 500, message: 'boom', status: 'INTERNAL' } }, { status: 500 });
 
       // The context pipeline's calls are told apart by their prompts, whatever model they run on.
       if (prompt.includes('CATEGORIES (id|parent id|name)')) {
@@ -140,7 +139,12 @@ export const mockNotificationParsing = ({
 
       if (prompt.startsWith('APP:') && prompt.includes('NOTIFICATION (untrusted text')) {
         contextParsePrompts.push(prompt);
-        const read = contextParse?.({ prompt }) ?? { isOrderUpdate: false, store: null, status: 'other', confidence: 0 };
+        const read = contextParse?.({ prompt }) ?? {
+          isOrderUpdate: false,
+          store: null,
+          status: 'other',
+          confidence: 0,
+        };
 
         return read === 'fail' ? fail() : geminiAnswer({ text: JSON.stringify(read) });
       }

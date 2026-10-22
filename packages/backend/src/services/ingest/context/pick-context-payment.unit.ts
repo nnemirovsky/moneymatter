@@ -1,5 +1,5 @@
-import type Transactions from '@models/transactions.model';
 import { describe, expect, it } from '@jest/globals';
+import type Transactions from '@models/transactions.model';
 
 import { nearestInTime, pickContextPayment } from './pick-context-payment';
 
@@ -21,7 +21,10 @@ describe('pickContextPayment', () => {
     const a = tx({ id: 'a', at: '2026-10-22T11:22:00Z' });
     const b = tx({ id: 'b', at: '2026-10-22T11:25:00Z' });
 
-    expect(pickContextPayment({ open: [a, b], competingContexts: 0 })).toEqual({ kind: 'ambiguous', candidates: [a, b] });
+    expect(pickContextPayment({ open: [a, b], competingContexts: 0 })).toEqual({
+      kind: 'ambiguous',
+      candidates: [a, b],
+    });
     expect(pickContextPayment({ open: [a], competingContexts: 1 })).toEqual({ kind: 'ambiguous', candidates: [a] });
   });
 });

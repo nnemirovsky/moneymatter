@@ -16,13 +16,17 @@ describe('matchesService', () => {
     expect(matchesService({ texts: ['Woltmann GmbH'], ...wolt })).toBe(false);
   });
 
-  it('keeps the same brand\'s other products out', () => {
+  it("keeps the same brand's other products out", () => {
     expect(matchesService({ texts: ['AMZN Amazon Prime'], ...amazon })).toBe(false);
     expect(matchesService({ texts: ['Amazon EU'], ...amazon })).toBe(true);
   });
 
   it('matches a hint with punctuation', () => {
-    expect(matchesService({ texts: ['BOLT.EU/F/Tbilisi'], hints: ['bolt food', 'bolt.eu/f'], excludes: [] })).toBe(true);
-    expect(matchesService({ texts: ['BOLT.EU/R/Tbilisi'], hints: ['bolt food', 'bolt.eu/f'], excludes: [] })).toBe(false);
+    expect(matchesService({ texts: ['BOLT.EU/F/Tbilisi'], hints: ['bolt food', 'bolt.eu/f'], excludes: [] })).toBe(
+      true,
+    );
+    expect(matchesService({ texts: ['BOLT.EU/R/Tbilisi'], hints: ['bolt food', 'bolt.eu/f'], excludes: [] })).toBe(
+      false,
+    );
   });
 });

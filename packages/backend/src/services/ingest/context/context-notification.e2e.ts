@@ -71,6 +71,15 @@ const resetLimits = async () => {
   await RateLimitService.resetRateLimit(`ingest-ai:d:${id}`);
 };
 
+const noAmount = ({ app }: { app: string }) => ({
+  kind: 'notification',
+  app,
+  title: app,
+  subtitle: '',
+  body: 'Something happened in your account',
+  idempotencyKey: `key-${randomUUID()}`,
+});
+
 describe('context notifications', () => {
   useSelfHostWithoutServerAiKeys();
 
@@ -157,7 +166,10 @@ describe('context notifications', () => {
 
       const delivered = await send({
         secret,
-        body: woltNotification({ title: 'Delivered', body: 'Your order from Urban Roastery&Coffee has been delivered' }),
+        body: woltNotification({
+          title: 'Delivered',
+          body: 'Your order from Urban Roastery&Coffee has been delivered',
+        }),
       });
 
       expect(delivered.body.response).toMatchObject({ outcome: 'ignored', reason: 'contextRepeat' });
@@ -208,7 +220,10 @@ describe('context notifications', () => {
         answer: () => ({}),
         contextCategory: ({ prompt }) => {
           prompts.push(prompt);
-          const alias = prompt.split('\n').find((line) => line.endsWith('|Bar, cafe'))!.split('|')[0]!;
+          const alias = prompt
+            .split('\n')
+            .find((line) => line.endsWith('|Bar, cafe'))!
+            .split('|')[0]!;
 
           return { categoryId: alias, confidence: 0.9 };
         },
@@ -235,7 +250,10 @@ describe('context notifications', () => {
       );
       const prompts: string[] = [];
       enableServerModel();
-      mockNotificationParsing({ answer: () => ({}), contextCategory: ({ prompt }) => (prompts.push(prompt), { categoryId: null, confidence: 0 }) });
+      mockNotificationParsing({
+        answer: () => ({}),
+        contextCategory: ({ prompt }) => (prompts.push(prompt), { categoryId: null, confidence: 0 }),
+      });
 
       await send({ secret, body: accepted() });
 
@@ -347,7 +365,12 @@ describe('context notifications', () => {
       enableServerModel();
       mockNotificationParsing({
         answer: () => ({}),
-        contextParse: () => ({ isOrderUpdate: true, store: 'Urban Roastery&Coffee', status: 'accepted', confidence: 0.9 }),
+        contextParse: () => ({
+          isOrderUpdate: true,
+          store: 'Urban Roastery&Coffee',
+          status: 'accepted',
+          confidence: 0.9,
+        }),
       });
 
       const res = await send({
@@ -362,7 +385,10 @@ describe('context notifications', () => {
     it('ignores a text that is no order, and one it cannot read without a model', async () => {
       const { secret } = await setUp();
       enableServerModel();
-      mockNotificationParsing({ answer: () => ({}), contextParse: () => ({ isOrderUpdate: false, store: null, status: 'other', confidence: 0.9 }) });
+      mockNotificationParsing({
+        answer: () => ({}),
+        contextParse: () => ({ isOrderUpdate: false, store: null, status: 'other', confidence: 0.9 }),
+      });
 
       const promo = await send({
         secret,
@@ -386,15 +412,6 @@ describe('context notifications', () => {
   });
 
   describe('what a source may send without an amount', () => {
-    const noAmount = ({ app }: { app: string }) => ({
-      kind: 'notification',
-      app,
-      title: app,
-      subtitle: '',
-      body: 'Something happened in your account',
-      idempotencyKey: `key-${randomUUID()}`,
-    });
-
     it('drops it and offers the app as a pending source when the app is not a context one', async () => {
       const { secret } = await setUp();
 
@@ -447,7 +464,10 @@ describe('context notifications', () => {
 
     it('makes a pending source of a seed app a context source on its next notification', async () => {
       const { secret } = await setUp();
-      await send({ secret, body: { ...walletPayment(), app: 'Wolt', title: 'Wolt', subtitle: '', body: `Receipt ${BASE} 5.00` } });
+      await send({
+        secret,
+        body: { ...walletPayment(), app: 'Wolt', title: 'Wolt', subtitle: '', body: `Receipt ${BASE} 5.00` },
+      });
       const source = (await helpers.listNotificationSources({ raw: true })).find(
         (s) => s.appName === 'Wolt',
       ) as NotificationSourceDto;
@@ -460,16 +480,6 @@ describe('context notifications', () => {
       );
     });
 
-    it('refuses to make a messaging source a context source', async () => {
-      const { secret } = await setUp();
-      await send({ secret, body: { ...walletPayment(), app: 'Messages', title: 'TBC', subtitle: '', body: `${BASE} 5.00` } });
-      const source = (await helpers.listNotificationSources({ raw: true })).find((s) => s.appName === 'Messages')!;
-
-      const res = await helpers.updateNotificationSource({ id: source.id, payload: { mode: 'context' } });
-
-      expect(res.statusCode).toBe(422);
-    });
-
     it('deletes the waiting contexts of a source when it is muted', async () => {
       const { secret } = await setUp();
       const held = await send({ secret, body: accepted() });
@@ -478,6 +488,111 @@ describe('context notifications', () => {
       await helpers.updateNotificationSource({ id: source.id, payload: { mode: 'muted' }, raw: true });
 
       expect(await IngestRequests.findOne({ where: { id: held.body.response.requestId } })).toBeNull();
+    });
+  });
+  describe('a messaging or mail sender', () => {
+    const probe = ({ title = 'Госуслуги' }: { title?: string } = {}) => ({
+      kind: 'notificationProbe',
+      app: 'Mail',
+      title,
+    });
+    const mail = ({ title = 'Госуслуги', body }: { title?: string; body: string }) => ({
+      kind: 'notification',
+      app: 'Mail',
+      title,
+      subtitle: '',
+      body,
+      idempotencyKey: `key-${randomUUID()}`,
+    });
+
+    it('is asked for nothing and leaves no trace when the sender is unknown', async () => {
+      const { secret } = await setUp();
+
+      const res = await send({ secret, body: probe() });
+
+      expect(res.status).toBe(200);
+      expect(res.body.response).toEqual({ outcome: 'probe', notify: false });
+      expect(await helpers.listNotificationSources({ raw: true })).toEqual([]);
+    });
+
+    it('is asked for its text once the owner added the sender as a context source', async () => {
+      const { secret } = await setUp();
+      const created = await helpers.createContextSource({
+        payload: { appName: 'Mail', sender: 'Госуслуги' },
+        raw: true,
+      });
+
+      const known = await send({ secret, body: probe() });
+      const other = await send({ secret, body: probe({ title: 'Somebody else' }) });
+
+      expect(created).toMatchObject({ appName: 'Mail', sender: 'Госуслуги', conversational: true, mode: 'context' });
+      expect(known.body.response).toEqual({ outcome: 'probe', notify: false, send: 'yes' });
+      expect(other.body.response).toEqual({ outcome: 'probe', notify: false });
+    });
+
+    it('is asked for its text once the owner switched the sender’s source to context', async () => {
+      const { secret } = await setUp();
+      await send({ secret, body: mail({ body: `Payment ${BASE} 5.00` }) });
+      const source = (await helpers.listNotificationSources({ raw: true })).find((s) => s.appName === 'Mail')!;
+      expect((await send({ secret, body: probe() })).body.response.send).toBeUndefined();
+
+      await helpers.updateNotificationSource({ id: source.id, payload: { mode: 'context' }, raw: true });
+
+      expect((await send({ secret, body: probe() })).body.response.send).toBe('yes');
+    });
+
+    it('is read as context when its text arrives', async () => {
+      const { secret } = await setUp();
+      const tx = await pay({ secret });
+      await helpers.createContextSource({ payload: { appName: 'Mail', sender: 'Wolt Orders' }, raw: true });
+
+      const res = await send({
+        secret,
+        body: mail({ title: 'Wolt Orders', body: 'Urban Roastery&Coffee has accepted your order!' }),
+      });
+
+      // The sender is the service ("Wolt Orders"), and no payment of it exists.
+      expect(res.body.response.outcome).toBe('held');
+      expect((await reload({ id: tx.id })).note).toBeNull();
+    });
+
+    it('answers a probe that has no sender with no text to send', async () => {
+      const { secret } = await setUp();
+
+      const res = await send({ secret, body: { kind: 'notificationProbe', app: 'Mail' } });
+
+      expect(res.body.response).toEqual({ outcome: 'probe', notify: false });
+    });
+  });
+
+  describe('POST /user/settings/notification-sources', () => {
+    it('adds a context source by name, once', async () => {
+      const first = await helpers.createContextSource({ payload: { appName: 'Foodora' }, raw: true });
+      const again = await helpers.createContextSource({ payload: { appName: 'Foodora' }, raw: true });
+
+      expect(first).toMatchObject({ appName: 'Foodora', sender: null, conversational: false, mode: 'context' });
+      expect(again.id).toBe(first.id);
+      expect(await helpers.listNotificationSources({ raw: true })).toHaveLength(1);
+    });
+
+    it('turns an existing source into a context source', async () => {
+      const { secret } = await setUp();
+      await send({
+        secret,
+        body: { ...walletPayment(), app: 'Wolt', title: 'Wolt', subtitle: '', body: `Receipt ${BASE} 5.00` },
+      });
+      const [wolt] = await helpers.listNotificationSources({ raw: true });
+      await helpers.updateNotificationSource({ id: wolt!.id, payload: { mode: 'muted' }, raw: true });
+
+      const added = await helpers.createContextSource({ payload: { appName: 'Wolt' }, raw: true });
+
+      expect(added).toMatchObject({ id: wolt!.id, mode: 'context' });
+    });
+
+    it('refuses an empty name', async () => {
+      const res = await helpers.createContextSource({ payload: { appName: '  ' } });
+
+      expect(res.statusCode).toBe(422);
     });
   });
 });

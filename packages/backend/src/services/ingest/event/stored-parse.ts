@@ -1,8 +1,8 @@
 import type { NotificationParkReason, RecordId } from '@bt/shared/types';
 
+import type { StoredContext } from '../context/context-types';
 import type { StoredBalanceAfter } from './balance-authority';
 import type { ParsedPayment } from './classify-notification';
-import type { StoredContext } from '../context/context-types';
 
 /** A payment read from a notification, as it sits in `IngestRequests.parsed` (a JSON column, so no `Date`). */
 export type StoredPayment = Omit<ParsedPayment, 'occurredAt'> & { occurredAt: string | null };
@@ -64,7 +64,11 @@ export const readStoredParse = ({ value }: { value: Record<string, unknown> | nu
   if (!value || typeof value !== 'object') return null;
 
   const { parser, kind, confidence } = value;
-  if ((parser !== 'wallet' && parser !== 'ai' && parser !== 'rules') || typeof kind !== 'string' || typeof confidence !== 'number') {
+  if (
+    (parser !== 'wallet' && parser !== 'ai' && parser !== 'rules') ||
+    typeof kind !== 'string' ||
+    typeof confidence !== 'number'
+  ) {
     return null;
   }
 

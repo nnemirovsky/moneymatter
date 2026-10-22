@@ -65,7 +65,8 @@ export const pickContextCategory = async ({
       `CATEGORIES (id|parent id|name):\n${rows.join('\n')}`,
     ].join('\n\n'),
   });
-  if (result.status === 'unavailable' || !(result.output.confidence >= contextConfig.categoryMinConfidence)) return null;
+  if (result.status === 'unavailable' || !(result.output.confidence >= contextConfig.categoryMinConfidence))
+    return null;
 
   const [picked] = shortIds.resolve({ aliases: result.output.categoryId ? [result.output.categoryId] : [] });
 

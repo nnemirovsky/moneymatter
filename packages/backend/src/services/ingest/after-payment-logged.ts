@@ -1,8 +1,8 @@
 import type { RecordId } from '@bt/shared/types';
 import { logger } from '@js/utils/logger';
 
-import { suggestShortBalanceCorrection } from './corrections/suggest-short-balance-correction';
 import { applyHeldContexts } from './context/apply-held-contexts';
+import { suggestShortBalanceCorrection } from './corrections/suggest-short-balance-correction';
 import { judgeAfterCommit } from './dedup/judge-after-commit';
 import { suggestConversionPair } from './dedup/suggest-conversion-pair';
 import { suggestNoteAfterCommit } from './note/suggest-note-after-commit';

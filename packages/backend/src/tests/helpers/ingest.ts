@@ -6,6 +6,7 @@ import type {
   CardPaymentRetryResponse,
   RetryCardPaymentRequestPayload,
   CreateCardMappingPayload,
+  CreateContextSourcePayload,
   CreateCardPaymentSetupCodePayload,
   CreateCardPaymentSetupCodeResponse,
   CreateIngestTokenPayload,
@@ -236,6 +237,21 @@ export async function listNotificationSources<R extends boolean | undefined = fa
   return makeRequest<NotificationSourceDto[], R>({
     method: 'get',
     url: '/user/settings/notification-sources',
+    raw,
+  });
+}
+
+export async function createContextSource<R extends boolean | undefined = false>({
+  payload,
+  raw,
+}: {
+  payload: CreateContextSourcePayload | Record<string, unknown>;
+  raw?: R;
+}) {
+  return makeRequest<NotificationSourceDto, R>({
+    method: 'post',
+    url: '/user/settings/notification-sources',
+    payload,
     raw,
   });
 }

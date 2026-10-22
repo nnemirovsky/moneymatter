@@ -1,7 +1,12 @@
 import { NOTIFICATION_SOURCE_USER_MODES, type NotificationSourceDto } from '@bt/shared/types';
 import { recordId } from '@common/lib/zod/custom-types';
 import { createController } from '@controllers/helpers/controller-factory';
-import { deleteNotificationSource, listNotificationSources, updateNotificationSource } from '@services/ingest';
+import {
+  createContextSource,
+  deleteNotificationSource,
+  listNotificationSources,
+  updateNotificationSource,
+} from '@services/ingest';
 import { z } from 'zod';
 
 export const listNotificationSourcesController = createController(z.object({}), async ({ user }) => {
@@ -38,5 +43,23 @@ export const deleteNotificationSourceController = createController(
     await deleteNotificationSource({ userId: user.id, id: params.id });
 
     return { data: { success: true } };
+  },
+);
+
+export const createContextSourceController = createController(
+  z.object({
+    body: z.object({
+      appName: z.string().trim().min(1).max(255),
+      sender: z.string().trim().max(255).nullable().optional(),
+    }),
+  }),
+  async ({ user, body }) => {
+    const data: NotificationSourceDto = await createContextSource({
+      userId: user.id,
+      appName: body.appName,
+      sender: body.sender ?? null,
+    });
+
+    return { data, statusCode: 201 };
   },
 );

@@ -5,8 +5,8 @@ import { findTransactions } from '@models/transactions-query';
 import type Transactions from '@models/transactions.model';
 import { Op, literal } from 'sequelize';
 
-import { isUnconfirmedIngest } from '../ingest-markers';
 import { readStoredParse } from '../event/stored-parse';
+import { isUnconfirmedIngest } from '../ingest-markers';
 import { contextConfig } from './context-config';
 import { normalizeStore } from './normalize-store';
 import { matchesService } from './service-match';

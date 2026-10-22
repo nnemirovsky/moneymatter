@@ -1025,8 +1025,7 @@
   },
   "notificationSources": {
     "sourceNotFound": "Notification source not found.",
-    "accountNotFound": "Account not found.",
-    "contextNotAllowed": "Messaging and mail apps cannot be context sources."
+    "accountNotFound": "Account not found."
   },
   "notifications": {
     "push": {

@@ -139,7 +139,9 @@ describe('NotificationSources', () => {
       const { wrapper } = await mountSources({ sources: [makeSource({ appName: 'Wolt', mode: 'context' })] });
 
       expect(wrapper.get('[data-testid="notification-source-mode"]').text()).toBe('Context');
-      expect(wrapper.get('[data-testid="notification-source-context-hint"]').text()).toContain('never create a payment');
+      expect(wrapper.get('[data-testid="notification-source-context-hint"]').text()).toContain(
+        'never create a payment',
+      );
       expect(wrapper.find('[data-testid="notification-source-context"]').exists()).toBe(false);
     });
 

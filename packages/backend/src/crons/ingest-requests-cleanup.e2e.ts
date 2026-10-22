@@ -185,11 +185,18 @@ describe('Ingest requests cleanup cron', () => {
         { parsed: { parser: 'rules', kind: 'context', confidence: 1, context: { store: 'Cafe' } } },
         { where: { id: [stale.id, fresh.id] } },
       );
-      await connection.sequelize.query(`UPDATE "IngestRequests" SET "createdAt" = now() - interval '2 hours' WHERE id = :id`, {
-        replacements: { id: stale.id },
-      });
+      await connection.sequelize.query(
+        `UPDATE "IngestRequests" SET "createdAt" = now() - interval '2 hours' WHERE id = :id`,
+        {
+          replacements: { id: stale.id },
+        },
+      );
 
-      expect(await ingestRequestsCleanupCron.triggerManualSync()).toEqual({ ...NOTHING_ELSE, contextsExpired: 1 });
+      expect(await ingestRequestsCleanupCron.triggerManualSync()).toEqual({
+        ...NOTHING_ELSE,
+        contextsExpired: 1,
+        deleted: 0,
+      });
 
       const expired = (await IngestRequests.findOne({ where: { id: stale.id } }))!;
       expect(expired).toMatchObject({ status: 'ignored', reason: 'contextExpired' });

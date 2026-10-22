@@ -8,7 +8,6 @@ import {
   type UpdateNotificationSourcePayload,
 } from '@bt/shared/types';
 import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
-import { ValidationError } from '@js/errors';
 import { t } from '@i18n/index';
 import { connection } from '@models/connection';
 import IngestRequests from '@models/ingest-requests.model';
@@ -104,6 +103,38 @@ const touchNotificationSourceImpl = async ({
  */
 export const touchNotificationSource = withTransaction(touchNotificationSourceImpl);
 
+/**
+ * Adds a context source by name, for an app (and, for a messaging or mail app, a sender) that has not
+ * sent anything yet. A source that exists is switched to context, so adding it twice is harmless.
+ * The key is built from the names alone, the way a notification from the shortcut (which sends no
+ * bundle id) builds it.
+ */
+const createContextSourceImpl = async ({
+  userId,
+  appName,
+  sender,
+}: {
+  userId: number;
+  appName: string;
+  sender: string | null;
+}): Promise<NotificationSourceDto> => {
+  const conversational = isConversationalApp({ appName });
+  const senderName = conversational ? sender?.trim() || null : null;
+  const sourceKey = buildSourceKey({ appName, sender: senderName });
+
+  const [source, created] = await NotificationSources.findOrCreate({
+    where: { userId, sourceKey },
+    defaults: { userId, sourceKey, appName, bundleId: null, sender: senderName, conversational, mode: 'context' },
+  });
+  if (!created && source.mode !== 'context') {
+    return (await updateNotificationSourceImpl({ userId, id: source.id, mode: 'context' })).source;
+  }
+
+  return toSourceDto({ source });
+};
+
+export const createContextSource = withTransaction(createContextSourceImpl);
+
 /** Puts the requests a source held for approval back to `received` and returns them for the job. */
 const releaseHeldRequests = async ({
   userId,
@@ -183,10 +214,6 @@ const updateNotificationSourceImpl = async ({
     message: t({ key: 'notificationSources.sourceNotFound' }),
   });
 
-  if (mode === 'context' && source.conversational) {
-    throw new ValidationError({ message: t({ key: 'notificationSources.contextNotAllowed' }) });
-  }
-
   if (defaultAccountId) {
     await assertUsableAccount({
       userId,
@@ -232,7 +259,8 @@ const updateNotificationSourceInTransaction = withTransaction(updateNotification
  *   the base-currency lock, so the route itself is exempt from it.
  * - Muting a source deletes what it holds: the notifications that were never classified, with their
  *   stored text, and the context notifications waiting for a payment.
- * - Making a source a context source deletes what it held for approval (it never reaches the payment
+ * - Making a source a context source (a messaging or mail sender included: the shortcut then sends its
+ *   text after a probe) deletes what it held for approval (it never reaches the payment
  *   parser) and closes the card that asked about it; leaving the mode deletes its waiting contexts.
  */
 export const updateNotificationSource = async (

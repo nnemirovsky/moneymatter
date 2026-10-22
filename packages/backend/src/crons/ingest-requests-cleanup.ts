@@ -67,7 +67,9 @@ const expireHeldContexts = async (): Promise<number> => {
       status: 'ignored',
       reason: 'contextExpired',
       summary: null,
-      parsed: literal(`jsonb_build_object('parser', "parsed"->'parser', 'kind', "parsed"->'kind', 'confidence', "parsed"->'confidence')`),
+      parsed: literal(
+        `jsonb_build_object('parser', "parsed"->'parser', 'kind', "parsed"->'kind', 'confidence', "parsed"->'confidence')`,
+      ),
     },
     {
       where: {

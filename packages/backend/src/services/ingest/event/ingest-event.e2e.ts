@@ -369,10 +369,10 @@ describe('POST /ingest/event', () => {
       expect(await storedRequests()).toEqual([]);
     });
 
-    it('creates no source for a notification that was dropped', async () => {
+    it('creates no source for a messaging notification that was dropped', async () => {
       const secret = await setUp();
 
-      await send({ secret, body: notification({ body: 'Nothing to see' }) });
+      await send({ secret, body: notification({ app: 'Messages', title: 'TBC', body: 'Nothing to see' }) });
 
       expect(await helpers.listNotificationSources({ raw: true })).toEqual([]);
     });

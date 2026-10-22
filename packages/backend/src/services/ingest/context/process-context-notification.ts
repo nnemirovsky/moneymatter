@@ -35,7 +35,13 @@ export const processContextNotification = async ({
 
   const text = decryptNotificationText({ textEnc: row.textEnc });
   const appName = typeof row.payload.app === 'string' ? row.payload.app : null;
-  const service = findContextApp({ appName: source.appName ?? appName })?.service ?? source.appName ?? appName ?? 'App';
+  // A messaging or mail source is one sender, and the sender is the service ("Mail" from "Wolt Orders").
+  const service =
+    findContextApp({ appName: source.appName ?? appName })?.service ??
+    (source.conversational ? source.sender : null) ??
+    source.appName ??
+    appName ??
+    'App';
 
   let parsed: ParsedContext | null = parseContextNotification(text);
   let parser: 'rules' | 'ai' = 'rules';
@@ -46,7 +52,11 @@ export const processContextNotification = async ({
     confidence = 0.7;
     const read = await parseContextWithAi({ userId: row.userId, text, appName: source.appName ?? appName });
     if (read.status === 'unavailable') {
-      await ignoreContext({ requestId: row.id, reason: 'contextUnreadable', parsed: { parser, kind: 'context', confidence: 0 } });
+      await ignoreContext({
+        requestId: row.id,
+        reason: 'contextUnreadable',
+        parsed: { parser, kind: 'context', confidence: 0 },
+      });
 
       return;
     }

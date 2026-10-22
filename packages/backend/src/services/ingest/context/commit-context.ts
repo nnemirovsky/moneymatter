@@ -12,11 +12,11 @@ import { updateTransaction } from '@services/transactions/update-transaction';
 import { QueryTypes } from 'sequelize';
 
 import { formatSummary } from '../card-payment/format-summary';
-import { ingestMarkersOf, isUnconfirmedIngest } from '../ingest-markers';
 import type { StoredParse } from '../event/stored-parse';
-import { findContextCandidates } from './find-context-payment';
+import { ingestMarkersOf, isUnconfirmedIngest } from '../ingest-markers';
 import { lockContext } from './context-lock';
 import type { StoredContext } from './context-types';
+import { findContextCandidates } from './find-context-payment';
 import { isPipelineCategory } from './pick-context-category';
 
 /** Why the request ends up where it does; the caller decides what to do with a refusal. */
@@ -35,21 +35,25 @@ type ApplyResult =
  * Whether the pipeline may write the context note: the row has no note, or the note on it is the one the
  * pipeline wrote itself (`ingest.systemNote`). A note the owner wrote is never replaced.
  */
-export const isNoteReplaceable = ({ note, systemNote }: { note: string | null; systemNote: string | undefined }): boolean =>
-  !note || (Boolean(systemNote) && note === systemNote);
-
-const requestParsed = ({ context, parser, confidence }: { context: StoredContext; parser: StoredParse['parser']; confidence: number }) =>
-  ({ parser, kind: 'context', confidence, context }) as unknown as Record<string, unknown>;
-
-const setIngestPath = ({
-  transactionId,
-  path,
-  value,
+export const isNoteReplaceable = ({
+  note,
+  systemNote,
 }: {
-  transactionId: RecordId;
-  path: string;
-  value: unknown;
-}) =>
+  note: string | null;
+  systemNote: string | undefined;
+}): boolean => !note || (Boolean(systemNote) && note === systemNote);
+
+const requestParsed = ({
+  context,
+  parser,
+  confidence,
+}: {
+  context: StoredContext;
+  parser: StoredParse['parser'];
+  confidence: number;
+}) => ({ parser, kind: 'context', confidence, context }) as unknown as Record<string, unknown>;
+
+const setIngestPath = ({ transactionId, path, value }: { transactionId: RecordId; path: string; value: unknown }) =>
   connection.sequelize.query(
     `UPDATE "Transactions"
         SET "externalData" = jsonb_set("externalData", '{ingest,${path}}', CAST(:value AS jsonb))
@@ -103,9 +107,13 @@ const applyContextImpl = async ({
   }
 
   const noteEligible = isNoteReplaceable({ note: tx.note, systemNote: markers.systemNote });
-  const note = noteEligible ? t({ key: 'ingest.contextNote', variables: { store: context.store, service: context.service }, locale }) : null;
+  const note = noteEligible
+    ? t({ key: 'ingest.contextNote', variables: { store: context.store, service: context.service }, locale })
+    : null;
   const categoryEligible =
-    Boolean(categoryId) && categoryId !== tx.categoryId && isPipelineCategory({ categorizationMeta: tx.categorizationMeta });
+    Boolean(categoryId) &&
+    categoryId !== tx.categoryId &&
+    isPipelineCategory({ categorizationMeta: tx.categorizationMeta });
   const newCategoryId = categoryEligible ? categoryId : null;
 
   const stored = { ...context };
@@ -133,10 +141,16 @@ const applyContextImpl = async ({
     await setIngestPath({ transactionId, path: 'systemCategoryId', value: newCategoryId });
     // The category is the pipeline's own pick, not the owner's: stamped as an automatic one so a later
     // context or categorization run may still refine it.
-    await connection.sequelize.query(`UPDATE "Transactions" SET "categorizationMeta" = CAST(:meta AS jsonb) WHERE "id" = :transactionId`, {
-      replacements: { meta: JSON.stringify({ source: CATEGORIZATION_SOURCE.ai, categorizedAt: new Date().toISOString() }), transactionId },
-      type: QueryTypes.UPDATE,
-    });
+    await connection.sequelize.query(
+      `UPDATE "Transactions" SET "categorizationMeta" = CAST(:meta AS jsonb) WHERE "id" = :transactionId`,
+      {
+        replacements: {
+          meta: JSON.stringify({ source: CATEGORIZATION_SOURCE.ai, categorizedAt: new Date().toISOString() }),
+          transactionId,
+        },
+        type: QueryTypes.UPDATE,
+      },
+    );
   }
   await setIngestPath({
     transactionId,
@@ -152,7 +166,9 @@ const applyContextImpl = async ({
     },
   });
 
-  const category = newCategoryId ? await Categories.findOne({ where: { id: newCategoryId }, attributes: ['name'] }) : null;
+  const category = newCategoryId
+    ? await Categories.findOne({ where: { id: newCategoryId }, attributes: ['name'] })
+    : null;
   const decimals = await getCurrencyDecimals({ userId, code: tx.currencyCode });
   const original =
     tx.originalAmount && tx.originalCurrencyCode
@@ -232,7 +248,10 @@ const holdContextImpl = async ({
     status: 'held',
     reason: null,
     textEnc: null,
-    summary: formatSummary({ summary: { type: 'contextHeld', store: context.store, service: context.service }, locale }),
+    summary: formatSummary({
+      summary: { type: 'contextHeld', store: context.store, service: context.service },
+      locale,
+    }),
     parsed: requestParsed({ context, parser, confidence }),
   });
 

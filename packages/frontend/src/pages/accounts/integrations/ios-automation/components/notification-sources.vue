@@ -36,7 +36,11 @@
           <p v-if="source.sender" class="text-muted-foreground mt-1 text-sm break-words">
             {{ $t(`${LABEL_ROOT}.sender`, { sender: source.sender }) }}
           </p>
-          <p v-if="source.mode === 'context'" class="text-muted-foreground mt-1 text-sm" data-testid="notification-source-context-hint">
+          <p
+            v-if="source.mode === 'context'"
+            class="text-muted-foreground mt-1 text-sm"
+            data-testid="notification-source-context-hint"
+          >
             {{ $t(`${LABEL_ROOT}.contextHint`) }}
           </p>
         </div>

@@ -15,6 +15,7 @@ export { retryIngestRequest } from './card-payment/retry-request';
 export { getGateStrictness, setGateStrictness } from './gate-strictness.service';
 export { ingestEvent } from './event/ingest-event';
 export {
+  createContextSource,
   deleteNotificationSource,
   listNotificationSources,
   updateNotificationSource,
