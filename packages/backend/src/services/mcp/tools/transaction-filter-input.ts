@@ -28,8 +28,8 @@ const idOrBlank = z.union([recordId(), z.literal(BLANK_FILTER_VALUE)]);
  * the two key sets equal.
  */
 export const transactionFilterInput = {
-  from: timeInputSchema().optional().describe('Range start: a date, a local wall time or an ISO time'),
-  to: timeInputSchema().optional().describe('Range end: same forms; a date runs through its end'),
+  from: timeInputSchema().optional().describe('Range start: date, wall time or ISO time'),
+  to: timeInputSchema().optional().describe('Range end: same; a date runs through its end'),
   transactionType: z.nativeEnum(TRANSACTION_TYPES).optional().describe('Only income, expense or transfer rows'),
   transferNatures: z
     .array(z.nativeEnum(TRANSACTION_TRANSFER_NATURE))

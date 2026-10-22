@@ -57,13 +57,11 @@ const inputSchema = {
   categoryId: recordId().optional().describe('New category ID'),
   time: timeInputSchema()
     .optional()
-    .describe(
-      "Send the user's local wall time with no offset (2026-10-21T16:00); Z or an offset marks an exact instant. Never convert to UTC",
-    ),
+    .describe("User's local wall time, no offset (2026-10-21T16:00); Z/offset = exact instant. Not UTC"),
   timeZone: ianaTimeZone()
     .nullable()
     .optional()
-    .describe('IANA zone to record; null clears it. Default: the row keeps its zone'),
+    .describe('IANA zone to record; null clears. Default: keep the row zone'),
   note: z.string().optional().nullable().describe('New note. Pass null to clear'),
   destinationAccountId: recordId().optional().describe('For transfers: new destination account ID'),
   destinationAmount: positiveAmountSchema()

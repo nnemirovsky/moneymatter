@@ -18,7 +18,7 @@ const inputSchema = {
   time: timeInputSchema()
     .optional()
     .describe(
-      "When the adjustment is recorded against. Default: now. Prefer the user's local wall time without an offset (e.g. 2026-10-21T16:00), plus timeZone when elsewhere; never convert to UTC yourself",
+      "When the adjustment is recorded against. Default: now. Prefer the user's local wall time without an offset (e.g. 2026-10-21T16:00), plus timeZone when elsewhere. Never convert to UTC",
     ),
   timeZone: ianaTimeZone()
     .optional()

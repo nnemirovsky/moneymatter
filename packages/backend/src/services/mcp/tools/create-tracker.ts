@@ -31,15 +31,11 @@ const inputSchema = {
   startDate: timeInputSchema()
     .nullable()
     .optional()
-    .describe(
-      "Tracker start: a date (2026-10-01, from the start of that day in the user's zone), a local wall time or an ISO time with Z or an offset",
-    ),
+    .describe("Tracker start: a date (2026-10-01, day start, user's zone), a wall time or ISO time"),
   endDate: timeInputSchema()
     .nullable()
     .optional()
-    .describe(
-      "Tracker end: a date (2026-10-31, through the end of that day in the user's zone), a local wall time or an ISO time with Z or an offset; not before startDate",
-    ),
+    .describe("Tracker end: a date (2026-10-31, day end, user's zone), a wall time or ISO time; not before startDate"),
   autoInclude: createTrackerBodyShape.autoInclude.describe(
     'Auto-include transactions in the date range when creating (manual trackers only)',
   ),

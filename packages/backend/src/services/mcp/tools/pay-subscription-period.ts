@@ -27,7 +27,7 @@ const inputSchema = {
   time: timeInputSchema()
     .optional()
     .describe(
-      "When the payment happened. Default: now. Prefer the user's local wall time without an offset (e.g. 2026-10-21T16:00), plus timeZone when elsewhere; never convert to UTC yourself. Only with createTransaction",
+      "When the payment happened. Default: now. Prefer the user's local wall time without an offset (e.g. 2026-10-21T16:00), plus timeZone when elsewhere. Never convert to UTC. Only with createTransaction",
     ),
   timeZone: bodyShape.timeZone.describe(
     "IANA zone the wall time is read in and the created transaction records, e.g. Asia/Tbilisi. Default: the user's own zone. Only with createTransaction",

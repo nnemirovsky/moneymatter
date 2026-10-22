@@ -18,14 +18,12 @@ const inputSchema = {
   startDate: timeInputSchema()
     .nullable()
     .optional()
-    .describe(
-      "New start: a date (2026-10-01, from the start of that day in the user's zone), a local wall time or an ISO time with Z or an offset; null clears it",
-    ),
+    .describe("New start: a date (2026-10-01, day start, user's zone), a wall time or ISO time; null clears it"),
   endDate: timeInputSchema()
     .nullable()
     .optional()
     .describe(
-      "New end: a date (2026-10-31, through the end of that day in the user's zone), a local wall time or an ISO time with Z or an offset; not before the start; null clears it",
+      "New end: a date (2026-10-31, day end, user's zone), a wall time or ISO time; not before the start; null clears it",
     ),
   limitAmount: z
     .number()

@@ -18,10 +18,10 @@ import { presentTransactions } from './transaction-output';
 // schema, and a unit test keeps the two key sets equal.
 const inputSchema = {
   from: timeInputSchema().describe(
-    "Start of the period: a date (2026-09-01, the start of that day in the user's zone), a local wall time or an ISO time with Z or an offset",
+    "Start of the period: a date (2026-09-01, day start, user's zone), a wall time or ISO time",
   ),
   to: timeInputSchema().describe(
-    "End of the period: a date (2026-09-30, through the end of that day in the user's zone), a local wall time or an ISO time with Z or an offset. Must not precede from",
+    "End of the period: a date (2026-09-30, day end, user's zone), a wall time or ISO time. Must not precede from",
   ),
   limit: z
     .number()

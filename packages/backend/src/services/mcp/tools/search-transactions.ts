@@ -15,13 +15,11 @@ import { getUserId, jsonContent } from './helpers';
 import { presentTransactions } from './transaction-output';
 
 const inputSchema = {
-  startDate: timeInputSchema()
-    .optional()
-    .describe('Range start: a date, a local wall time or an ISO time. Default: 30 days ago'),
+  startDate: timeInputSchema().optional().describe('Range start: date, wall time or ISO time. Default: 30 days ago'),
   endDate: timeInputSchema()
     .optional()
     .describe(
-      'Range end: same forms; a date runs through its end. Default: now, which hides planned (future-dated) transactions. Set it to a future date to see upcoming plans',
+      'Range end: same; a date runs through its end. Default: now, which hides planned (future-dated) transactions. Set it to a future date to see upcoming plans',
     ),
   accountIds: z.array(recordId()).optional().describe('Filter by account IDs'),
   categoryIds: z.array(recordId()).optional().describe('Filter by category IDs'),

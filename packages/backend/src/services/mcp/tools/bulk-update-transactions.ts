@@ -24,7 +24,7 @@ const inputSchema = {
     .nullable()
     .optional()
     .describe(
-      "IANA zone (Asia/Tbilisi) to record on all transactions, e.g. to backfill where a trip's payments happened. Each row's UTC offset is computed at its own time, so a range across a DST switch is handled; the time itself does not move. Pass null to clear the zone back to Unknown",
+      'IANA zone (Asia/Tbilisi) recorded on every row; UTC offset is computed at its own time per row. null clears',
     ),
 };
 
@@ -33,7 +33,7 @@ export function registerBulkUpdateTransactions(server: McpServer) {
     'bulk_update_transactions',
     {
       description:
-        'Update multiple transactions at once. Provide transactionIds plus at least one of categoryId, tagIds, note, payeeId (null clears the payee), or timeZone (null clears the zone). Tags can be added to, removed from, or replaced on all specified transactions.',
+        'Update multiple transactions at once. Provide transactionIds plus at least one of categoryId, tagIds, note, payeeId (null clears the payee), or timeZone (null clears the zone). Tags can be added, removed or replaced.',
       inputSchema,
     },
     async (args, extra) => {
