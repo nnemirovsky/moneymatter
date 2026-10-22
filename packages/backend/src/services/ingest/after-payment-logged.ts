@@ -2,6 +2,7 @@ import type { RecordId } from '@bt/shared/types';
 import { logger } from '@js/utils/logger';
 
 import { suggestShortBalanceCorrection } from './corrections/suggest-short-balance-correction';
+import { applyHeldContexts } from './context/apply-held-contexts';
 import { judgeAfterCommit } from './dedup/judge-after-commit';
 import { suggestConversionPair } from './dedup/suggest-conversion-pair';
 import { suggestNoteAfterCommit } from './note/suggest-note-after-commit';
@@ -14,7 +15,8 @@ import { suggestNoteAfterCommit } from './note/suggest-note-after-commit';
  * - a short per-currency balance: which other balance of the card most likely paid;
  * - a currency conversion: the other leg of an own-account conversion, to link as a transfer;
  * - the AI judge: another row of the account that probably records the same payment;
- * - the note: when the payee's past notes are mixed, the one the AI picks for this payment.
+ * - the note: when the payee's past notes are mixed, the one the AI picks for this payment;
+ * - the context: a merchant-app notification that waited for a payment gets its turn.
  */
 export const afterPaymentLogged = async ({
   userId,
@@ -40,6 +42,9 @@ export const afterPaymentLogged = async ({
   } catch (error) {
     logger.error({ message: 'Failed to suggest the note of a logged payment', error: error as Error });
   }
+
+  // A merchant-app notification that arrived before this payment may belong to it. Never throws.
+  await applyHeldContexts({ userId });
 
   // The judge never throws: it logs its own failures.
   await judgeAfterCommit({ userId, transactionId });

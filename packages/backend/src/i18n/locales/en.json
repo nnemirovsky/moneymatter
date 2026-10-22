@@ -731,7 +731,10 @@
       "sourceNotApproved": "Not logged yet: approve \"{{source}}\" as a payment source in MoneyMatter",
       "aiUnavailable": "Not logged yet: add an AI model in MoneyMatter so it can read this notification",
       "aiCapReached": "Not logged yet: this month's AI allowance is used up; retry it in MoneyMatter later",
-      "aiLimitReached": "Not logged yet: today's limit of AI-read notifications is reached; retry it in MoneyMatter later"
+      "aiLimitReached": "Not logged yet: today's limit of AI-read notifications is reached; retry it in MoneyMatter later",
+      "contextAdded": "Added {{store}} to {{amount}} at {{merchant}}",
+      "contextAddedCategory": "Added {{store}} to {{amount}} at {{merchant}} → {{category}}",
+      "contextHeld": "{{store}} ({{service}}) is waiting for its payment"
     },
     "rejection": {
       "invalidBody": "The request body must be a JSON object.",
@@ -765,7 +768,8 @@
     "alreadyConfirmed": "This payment is already confirmed.",
     "confirmAmountNeeded": "The new account is in another currency. Enter the amount in that currency to move the payment.",
     "accountRequired": "Choose the account to log this payment on.",
-    "rejectNeedsPlan": "Your plan does not allow deleting payments. Subscribe again to keep editing your data."
+    "rejectNeedsPlan": "Your plan does not allow deleting payments. Subscribe again to keep editing your data.",
+    "contextNote": "{{store}} order from {{service}}"
   },
   "defaultCategories": {
     "main": {
@@ -1021,7 +1025,8 @@
   },
   "notificationSources": {
     "sourceNotFound": "Notification source not found.",
-    "accountNotFound": "Account not found."
+    "accountNotFound": "Account not found.",
+    "contextNotAllowed": "Messaging and mail apps cannot be context sources."
   },
   "notifications": {
     "push": {

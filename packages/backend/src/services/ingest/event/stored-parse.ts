@@ -2,6 +2,7 @@ import type { NotificationParkReason, RecordId } from '@bt/shared/types';
 
 import type { StoredBalanceAfter } from './balance-authority';
 import type { ParsedPayment } from './classify-notification';
+import type { StoredContext } from '../context/context-types';
 
 /** A payment read from a notification, as it sits in `IngestRequests.parsed` (a JSON column, so no `Date`). */
 export type StoredPayment = Omit<ParsedPayment, 'occurredAt'> & { occurredAt: string | null };
@@ -16,7 +17,7 @@ export type StoredPayment = Omit<ParsedPayment, 'occurredAt'> & { occurredAt: st
  * - a logged payment also keeps the balance it stated, with whether it is authoritative.
  */
 export interface StoredParse {
-  parser: 'wallet' | 'ai';
+  parser: 'wallet' | 'ai' | 'rules';
   kind: string;
   confidence: number;
   payment?: StoredPayment;
@@ -33,6 +34,8 @@ export interface StoredParse {
   directionOverride?: 'debit' | 'credit';
   /** The note the owner wrote on that card; an empty one is no note. Absent, the pipeline picks the note. */
   noteOverride?: string;
+  /** A context notification of a merchant app: what it said about an order, kept after its text is wiped. */
+  context?: StoredContext;
 }
 
 /** The reasons a park leaves the notification unread: nothing was parsed, so the text stays. */
@@ -61,7 +64,7 @@ export const readStoredParse = ({ value }: { value: Record<string, unknown> | nu
   if (!value || typeof value !== 'object') return null;
 
   const { parser, kind, confidence } = value;
-  if ((parser !== 'wallet' && parser !== 'ai') || typeof kind !== 'string' || typeof confidence !== 'number') {
+  if ((parser !== 'wallet' && parser !== 'ai' && parser !== 'rules') || typeof kind !== 'string' || typeof confidence !== 'number') {
     return null;
   }
 

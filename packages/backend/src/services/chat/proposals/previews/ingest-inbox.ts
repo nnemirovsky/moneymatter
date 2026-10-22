@@ -8,7 +8,7 @@ import { decryptNotificationText } from '@services/ingest/event/notification-tex
 import { describeSource, sourceAppName } from '@services/ingest/event/source-label';
 import { readStoredParse } from '@services/ingest/event/stored-parse';
 import { findWaitingSiblings, siblingMatchOf } from '@services/ingest/event/waiting-siblings';
-import { isUnconfirmedIngest } from '@services/ingest/ingest-markers';
+import { ingestMarkersOf, isUnconfirmedIngest } from '@services/ingest/ingest-markers';
 
 import { hashTargetIds } from '../snapshot';
 import { forUpdate, PreviewError, serializeRow, targetNotFound } from './preview-helpers';
@@ -47,11 +47,14 @@ export const resolveConfirmIngestPayment: PreviewResolver = async ({ userId, arg
 
   const stored = correctionOf({ externalData: tx.externalData });
   const correction = stored?.status === 'open' ? stored : null;
+  const context = ingestMarkersOf({ externalData: tx.externalData }).context;
 
   return {
     preview: {
       before: {
         ...serializeRow({ row: tx }),
+        // A merchant-app notification that was matched by a guess: the owner is asked to check it.
+        ...(context?.guess && { contextGuess: { service: context.service, store: context.store } }),
         ...(correction && {
           correction: {
             suggestedAccountId: correction.suggestedAccountId,

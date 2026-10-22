@@ -39,9 +39,19 @@ export type CardPaymentSummary =
       /** The app or sender, named when no payment could be read. */
       source: string;
     }
+  | {
+      /** A context notification added to a payment's row. */
+      type: 'contextAdded';
+      payment: SummaryAmount;
+      merchant: string;
+      store: string;
+      /** The category the store gave the payment, when the notification changed it. */
+      categoryName: string | null;
+    }
+  | { type: 'contextHeld'; store: string; service: string }
   | { type: 'dryRun'; username: string; card: string | null; accountName: string | null; linkedCardCount: number };
 
-const formatAmount = ({ value, locale }: { value: SummaryAmount; locale: string }): string => {
+export const formatAmount = ({ value, locale }: { value: SummaryAmount; locale: string }): string => {
   let formatted: string;
 
   try {
@@ -87,6 +97,21 @@ export const formatSummary = ({ summary, locale }: { summary: CardPaymentSummary
   switch (summary.type) {
     case 'logged':
       return formatLogged({ summary, locale });
+
+    case 'contextAdded':
+      return t({
+        key: summary.categoryName ? 'ingest.summary.contextAddedCategory' : 'ingest.summary.contextAdded',
+        variables: {
+          store: summary.store,
+          amount: formatAmount({ value: summary.payment, locale }),
+          merchant: summary.merchant,
+          category: summary.categoryName ?? '',
+        },
+        locale,
+      });
+
+    case 'contextHeld':
+      return t({ key: 'ingest.summary.contextHeld', variables: { store: summary.store, service: summary.service }, locale });
 
     case 'parked':
       if (summary.reason === 'unknownCard') {

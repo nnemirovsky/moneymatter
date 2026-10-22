@@ -53,3 +53,14 @@ export const findContextApp = ({ appName }: { appName?: string | null }): Contex
 /** Whether the app is on the seed list of merchant apps. The shortcut sends names only, so the bundle id is not used. */
 export const isContextApp = ({ appName }: { bundleId?: string | null; appName?: string | null }): boolean =>
   findContextApp({ appName }) !== null;
+
+/**
+ * The words that find a service's charges on a bank statement: the seed entry's hints, else the
+ * service's own name (a source the owner switched to context).
+ */
+export const getContextMatchers = ({ service }: { service: string }): { hints: string[]; excludes: string[] } => {
+  const name = normalizeName({ value: service });
+  const seeded = CONTEXT_APPS.find((app) => normalizeName({ value: app.service }) === name);
+
+  return seeded ? { hints: [...seeded.hints], excludes: [...seeded.excludes] } : { hints: [name], excludes: [] };
+};

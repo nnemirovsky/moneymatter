@@ -8,6 +8,7 @@ import {
   type UpdateNotificationSourcePayload,
 } from '@bt/shared/types';
 import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
+import { ValidationError } from '@js/errors';
 import { t } from '@i18n/index';
 import { connection } from '@models/connection';
 import IngestRequests from '@models/ingest-requests.model';
@@ -138,6 +139,11 @@ const deleteHeldRequests = async ({ userId, sourceId }: { userId: number; source
   });
 };
 
+/** Deletes the context notifications a source holds while they wait for their payment. */
+const deleteHeldContexts = async ({ userId, sourceId }: { userId: number; sourceId: RecordId }): Promise<void> => {
+  await IngestRequests.destroy({ where: { userId, sourceId, pipeline: 'notification', status: 'held' } });
+};
+
 const toSourceDto = ({ source }: { source: NotificationSources }): NotificationSourceDto => ({
   id: source.id,
   appName: source.appName,
@@ -177,6 +183,10 @@ const updateNotificationSourceImpl = async ({
     message: t({ key: 'notificationSources.sourceNotFound' }),
   });
 
+  if (mode === 'context' && source.conversational) {
+    throw new ValidationError({ message: t({ key: 'notificationSources.contextNotAllowed' }) });
+  }
+
   if (defaultAccountId) {
     await assertUsableAccount({
       userId,
@@ -185,6 +195,7 @@ const updateNotificationSourceImpl = async ({
     });
   }
 
+  const previousMode = source.mode;
   await source.update({
     ...(mode !== undefined && { mode }),
     ...(defaultAccountId !== undefined && { defaultAccountId }),
@@ -197,8 +208,16 @@ const updateNotificationSourceImpl = async ({
     : 0;
   if (mode === 'approved') releasedRequestIds = await releaseHeldRequests({ userId, sourceId: source.id });
   if (mode === 'muted') await deleteHeldRequests({ userId, sourceId: source.id });
+  // A context source never reaches the payment parser: what it held for approval is deleted, not released.
+  if (mode === 'context') await deleteHeldRequests({ userId, sourceId: source.id });
+  if (mode !== undefined && mode !== 'context' && previousMode === 'context') {
+    await deleteHeldContexts({ userId, sourceId: source.id });
+  }
+  if (mode === 'muted') await deleteHeldContexts({ userId, sourceId: source.id });
   // The question "treat this as a payment source?" has its answer; a card still asking it closes.
-  if (mode === 'approved' || mode === 'muted') await resolveCardsElsewhere({ proposalIds: [source.proposalId] });
+  if (mode === 'approved' || mode === 'muted' || mode === 'context') {
+    await resolveCardsElsewhere({ proposalIds: [source.proposalId] });
+  }
 
   return { source: { ...toSourceDto({ source }), ...(releasedCount && { releasedCount }) }, releasedRequestIds };
 };
@@ -212,7 +231,9 @@ const updateNotificationSourceInTransaction = withTransaction(updateNotification
  *   `received` and are handed to the processing job once the change is committed. The job applies
  *   the base-currency lock, so the route itself is exempt from it.
  * - Muting a source deletes what it holds: the notifications that were never classified, with their
- *   stored text.
+ *   stored text, and the context notifications waiting for a payment.
+ * - Making a source a context source deletes what it held for approval (it never reaches the payment
+ *   parser) and closes the card that asked about it; leaving the mode deletes its waiting contexts.
  */
 export const updateNotificationSource = async (
   params: { userId: number; id: RecordId } & UpdateNotificationSourcePayload,

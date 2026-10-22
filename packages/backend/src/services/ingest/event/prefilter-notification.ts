@@ -31,12 +31,14 @@ const OWN_OUTPUT_KEYS = [
   'ingest.summary.rateUnavailable',
   'ingest.summary.processingFailed',
   'ingest.summary.notificationLogged',
+  'ingest.summary.contextAdded',
+  'ingest.summary.contextAddedCategory',
   'ingest.summary.parkedNotification',
   'ingest.summary.queued',
 ];
 
 /** Every placeholder the templates above use. */
-const OWN_OUTPUT_VARIABLES = ['amount', 'merchant', 'category', 'card', 'from', 'to', 'date', 'summary'];
+const OWN_OUTPUT_VARIABLES = ['amount', 'merchant', 'category', 'card', 'from', 'to', 'date', 'summary', 'store'];
 
 /** The fixed words a template must keep for it to tell our text from a bank's. */
 const MIN_OWN_TEMPLATE_LITERAL_LENGTH = 8;
@@ -116,7 +118,7 @@ const matchesAny = ({ text, markers }: { text: string; markers: readonly RegExp[
  * In this order:
  *
  * 1. `self`: our own banner or push;
- * 2. `noAmount`: nothing in the text shows an amount at the user's strictness;
+ * 2. `noAmount`: nothing in the text shows an amount at the user's strictness (a context source needs none);
  * 3. `security`: the text asks the user to enter, confirm or not share a code and a standalone
  *    4 to 8 digit code is present. "auth code" and "approval code" mark a completed payment and
  *    override this;
@@ -130,6 +132,7 @@ export const prefilterNotification = ({
   subtitle,
   body,
   strictness,
+  contextApp = false,
 }: {
   bundleId: string | null;
   appName: string | null;
@@ -137,14 +140,18 @@ export const prefilterNotification = ({
   subtitle: string;
   body: string;
   strictness: GateStrictness;
+  /** The source is a context source: its notifications describe a purchase and show no amount. */
+  contextApp?: boolean;
 }): PrefilterResult => {
   if (isOwnOutput({ bundleId, appName, lines: [title, subtitle, body].filter(Boolean) })) {
     return { pass: false, reason: 'self' };
   }
 
   const text = [title, subtitle, body].filter(Boolean).join('\n');
-  const amountText = matchAmountGate({ text, strictness });
-  if (amountText === null) return { pass: false, reason: 'noAmount' };
+  const matched = matchAmountGate({ text, strictness });
+  // A context notification shows no amount; every other source needs one.
+  if (matched === null && !contextApp) return { pass: false, reason: 'noAmount' };
+  const amountText = matched ?? '';
 
   const asksForCode =
     matchesAny({ text, markers: OTP_REQUEST_MARKERS }) &&
