@@ -757,6 +757,8 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - ➕ Gate results: typecheck, lint, format:check, backend knip clean; frontend knip lists only findings that predate the branch. Frontend vitest 422 files / 6139 tests pass; backend unit 401 of 407 suites pass (the 6 failing suites are 5 node-pty `posix_spawnp` suites that fail on this Mac, and the chat schema budget, fixed here by trimming tool descriptions); backend e2e 376 of 378 suites pass in one serial run (the `pending-card-revision` expectation became `.000Z`, and the `assistant-push` debounce test is a timing flake that passes alone).
   - ⚠️ Other Playwright specs failing in a regression run, none touching this branch's code: `create-more` and `transaction-templates` (the form's account combobox moved with the quick-add chips layout on `dev`), `external-transfer-revert` (its seed hits the bank-account rule on `dev`), `investment-calculator`, `category-spending-tracker`, `fire-widget`.
 
+- ➕ Revmux review round 1 (9 findings) fixed after Task 14: offset-only `pay_subscription_period`; chat bulk-delete preview cuts filter bounds in the user's zone; MCP time inputs keep the 2000-01-01 lower limit; stated offsets beyond ±14:00 are ignored (`usableOffsetMinutes`); cumulative report months and the earliest-transaction day follow the viewing zone; the budget pool closes at the owner's local tomorrow and period bounds are computed in JS; conventions doc and this plan's wording corrected.
+
 ### Task 15: Documentation
 
 - [x] user docs (`packages/docs`, via `user-docs`): a "Time zone and clock" settings page; how each source records a zone; the note that balance history uses UTC days
