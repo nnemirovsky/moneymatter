@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   formatDateTime,
@@ -12,6 +12,8 @@ import {
   formatZoneLabel,
   hourCyclePreference,
   resolveViewingTimeZone,
+  viewingDayBoundIso,
+  viewingNow,
   viewingTimeZone,
 } from './time-zone';
 
@@ -172,6 +174,38 @@ describe('js/helpers/time-zone', () => {
     it('shows its date as plain date-fns formatting in the device zone does', () => {
       viewingTimeZone.value = deviceTimeZone();
       expect(formatInViewingZone({ date: INSTANT, pattern: 'd MMM y' })).toBe(format(INSTANT, 'd MMM y'));
+    });
+  });
+
+  describe('viewing-zone days', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('reads "now" in the viewing zone, a day ahead of UTC for a Tbilisi viewer', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-10-20T21:30:00.000Z'));
+      viewingTimeZone.value = 'Asia/Tbilisi';
+
+      const now = viewingNow();
+
+      expect(format(now, 'yyyy-MM-dd HH:mm')).toBe('2026-10-21 01:30');
+    });
+
+    it('bounds a calendar day by the viewing zone, not the device zone', () => {
+      viewingTimeZone.value = 'Asia/Tbilisi';
+      const day = new Date(2026, 9, 21);
+
+      expect(viewingDayBoundIso({ date: day, edge: 'start' })).toBe('2026-10-20T20:00:00.000Z');
+      expect(viewingDayBoundIso({ date: day, edge: 'end' })).toBe('2026-10-21T19:59:59.999Z');
+    });
+
+    it('covers the 25-hour day when clocks go back', () => {
+      viewingTimeZone.value = 'America/New_York';
+      const day = new Date(2026, 10, 1);
+
+      expect(viewingDayBoundIso({ date: day, edge: 'start' })).toBe('2026-11-01T04:00:00.000Z');
+      expect(viewingDayBoundIso({ date: day, edge: 'end' })).toBe('2026-11-02T04:59:59.999Z');
     });
   });
 });

@@ -1,5 +1,5 @@
+import { viewingDayBoundIso } from '@/js/helpers/time-zone';
 import { TRACKER_AI_DEFAULT_PRE_WINDOW_DAYS, type TrackerAiPreWindowDays } from '@bt/shared/types';
-import { endOfDay, startOfDay } from 'date-fns';
 
 interface TrackerFormValues {
   name: string;
@@ -30,8 +30,8 @@ export const buildTrackerPayload = ({
   return {
     name,
     limitAmount: Number.isFinite(limit) && limit > 0 ? limit : null,
-    startDate: startDate ? startOfDay(startDate).toISOString() : null,
-    endDate: endDate ? endOfDay(endDate).toISOString() : null,
+    startDate: startDate ? viewingDayBoundIso({ date: startDate, edge: 'start' }) : null,
+    endDate: endDate ? viewingDayBoundIso({ date: endDate, edge: 'end' }) : null,
     ...(categoryIds ? { categoryIds } : {}),
   };
 };

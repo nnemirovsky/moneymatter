@@ -1,3 +1,4 @@
+import { viewingTimeZone } from '@/js/helpers/time-zone';
 import {
   API_ERROR_CODES,
   type AccountMappingValue,
@@ -664,7 +665,7 @@ export const useImportExportStore = defineStore('importExport', () => {
         accountMapping: accountMapping.value,
         categoryMapping: categoryMapping.value,
         tagMapping: tagMapping.value,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        timezone: viewingTimeZone.value,
       });
 
       validRows.value = response.validRows;
@@ -752,7 +753,7 @@ export const useImportExportStore = defineStore('importExport', () => {
         // Must match the timezone the detect-duplicates step sent — the worker
         // re-parses server-side and the user's skip indices are only valid if the
         // parse anchors dates to the same instants.
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        timezone: viewingTimeZone.value,
       });
     } catch (error) {
       // The call never started the job — keep the user on `review` (not marked

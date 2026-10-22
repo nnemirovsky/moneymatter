@@ -73,6 +73,7 @@
 </template>
 
 <script lang="ts" setup>
+import { format } from 'date-fns';
 import ExcludeCategoriesMenu from '@/components/common/category-exclusions/exclude-categories-menu.vue';
 import ExcludedCountBadge from '@/components/common/category-exclusions/excluded-count-badge.vue';
 import { useCategoryExclusionsConfig } from '@/components/common/category-exclusions/use-category-exclusions-config';
@@ -149,8 +150,8 @@ const navigateToTransactions = ({ categoryId }: { categoryId: string }) => {
     name: ROUTES_NAMES.transactions,
     query: {
       categoryIds: allCategoryIds.map(String),
-      start: props.selectedPeriod.from.toISOString(),
-      end: props.selectedPeriod.to.toISOString(),
+      start: format(props.selectedPeriod.from, 'yyyy-MM-dd'),
+      end: format(props.selectedPeriod.to, 'yyyy-MM-dd'),
       transactionType: TRANSACTION_TYPES.expense,
     },
   });

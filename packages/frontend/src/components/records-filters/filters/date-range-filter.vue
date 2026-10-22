@@ -30,6 +30,7 @@
 </template>
 
 <script lang="ts" setup>
+import { viewingNow } from '@/js/helpers/time-zone';
 import { Button } from '@/components/lib/ui/button';
 import { DateSelector, type DateSelectorPreset } from '@/components/lib/ui/date-selector';
 import { type Period } from '@/composable/use-period-navigation';
@@ -57,8 +58,8 @@ const { t } = useI18n();
 const hasDates = computed(() => props.start !== null && props.end !== null);
 
 const currentPeriod = computed<Period>(() => ({
-  from: props.start ?? startOfMonth(new Date()),
-  to: props.end ?? endOfMonth(new Date()),
+  from: props.start ?? startOfMonth(viewingNow()),
+  to: props.end ?? endOfMonth(viewingNow()),
 }));
 
 const presets = computed<DateSelectorPreset[]>(() => [

@@ -155,6 +155,7 @@
 </template>
 
 <script lang="ts" setup>
+import { viewingDayBoundIso, viewingNow } from '@/js/helpers/time-zone';
 import { loadTransactions } from '@/api/transactions';
 import type { DashboardWidgetConfig } from '@/api/user-settings';
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const';
@@ -611,7 +612,7 @@ const isProjectionEligible = computed(
   () => selectedBalanceType.value.value === 'total' || selectedBalanceType.value.value === 'accounts',
 );
 const isPeriodEndCurrentOrFuture = computed(
-  () => startOfDay(props.selectedPeriod.to).getTime() >= startOfDay(new Date()).getTime(),
+  () => startOfDay(props.selectedPeriod.to).getTime() >= startOfDay(viewingNow()).getTime(),
 );
 
 // The widget previews where the period lands, not every plan, so it reads a bounded slice.
@@ -627,7 +628,7 @@ const { data: pendingPlans } = useQuery({
       offset: 0,
       limit: PENDING_PLANS_LIMIT,
       order: SORT_DIRECTIONS.asc,
-      to: endOfDay(props.selectedPeriod.to).toISOString(),
+      to: viewingDayBoundIso({ date: props.selectedPeriod.to, edge: 'end' }),
     }),
   staleTime: Infinity,
   placeholderData: (prevData) => prevData,
@@ -707,13 +708,12 @@ const { data: spikeTransactions, isLoading: isSpikeTransactionsLoading } = useQu
   queryKey: ['spike-transactions', selectedSpikeDate],
   queryFn: async () => {
     if (!selectedSpikeDate.value) return [];
-    const dateStart = startOfDay(new Date(selectedSpikeDate.value));
-    const dateEnd = endOfDay(new Date(selectedSpikeDate.value));
+    const spikeDay = new Date(selectedSpikeDate.value);
     const transactions = await loadTransactions({
       offset: 0,
       limit: 20,
-      from: dateStart.toISOString(),
-      to: dateEnd.toISOString(),
+      from: viewingDayBoundIso({ date: spikeDay, edge: 'start' }),
+      to: viewingDayBoundIso({ date: spikeDay, edge: 'end' }),
     });
     // Sort by highest refAmount (base currency) so the biggest transactions show first
     return transactions.sort((a, b) => Math.abs(b.refAmount ?? 0) - Math.abs(a.refAmount ?? 0));
@@ -1103,7 +1103,7 @@ const renderChart = () => {
   if (projection.value) {
     const projectionGroup = g.append('g').attr('class', 'projection');
 
-    const todayTs = startOfDay(new Date()).getTime();
+    const todayTs = startOfDay(viewingNow()).getTime();
     const [domainStart, domainEnd] = xScale.domain() as [number, number];
     if (todayTs >= domainStart && todayTs < domainEnd) {
       projectionGroup

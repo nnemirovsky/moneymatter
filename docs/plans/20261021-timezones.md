@@ -739,9 +739,11 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - Modify: `packages/frontend/src/components/records-filters/use-filters-from-query.ts`, `packages/frontend/src/api/stats.ts` (`formatDate` in the viewing zone), the date-preset helpers (`components/lib/ui/date-selector`, `TRANSACTION_DATE_PRESETS` consumers), `components/widgets/{spending-pace-widget/index.vue,balance-trend.vue,latest-records.vue}`
 - Specs beside each
 
-- [ ] write failing vitest: "today" for a Tbilisi viewer at `2026-10-20T21:30Z` is Oct 21; the end bound of `end=2026-10-21` is `2026-10-21T19:59:59.999Z` in Tbilisi; `api/stats` sends the viewing-zone calendar day; the import stores send `viewingTimeZone` (the two existing expectations change)
-- [ ] implement with `tz(viewingTimeZone)`
-- [ ] gate: frontend the changed spec files
+- [x] write failing vitest: "today" for a Tbilisi viewer at `2026-10-20T21:30Z` is Oct 21; the end bound of `end=2026-10-21` is `2026-10-21T19:59:59.999Z` in Tbilisi; `api/stats` sends the viewing-zone calendar day; the import stores send `viewingTimeZone` (the two existing expectations change)
+- [x] implement with `tz(viewingTimeZone)`
+- [x] gate: frontend the changed spec files
+- ➕ Deviations: filters, presets and period pickers hold calendar days as local `Date`s, so the viewing zone enters at two points. `viewingNow()` replaces `new Date()` as "today" (a local date whose fields read the viewing-zone wall clock), and `viewingDayBoundIso()` turns a picked day into its start or end instant in the viewing zone at the request (`buildFilterParams`, the transfer and refund pickers, the balance-trend widget, the transfers scan, tracker dates). `api/stats.ts` keeps formatting the calendar fields, which are already the viewing-zone day when they come from `viewingNow()`. The expenses-structure drill-down now puts `yyyy-MM-dd` days in the route query. OFX execute sends `timezone` (upload sends it as `X-Timezone`).
+- ⚠️ `ios-automation.spec.ts` "says bank notifications are logged too" failed on the first fork/dev merge because that spec was stale against the shortened description (`8215d8059`); `fork/dev` fixed the spec later and merging it cleared the failure. Not caused by this branch.
 
 ### Task 14: Verify acceptance criteria
 

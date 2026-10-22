@@ -10,6 +10,7 @@ import { useImportJobProgress } from '@/composable/use-import-job-progress';
 import { useRecalculateBalanceToggle } from '@/composable/use-recalculate-balance-toggle';
 import { useWizardSteps } from '@/composable/use-wizard-steps';
 import { i18n } from '@/i18n';
+import { viewingTimeZone } from '@/js/helpers/time-zone';
 import { captureException } from '@/lib/sentry';
 import { matchValuesByName } from '@/pages/import-export/utils/auto-match';
 import { useAccountsStore } from '@/stores/accounts';
@@ -343,6 +344,7 @@ export const useImportOfxStore = defineStore('import-ofx', () => {
         accountMapping: toWireAccountMapping(),
         skipDuplicateIndices: skipDuplicateIndices.value,
         recalculateBalance: recalculateBalance.value,
+        timezone: viewingTimeZone.value,
       });
     } catch (error) {
       jobProgress.setExecuteError(getErrorMessage(error, i18n.global.t('errors.api.unexpectedError')));

@@ -2,11 +2,13 @@ import { viewingTimeZone } from '@/js/helpers/time-zone';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { balanceAdjustment } from './accounts';
+import { uploadOfxFile } from './import-ofx';
 import { accountToPortfolioTransfer, portfolioToAccountTransfer } from './portfolios';
 import { markSubscriptionPeriodPaid } from './subscriptions';
 
 const post = vi.hoisted(() => vi.fn());
-vi.mock('@/api/_api', () => ({ api: { post } }));
+const postRaw = vi.hoisted(() => vi.fn());
+vi.mock('@/api/_api', () => ({ api: { post, postRaw } }));
 
 describe('request bodies that record a time zone', () => {
   beforeEach(() => {
@@ -54,6 +56,14 @@ describe('request bodies that record a time zone', () => {
     expect(post).toHaveBeenCalledWith(
       '/investments/portfolios/pf/transfer/to-account',
       expect.objectContaining({ timeZone: 'Asia/Tbilisi' }),
+    );
+  });
+
+  it('sends the viewing zone with the OFX upload', async () => {
+    postRaw.mockResolvedValue({});
+    await uploadOfxFile({ file: new File(['x'], 'a.ofx') });
+    expect(postRaw).toHaveBeenCalledWith(
+      expect.objectContaining({ headers: expect.objectContaining({ 'X-Timezone': 'Asia/Tbilisi' }) }),
     );
   });
 });

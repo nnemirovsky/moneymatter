@@ -1,4 +1,4 @@
-import { formatOffset, zoneOffsetMinutes } from '@bt/shared/time-zone';
+import { formatOffset, zoneOffsetMinutes, zonedDayEnd, zonedDayStart } from '@bt/shared/time-zone';
 import type { HourCycle, TimeZoneSource } from '@bt/shared/types';
 import { TZDate } from '@date-fns/tz';
 import { format } from 'date-fns';
@@ -134,3 +134,36 @@ export const getTransactionTimeTooltip = ({
     recordedLine: distinct ? formatRecordedZoneLine({ timeZone, utcOffsetMinutes, instant }) : null,
   };
 };
+
+/**
+ * The current moment as a local `Date` whose calendar fields read the wall clock of the viewing zone.
+ * Filters, presets and period pickers hold calendar days as local dates, so "today" has to come from
+ * here and not from `new Date()`, which is the device's day.
+ */
+export const viewingNow = (): Date => {
+  const zoned = new TZDate(new Date(), viewingTimeZone.value);
+  return new Date(
+    zoned.getFullYear(),
+    zoned.getMonth(),
+    zoned.getDate(),
+    zoned.getHours(),
+    zoned.getMinutes(),
+    zoned.getSeconds(),
+    zoned.getMilliseconds(),
+  );
+};
+
+/**
+ * The instant a calendar day (a local date's year, month and day) starts or ends in the viewing zone.
+ * `end` is the day's last millisecond, so a 23- or 25-hour day is covered exactly.
+ */
+export const viewingDayBound = ({ date, edge }: { date: Date; edge: 'start' | 'end' }): Date => {
+  const day = format(date, 'yyyy-MM-dd');
+  return edge === 'start'
+    ? zonedDayStart({ date: day, zone: viewingTimeZone.value })
+    : zonedDayEnd({ date: day, zone: viewingTimeZone.value });
+};
+
+/** `viewingDayBound` as an ISO string, the form the API takes for a range bound. */
+export const viewingDayBoundIso = ({ date, edge }: { date: Date; edge: 'start' | 'end' }): string =>
+  viewingDayBound({ date, edge }).toISOString();

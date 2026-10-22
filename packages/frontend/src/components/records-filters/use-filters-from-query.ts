@@ -47,9 +47,8 @@ export const useFiltersFromQuery = () => {
     }
 
     if (query.end) {
-      // Use endOfDay to include all transactions on the end date
-      // Without this, "2025-12-31" becomes midnight which in UTC+X timezones
-      // results in "2025-12-30T23:00:00Z", missing the last day's transactions
+      // A filter holds calendar days; endOfDay keeps the whole end day in the range. The request
+      // builder turns both days into instants in the viewing zone.
       filters.end = endOfDay(parseISO(query.end as string));
     }
 

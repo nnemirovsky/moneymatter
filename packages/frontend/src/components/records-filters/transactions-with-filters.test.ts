@@ -1,7 +1,8 @@
 import { api } from '@/api/_api';
 import { loadTransactions } from '@/api/transactions';
+import { deviceTimeZone, viewingTimeZone } from '@/js/helpers/time-zone';
 import { FILTER_OPERATION, TRANSACTION_TRANSFER_NATURE } from '@bt/shared/types';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_FILTERS, FiltersStruct, SELECTABLE_TRANSFER_NATURES } from './const';
 import {
@@ -147,8 +148,13 @@ describe('parseStoredFilters', () => {
 });
 
 describe('buildFilterParams', () => {
+  afterEach(() => {
+    viewingTimeZone.value = deviceTimeZone();
+  });
+
   it('maps the filter state to query params and drops everything that narrows nothing', () => {
-    const start = new Date('2026-08-01T00:00:00.000Z');
+    viewingTimeZone.value = 'UTC';
+    const start = new Date(2026, 7, 1);
     const params = buildFilterParams({
       filter: {
         ...DEFAULT_FILTERS,
@@ -163,7 +169,7 @@ describe('buildFilterParams', () => {
     });
 
     expect(params).toMatchObject({
-      from: start.toISOString(),
+      from: '2026-08-01T00:00:00.000Z',
       accountIds: ['account-1'],
       amountLte: 50,
       isPlanned: false,
@@ -172,5 +178,21 @@ describe('buildFilterParams', () => {
     expect(params).not.toHaveProperty('tagIds');
     expect(params).not.toHaveProperty('amountGte');
     expect(params).not.toHaveProperty('to');
+  });
+});
+
+describe('buildFilterParams date range', () => {
+  afterEach(() => {
+    viewingTimeZone.value = deviceTimeZone();
+  });
+
+  it('turns the picked days into instants in the viewing zone', () => {
+    viewingTimeZone.value = 'Asia/Tbilisi';
+    const params = buildFilterParams({
+      filter: makeFilters({ start: new Date(2026, 9, 21), end: new Date(2026, 9, 21, 23, 59, 59, 999) }),
+    });
+
+    expect(params.from).toBe('2026-10-20T20:00:00.000Z');
+    expect(params.to).toBe('2026-10-21T19:59:59.999Z');
   });
 });

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { viewingDayBoundIso } from '@/js/helpers/time-zone';
 import { loadRefundRecommendations, loadTransactions } from '@/api/transactions';
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const';
 import ResponsiveDialog from '@/components/common/responsive-dialog.vue';
@@ -142,8 +143,8 @@ const fetchTransactions = ({
         isPlanned: false,
         includeSplits: true, // Include splits so we can show split selector
         noteSearch: search,
-        to: isDate(filter.end) ? filter.end!.toISOString() : undefined,
-        from: isDate(filter.start) ? filter.start!.toISOString() : undefined,
+        to: isDate(filter.end) ? viewingDayBoundIso({ date: filter.end!, edge: 'end' }) : undefined,
+        from: isDate(filter.start) ? viewingDayBoundIso({ date: filter.start!, edge: 'start' }) : undefined,
         amountGte: filter.amountGte ?? undefined,
         amountLte: filter.amountLte ?? undefined,
       },
