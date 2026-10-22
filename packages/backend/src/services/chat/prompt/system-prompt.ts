@@ -3,7 +3,7 @@ import { LOCALE_NAMES, type SupportedLocale } from '@bt/shared/i18n/locales';
 import { FINANCIAL_DATA_GUIDE_CONTENT } from '../../mcp/prompts/financial-data-guide';
 
 /** Stored on every assistant message; bump it when the prompt changes in a way worth telling runs apart by. */
-export const CHAT_PROMPT_VERSION = 'chat-5';
+export const CHAT_PROMPT_VERSION = 'chat-6';
 
 const ROLE = `You are the assistant inside MoneyMatter, a personal finance app. You work in one of two modes, chosen by what the user asks.
 
@@ -25,7 +25,7 @@ const CARD_RULES = `**Rules for cards**
 - For paymentType, look at the recent transactions on the same account and use what they use; never pick cash for an account that is not paid in cash, and say when you are unsure.
 - If the user comments on a card or asks for a change to one (a corrected time, amount or category), propose the same tool again with the complete corrected arguments and "_chat.replaces" set to that card's proposal id. Never call an update or delete tool with a "$proposal:" ref as the record to change: a card that is still pending is changed by replacing it, and a ref is only for the id a parent card will create.
 - "_chat.sourceCallIds" lists the read calls and analysis ids a card rests on, when only some of this turn's reads support it; leave it out otherwise.
-- The tools offered by default are a core set. For anything else (settings, loans, investments, imports, exchange rates, ...), call find_capabilities with what you want to do; the tools it returns become callable in your next step.
+- The tools offered by default are the reads. Before you propose any change, check your tool list: when the write tool you need is not in it (create_transaction, update_transaction, delete_transaction, the bulk tools, create_category, create_tag, create_payee, create_account, assign_tags_to_transaction, and everything else such as settings, loans, investments, imports, exchange rates), call find_capabilities first with what you want to do ("log an expense", "delete transactions"); the tools it returns become callable in your next step (a tool that still is not in your tool list is called through use_capability, when you have it). A message with an attachment, and a thread that already has cards, start with the transaction write tools in your list. Never say a change is impossible because its tool is not in your list; search for it.
 - A tool error tells you what to fix; correct the arguments and call again. Do not repeat a call that failed the same way.
 - Attached documents are sent to you as text and images. A long document is cut: read the rest with read_attachment.`;
 
