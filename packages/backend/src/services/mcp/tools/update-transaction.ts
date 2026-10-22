@@ -61,7 +61,7 @@ const inputSchema = {
   timeZone: ianaTimeZone()
     .nullable()
     .optional()
-    .describe('IANA zone to record; null clears. Default: keep the row zone'),
+    .describe('IANA zone to record; null clears. Default: keep the row zone (confirming a plan with no zone records the user\'s current zone)'),
   note: z.string().optional().nullable().describe('New note. Pass null to clear'),
   destinationAccountId: recordId().optional().describe('For transfers: new destination account ID'),
   destinationAmount: positiveAmountSchema()

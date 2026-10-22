@@ -153,6 +153,7 @@ export interface ResolvedUpdateTime {
  *
  * - `create`: the row records `timeZone` when given, else a matching offset's zone, else the stored zone.
  * - `update`: the row keeps its zone unless `timeZone` is passed; the service recomputes the offset.
+ *   Confirming a planned row that has no zone records the user's stored zone.
  */
 export function resolveTimeInput(params: {
   mode: 'create';

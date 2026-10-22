@@ -678,7 +678,7 @@ const isReplaceableCategory = async ({
 /**
  * Unchecking Planned says the money moved now, so the row records the zone the user is in at that
  * moment (their stored zone) unless the request names one. A user without a stored zone leaves the
- * row's zone as it is.
+ * row's zone as it is, and an ingested payment keeps the zone its device reported.
  */
 const stampConfirmedPlanZone = async ({
   request,
@@ -688,6 +688,9 @@ const stampConfirmedPlanZone = async ({
   prevData: Transactions.default;
 }): Promise<UpdateTransactionParams> => {
   if (request.isPlanned !== false || !prevData.isPlanned || request.timeZone !== undefined) return request;
+  // A payment logged by the ingest flows carries the zone its device reported; moving or editing it
+  // is not the user's "the money moved now".
+  if (request.keepIngestUnconfirmed || isUnconfirmedIngestRow({ tx: prevData })) return request;
 
   const timeZone = await getStoredUserTimeZone({ userId: request.userId });
 

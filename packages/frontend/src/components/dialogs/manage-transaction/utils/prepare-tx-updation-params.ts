@@ -166,7 +166,8 @@ export const prepareTxUpdationParams = ({
   }
 
   // The zone is an annotation, so it is sent only when the user picked another one; an untouched
-  // (or unknown) zone stays as stored and the server recomputes its offset for a new time.
+  // zone stays as stored and the server recomputes its offset for a new time; confirming a plan
+  // that has no zone makes the server record the user's stored zone.
   if (form.timeZone && form.timeZone !== (transaction.timeZone ?? null)) {
     editionParams.timeZone = form.timeZone;
   }
