@@ -129,3 +129,21 @@ export const parseNotificationPayload = ({ body, receivedAt }: { body: unknown; 
     },
   };
 };
+
+/**
+ * What a sender probe carries: the app and the sender (the notification's title), and nothing else. The
+ * shortcut sends no text with it, so there is nothing more to read.
+ */
+export const readProbeApp = ({
+  body,
+}: {
+  body: unknown;
+}): { app: string | null; bundleId: string | null; title: string } => {
+  const fields = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
+
+  return {
+    app: readText({ fields, keys: APP_KEYS, maxLength: APP_MAX_LENGTH }) || null,
+    bundleId: readText({ fields, keys: ['bundleId'], maxLength: APP_MAX_LENGTH }) || null,
+    title: readText({ fields, keys: ['title'], maxLength: TITLE_MAX_LENGTH }),
+  };
+};

@@ -4,8 +4,10 @@ import {
   AMOUNT_GATE_SAMPLES,
   API_ERROR_CODES,
   CARD_PAYMENT_REQUEST_KEYS,
+  CONVERSATIONAL_APP_GATE_PATTERN,
   INGEST_EVENT_KINDS,
   NOTIFICATION_REQUEST_KEYS,
+  SECURITY_GATE_PATTERN,
   encodeSetupCode,
 } from '@bt/shared/types';
 // @vitest-environment node
@@ -82,7 +84,12 @@ const propertiesOf = ({ trigger }: { trigger: string }): string[] => [
   ),
 ];
 
-const requests = byId(SHORTCUT_ACTIONS.downloadUrl);
+const allRequests = byId(SHORTCUT_ACTIONS.downloadUrl);
+/** The sender probe of a messaging or mail notification: a request of its own, before the real ones. */
+const probeRequest = allRequests.find((action) =>
+  JSON.stringify(params(action)[SHORTCUT_PARAMS.jsonValues]).includes('notificationProbe'),
+)!;
+const requests = allRequests.filter((action) => action !== probeRequest);
 // Per branch: the send, then the single resend. The manual run's dry run comes last.
 const [tapRequest, tapResend, notificationRequest, notificationResend, dryRunRequest] = requests;
 
@@ -301,15 +308,77 @@ describe('payments shortcut generator', () => {
       expect(names).toEqual(['Title', 'Subtitle', 'Body']);
     });
 
-    it('stops when nothing matched, before anything is sent', () => {
+    it('stops a text that asks for a one-time code, for every app, before anything is sent', () => {
       const index = indexOfAction(match!);
       const check = actions[index + 1]!;
+      const securityMatch = actions[index + 2]!;
+      const securityCheck = actions[index + 3]!;
 
       expect(id(check)).toBe(SHORTCUT_ACTIONS.conditional);
       expect(params(check)[SHORTCUT_PARAMS.condition]).toBe(CONDITION_CODES['Does Not Have Any Value']);
       expect(params(check)[SHORTCUT_PARAMS.input].Variable.Value.OutputUUID).toBe(params(match!).UUID);
-      expect(id(actions[index + 2]!)).toBe(SHORTCUT_ACTIONS.exit);
-      expect(index).toBeLessThan(indexOfAction(notificationRequest!));
+
+      expect(id(securityMatch)).toBe(SHORTCUT_ACTIONS.matchText);
+      expect(params(securityMatch)[SHORTCUT_PARAMS.matchPattern]).toBe(SECURITY_GATE_PATTERN);
+      expect(params(securityCheck)[SHORTCUT_PARAMS.condition]).toBe(CONDITION_CODES['Has Any Value']);
+      expect(params(securityCheck)[SHORTCUT_PARAMS.input].Variable.Value.OutputUUID).toBe(params(securityMatch).UUID);
+      expect(id(actions[index + 4]!)).toBe(SHORTCUT_ACTIONS.exit);
+      expect(index + 4).toBeLessThan(indexOfAction(notificationRequest!));
+    });
+
+    describe('a messaging or mail app without an amount', () => {
+      const probe = () => probeRequest;
+
+      it('checks the app name against the messaging and mail apps after the code check', () => {
+        const appMatch = byId(SHORTCUT_ACTIONS.matchText).find(
+          (action) => params(action)[SHORTCUT_PARAMS.matchPattern] === CONVERSATIONAL_APP_GATE_PATTERN,
+        )!;
+        const input = Object.values<Dict>(params(appMatch)[SHORTCUT_PARAMS.matchText].Value.attachmentsByRange)[0]!;
+
+        expect(input.Aggrandizements[0].PropertyName).toBe('App');
+        expect(indexOfAction(appMatch)).toBeGreaterThan(indexOfAction(byId(SHORTCUT_ACTIONS.matchText)[1]!));
+        expect(indexOfAction(probe())).toBeGreaterThan(indexOfAction(appMatch));
+      });
+
+      it('sends only the app and the sender first, and never the text', () => {
+        const body = JSON.stringify(params(probe())[SHORTCUT_PARAMS.jsonValues]);
+
+        for (const key of ['kind', 'app', 'title']) expect(body).toContain(`"${key}"`);
+        for (const key of ['subtitle', 'body', 'raw']) expect(body).not.toContain(`"${key}"`);
+        expect(indexOfAction(probe())).toBeLessThan(indexOfAction(notificationRequest!));
+      });
+
+      it('stops unless the answer says to send', () => {
+        const after = actions.slice(indexOfAction(probe()), indexOfAction(notificationRequest!));
+        const sendKey = after.find(
+          (action) =>
+            id(action) === SHORTCUT_ACTIONS.getValue && params(action)[SHORTCUT_PARAMS.dictionaryKey] === 'send',
+        )!;
+        const check = after[after.indexOf(sendKey) + 1]!;
+
+        expect(params(check)[SHORTCUT_PARAMS.condition]).toBe(CONDITION_CODES['Does Not Have Any Value']);
+        expect(params(check)[SHORTCUT_PARAMS.input].Variable.Value.OutputUUID).toBe(params(sendKey).UUID);
+        expect(id(after[after.indexOf(check) + 1]!)).toBe(SHORTCUT_ACTIONS.exit);
+      });
+    });
+
+    it('reads the security pattern the way the server does', () => {
+      const pattern = new RegExp(SECURITY_GATE_PATTERN, 'u');
+
+      expect(pattern.test('Your code is 123456. Do not share it with anyone')).toBe(true);
+      expect(pattern.test('Enter the code 482913 to confirm the login')).toBe(true);
+      expect(pattern.test('Код 5521, никому не сообщайте')).toBe(true);
+      expect(pattern.test('Purchase approved. Auth code 123456')).toBe(false);
+      expect(pattern.test('Order confirmed! Urban Roastery has accepted your order')).toBe(false);
+      expect(pattern.test('Do not share your card with anyone')).toBe(false);
+    });
+
+    it('has no other stop between the gate and the request than the code check and the probe', () => {
+      const stops = actions
+        .slice(indexOfAction(match!), indexOfAction(notificationRequest!))
+        .filter((action) => id(action) === SHORTCUT_ACTIONS.exit);
+
+      expect(stops).toHaveLength(2);
     });
 
     it('lets the shared samples through the same regex as the server does', () => {
@@ -596,9 +665,10 @@ describe('payments shortcut generator', () => {
         (action) => params(action)[SHORTCUT_PARAMS.variableName] === 'Response',
       );
 
-      expect(setters).toHaveLength(5);
+      // The probe's answer is read at once, before the notification is sent.
+      expect(setters).toHaveLength(6);
       expect(setters.map((action) => params(action)[SHORTCUT_PARAMS.input].Value.OutputUUID)).toEqual(
-        requests.map((request) => params(request).UUID),
+        allRequests.map((request) => params(request).UUID),
       );
     });
   });

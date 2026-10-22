@@ -737,7 +737,10 @@
       "sourceNotApproved": "Ще не записано: підтвердьте «{{source}}» як джерело платежів у MoneyMatter",
       "aiUnavailable": "Ще не записано: додайте AI-модель у MoneyMatter, щоб прочитати це сповіщення",
       "aiCapReached": "Ще не записано: ліміт AI на цей місяць вичерпано; повторіть у MoneyMatter пізніше",
-      "aiLimitReached": "Ще не записано: денний ліміт сповіщень, прочитаних AI, вичерпано; повторіть у MoneyMatter пізніше"
+      "aiLimitReached": "Ще не записано: денний ліміт сповіщень, прочитаних AI, вичерпано; повторіть у MoneyMatter пізніше",
+      "contextAdded": "Додано {{store}} до {{amount}}: {{merchant}}",
+      "contextAddedCategory": "Додано {{store}} до {{amount}}: {{merchant}} → {{category}}",
+      "contextHeld": "{{store}} ({{service}}) чекає на свій платіж"
     },
     "rejection": {
       "invalidBody": "Тіло запиту має бути JSON-об’єктом.",
@@ -772,7 +775,8 @@
     "alreadyConfirmed": "Цей платіж уже підтверджено.",
     "confirmAmountNeeded": "Новий рахунок в іншій валюті. Введіть суму в цій валюті, щоб перенести платіж.",
     "accountRequired": "Оберіть рахунок, на який записати цей платіж.",
-    "rejectNeedsPlan": "Ваш тариф не дозволяє видаляти платежі. Оформіть підписку знову, щоб редагувати свої дані."
+    "rejectNeedsPlan": "Ваш тариф не дозволяє видаляти платежі. Оформіть підписку знову, щоб редагувати свої дані.",
+    "contextNote": "Замовлення {{store}} через {{service}}"
   },
   "defaultCategories": {
     "main": {

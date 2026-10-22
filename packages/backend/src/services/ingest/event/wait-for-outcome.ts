@@ -29,6 +29,12 @@ const toResponse = ({ row, locale }: { row: IngestRequests; locale: string }): N
         notify: true,
       };
 
+    case 'enriched':
+      return { outcome: 'enriched', summary: row.summary ?? '', requestId: row.id, notify: Boolean(row.summary) };
+
+    case 'held':
+      return { outcome: 'held', requestId: row.id, notify: false };
+
     case 'ignored':
       return { outcome: 'ignored', requestId: row.id, ...(row.reason && { reason: row.reason }), notify: false };
 
@@ -51,9 +57,12 @@ const toResponse = ({ row, locale }: { row: IngestRequests; locale: string }): N
 export const waitForOutcome = async ({
   requestId,
   locale,
+  quietWhenQueued = false,
 }: {
   requestId: RecordId;
   locale: string;
+  /** A context notification answers silently when it is still being read: it has no payment to announce. */
+  quietWhenQueued?: boolean;
 }): Promise<NotificationEventResponse> => {
   const deadline = Date.now() + notificationTimings.waitBudgetMs;
 
@@ -66,6 +75,8 @@ export const waitForOutcome = async ({
 
     await sleep({ ms: Math.min(notificationTimings.pollIntervalMs, Math.max(deadline - Date.now(), 0)) });
   }
+
+  if (quietWhenQueued) return { outcome: 'queued', requestId, notify: false };
 
   return { outcome: 'queued', summary: t({ key: 'ingest.summary.queued', locale }), requestId, notify: true };
 };

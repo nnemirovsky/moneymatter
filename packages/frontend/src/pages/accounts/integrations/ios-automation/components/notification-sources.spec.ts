@@ -14,8 +14,9 @@ import { defineComponent, h } from 'vue';
 import { createGlobalPlugins } from '../test-support';
 import NotificationSources from './notification-sources.vue';
 
-const { mockGet, mockUpdate, mockDelete, mockAccountsStore } = vi.hoisted(() => ({
+const { mockGet, mockUpdate, mockDelete, mockCreate, mockAccountsStore } = vi.hoisted(() => ({
   mockGet: vi.fn(),
+  mockCreate: vi.fn(),
   mockUpdate: vi.fn(),
   mockDelete: vi.fn(),
   mockAccountsStore: { accounts: [] as unknown[] },
@@ -27,6 +28,7 @@ vi.mock('@/api/ingest', () => ({
   getNotificationSources: mockGet,
   updateNotificationSource: mockUpdate,
   deleteNotificationSource: mockDelete,
+  createContextSource: mockCreate,
 }));
 vi.mock('@/components/notification-center', () => ({
   NotificationType: { error: 'error' },
@@ -132,6 +134,62 @@ describe('NotificationSources', () => {
       'Approved',
       'Muted',
     ]);
+  });
+
+  describe('context sources', () => {
+    it('badges a context source and says what it does', async () => {
+      const { wrapper } = await mountSources({ sources: [makeSource({ appName: 'Wolt', mode: 'context' })] });
+
+      expect(wrapper.get('[data-testid="notification-source-mode"]').text()).toBe('Context');
+      expect(wrapper.get('[data-testid="notification-source-context-hint"]').text()).toContain(
+        'never create a payment',
+      );
+      expect(wrapper.find('[data-testid="notification-source-context"]').exists()).toBe(false);
+    });
+
+    it('switches an app to context', async () => {
+      const { wrapper } = await mountSources({ sources: [makeSource({ appName: 'Foodora', mode: 'approved' })] });
+
+      await wrapper.get('[data-testid="notification-source-context"]').trigger('click');
+      await flushPromises();
+
+      expect(mockUpdate).toHaveBeenCalledWith({ id: 'source-1', mode: 'context' });
+    });
+
+    it('offers the context choice for a messaging sender but not for a muted source', async () => {
+      const { wrapper } = await mountSources({
+        sources: [
+          makeSource({ conversational: true, sender: 'Госуслуги', mode: 'approved' }),
+          makeSource({ id: 'muted' as RecordId, mode: 'muted' }),
+        ],
+      });
+
+      expect(wrapper.findAll('[data-testid="notification-source-context"]')).toHaveLength(1);
+    });
+
+    it('adds a context source by name, with the sender of a mail app', async () => {
+      mockCreate.mockResolvedValue(makeSource({ mode: 'context' }));
+      const { wrapper, invalidate } = await mountSources({ sources: [] });
+
+      await wrapper.get('[data-testid="add-context-app"] input, input[data-testid="add-context-app"]').setValue('Mail');
+      await wrapper
+        .get('[data-testid="add-context-sender"] input, input[data-testid="add-context-sender"]')
+        .setValue('Госуслуги');
+      await wrapper.get('[data-testid="add-context-source"]').trigger('submit');
+      await flushPromises();
+
+      expect(mockCreate).toHaveBeenCalledWith({ appName: 'Mail', sender: 'Госуслуги' });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: VUE_QUERY_CACHE_KEYS.notificationSources });
+    });
+
+    it('does not add a source without a name', async () => {
+      const { wrapper } = await mountSources({ sources: [] });
+
+      await wrapper.get('[data-testid="add-context-source"]').trigger('submit');
+      await flushPromises();
+
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
   });
 
   it('shows the sender of a messaging source', async () => {

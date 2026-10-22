@@ -1,7 +1,10 @@
 import {
+  CONVERSATIONAL_APP_GATE_PATTERN,
+  CONVERSATIONAL_APP_NAMES,
   NOTIFICATION_SOURCE_KEY_MAX_LENGTH,
   WALLET_BUNDLE_ID,
   buildSourceKey,
+  findContextApp,
   getDefaultSourceMode,
   isConversationalApp,
   isKnownBankApp,
@@ -151,5 +154,44 @@ describe('getDefaultSourceMode', () => {
 
   it('matches a seeded bank by name even when its bundle id is not on the list', () => {
     expect(getDefaultSourceMode({ bundleId: 'ge.example.bank', appName: 'TBC Bank' })).toBe('auto');
+  });
+});
+
+describe('context apps', () => {
+  it('starts a seeded merchant app in the context mode, whatever the case of its name', () => {
+    expect(getDefaultSourceMode({ appName: 'Wolt' })).toBe('context');
+    expect(getDefaultSourceMode({ appName: 'Uber Eats' })).toBe('context');
+    expect(getDefaultSourceMode({ appName: 'Яндекс Еда' })).toBe('context');
+  });
+
+  it('does not seed a bare brand that also sells rides', () => {
+    expect(getDefaultSourceMode({ appName: 'Bolt' })).toBe('pending');
+    expect(getDefaultSourceMode({ appName: 'Uber' })).toBe('pending');
+  });
+
+  it('gives a seeded app its service, hints and excludes', () => {
+    expect(findContextApp({ appName: 'Bolt Food' })).toMatchObject({
+      service: 'Bolt Food',
+      hints: ['bolt food', 'bolt.eu/f'],
+    });
+    expect(findContextApp({ appName: 'Amazon' })?.excludes).toContain('prime');
+    expect(findContextApp({ appName: 'TBC' })).toBeNull();
+  });
+});
+
+describe('CONVERSATIONAL_APP_GATE_PATTERN', () => {
+  const pattern = new RegExp(CONVERSATIONAL_APP_GATE_PATTERN, 'u');
+
+  it('matches every messaging and mail name in display case', () => {
+    for (const name of CONVERSATIONAL_APP_NAMES) {
+      expect(pattern.test(name)).toBe(true);
+      expect(pattern.test(name.toUpperCase())).toBe(true);
+    }
+    expect(pattern.test('Messages')).toBe(true);
+    expect(pattern.test('WhatsApp')).toBe(true);
+  });
+
+  it('lets every other app through', () => {
+    for (const name of ['Wolt', 'TBC', 'Wallet', 'Raiffeisen', 'Mail Bank']) expect(pattern.test(name)).toBe(false);
   });
 });

@@ -3,7 +3,8 @@ import { cardPaymentController } from '@controllers/ingest/card-payment.controll
 import { eventController } from '@controllers/ingest/event.controller';
 import { createBaseCurrencyLockCheck } from '@middlewares/check-base-currency-lock';
 import { authenticateIngestToken } from '@middlewares/ingest-token-auth';
-import { ingestTokenRateLimit } from '@middlewares/rate-limit';
+import { ingestEventRateLimit, ingestProbeRateLimit, ingestTokenRateLimit } from '@middlewares/rate-limit';
+import type { NextFunction, Request, Response } from 'express';
 import { Router } from 'express';
 
 const router = Router();
@@ -20,12 +21,16 @@ router.post(
   cardPaymentController,
 );
 
+// A sender probe has a budget of its own, so a burst of chat messages cannot starve a payment notification.
+const limitEventByKind = (req: Request, res: Response, next: NextFunction) =>
+  (req.body?.kind === 'notificationProbe' ? ingestProbeRateLimit : ingestEventRateLimit)(req, res, next);
+
 // One endpoint for everything the iOS 27 shortcut forwards; `kind` picks the pipeline.
 router.post(
   '/event',
   authenticateIngestToken({ scope: INGEST_SCOPES.transactions }),
   checkBaseCurrencyLock,
-  ingestTokenRateLimit,
+  limitEventByKind,
   eventController,
 );
 

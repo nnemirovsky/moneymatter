@@ -3,38 +3,7 @@
  * regular expressions without the `g` flag; the `(?i:...)` groups and `\p{L}` need the `u` flag.
  */
 
-/** A standalone 4 to 8 digit code: not part of a longer number, a decimal, a date or a masked card. */
-export const STANDALONE_CODE = /(?<![\p{N}.,*•·#/:-])\d{4,8}(?![\p{N}]|[.,/:-]\d)/u;
-
-/**
- * The text asks the user to enter, confirm or not share a code. A code on its own is not enough:
- * a completed payment states its authorization code too.
- */
-export const OTP_REQUEST_MARKERS: readonly RegExp[] = [
-  // English
-  /(?:enter|type|input|provide|confirm|use|share|quote)\b[^\n]{0,40}\b(?:code|otp|pin|password|passcode)\b/iu,
-  /\b(?:enter|type|input)\s+(?:it|this|them)\b/iu,
-  /\b(?:do not|don'?t|never|please do not|please don'?t)\s+(?:share|give|tell|disclose|reveal|forward|send)\b/iu,
-  /\b(?:code|otp|pin|password)\b[^\n]{0,30}\b(?:to confirm|to verify|to approve|to authori[sz]e|is required)\b/iu,
-  // Russian
-  /(?:введите|подтвердите|не\s+сообщайте|не\s+передавайте|никому\s+не)/iu,
-  // Ukrainian
-  /(?:введіть|підтвердіть|не\s+повідомляйте|не\s+передавайте|нікому\s+не)/iu,
-  // Georgian
-  /(?:შეიყვანეთ|დაადასტურეთ|დასადასტურებლად|არავის\s+არ|არ\s+გაუმხილოთ|არ\s+გადასცეთ)/u,
-];
-
-/**
- * The text names the code of a completed payment, so a code in it is not a request for one. These
- * override `OTP_REQUEST_MARKERS`.
- */
-export const PAYMENT_CODE_MARKERS: readonly RegExp[] = [
-  /\bauth(?:ori[sz]ation)?[\s-]*code\b/iu,
-  /\bapproval[\s-]*code\b/iu,
-  /\bauth[\s-]*id\b/iu,
-  /код\s+авториз\p{L}*/iu,
-  /ავტორიზაციის\s+კოდი/u,
-];
+export { OTP_REQUEST_MARKERS, PAYMENT_CODE_MARKERS, STANDALONE_CODE } from '@bt/shared/types';
 
 /** Strong promo wording: a discount or cashback offer, a sale, a promo code. */
 export const PROMO_MARKERS: readonly RegExp[] = [

@@ -1,9 +1,11 @@
-import type {
-  CardPaymentRejectionReason,
-  IngestEventRejectionReason,
-  NotificationDropReason,
-  NotificationEventResponse,
-  RecordId,
+import {
+  isContextApp,
+  isConversationalApp,
+  type CardPaymentRejectionReason,
+  type IngestEventRejectionReason,
+  type NotificationDropReason,
+  type NotificationEventResponse,
+  type RecordId,
 } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { ConflictError, TooManyRequests, ValidationError } from '@js/errors';
@@ -25,9 +27,15 @@ import {
   findNotificationSource,
   getNotificationSourceKey,
   touchNotificationSource,
+  updateNotificationSource,
 } from './notification-sources.service';
 import { encryptNotificationText } from './notification-text';
-import { parseNotificationPayload, readEventKind, type ParsedNotification } from './parse-notification-payload';
+import {
+  parseNotificationPayload,
+  readEventKind,
+  readProbeApp,
+  type ParsedNotification,
+} from './parse-notification-payload';
 import { prefilterNotification } from './prefilter-notification';
 import { waitForOutcome } from './wait-for-outcome';
 
@@ -215,6 +223,15 @@ const ingestNotification = async ({
     return { kind: 'notification', response: { outcome: 'duplicate', requestId: earlier.id, notify: false } };
   }
 
+  const app = { bundleId: notification.bundleId, appName: notification.app, title: notification.title };
+  let source = await findNotificationSource({ userId, sourceKey });
+  // A seed merchant app the owner has not decided on yet is a context source from its first notification.
+  if (source?.mode === 'pending' && isContextApp({ appName: notification.app })) {
+    await updateNotificationSource({ userId, id: source.id, mode: 'context' });
+    source = await findNotificationSource({ userId, sourceKey });
+  }
+  const contextApp = source ? source.mode === 'context' : isContextApp({ appName: notification.app });
+
   const prefiltered = prefilterNotification({
     bundleId: notification.bundleId,
     appName: notification.app,
@@ -222,14 +239,22 @@ const ingestNotification = async ({
     subtitle: notification.subtitle,
     body: notification.body,
     strictness: await getGateStrictness({ userId }),
+    contextApp,
   });
   if (!prefiltered.pass) {
+    // The first no-amount notification of an app is how the owner meets its source: the source is created
+    // (in the mode its app starts in) so it can be set to Context, and the text is stored nowhere.
+    const meetsSource =
+      prefiltered.reason === 'noAmount' &&
+      !source &&
+      (notification.bundleId || notification.app) &&
+      !isConversationalApp({ bundleId: notification.bundleId, appName: notification.app });
+    if (meetsSource) await touchNotificationSource({ userId, sourceKey, app });
     await bumpDropCounter({ userId, sourceKey, reason: prefiltered.reason });
 
     return dropped({ reason: prefiltered.reason });
   }
 
-  const source = await findNotificationSource({ userId, sourceKey });
   if (source?.mode === 'muted') {
     await bumpDropCounter({ userId, sourceKey, reason: 'muted' });
 
@@ -253,16 +278,41 @@ const ingestNotification = async ({
     // The row is committed but no job exists for it: it waits for the user instead of being lost.
     await parkFailedRequest({ requestId: recorded.requestId, error, locale });
 
-    return { kind: 'notification', response: await waitForOutcome({ requestId: recorded.requestId, locale }) };
+    return {
+      kind: 'notification',
+      response: await waitForOutcome({ requestId: recorded.requestId, locale, quietWhenQueued: contextApp }),
+    };
   }
 
-  return { kind: 'notification', response: await waitForOutcome({ requestId: recorded.requestId, locale }) };
+  return {
+    kind: 'notification',
+    response: await waitForOutcome({ requestId: recorded.requestId, locale, quietWhenQueued: contextApp }),
+  };
+};
+
+/**
+ * The first step of the handshake for a messaging or mail notification without an amount. It reads the
+ * app and the sender and answers `send: 'yes'` only when that sender is a context source. It stores
+ * nothing, creates no source and counts nothing, so an unknown sender leaves no trace.
+ */
+const probeSender = async ({ userId, body }: { userId: number; body: unknown }): Promise<IngestEventResult> => {
+  const app = readProbeApp({ body });
+  const source = await findNotificationSource({
+    userId,
+    sourceKey: getNotificationSourceKey({ app: { bundleId: app.bundleId, appName: app.app, title: app.title } }),
+  });
+
+  return {
+    kind: 'notification',
+    response: { outcome: 'probe', notify: false, ...(source?.mode === 'context' && { send: 'yes' as const }) },
+  };
 };
 
 /**
  * Handles one `POST /ingest/event`. `kind` decides the path and is never guessed: a missing or
  * unknown one is refused before anything is read.
  *
+ * - `notificationProbe` answers whether to send the text of a messaging or mail notification (`probeSender`).
  * - `walletTransaction` runs the card-payment pipeline unchanged (its own record, processing and
  *   answer).
  * - `notification` is checked, in this order: the body; the idempotency key (a repeat is answered
@@ -289,6 +339,8 @@ export const ingestEvent = async ({
 
   const kind = readEventKind({ body });
   if (kind === null) throw reject({ reason: 'invalidKind', locale });
+
+  if (kind === 'notificationProbe') return probeSender({ userId, body });
 
   const isDryRun = (body as Record<string, unknown>).dryRun === true;
   if (kind === 'walletTransaction' || isDryRun) {

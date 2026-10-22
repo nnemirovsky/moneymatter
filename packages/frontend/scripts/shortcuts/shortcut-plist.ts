@@ -67,7 +67,6 @@ export const SHORTCUT_PARAMS = {
   variableName: 'WFVariableName',
   waitTime: 'WFDelayTime',
   notificationBody: 'WFNotificationActionBody',
-  notificationTitle: 'WFNotificationActionTitle',
 } as const;
 
 /** Shortcuts stores the If condition as a number. */
@@ -358,7 +357,7 @@ export const createShortcutKit = ({ seed, name }: { seed: string; name: string }
       identifier: SHORTCUT_ACTIONS.notification,
       name: 'Notification',
       parameters: {
-        [SHORTCUT_PARAMS.notificationTitle]: name,
+        // No title: iOS names the shortcut once in the banner's header, and a title would say it again.
         [SHORTCUT_PARAMS.notificationBody]: tokenString({ parts }),
       },
     });

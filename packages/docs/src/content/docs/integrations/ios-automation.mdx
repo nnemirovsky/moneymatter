@@ -158,7 +158,7 @@ The shortcut works out which of the two it got, so one shortcut handles both tri
 
 ### The amount check
 
-Before a notification leaves your phone, the shortcut checks that its text shows an amount, with a built-in **Match Text** action. If it doesn't, the shortcut stops, and the message never reaches MoneyMatter. **No Apple Intelligence is involved.** The server runs the same check again.
+Before a notification leaves your phone, the shortcut checks that its text shows an amount, with a built-in **Match Text** action. If it doesn't, the shortcut first stops a text that asks for a one-time code, from any app, so a code never leaves your phone. A **messaging or mail app** (Messages, Mail, WhatsApp, Telegram and the like) then sends only its name and the sender, and the text follows only if you made that sender a [context source](#context-from-delivery-apps). A notification without an amount from any other app on the trigger list is sent, and the server decides: it reads it only from a context source and drops it, before storing anything, from every other. **No Apple Intelligence is involved.** The server runs the same amount check again.
 
 The **Amount check** card on the iOS Automation page sets how strict it is:
 
@@ -172,7 +172,7 @@ A stricter level sends less text and misses more payments. **Loose** also lets t
 
 Even a message that passes can be stopped by the server before anything is stored. It drops a notification when:
 
-- it shows no amount at your level;
+- it shows no amount at your level and its source is not a context source;
 - it asks you to enter, confirm or not share a one-time code (a payment notice that mentions an "authorization code" is not stopped);
 - it is a promotion with no card digits or balance;
 - it comes from a source you muted;
@@ -213,13 +213,24 @@ A **source** is the app a notification came from. For messaging and mail apps it
 - **Everything else starts as waiting.** Its first notification puts a card in the inbox, "Treat this app as a payment source?", and the source shows under **Sources waiting for your OK** on the iOS Automation page. Its notifications are kept, encrypted, and are not sent to AI until you decide.
 - **Approve** reads what the source is holding. **Mute** deletes it and drops future notifications from that source. A source nobody decides on for 30 days is deleted with what it holds.
 - On the inbox card you can also pick a **Default account** for the source. It takes the payments whose text names no card.
-- **Notification sources** lists every source with its mode: **Known**, **Waiting**, **Approved** or **Muted**, and a **Log to** picker for its default account. Clear the picker to be asked each time. **Forget** makes a source new again the next time it sends something.
+- **Notification sources** lists every source with its mode: **Known**, **Waiting**, **Approved**, **Context** or **Muted**, and a **Log to** picker for its default account. Clear the picker to be asked each time. **Forget** makes a source new again the next time it sends something.
 
 <Screenshot
   src="/screenshots/integrations/ios-automation-sources.png"
   alt="The Notification sources section of the iOS Automation page listing Wallet as known, TBC Bank as approved and Messages from a sender as waiting, with Approve and Mute buttons on the waiting one."
   hint="Open /accounts/integrations/ios-automation as the docs test user after sending notification events for Wallet, TBC Bank (bundle ge.tbconline.TBC-ipad) and a Messages sender. Crop to the Notification sources section."
 />
+
+### Context from delivery apps
+
+A delivery or shopping app tells you what an order is, and your bank only tells you how much: "TBC: 60.64 GEL, Wolt". A **context source** closes that gap. Its notifications carry no amount, so they never create a payment. MoneyMatter reads the order ("Urban Roastery&Coffee has accepted your order"), finds the payment it belongs to and adds the store to it.
+
+- **Set it up like a bank app.** Add the app (Wolt, Glovo, Bolt Food, Uber Eats, Yandex Eda, Amazon, Deliveroo, DoorDash) to the **Notification** trigger's app list. These apps start as **Context** sources. Any other app you add shows up under **Sources waiting for your OK** after its first notification, with how many notifications without an amount were dropped, and you choose **Context only** there. You can also switch a source to **Context** in **Notification sources**. A messaging or mail sender ("Mail from Госуслуги") can be one too: use **Add a context source by name**, or the **Context** action on its row. Until you do, only the sender's name leaves the phone, and the server stores nothing about an unknown sender.
+- **What changes on the payment.** The note becomes "Urban Roastery&Coffee order from Wolt", and the category becomes the one that fits the store ("Bar, cafe" instead of the Wolt default), from your own categories. The shortcut answers "Added Urban Roastery&Coffee to 60.64 GEL at Wolt → Bar, cafe", and the payment's card in the Automation inbox shows both.
+- **Only what is still waiting for you.** A payment is changed only while its inbox card is open. One you already confirmed, a note you wrote and a category a rule or you chose are never touched.
+- **Either order.** The order notification can come before the bank's: it waits up to 20 minutes for the payment. Later notifications of the same order ("on the way", "delivered") change nothing.
+- **Several payments to one service.** When two payments or two orders compete, MoneyMatter weighs them (the store, the times, the amounts) and applies the best guess. A guess is marked on the inbox card ("check the note and the category") so you can correct it before you confirm.
+- **What leaves the phone.** The text of a notification without an amount, from a trigger app that is not a messaging or mail app and is not asking for a code, goes to your MoneyMatter server, which stores nothing unless the source is a context source. If an app is only noise for you, remove it from the trigger list or mute its source.
 
 ### Accounts, payees and aliases
 

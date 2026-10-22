@@ -7,9 +7,12 @@ import type { NotificationSourceCounters, NotificationSourceMode } from './notif
  * and the server never guesses it.
  *
  * - `walletTransaction` is a Wallet Transaction trigger and runs the card-payment pipeline;
- * - `notification` is any other notification and passes the prefilter and the source gate first.
+ * - `notification` is any other notification and passes the prefilter and the source gate first;
+ * - `notificationProbe` is the first step for a messaging or mail notification without an amount: the
+ *   shortcut sends only the app and the sender (the title), and the server answers `send: 'yes'` when that
+ *   sender is a context source. Nothing is stored and no source is created.
  */
-export const INGEST_EVENT_KINDS = ['walletTransaction', 'notification'] as const;
+export const INGEST_EVENT_KINDS = ['walletTransaction', 'notification', 'notificationProbe'] as const;
 
 export type IngestEventKind = (typeof INGEST_EVENT_KINDS)[number];
 
@@ -46,7 +49,7 @@ export const NOTIFICATION_RAW_MAX_BYTES = 8 * 1024;
 /**
  * What became of a notification: `logged` (a transaction exists), `attached` (it joined one that
  * exists), `parked` (it waits for the user), `queued` (still being processed when the answer was due),
- * `ignored` (read, not a payment), `dropped` (never stored) and `duplicate` (the same key again).
+ * `ignored` (read, not a payment), `dropped` (never stored), `duplicate` (the same key again), `enriched` (a context notification added to a payment) and `held` (a context notification waiting for its payment) and `probe` (the answer to a sender probe).
  */
 export const NOTIFICATION_OUTCOMES = [
   'logged',
@@ -56,6 +59,9 @@ export const NOTIFICATION_OUTCOMES = [
   'ignored',
   'dropped',
   'duplicate',
+  'enriched',
+  'held',
+  'probe',
 ] as const;
 
 export type NotificationOutcome = (typeof NOTIFICATION_OUTCOMES)[number];
@@ -67,6 +73,8 @@ export interface NotificationEventResponse {
   requestId?: RecordId;
   /** Why the notification was dropped, ignored or parked. */
   reason?: string;
+  /** On a probe: `yes` when the shortcut should send the notification's text. Absent otherwise. */
+  send?: 'yes';
   notify: boolean;
 }
 
@@ -93,7 +101,17 @@ export interface NotificationSourceDto {
 }
 
 /** The modes a user may set; `auto` is only ever the starting mode of Wallet and the known banks. */
-export const NOTIFICATION_SOURCE_USER_MODES = ['pending', 'approved', 'muted'] as const;
+export const NOTIFICATION_SOURCE_USER_MODES = ['pending', 'approved', 'muted', 'context'] as const;
+
+/**
+ * Request body of `POST /user/settings/notification-sources`: adds a context source by name, for an
+ * app or a sender that has not sent anything yet ("Mail" from "Госуслуги"). `sender` is only read for a
+ * messaging or mail app.
+ */
+export interface CreateContextSourcePayload {
+  appName: string;
+  sender?: string | null;
+}
 
 /** Request body of `PATCH /user/settings/notification-sources/:id`; at least one field. */
 export interface UpdateNotificationSourcePayload {

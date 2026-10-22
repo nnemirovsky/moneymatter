@@ -9,6 +9,8 @@ import { categorizeAfterCommit } from '../card-payment/categorize-after-commit';
 import { formatSummary } from '../card-payment/format-summary';
 import { CardPaymentRateUnavailableError } from '../card-payment/rate-unavailable-error';
 import { readUserLocale } from '../card-payment/read-user-locale';
+import { applyHeldContexts } from '../context/apply-held-contexts';
+import { processContextNotification } from '../context/process-context-notification';
 import { enqueueAfterPaymentLogged } from '../follow-up-queue';
 import { dropParkedHoldRelease } from '../hold-release/drop-hold-release';
 import { listNonZeroCurrencies } from './balance-authority';
@@ -64,6 +66,13 @@ const read = async ({
 }): Promise<Reading> => {
   const sourceLabel = describeSource({ source, payload: row.payload });
 
+  // A context source's notifications describe a purchase and never become a payment.
+  if (source?.mode === 'context') {
+    await processContextNotification({ row, source, locale });
+
+    return { kind: 'done' };
+  }
+
   // A payment read earlier (a request parked on its account, or forced through by the owner) is not
   // read again: the stored reading is the one the owner saw.
   const stored = readStoredParse({ value: row.parsed });
@@ -89,7 +98,8 @@ const read = async ({
       kind: 'payment',
       payment: fromStoredPayment({ payment: stored.payment }),
       symbol: stored.symbol ?? null,
-      parser: stored.parser,
+      // A stored payment was read by Wallet's layout or the model; `rules` readings are context ones.
+      parser: stored.parser as 'wallet' | 'ai',
       confidence: stored.confidence,
       paymentKind: stored.kind,
       override: {
@@ -330,6 +340,8 @@ export const processNotification = async ({
   // A payment that joined a row already logged changes nothing the row's own pass has not handled.
   if (result.attached) {
     await finishLoggedNotification({ requestId, duplicate: true, locale });
+    // A merchant-app notification may have waited for the payment this one joined.
+    await applyHeldContexts({ userId: row.userId });
 
     return 'done';
   }

@@ -79,6 +79,7 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   // A notification source's mode and default account only decide what happens to later
   // notifications. Approving one enqueues its held requests, and the processing job applies the lock.
   'DELETE /api/v1/user/settings/notification-sources/:id',
+  'POST /api/v1/user/settings/notification-sources',
   'PATCH /api/v1/user/settings/notification-sources/:id',
   'DELETE /api/v1/user/settings/mcp/connected-apps/:clientId',
   'PATCH /api/v1/user/settings',

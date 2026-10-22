@@ -30,6 +30,16 @@ export interface IngestMarkers {
   correction?: IngestShortBalanceCorrection;
   systemNote?: string;
   systemCategoryId?: string;
+  /** The merchant-app notification that added to this row (see the context pipeline). */
+  context?: {
+    requestId: RecordId;
+    service: string;
+    store: string;
+    status: string;
+    noteApplied: boolean;
+    categoryApplied: boolean;
+    guess: boolean;
+  };
   /** A payee the payment's merchant created when the payment was logged. */
   createdPayeeId?: RecordId;
 }

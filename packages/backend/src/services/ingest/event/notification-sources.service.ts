@@ -103,6 +103,38 @@ const touchNotificationSourceImpl = async ({
  */
 export const touchNotificationSource = withTransaction(touchNotificationSourceImpl);
 
+/**
+ * Adds a context source by name, for an app (and, for a messaging or mail app, a sender) that has not
+ * sent anything yet. A source that exists is switched to context, so adding it twice is harmless.
+ * The key is built from the names alone, the way a notification from the shortcut (which sends no
+ * bundle id) builds it.
+ */
+const createContextSourceImpl = async ({
+  userId,
+  appName,
+  sender,
+}: {
+  userId: number;
+  appName: string;
+  sender: string | null;
+}): Promise<NotificationSourceDto> => {
+  const conversational = isConversationalApp({ appName });
+  const senderName = conversational ? sender?.trim() || null : null;
+  const sourceKey = buildSourceKey({ appName, sender: senderName });
+
+  const [source, created] = await NotificationSources.findOrCreate({
+    where: { userId, sourceKey },
+    defaults: { userId, sourceKey, appName, bundleId: null, sender: senderName, conversational, mode: 'context' },
+  });
+  if (!created && source.mode !== 'context') {
+    return (await updateNotificationSourceImpl({ userId, id: source.id, mode: 'context' })).source;
+  }
+
+  return toSourceDto({ source });
+};
+
+export const createContextSource = withTransaction(createContextSourceImpl);
+
 /** Puts the requests a source held for approval back to `received` and returns them for the job. */
 const releaseHeldRequests = async ({
   userId,
@@ -136,6 +168,11 @@ const deleteHeldRequests = async ({ userId, sourceId }: { userId: number; source
       reason: { [Op.in]: [...UNCLASSIFIED_PARK_REASONS, 'processingFailed'] },
     },
   });
+};
+
+/** Deletes the context notifications a source holds while they wait for their payment. */
+const deleteHeldContexts = async ({ userId, sourceId }: { userId: number; sourceId: RecordId }): Promise<void> => {
+  await IngestRequests.destroy({ where: { userId, sourceId, pipeline: 'notification', status: 'held' } });
 };
 
 const toSourceDto = ({ source }: { source: NotificationSources }): NotificationSourceDto => ({
@@ -185,6 +222,7 @@ const updateNotificationSourceImpl = async ({
     });
   }
 
+  const previousMode = source.mode;
   await source.update({
     ...(mode !== undefined && { mode }),
     ...(defaultAccountId !== undefined && { defaultAccountId }),
@@ -197,8 +235,16 @@ const updateNotificationSourceImpl = async ({
     : 0;
   if (mode === 'approved') releasedRequestIds = await releaseHeldRequests({ userId, sourceId: source.id });
   if (mode === 'muted') await deleteHeldRequests({ userId, sourceId: source.id });
+  // A context source never reaches the payment parser: what it held for approval is deleted, not released.
+  if (mode === 'context') await deleteHeldRequests({ userId, sourceId: source.id });
+  if (mode !== undefined && mode !== 'context' && previousMode === 'context') {
+    await deleteHeldContexts({ userId, sourceId: source.id });
+  }
+  if (mode === 'muted') await deleteHeldContexts({ userId, sourceId: source.id });
   // The question "treat this as a payment source?" has its answer; a card still asking it closes.
-  if (mode === 'approved' || mode === 'muted') await resolveCardsElsewhere({ proposalIds: [source.proposalId] });
+  if (mode === 'approved' || mode === 'muted' || mode === 'context') {
+    await resolveCardsElsewhere({ proposalIds: [source.proposalId] });
+  }
 
   return { source: { ...toSourceDto({ source }), ...(releasedCount && { releasedCount }) }, releasedRequestIds };
 };
@@ -212,7 +258,10 @@ const updateNotificationSourceInTransaction = withTransaction(updateNotification
  *   `received` and are handed to the processing job once the change is committed. The job applies
  *   the base-currency lock, so the route itself is exempt from it.
  * - Muting a source deletes what it holds: the notifications that were never classified, with their
- *   stored text.
+ *   stored text, and the context notifications waiting for a payment.
+ * - Making a source a context source (a messaging or mail sender included: the shortcut then sends its
+ *   text after a probe) deletes what it held for approval (it never reaches the payment
+ *   parser) and closes the card that asked about it; leaving the mode deletes its waiting contexts.
  */
 export const updateNotificationSource = async (
   params: { userId: number; id: RecordId } & UpdateNotificationSourcePayload,

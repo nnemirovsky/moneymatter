@@ -5,11 +5,16 @@
  * sender is part of the key, so approving "Messages · TBC" does not approve every chat.
  */
 
+import { isContextApp } from './context-apps';
+import { CONVERSATIONAL_APP_NAMES } from './conversational-apps';
+
 /**
- * `auto`: trusted from the start (shown as "Known": Wallet and the seeded known apps); `pending`: waits for the user and
- * reaches the AI only after approval; `approved`: the user said yes; `muted`: the user said no.
+ * `auto`: trusted from the start (shown as "Known": Wallet and the seeded known apps); `pending`: waits for the
+ * user and reaches the AI only after approval; `approved`: the user said yes; `muted`: the user said no;
+ * `context`: a merchant app whose amount-less notifications describe a purchase; they enrich the
+ * payment they belong to and never create one.
  */
-export const NOTIFICATION_SOURCE_MODES = ['auto', 'pending', 'approved', 'muted'] as const;
+export const NOTIFICATION_SOURCE_MODES = ['auto', 'pending', 'approved', 'muted', 'context'] as const;
 
 export type NotificationSourceMode = (typeof NOTIFICATION_SOURCE_MODES)[number];
 
@@ -76,28 +81,6 @@ const CONVERSATIONAL_BUNDLE_IDS: ReadonlySet<string> = new Set([
   'com.facebook.messenger',
   'com.tinyspeck.chatslack',
   'com.hammerandchisel.discord',
-]);
-
-/** The same apps by normalized name, for a notification that carries no bundle id. */
-const CONVERSATIONAL_APP_NAMES: ReadonlySet<string> = new Set([
-  'messages',
-  'sms',
-  'mail',
-  'gmail',
-  'outlook',
-  'whatsapp',
-  'telegram',
-  'viber',
-  'signal',
-  'messenger',
-  'slack',
-  'discord',
-  'сообщения',
-  'почта',
-  'повідомлення',
-  'пошта',
-  'შეტყობინებები',
-  'ფოსტა',
 ]);
 
 /**
@@ -192,12 +175,13 @@ export const buildSourceKey = ({ bundleId, appName, sender }: AppIdentity & { se
 };
 
 /**
- * The mode a source starts in. Wallet and the seeded bank apps start `auto`; everything else, every
- * messaging and mail sender included, starts `pending`.
+ * The mode a source starts in. Wallet and the seeded bank apps start `auto`, the seeded merchant apps
+ * start `context`; everything else, every messaging and mail sender included, starts `pending`.
  */
 export const getDefaultSourceMode = ({ bundleId, appName }: AppIdentity): NotificationSourceMode => {
   if (isConversationalApp({ bundleId, appName })) return 'pending';
   if (isWalletApp({ bundleId, appName })) return 'auto';
+  if (isContextApp({ bundleId, appName })) return 'context';
 
   return isKnownBankApp({ bundleId, appName }) ? 'auto' : 'pending';
 };

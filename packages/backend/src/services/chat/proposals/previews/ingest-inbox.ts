@@ -1,4 +1,4 @@
-import { matchAmountGate } from '@bt/shared/types';
+import { matchAmountGate, type ChatCardWarning } from '@bt/shared/types';
 import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
 import { findOneTransaction } from '@models/transactions-query';
@@ -8,7 +8,7 @@ import { decryptNotificationText } from '@services/ingest/event/notification-tex
 import { describeSource, sourceAppName } from '@services/ingest/event/source-label';
 import { readStoredParse } from '@services/ingest/event/stored-parse';
 import { findWaitingSiblings, siblingMatchOf } from '@services/ingest/event/waiting-siblings';
-import { isUnconfirmedIngest } from '@services/ingest/ingest-markers';
+import { ingestMarkersOf, isUnconfirmedIngest } from '@services/ingest/ingest-markers';
 
 import { hashTargetIds } from '../snapshot';
 import { forUpdate, PreviewError, serializeRow, targetNotFound } from './preview-helpers';
@@ -47,6 +47,7 @@ export const resolveConfirmIngestPayment: PreviewResolver = async ({ userId, arg
 
   const stored = correctionOf({ externalData: tx.externalData });
   const correction = stored?.status === 'open' ? stored : null;
+  const context = ingestMarkersOf({ externalData: tx.externalData }).context;
 
   return {
     preview: {
@@ -64,12 +65,23 @@ export const resolveConfirmIngestPayment: PreviewResolver = async ({ userId, arg
       },
     },
     snapshot: snapshotOf({ id: tx.id }),
-    ...(correction && {
-      warnings: [
-        {
-          key: 'chat.warnings.ingestEstimate',
-          params: { amount: correction.estimatedAmount.amount, currencyCode: correction.estimatedAmount.currencyCode },
-        },
+    ...((correction || context?.guess) && {
+      warnings: <ChatCardWarning[]>[
+        ...(correction
+          ? [
+              {
+                key: 'chat.warnings.ingestEstimate',
+                params: {
+                  amount: correction.estimatedAmount.amount,
+                  currencyCode: correction.estimatedAmount.currencyCode,
+                },
+              },
+            ]
+          : []),
+        // A merchant-app notification matched by a guess between several payments: the owner checks it.
+        ...(context?.guess
+          ? [{ key: 'chat.warnings.ingestContextGuess', params: { service: context.service, store: context.store } }]
+          : []),
       ],
     }),
   };

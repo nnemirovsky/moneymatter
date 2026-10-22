@@ -49,6 +49,15 @@ type PayeePickAnswer = { candidateId: string | null } | 'fail';
 /** What the mocked model answers when it picks a logged payment's note from the payee's past notes. */
 type NotePickAnswer = { candidateId: string | null } | 'fail';
 
+/** What the mocked model answers for a merchant-app notification: the order it reads, or a server error. */
+type ContextParseAnswer = { isOrderUpdate: boolean; store: string | null; status: string; confidence: number } | 'fail';
+
+/** What the mocked model answers when it weighs several payments for one context notification. */
+type ContextPickAnswer = { choice: string | null; confidence: number } | 'fail';
+
+/** What the mocked model answers when it picks the category of a store. */
+type ContextCategoryAnswer = { categoryId: string | null; confidence: number } | 'fail';
+
 /**
  * Answers `notificationParsing` calls over MSW. Every call to the model that carries a notification
  * is passed to `answer` with its prompt; any other call to the endpoint (a categorization the logged
@@ -70,6 +79,12 @@ export const mockNotificationParsing = ({
   payeePickPrompts = [],
   notePick,
   notePickPrompts = [],
+  contextParse,
+  contextParsePrompts = [],
+  contextPick,
+  contextPickPrompts = [],
+  contextCategory,
+  contextCategoryPrompts = [],
 }: {
   answer: (args: { prompt: string; call: number }) => NotificationAnswer;
   correction?: (args: { prompt: string }) => CorrectionAnswer;
@@ -84,22 +99,61 @@ export const mockNotificationParsing = ({
   notePick?: (args: { prompt: string }) => NotePickAnswer;
   /** Collects the note-pick prompts the model was sent. */
   notePickPrompts?: string[];
+  /** Reads a merchant-app (context) notification; without it the model finds no order in it. */
+  contextParse?: (args: { prompt: string }) => ContextParseAnswer;
+  contextParsePrompts?: string[];
+  /** Weighs the payments a context notification could belong to; without it the nearest in time stands in. */
+  contextPick?: (args: { prompt: string }) => ContextPickAnswer;
+  contextPickPrompts?: string[];
+  /** Picks the category of a store; without it the category is left alone. */
+  contextCategory?: (args: { prompt: string }) => ContextCategoryAnswer;
+  contextCategoryPrompts?: string[];
 }): string[] => {
   const prompts: string[] = [];
 
   global.mswMockServer.use(
     http.post(GEMINI_API_URL, async ({ request }) => {
-      // The categorization the logged row triggers runs on another model and gets an empty answer.
-      const model = /\/v1beta\/models\/([^/:]+):/.exec(request.url)?.[1];
-      if (model !== NOTIFICATION_MODEL && model !== CORRECTION_MODEL) {
-        return geminiAnswer({ text: '# No categorizations' });
-      }
-
       const body = (await request.clone().json()) as { contents?: { parts?: { text?: string }[] }[] };
       const prompt = (body.contents ?? [])
         .flatMap((content) => content.parts ?? [])
         .map((part) => part.text ?? '')
         .join('\n');
+
+      const fail = () =>
+        HttpResponse.json({ error: { code: 500, message: 'boom', status: 'INTERNAL' } }, { status: 500 });
+
+      // The context pipeline's calls are told apart by their prompts, whatever model they run on.
+      if (prompt.includes('CATEGORIES (id|parent id|name)')) {
+        contextCategoryPrompts.push(prompt);
+        const picked = contextCategory?.({ prompt }) ?? { categoryId: null, confidence: 0 };
+
+        return picked === 'fail' ? fail() : geminiAnswer({ text: JSON.stringify(picked) });
+      }
+
+      if (prompt.includes('PAYMENTS (id|time|amount|merchant)')) {
+        contextPickPrompts.push(prompt);
+        const picked = contextPick?.({ prompt }) ?? { choice: null, confidence: 0 };
+
+        return picked === 'fail' ? fail() : geminiAnswer({ text: JSON.stringify(picked) });
+      }
+
+      if (prompt.startsWith('APP:') && prompt.includes('NOTIFICATION (untrusted text')) {
+        contextParsePrompts.push(prompt);
+        const read = contextParse?.({ prompt }) ?? {
+          isOrderUpdate: false,
+          store: null,
+          status: 'other',
+          confidence: 0,
+        };
+
+        return read === 'fail' ? fail() : geminiAnswer({ text: JSON.stringify(read) });
+      }
+
+      // The categorization the logged row triggers runs on another model and gets an empty answer.
+      const model = /\/v1beta\/models\/([^/:]+):/.exec(request.url)?.[1];
+      if (model !== NOTIFICATION_MODEL && model !== CORRECTION_MODEL) {
+        return geminiAnswer({ text: '# No categorizations' });
+      }
 
       if (prompt.includes('SHORT BALANCE PAYMENT')) {
         correctionPrompts.push(prompt);

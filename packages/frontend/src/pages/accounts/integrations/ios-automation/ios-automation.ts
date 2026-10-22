@@ -197,6 +197,11 @@ const IGNORED_REASONS: ReadonlyArray<NonNullable<CardPaymentRequestDto['reason']
   'promo',
   'info',
   'other',
+  'contextRepeat',
+  'contextNoteKept',
+  'contextUnreadable',
+  'contextExpired',
+  'contextConfirmed',
 ];
 
 /** Park reasons the Automation inbox answers with a card; the others have nothing the owner can approve. */

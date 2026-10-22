@@ -3,6 +3,7 @@ import { connection } from '@models/connection';
 import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
 import { resolveCardsElsewhere, sweepOrphanedInboxCards } from '@services/chat/inbox/inbox-resolution';
+import { contextConfig } from '@services/ingest/context/context-config';
 import { notificationTimings } from '@services/ingest/event/constants';
 import { UNCLASSIFIED_PARK_REASONS } from '@services/ingest/event/stored-parse';
 import {
@@ -10,7 +11,7 @@ import {
   sweepOrphanedSuggestions,
 } from '@services/transactions/reconciliation/duplicate-suggestions';
 import { subDays } from 'date-fns';
-import { Op, QueryTypes } from 'sequelize';
+import { Op, QueryTypes, literal } from 'sequelize';
 
 import { createScheduledSync } from './lib/create-scheduled-sync';
 
@@ -19,6 +20,8 @@ interface IngestCleanupResult {
   deleted: number;
   /** Notifications that were read and are not payments, past their short keep. */
   ignoredDeleted: number;
+  /** Context notifications that waited longer than the hold for a payment. */
+  contextsExpired: number;
   /** Notifications whose text was never classified, past their short keep. */
   unclassifiedExpired: number;
   /** Sources nobody approved, with what they held. */
@@ -39,7 +42,7 @@ interface IngestCleanupResult {
 const deleteFinishedRequests = async (): Promise<number> =>
   IngestRequests.destroy({
     where: {
-      status: { [Op.in]: ['logged', 'rejected', 'dismissed'] },
+      status: { [Op.in]: ['logged', 'rejected', 'dismissed', 'enriched'] },
       updatedAt: { [Op.lt]: subDays(new Date(), INGEST_REQUEST_RETENTION_DAYS) },
     },
   });
@@ -53,6 +56,32 @@ const deleteIgnoredRequests = async (): Promise<number> =>
       updatedAt: { [Op.lt]: new Date(Date.now() - notificationTimings.ignoredTtlMs) },
     },
   });
+
+/**
+ * A context notification that found no payment within the hold is given up: it becomes `ignored`
+ * (kept a week like any other) and the excerpt it held is dropped (its service and store stay, so the order's later stages are recognized).
+ */
+const expireHeldContexts = async (): Promise<number> => {
+  const [count] = await IngestRequests.update(
+    {
+      status: 'ignored',
+      reason: 'contextExpired',
+      summary: null,
+      parsed: literal(
+        `jsonb_build_object('parser', "parsed"->'parser', 'kind', "parsed"->'kind', 'confidence', "parsed"->'confidence', 'context', ("parsed"->'context') || '{"excerpt": ""}'::jsonb)`,
+      ),
+    },
+    {
+      where: {
+        pipeline: 'notification',
+        status: 'held',
+        createdAt: { [Op.lt]: new Date(Date.now() - contextConfig.lookaheadMs) },
+      },
+    },
+  );
+
+  return count;
+};
 
 /**
  * Notification text that was never classified (the source was not approved, no AI could read it,
@@ -125,6 +154,7 @@ const deleteStalePendingSources = async (): Promise<number> => {
 const runCleanup = async (): Promise<IngestCleanupResult> => ({
   deleted: await deleteFinishedRequests(),
   ignoredDeleted: await deleteIgnoredRequests(),
+  contextsExpired: await expireHeldContexts(),
   unclassifiedExpired: await expireUnclassifiedRequests(),
   pendingSourcesDeleted: await deleteStalePendingSources(),
   suggestionsSwept: (await sweepOrphanedSuggestions()).length,

@@ -15,6 +15,7 @@ import { randomUUID } from 'node:crypto';
 
 const NOTHING_ELSE = {
   ignoredDeleted: 0,
+  contextsExpired: 0,
   unclassifiedExpired: 0,
   pendingSourcesDeleted: 0,
   suggestionsSwept: 0,
@@ -22,7 +23,7 @@ const NOTHING_ELSE = {
   inboxCardsSwept: 0,
 };
 
-const STATUSES: IngestRequestStatus[] = ['logged', 'rejected', 'dismissed', 'parked', 'received'];
+const STATUSES: IngestRequestStatus[] = ['logged', 'rejected', 'dismissed', 'enriched', 'parked', 'received'];
 
 /** Seeds one request per status, last changed `daysAgo` days ago, and returns them keyed by status. */
 const seedRequests = async ({ userId, daysAgo }: { userId: number; daysAgo: number }) => {
@@ -159,12 +160,13 @@ describe('Ingest requests cleanup cron', () => {
     const old = await seedRequests({ userId: user.id, daysAgo: INGEST_REQUEST_RETENTION_DAYS + 1 });
     const recent = await seedRequests({ userId: user.id, daysAgo: INGEST_REQUEST_RETENTION_DAYS - 1 });
 
-    expect(await ingestRequestsCleanupCron.triggerManualSync()).toEqual({ ...NOTHING_ELSE, deleted: 3 });
+    expect(await ingestRequestsCleanupCron.triggerManualSync()).toEqual({ ...NOTHING_ELSE, deleted: 4 });
 
     const remaining = new Set((await IngestRequests.findAll({ attributes: ['id'] })).map((row) => row.id));
     expect(remaining.has(old.logged)).toBe(false);
     expect(remaining.has(old.rejected)).toBe(false);
     expect(remaining.has(old.dismissed)).toBe(false);
+    expect(remaining.has(old.enriched)).toBe(false);
     expect(remaining.has(old.parked)).toBe(true);
     expect(remaining.has(old.received)).toBe(true);
     for (const id of Object.values(recent)) expect(remaining.has(id)).toBe(true);
@@ -175,6 +177,38 @@ describe('Ingest requests cleanup cron', () => {
   });
 
   describe('notifications', () => {
+    it('gives up a context notification that waited longer than the hold, and keeps a fresh one', async () => {
+      const user = await helpers.getUserInfo({ raw: true });
+      const stale = await seedNotification({ userId: user.id, status: 'held', reason: null, key: 'held-old' });
+      const fresh = await seedNotification({ userId: user.id, status: 'held', reason: null, key: 'held-new' });
+      await IngestRequests.update(
+        { parsed: { parser: 'rules', kind: 'context', confidence: 1, context: { store: 'Cafe' } } },
+        { where: { id: [stale.id, fresh.id] } },
+      );
+      await connection.sequelize.query(
+        `UPDATE "IngestRequests" SET "createdAt" = now() - interval '2 hours' WHERE id = :id`,
+        {
+          replacements: { id: stale.id },
+        },
+      );
+
+      expect(await ingestRequestsCleanupCron.triggerManualSync()).toEqual({
+        ...NOTHING_ELSE,
+        contextsExpired: 1,
+        deleted: 0,
+      });
+
+      const expired = (await IngestRequests.findOne({ where: { id: stale.id } }))!;
+      expect(expired).toMatchObject({ status: 'ignored', reason: 'contextExpired' });
+      expect(expired.parsed).toEqual({
+        parser: 'rules',
+        kind: 'context',
+        confidence: 1,
+        context: { store: 'Cafe', excerpt: '' },
+      });
+      expect((await IngestRequests.findOne({ where: { id: fresh.id } }))!.status).toBe('held');
+    });
+
     it('deletes an ignored notification after a week and keeps a younger one', async () => {
       const user = await helpers.getUserInfo({ raw: true });
       const old = await seedNotification({ userId: user.id, status: 'ignored', reason: 'promo', key: 'ignored-old' });

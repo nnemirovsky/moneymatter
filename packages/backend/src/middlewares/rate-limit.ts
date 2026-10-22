@@ -414,3 +414,24 @@ export const ingestTokenRateLimit = createRateLimit({
   maxAttempts: 30,
   keyGenerator: (req: Request) => `ingest-token:${req.ingestToken?.id ?? req.ip}`,
 });
+
+/**
+ * `/ingest/event` limit (per token, 120 requests a minute). The shortcut forwards every notification of
+ * the apps on its trigger, and the server drops most of them after reading them, so the budget is wider
+ * than the card-payment route's; it still stops a runaway client.
+ */
+export const ingestEventRateLimit = createRateLimit({
+  windowSeconds: 60,
+  maxAttempts: 120,
+  keyGenerator: (req: Request) => `ingest-event-token:${req.ingestToken?.id ?? req.ip}`,
+});
+
+/**
+ * Sender probes of messaging and mail notifications (per token, 120 a minute), a bucket of their own: a
+ * burst of chat messages must not use up the budget of the payment notifications beside them.
+ */
+export const ingestProbeRateLimit = createRateLimit({
+  windowSeconds: 60,
+  maxAttempts: 120,
+  keyGenerator: (req: Request) => `ingest-probe-token:${req.ingestToken?.id ?? req.ip}`,
+});
