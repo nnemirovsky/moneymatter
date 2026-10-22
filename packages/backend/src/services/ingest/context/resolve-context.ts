@@ -31,7 +31,8 @@ export type ContextResolution = { kind: 'enriched'; summary: string } | { kind: 
  * 4. The store's category is picked for a row whose category is still the pipeline's, then everything
  *    is written under the lock (`applyContext`). A refusal that means the world moved on (another
  *    context claimed the row) matches again.
- * 5. With no candidate the notification is held (`holdContext`), unless it already was.
+ * 5. With no candidate a first stage ("accepted") is held (`holdContext`), unless it already was; a later
+ *    stage is ignored.
  */
 export const resolveContext = async ({
   requestId,
@@ -77,6 +78,14 @@ export const resolveContext = async ({
       if (wasHeld) return { kind: 'held' };
       if (confirmed.length) {
         await ignoreContext({ requestId, reason: 'contextConfirmed', parsed: reduced, context });
+
+        return { kind: 'ignored' };
+      }
+
+      // Only a first stage waits for its payment. A later one ("on its way") means the payment came long
+      // ago, so a payment that appears now belongs to another order.
+      if (context.status !== 'accepted') {
+        await ignoreContext({ requestId, reason: 'info', parsed: reduced, context });
 
         return { kind: 'ignored' };
       }

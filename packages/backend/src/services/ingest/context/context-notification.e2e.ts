@@ -210,6 +210,20 @@ describe('context notifications', () => {
       expect((await reload({ id: tx.id })).note).toBe('Urban Roastery&Coffee order from Wolt');
     });
 
+    it('does not hold a later stage whose first stage was never seen, so it cannot land on the next order', async () => {
+      const { secret } = await setUp();
+      const onTheWay = await send({
+        secret,
+        body: woltNotification({ title: 'On the way', body: 'Your order from Urban Roastery&Coffee is on its way' }),
+      });
+      expect(onTheWay.body.response).toMatchObject({ outcome: 'ignored', notify: false });
+
+      const next = await pay({ secret, amount: '12.30' });
+      await waitForIngestIdle();
+
+      expect((await reload({ id: next.id })).note).toBeNull();
+    });
+
     it('keeps no text of an applied notification in the request', async () => {
       const { secret } = await setUp();
       await pay({ secret });
@@ -615,6 +629,21 @@ describe('context notifications', () => {
       // The sender is the service ("Wolt Orders"), and no payment of it exists.
       expect(res.body.response.outcome).toBe('held');
       expect((await reload({ id: tx.id })).note).toBeNull();
+    });
+
+    it('gives probes a rate budget of their own, so a burst of them never blocks a payment notification', async () => {
+      const { secret } = await setUp();
+      const statuses: number[] = [];
+
+      for (let call = 0; call < 121; call += 1) {
+        statuses.push((await send({ secret, body: probe({ title: `Sender ${call}` }) })).status);
+      }
+      const payment = await send({ secret, body: walletPayment() });
+
+      expect(statuses.slice(0, 120).every((status) => status === 200)).toBe(true);
+      expect(statuses[120]).toBe(429);
+      expect(payment.status).toBe(200);
+      expect(payment.body.response.outcome).toBe('logged');
     });
 
     it('answers a probe that has no sender with no text to send', async () => {
