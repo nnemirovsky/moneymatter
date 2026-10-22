@@ -20,6 +20,7 @@ const mountComponent = (props: {
   mode?: 'date' | 'dateTime';
   calendarOptions?: { minDate?: Date; maxDate?: Date };
   hideInputTime?: boolean;
+  timeZone?: string;
 }) =>
   mount(DateField, {
     props,
@@ -156,6 +157,27 @@ describe('DateField component', () => {
       await wrapper.find('input[type="date"]').setValue('2026-03-01');
 
       expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([new Date(2026, 2, 1)]);
+    });
+  });
+
+  describe('in a zone other than the browser', () => {
+    const INSTANT = new Date('2026-10-21T12:00:00.000Z');
+
+    it('shows the wall clock of the zone', () => {
+      const wrapper = mountComponent({ modelValue: INSTANT, timeZone: 'Asia/Tbilisi' });
+      expect((wrapper.find('input').element as HTMLInputElement).value).toBe('2026-10-21T16:00');
+    });
+
+    it('emits the instant for the wall clock typed in the zone', async () => {
+      const wrapper = mountComponent({ modelValue: INSTANT, timeZone: 'Asia/Tbilisi' });
+      await wrapper.find('input').setValue('2026-10-21T18:30');
+      expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([new Date('2026-10-21T14:30:00.000Z')]);
+    });
+
+    it('keeps the zone-local time when only the date is typed into a time-hidden input', async () => {
+      const wrapper = mountComponent({ modelValue: INSTANT, timeZone: 'Asia/Tbilisi', hideInputTime: true });
+      await wrapper.find('input[type="date"]').setValue('2026-10-20');
+      expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([new Date('2026-10-20T12:00:00.000Z')]);
     });
   });
 });
