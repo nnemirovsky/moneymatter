@@ -157,7 +157,7 @@ export const viewingNow = (): Date => {
  * The instant a calendar day (a local date's year, month and day) starts or ends in the viewing zone.
  * `end` is the day's last millisecond, so a 23- or 25-hour day is covered exactly.
  */
-export const viewingDayBound = ({ date, edge }: { date: Date; edge: 'start' | 'end' }): Date => {
+const viewingDayBound = ({ date, edge }: { date: Date; edge: 'start' | 'end' }): Date => {
   const day = format(date, 'yyyy-MM-dd');
   return edge === 'start'
     ? zonedDayStart({ date: day, zone: viewingTimeZone.value })
