@@ -171,6 +171,7 @@
         "matchedByAi": "Зіставлено AI",
         "externalLinkTooltip": "Відкрити зовнішнє посилання",
         "locationTooltip": "Відкрити місце на карті",
+        "recordedIn": "Записано в {zone}",
         "attachmentsTooltip": "Є вкладення",
         "hiddenAccount": "Прихований рахунок",
         "selectRow": "Вибрати транзакцію",
