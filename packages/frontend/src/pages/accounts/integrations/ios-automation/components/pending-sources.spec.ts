@@ -107,11 +107,13 @@ describe('PendingSources', () => {
     expect(mockUpdate).toHaveBeenCalledWith({ id: 'source-1', mode: 'context' });
   });
 
-  it('offers no context choice for a messaging or mail source', async () => {
+  it('offers a messaging sender as context too: the shortcut then sends only that sender’s text', async () => {
     const { wrapper } = await mountPending({ sources: [makeSource()] });
 
-    expect(wrapper.find('[data-testid="pending-source-context"]').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="pending-source-dropped"]').exists()).toBe(false);
+    await wrapper.get('[data-testid="pending-source-context"]').trigger('click');
+    await flushPromises();
+
+    expect(mockUpdate).toHaveBeenCalledWith({ id: 'source-1', mode: 'context' });
   });
 
   it('survives a failed update and keeps the source listed', async () => {

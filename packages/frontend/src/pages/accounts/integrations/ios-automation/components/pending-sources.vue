@@ -34,7 +34,6 @@
 
         <div class="flex flex-wrap gap-2 self-start @lg/integrations:self-center">
           <Button
-            v-if="!source.conversational"
             size="sm"
             variant="outline"
             :disabled="isUpdating"

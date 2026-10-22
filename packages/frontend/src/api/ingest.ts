@@ -19,6 +19,7 @@ import type {
   UnlinkedCardDto,
   UpdateCardMappingPayload,
   UpdateNotificationSourcePayload,
+  CreateContextSourcePayload,
 } from '@bt/shared/types';
 
 export const getIngestTokens = async (): Promise<IngestTokenDto[]> => {
@@ -108,6 +109,10 @@ export const createCardPaymentSetupCode = async (
 
 export const getNotificationSources = async (): Promise<NotificationSourceDto[]> => {
   return api.get('/user/settings/notification-sources');
+};
+
+export const createContextSource = async (payload: CreateContextSourcePayload): Promise<NotificationSourceDto> => {
+  return api.post('/user/settings/notification-sources', payload);
 };
 
 export const updateNotificationSource = async ({

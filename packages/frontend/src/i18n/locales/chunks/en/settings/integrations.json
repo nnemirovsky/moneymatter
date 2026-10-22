@@ -364,7 +364,18 @@
           },
           "useAsContext": "Use as context",
           "useAsContextAria": "Use {name} as context",
-          "contextHint": "Its notifications add the store to the payment they belong to. They never create a payment."
+          "contextHint": "Its notifications add the store to the payment they belong to. They never create a payment.",
+          "addContext": {
+            "title": "Add a context source by name",
+            "description": "For an app or a sender that has not sent anything yet. For a messaging or mail app, name the sender too: the shortcut then sends only that sender’s notifications.",
+            "appLabel": "App",
+            "appPlaceholder": "Wolt, or Mail",
+            "senderLabel": "Sender (messaging and mail apps)",
+            "senderPlaceholder": "Госуслуги",
+            "submit": "Add context source",
+            "success": "Context source added",
+            "error": "Could not add the context source"
+          }
         },
         "pending": {
           "title": "Sources waiting for your OK",

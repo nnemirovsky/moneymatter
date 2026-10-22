@@ -17,7 +17,7 @@
       {{ $t(`${LABEL_ROOT}.empty`) }}
     </p>
 
-    <ul v-else class="flex flex-col gap-3">
+    <ul v-else-if="sources.length" class="flex flex-col gap-3">
       <li
         v-for="source in sources"
         :key="source.id"
@@ -77,7 +77,7 @@
             {{ $t(`${LABEL_ROOT}.approve`) }}
           </Button>
           <Button
-            v-if="source.mode !== 'context' && source.mode !== 'muted' && !source.conversational"
+            v-if="source.mode !== 'context' && source.mode !== 'muted'"
             variant="outline"
             class="md:h-9"
             :disabled="isBusy"
@@ -111,6 +111,43 @@
         </div>
       </li>
     </ul>
+
+    <form
+      class="border-border flex max-w-xl flex-col gap-3 rounded-lg border p-4"
+      data-testid="add-context-source"
+      @submit.prevent="addContextSource"
+    >
+      <div>
+        <h4 class="font-medium">{{ $t(`${LABEL_ROOT}.addContext.title`) }}</h4>
+        <p class="text-muted-foreground mt-1 text-sm leading-relaxed">
+          {{ $t(`${LABEL_ROOT}.addContext.description`) }}
+        </p>
+      </div>
+      <div class="grid gap-3 @lg/integrations:grid-cols-2">
+        <InputField
+          v-model="newSource.appName"
+          :label="$t(`${LABEL_ROOT}.addContext.appLabel`)"
+          :placeholder="$t(`${LABEL_ROOT}.addContext.appPlaceholder`)"
+          data-testid="add-context-app"
+        />
+        <InputField
+          v-model="newSource.sender"
+          :label="$t(`${LABEL_ROOT}.addContext.senderLabel`)"
+          :placeholder="$t(`${LABEL_ROOT}.addContext.senderPlaceholder`)"
+          data-testid="add-context-sender"
+        />
+      </div>
+      <div>
+        <Button
+          type="submit"
+          variant="outline"
+          :disabled="isBusy || !newSource.appName.trim()"
+          data-testid="add-context-submit"
+        >
+          {{ $t(`${LABEL_ROOT}.addContext.submit`) }}
+        </Button>
+      </div>
+    </form>
   </section>
 
   <ResponsiveAlertDialog
@@ -131,7 +168,12 @@
 </template>
 
 <script setup lang="ts">
-import { deleteNotificationSource, getNotificationSources, updateNotificationSource } from '@/api/ingest';
+import {
+  createContextSource,
+  deleteNotificationSource,
+  getNotificationSources,
+  updateNotificationSource,
+} from '@/api/ingest';
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const/vue-query';
 import ResponsiveAlertDialog from '@/components/common/responsive-alert-dialog.vue';
 import { Button } from '@/components/lib/ui/button';
@@ -139,6 +181,7 @@ import { Callout } from '@/components/lib/ui/callout';
 import { StatusBadge, type Variant } from '@/components/lib/ui/status-badge';
 import { useInvalidatingMutation } from '@/composable/data-queries/use-invalidating-mutation';
 import AccountSelectField from '@/components/fields/account-select-field.vue';
+import InputField from '@/components/fields/input-field.vue';
 import { useAccountsStore } from '@/stores/accounts';
 import type {
   AccountModel,
@@ -187,6 +230,14 @@ const { mutateAsync: update, isPending: isUpdating } = useInvalidatingMutation({
   errorKey: `${LABEL_ROOT}.saveError`,
 });
 
+const { mutateAsync: addContext, isPending: isAdding } = useInvalidatingMutation({
+  mutationFn: (variables: { appName: string; sender: string }) =>
+    createContextSource({ appName: variables.appName, sender: variables.sender || null }),
+  invalidateKeys,
+  successKey: `${LABEL_ROOT}.addContext.success`,
+  errorKey: `${LABEL_ROOT}.addContext.error`,
+});
+
 const { mutateAsync: forget, isPending: isForgetting } = useInvalidatingMutation({
   mutationFn: (source: NotificationSourceDto) => deleteNotificationSource({ id: source.id }),
   invalidateKeys,
@@ -203,7 +254,21 @@ const mappableAccounts = computed(() => getMappableAccounts({ accounts: accounts
 const defaultAccountOf = ({ source }: { source: NotificationSourceDto }): AccountModel | null =>
   mappableAccounts.value.find((account) => account.id === source.defaultAccountId) ?? null;
 
-const isBusy = computed(() => isUpdating.value || isForgetting.value);
+const isBusy = computed(() => isUpdating.value || isForgetting.value || isAdding.value);
+
+const newSource = ref({ appName: '', sender: '' });
+
+const addContextSource = async () => {
+  const appName = newSource.value.appName.trim();
+  if (!appName) return;
+
+  try {
+    await addContext({ appName, sender: newSource.value.sender.trim() });
+    newSource.value = { appName: '', sender: '' };
+  } catch {
+    // useInvalidatingMutation already told the user what failed.
+  }
+};
 
 const isForgetOpen = ref(false);
 const forgetTarget = ref<NotificationSourceDto | null>(null);
