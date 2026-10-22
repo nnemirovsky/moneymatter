@@ -64,22 +64,17 @@ export interface ParkedTwin {
  * first, and at most one per source slot (a payment holds one request per slot, so a second request of a
  * slot is another payment: two coffees). `takenSlots` are the slots the payment already holds, its own
  * and those of the twins that joined it.
- *
- * With `lock`, the rows are locked and a row another transaction holds is skipped, never waited for: two
- * paths that settle twins at once cannot wait on each other's rows.
  */
 export const findParkedTwins = async ({
   userId,
   requestId,
   probe,
   takenSlots = [],
-  lock = false,
 }: {
   userId: number;
   requestId: RecordId;
   probe: TwinProbe;
   takenSlots?: readonly string[];
-  lock?: boolean;
 }): Promise<ParkedTwin[]> => {
   const candidates = await IngestRequests.findAll({
     where: {
@@ -92,7 +87,6 @@ export const findParkedTwins = async ({
     },
     order: [['createdAt', 'ASC']],
     limit: 50,
-    ...(lock && { lock: true, skipLocked: true }),
   });
 
   const taken = new Set([probe.slot, ...takenSlots]);

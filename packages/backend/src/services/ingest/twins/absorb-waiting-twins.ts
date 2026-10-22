@@ -30,11 +30,13 @@ const absorbWaitingTwinsImpl = async ({
     requestId: request.id,
     probe,
     takenSlots: await joinedSlots({ twins: joined }),
-    lock: true,
   });
-  for (const { request: twin } of twins) await absorbParkedTwin({ twin, intoRequestId: request.id });
+  const absorbed: IngestRequests[] = [];
+  for (const { request: twin } of twins) {
+    if (await absorbParkedTwin({ twin, intoRequestId: request.id })) absorbed.push(twin);
+  }
 
-  return twins.map(({ request: twin }) => twin);
+  return absorbed;
 };
 
 export const absorbWaitingTwins = withTransaction(absorbWaitingTwinsImpl);

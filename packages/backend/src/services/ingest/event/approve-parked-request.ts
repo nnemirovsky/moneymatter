@@ -90,15 +90,17 @@ export const approveParkedRequest = withTransaction(
           requestId,
           probe,
           takenSlots: await joinedSlots({ twins: joined }),
-          lock: true,
         })
       : [];
-    for (const { request: twin } of waitingTwins) await absorbParkedTwin({ twin, intoRequestId: requestId });
+    const absorbedTwins: IngestRequests[] = [];
+    for (const { request: twin } of waitingTwins) {
+      if (await absorbParkedTwin({ twin, intoRequestId: requestId })) absorbedTwins.push(twin);
+    }
 
     // The cards the twins named are learned on the same account, and what waits on them goes through too.
     let alsoQueuedByTwins = 0;
     if (accountId) {
-      for (const twin of [...joined, ...waitingTwins.map(({ request }) => request)]) {
+      for (const twin of [...joined, ...absorbedTwins]) {
         const twinPayment = readStoredParse({ value: twin.parsed })?.payment;
         if (!twinPayment) continue;
 
