@@ -99,11 +99,13 @@ export const findContextRepeat = async ({
   service,
   store,
   excludeRequestId,
+  windowMs,
 }: {
   userId: number;
   service: string;
   store: string;
   excludeRequestId: RecordId;
+  windowMs: number;
 }): Promise<IngestRequests | null> => {
   const wanted = normalizeStore({ value: store });
   const earlier = await IngestRequests.findAll({
@@ -111,8 +113,11 @@ export const findContextRepeat = async ({
       userId,
       pipeline: 'notification',
       id: { [Op.ne]: excludeRequestId },
-      createdAt: { [Op.gte]: new Date(Date.now() - contextConfig.repeatWindowMs) },
-      [Op.or]: [{ status: { [Op.in]: ['enriched', 'held'] } }, { status: 'ignored', reason: 'contextNoteKept' }],
+      createdAt: { [Op.gte]: new Date(Date.now() - windowMs) },
+      [Op.or]: [
+        { status: { [Op.in]: ['enriched', 'held'] } },
+        { status: 'ignored', reason: { [Op.in]: ['contextNoteKept', 'contextConfirmed', 'contextExpired'] } },
+      ],
     },
     order: [['createdAt', 'DESC']],
   });

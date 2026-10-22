@@ -200,7 +200,12 @@ describe('Ingest requests cleanup cron', () => {
 
       const expired = (await IngestRequests.findOne({ where: { id: stale.id } }))!;
       expect(expired).toMatchObject({ status: 'ignored', reason: 'contextExpired' });
-      expect(expired.parsed).toEqual({ parser: 'rules', kind: 'context', confidence: 1 });
+      expect(expired.parsed).toEqual({
+        parser: 'rules',
+        kind: 'context',
+        confidence: 1,
+        context: { store: 'Cafe', excerpt: '' },
+      });
       expect((await IngestRequests.findOne({ where: { id: fresh.id } }))!.status).toBe('held');
     });
 

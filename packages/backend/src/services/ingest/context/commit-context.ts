@@ -116,7 +116,8 @@ const applyContextImpl = async ({
     isPipelineCategory({ categorizationMeta: tx.categorizationMeta });
   const newCategoryId = categoryEligible ? categoryId : null;
 
-  const stored = { ...context };
+  // Only a held notification needs its excerpt (a model weighing competing payments reads it).
+  const stored = { ...context, excerpt: '' };
   if (note === null && newCategoryId === null) {
     await request.update({
       status: 'ignored',

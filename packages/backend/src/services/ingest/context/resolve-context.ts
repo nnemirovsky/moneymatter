@@ -56,20 +56,19 @@ export const resolveContext = async ({
   const reduced = { parser, kind: 'context', confidence };
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
-    // The first notification of an order ("accepted") starts a new one even when the same store was
-    // ordered from earlier; every later stage of an order that is known repeats it.
-    if (context.status !== 'accepted') {
-      const repeat = await findContextRepeat({
-        userId,
-        service: context.service,
-        store: context.store,
-        excludeRequestId: requestId,
-      });
-      if (repeat) {
-        await ignoreContext({ requestId, reason: 'contextRepeat', parsed: reduced });
+    // Every stage of an order after the first repeats it. The first stage ("accepted") starts a new order
+    // unless the same store's was handled a moment ago (a second push of one acceptance).
+    const repeat = await findContextRepeat({
+      userId,
+      service: context.service,
+      store: context.store,
+      excludeRequestId: requestId,
+      windowMs: context.status === 'accepted' ? contextConfig.acceptedRepeatWindowMs : contextConfig.repeatWindowMs,
+    });
+    if (repeat) {
+      await ignoreContext({ requestId, reason: 'contextRepeat', parsed: reduced, context });
 
-        return { kind: 'ignored' };
-      }
+      return { kind: 'ignored' };
     }
 
     const { open, confirmed } = await findContextCandidates({ userId, time, hints, excludes });
@@ -77,7 +76,7 @@ export const resolveContext = async ({
     if (!open.length) {
       if (wasHeld) return { kind: 'held' };
       if (confirmed.length) {
-        await ignoreContext({ requestId, reason: 'contextConfirmed', parsed: reduced });
+        await ignoreContext({ requestId, reason: 'contextConfirmed', parsed: reduced, context });
 
         return { kind: 'ignored' };
       }
@@ -135,7 +134,7 @@ export const resolveContext = async ({
         return { kind: 'ignored' };
       case 'confirmed':
         if (wasHeld) return { kind: 'held' };
-        await ignoreContext({ requestId, reason: 'contextConfirmed', parsed: reduced });
+        await ignoreContext({ requestId, reason: 'contextConfirmed', parsed: reduced, context });
 
         return { kind: 'ignored' };
       default:
@@ -145,7 +144,7 @@ export const resolveContext = async ({
 
   // The world kept moving under the match: a held notification waits on, a new one is given up.
   if (wasHeld) return { kind: 'held' };
-  await ignoreContext({ requestId, reason: 'contextExpired', parsed: reduced });
+  await ignoreContext({ requestId, reason: 'contextExpired', parsed: reduced, context });
 
   return { kind: 'ignored' };
 };

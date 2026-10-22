@@ -7,6 +7,7 @@ import { RateLimitService } from '@services/common/rate-limit.service';
 import * as helpers from '@tests/helpers';
 import { enableServerModel, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
 import { approveCardAsIs, confirmCardOf } from '@tests/helpers/ingest-cards';
+import { waitForIngestIdle } from '@tests/helpers/ingest-follow-ups';
 import * as ingestHelpers from '@tests/helpers/ingest-tokens';
 import { mockNotificationParsing } from '@tests/helpers/notification-ai';
 import { randomUUID } from 'node:crypto';
@@ -175,6 +176,52 @@ describe('context notifications', () => {
       expect(delivered.body.response).toMatchObject({ outcome: 'ignored', reason: 'contextRepeat' });
     });
 
+    it('recognizes the later stages of an order whose acceptance found its payment already confirmed', async () => {
+      const { secret } = await setUp();
+      const confirmed = await pay({ secret });
+      await approveCardAsIs({ card: await confirmCardOf({ transactionId: confirmed.id }) });
+      const first = await send({ secret, body: accepted() });
+      expect(first.body.response).toMatchObject({ reason: 'contextConfirmed' });
+
+      // A second order of the service is paid, then the first order's next stage arrives.
+      const next = await pay({ secret, amount: '12.30' });
+      const onTheWay = await send({
+        secret,
+        body: woltNotification({ title: 'On the way', body: 'Your order from Urban Roastery&Coffee is on its way' }),
+      });
+
+      expect(onTheWay.body.response).toMatchObject({ outcome: 'ignored', reason: 'contextRepeat' });
+      expect((await reload({ id: next.id })).note).toBeNull();
+    });
+
+    it('treats a second acceptance of the same store a moment later as a repeat, not a new order', async () => {
+      const { secret } = await setUp();
+      const tx = await pay({ secret });
+      await send({ secret, body: accepted() });
+      await pay({ secret, amount: '12.30' });
+
+      // Another wording, so the two are not one notification folded by the server.
+      const again = await send({
+        secret,
+        body: woltNotification({ title: 'Order received', body: 'Urban Roastery&Coffee has received your order!' }),
+      });
+
+      expect(again.body.response).toMatchObject({ outcome: 'ignored', reason: 'contextRepeat' });
+      expect((await reload({ id: tx.id })).note).toBe('Urban Roastery&Coffee order from Wolt');
+    });
+
+    it('keeps no text of an applied notification in the request', async () => {
+      const { secret } = await setUp();
+      await pay({ secret });
+
+      const res = await send({ secret, body: accepted() });
+
+      const request = await requestOf({ requestId: res.body.response.requestId });
+      expect(request.textEnc).toBeNull();
+      expect(JSON.stringify(request.parsed)).not.toContain('delivered at 11:52');
+      expect(request.parsed).toMatchObject({ context: { excerpt: '' } });
+    });
+
     it('leaves a status line that names no store alone', async () => {
       const { secret } = await setUp();
       const tx = await pay({ secret });
@@ -294,6 +341,7 @@ describe('context notifications', () => {
       );
 
       const tx = await pay({ secret });
+      await waitForIngestIdle();
 
       expect((await reload({ id: tx.id })).note).toBeNull();
       expect(await requestOf({ requestId: held.body.response.requestId })).toMatchObject({ status: 'held' });
@@ -323,6 +371,8 @@ describe('context notifications', () => {
       const rows = [await reload({ id: first.id }), await reload({ id: second.id })];
       const enriched = rows.filter((row) => row.note === 'Urban Roastery&Coffee order from Wolt');
       expect(enriched).toHaveLength(1);
+      // The model's pick (the first payment) wins over the nearest in time (the second).
+      expect(enriched[0]!.id).toBe(first.id);
       expect(enriched[0]!.externalData).toMatchObject({ ingest: { context: { guess: true } } });
 
       // The owner is asked to check a guess on the payment's confirm card.
@@ -452,6 +502,17 @@ describe('context notifications', () => {
     });
 
     it('still drops a promo of a context app', async () => {
+      const { secret } = await setUp();
+
+      const res = await send({
+        secret,
+        body: woltNotification({ title: 'Wolt', body: 'Get 20% off your next order, today only' }),
+      });
+
+      expect(res.body.response).toMatchObject({ outcome: 'dropped', reason: 'promo' });
+    });
+
+    it('still drops a request for a code from a context app', async () => {
       const { secret } = await setUp();
 
       const res = await send({

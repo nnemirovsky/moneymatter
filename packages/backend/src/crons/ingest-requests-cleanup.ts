@@ -59,7 +59,7 @@ const deleteIgnoredRequests = async (): Promise<number> =>
 
 /**
  * A context notification that found no payment within the hold is given up: it becomes `ignored`
- * (kept a week like any other) and the store and excerpt it held are dropped from its reading.
+ * (kept a week like any other) and the excerpt it held is dropped (its service and store stay, so the order's later stages are recognized).
  */
 const expireHeldContexts = async (): Promise<number> => {
   const [count] = await IngestRequests.update(
@@ -68,7 +68,7 @@ const expireHeldContexts = async (): Promise<number> => {
       reason: 'contextExpired',
       summary: null,
       parsed: literal(
-        `jsonb_build_object('parser', "parsed"->'parser', 'kind', "parsed"->'kind', 'confidence', "parsed"->'confidence')`,
+        `jsonb_build_object('parser', "parsed"->'parser', 'kind', "parsed"->'kind', 'confidence', "parsed"->'confidence', 'context', ("parsed"->'context') || '{"excerpt": ""}'::jsonb)`,
       ),
     },
     {
