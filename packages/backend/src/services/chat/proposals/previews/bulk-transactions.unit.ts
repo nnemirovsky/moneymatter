@@ -6,6 +6,9 @@ jest.mock('@models/transactions-query', () => ({
   ...(jest.requireActual('@models/transactions-query') as object),
   findTransactions: jest.fn(),
 }));
+jest.mock('@services/user-settings/get-user-time-zone', () => ({
+  getUserTimeZones: jest.fn(),
+}));
 jest.mock('@services/transactions/matching-transactions', () => ({ resolveBulkTargetIds: jest.fn() }));
 jest.mock('@services/sharing/auth/get-accessible-account-ids.service', () => ({
   getAccessibleAccountIdsForUser: jest.fn(),
@@ -14,6 +17,7 @@ jest.mock('@services/sharing/auth/get-accessible-account-ids.service', () => ({
 import * as transactionsQuery from '@models/transactions-query';
 import { getAccessibleAccountIdsForUser } from '@services/sharing/auth/get-accessible-account-ids.service';
 import { resolveBulkTargetIds } from '@services/transactions/matching-transactions';
+import { getUserTimeZones } from '@services/user-settings/get-user-time-zone';
 
 import { resolveToolPolicy } from '../../policies';
 import { hashTargetIds } from '../snapshot';
@@ -55,6 +59,7 @@ describe('bulk transaction previews', () => {
   beforeEach(() => {
     find().mockReset();
     jest.mocked(resolveBulkTargetIds).mockReset();
+    jest.mocked(getUserTimeZones).mockReset().mockResolvedValue({ viewingZone: 'UTC', storedZone: null });
     jest.mocked(getAccessibleAccountIdsForUser).mockReset().mockResolvedValue([ACCOUNT, OTHER_ACCOUNT]);
   });
 
@@ -162,6 +167,21 @@ describe('bulk transaction previews', () => {
       expect(affectedCount).toBe(3);
       expect(preview.affected).toMatchObject({ count: 3, truncated: false });
       expect(snapshot.targetIds).toEqual([uuid(1), uuid(2), uuid(3)]);
+    });
+
+    it("cuts the filter's date bounds in the user's zone before resolving the ids it freezes", async () => {
+      jest.mocked(getUserTimeZones).mockResolvedValue({ viewingZone: 'Asia/Tbilisi', storedZone: 'Asia/Tbilisi' });
+      jest.mocked(resolveBulkTargetIds).mockResolvedValue([uuid(1)]);
+      find().mockResolvedValue([tx(1)] as never);
+
+      await run({
+        toolName: 'bulk_delete_transactions',
+        args: { filters: { from: '2026-10-21', to: '2026-10-21' } },
+      });
+
+      const { selection } = jest.mocked(resolveBulkTargetIds).mock.calls[0]![0] as any;
+      expect(selection.filters.startDate).toBe('2026-10-20T20:00:00.000Z');
+      expect(selection.filters.endDate).toBe('2026-10-21T19:59:59.999Z');
     });
 
     it('resolves filters through resolveBulkTargetIds after validating them, and freezes the ids and their hash', async () => {
