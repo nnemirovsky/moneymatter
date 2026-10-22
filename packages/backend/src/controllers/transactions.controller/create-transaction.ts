@@ -4,6 +4,7 @@ import { createController } from '@controllers/helpers/controller-factory';
 import { deserializeCreateTransaction, serializeTransactionTuple } from '@root/serializers';
 import { attachTransactionCurrencyMeta } from '@services/currencies/effective-currency';
 import * as transactionsService from '@services/transactions';
+import { zoneForCreateRequest } from '@services/transactions/recorded-zone';
 import { z } from 'zod';
 
 import {
@@ -160,6 +161,7 @@ export default createController(schema, async ({ user, body }) => {
 
   // Deserialize: convert decimal amounts to cents
   const params = deserializeCreateTransaction(body, userId);
+  params.timeZone = await zoneForCreateRequest({ userId, timeZone: params.timeZone });
 
   // TODO: Add validations
   // 1. Amount and destinationAmount with same currency should be equal

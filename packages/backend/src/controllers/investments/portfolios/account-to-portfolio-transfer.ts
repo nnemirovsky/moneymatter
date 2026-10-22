@@ -1,6 +1,7 @@
 import { dateString, ianaTimeZone, positiveAmountString, recordId } from '@common/lib/zod/custom-types';
 import { createController } from '@controllers/helpers/controller-factory';
 import { accountToPortfolioTransfer } from '@services/investments/portfolios/transfers';
+import { zoneForCreateRequest } from '@services/transactions/recorded-zone';
 import { z } from 'zod';
 
 import { serializeTransferResponse } from './serialize-transfer';
@@ -26,7 +27,7 @@ export default createController(schema, async ({ user, params, body }) => {
     amount: body.amount,
     date: body.date,
     description: body.description || null,
-    timeZone: body.timeZone,
+    timeZone: await zoneForCreateRequest({ userId: user.id, timeZone: body.timeZone }),
   });
 
   return { data: serializeTransferResponse({ transfer }) };

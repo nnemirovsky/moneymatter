@@ -1,6 +1,7 @@
 import { recordId } from '@common/lib/zod/custom-types';
 import { createController } from '@controllers/helpers/controller-factory';
 import { markPeriodPaid } from '@services/subscriptions/mark-period-paid';
+import { zoneForCreateRequest } from '@services/transactions/recorded-zone';
 import { z } from 'zod';
 
 import { markPeriodPaidBodySchema } from './shared-schemas';
@@ -23,7 +24,10 @@ export default createController(schema, async ({ user, params, body }) => {
     createTransaction: body?.createTransaction,
     amount: body?.amount,
     time: body?.time,
-    timeZone: body?.timeZone,
+    timeZone:
+      body?.createTransaction && !body.transactionId
+        ? await zoneForCreateRequest({ userId: user.id, timeZone: body.timeZone })
+        : body?.timeZone,
     accountId: body?.accountId,
   });
 
