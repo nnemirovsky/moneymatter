@@ -31,6 +31,13 @@ type ApplyResult =
   /** The request was settled by another pass. */
   | { kind: 'gone' };
 
+/**
+ * Whether the pipeline may write the context note: the row has no note, or the note on it is the one the
+ * pipeline wrote itself (`ingest.systemNote`). A note the owner wrote is never replaced.
+ */
+export const isNoteReplaceable = ({ note, systemNote }: { note: string | null; systemNote: string | undefined }): boolean =>
+  !note || (Boolean(systemNote) && note === systemNote);
+
 const requestParsed = ({ context, parser, confidence }: { context: StoredContext; parser: StoredParse['parser']; confidence: number }) =>
   ({ parser, kind: 'context', confidence, context }) as unknown as Record<string, unknown>;
 
@@ -95,7 +102,7 @@ const applyContextImpl = async ({
     return { kind: 'conflict' };
   }
 
-  const noteEligible = !tx.note || (Boolean(markers.systemNote) && tx.note === markers.systemNote);
+  const noteEligible = isNoteReplaceable({ note: tx.note, systemNote: markers.systemNote });
   const note = noteEligible ? t({ key: 'ingest.contextNote', variables: { store: context.store, service: context.service }, locale }) : null;
   const categoryEligible =
     Boolean(categoryId) && categoryId !== tx.categoryId && isPipelineCategory({ categorizationMeta: tx.categorizationMeta });
