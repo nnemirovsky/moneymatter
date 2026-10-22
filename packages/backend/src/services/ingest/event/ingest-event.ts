@@ -21,6 +21,7 @@ import { parkFailedRequest } from '../card-payment/park-failed-request';
 import { readUserLocale } from '../card-payment/read-user-locale';
 import { sanitizeForJsonb } from '../card-payment/sanitize-payload';
 import { senderMatchesRecentPayment } from '../context/recent-payment-match';
+import { traceStep } from '../debug/trace-context';
 import { getGateStrictness } from '../gate-strictness.service';
 import { notificationLimits } from './constants';
 import { computeNotificationFingerprint, isFoldedRepeat } from './notification-fingerprint';
@@ -206,7 +207,11 @@ const ingestNotification = async ({
   locale: string;
 }): Promise<IngestEventResult> => {
   const parsed = parseNotificationPayload({ body, receivedAt: new Date() });
-  if (!parsed.ok) throw reject({ reason: parsed.reason, locale });
+  if (!parsed.ok) {
+    traceStep({ step: 'reject', detail: parsed.reason });
+
+    throw reject({ reason: parsed.reason, locale });
+  }
 
   const { notification } = parsed;
   const sourceKey = getNotificationSourceKey({
@@ -221,11 +226,14 @@ const ingestNotification = async ({
   });
   if (earlier) {
     if (earlier.fingerprint !== fingerprint) {
+      traceStep({ step: 'reject', detail: 'keyReused' });
       throw new ConflictError({
         message: t({ key: 'ingest.idempotencyConflict', locale }),
         details: { reason: 'keyReused' },
       });
     }
+
+    traceStep({ step: 'duplicate', detail: 'key' });
 
     return { kind: 'notification', response: { outcome: 'duplicate', requestId: earlier.id, notify: false } };
   }
@@ -262,6 +270,9 @@ const ingestNotification = async ({
     strictness,
     contextApp,
   });
+  traceStep({ step: 'source', detail: source?.mode ?? 'none' });
+  if (oneOffContext) traceStep({ step: 'oneOffContext' });
+  traceStep({ step: 'prefilter', detail: prefiltered.pass ? 'pass' : prefiltered.reason });
   if (!prefiltered.pass) {
     // The first no-amount notification of an app is how the owner meets its source: the source is created
     // (in the mode its app starts in) so it can be set to Context, and the text is stored nowhere.
@@ -277,12 +288,14 @@ const ingestNotification = async ({
   }
 
   if (source?.mode === 'muted') {
+    traceStep({ step: 'dropped', detail: 'muted' });
     await bumpDropCounter({ userId, sourceKey, reason: 'muted' });
 
     return dropped({ reason: 'muted' });
   }
 
   if (!(await isWithinLimits({ userId }))) {
+    traceStep({ step: 'rateLimited' });
     await bumpDropCounter({ userId, sourceKey, reason: 'rateLimited' });
 
     throw new TooManyRequests({ message: t({ key: 'ingest.rateLimited', locale }) });
@@ -290,9 +303,11 @@ const ingestNotification = async ({
 
   const recorded = await recordNotification({ userId, tokenId, notification, sourceKey, fingerprint, oneOffContext });
   if (recorded.replay) {
+    traceStep({ step: 'duplicate', detail: 'fold' });
     return { kind: 'notification', response: { outcome: 'duplicate', requestId: recorded.requestId, notify: false } };
   }
 
+  traceStep({ step: 'stored' });
   try {
     await enqueueNotificationProcessing({ requestId: recorded.requestId });
   } catch (error) {
@@ -324,6 +339,7 @@ const probeSender = async ({ userId, body }: { userId: number; body: unknown }):
   const source = await findNotificationSource({ userId, sourceKey });
 
   let send = source?.mode === 'context';
+  traceStep({ step: 'probe', detail: source ? `source:${source.mode}` : 'source:none' });
   // A sender that names a merchant the owner has just paid is offered as a context source: its row is made
   // (the sender and the app, no text) and this one notification is sent to be read for that payment.
   if (
@@ -333,8 +349,11 @@ const probeSender = async ({ userId, body }: { userId: number; body: unknown }):
     (await senderMatchesRecentPayment({ userId, sender: app.title }))
   ) {
     await touchNotificationSource({ userId, sourceKey, app: appIdentity });
+    traceStep({ step: 'probe', detail: 'recentPayment' });
     send = true;
   }
+
+  traceStep({ step: 'probe', detail: send ? 'send' : 'noSend' });
 
   return { kind: 'notification', response: { outcome: 'probe', notify: false, ...(send && { send: 'yes' as const }) } };
 };
@@ -369,6 +388,7 @@ export const ingestEvent = async ({
   const locale = await readUserLocale({ userId });
 
   const kind = readEventKind({ body });
+  traceStep({ step: 'kind', detail: kind ?? 'invalid' });
   if (kind === null) throw reject({ reason: 'invalidKind', locale });
 
   if (kind === 'notificationProbe') return probeSender({ userId, body });

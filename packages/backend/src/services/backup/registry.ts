@@ -663,6 +663,11 @@ export const BACKUP_EXCLUDED: readonly BackupExcludedDef[] = [
       'Operational log that holds raw merchant text and points at tokens and transactions that are not restored with it.',
   },
   {
+    model: models.IngestDebugEvents,
+    reason:
+      'Operator debugging trace of ingest requests, short-lived, with encrypted notification text; never user data to restore.',
+  },
+  {
     model: models.IngestSettings,
     reason: 'Cloudflare Access credentials, encrypted for this instance; a restored copy would not decrypt elsewhere.',
   },

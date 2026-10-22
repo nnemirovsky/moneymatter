@@ -15,6 +15,7 @@ import { randomUUID } from 'node:crypto';
 
 const NOTHING_ELSE = {
   ignoredDeleted: 0,
+  debugEventsDeleted: 0,
   contextsExpired: 0,
   unclassifiedExpired: 0,
   pendingSourcesDeleted: 0,
