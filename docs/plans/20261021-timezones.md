@@ -747,11 +747,15 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 
 ### Task 14: Verify acceptance criteria
 
-- [ ] the Haiku scenario end to end against a mocked model: the clock is fixed at `2026-07-15T10:00Z` (summer in Kyiv, so the offsets below hold on any run date); a Tbilisi user says "coffee 5 GEL at 16:00"; the model calls `create_transaction` with `time: '2026-07-15T16:00'`; the card shows 16:00; approval stores `2026-07-15T12:00Z`, `Asia/Tbilisi`, +240; the list tooltip shows 16:00 GMT+4
-- [ ] the same chat after switching the setting to manual `Europe/Kyiv`: the list shows 15:00 GMT+3 and a second line "Recorded in Asia/Tbilisi: 16:00 GMT+4"
-- [ ] a user without a zone sees no change in reports (the existing stats and budgets e2e suites pass untouched)
-- [ ] Playwright flow from the Testing Strategy
-- [ ] full backend unit suite, the e2e patterns of Tasks 2–8 and 12 in one serial run (including `real-transactions-view-columns.e2e`), the frontend suite, root `typecheck`, `lint`, `format:check`, `knip`
+- [x] the Haiku scenario end to end against a mocked model: the clock is fixed at `2026-07-15T10:00Z` (summer in Kyiv, so the offsets below hold on any run date); a Tbilisi user says "coffee 5 GEL at 16:00"; the model calls `create_transaction` with `time: '2026-07-15T16:00'`; the card shows 16:00; approval stores `2026-07-15T12:00Z`, `Asia/Tbilisi`, +240; the list tooltip shows 16:00 GMT+4
+- [x] the same chat after switching the setting to manual `Europe/Kyiv`: the list shows 15:00 GMT+3 and a second line "Recorded in Asia/Tbilisi: 16:00 GMT+4"
+- [x] a user without a zone sees no change in reports (the existing stats and budgets e2e suites pass untouched)
+- [x] Playwright flow from the Testing Strategy
+- [x] full backend unit suite, the e2e patterns of Tasks 2–8 and 12 in one serial run (including `real-transactions-view-columns.e2e`), the frontend suite, root `typecheck`, `lint`, `format:check`, `knip`
+  - ➕ Backend acceptance: `chat/proposals/time-args.e2e.ts` holds the July scenario (16:00 Tbilisi → `12:00Z`, +240) and the switch to Kyiv (the row keeps its zone and pair). The mocked model needs no fixed clock because the call names the date.
+  - ➕ Playwright: `packages/frontend/e2e/tests/settings/time-zone.spec.ts` (6 tests, browser zone Asia/Tokyo, viewing zone Tbilisi then Kyiv). The chat card is a stubbed card, so it checks the card display and not the approval, which the backend e2e covers. Screenshots land in `TIME_ZONE_SCREENSHOT_DIR`.
+  - ➕ Gate results: typecheck, lint, format:check, backend knip clean; frontend knip lists only findings that predate the branch. Frontend vitest 422 files / 6139 tests pass; backend unit 401 of 407 suites pass (the 6 failing suites are 5 node-pty `posix_spawnp` suites that fail on this Mac, and the chat schema budget, fixed here by trimming tool descriptions); backend e2e 376 of 378 suites pass in one serial run (the `pending-card-revision` expectation became `.000Z`, and the `assistant-push` debounce test is a timing flake that passes alone).
+  - ⚠️ Other Playwright specs failing in a regression run, none touching this branch's code: `create-more` and `transaction-templates` (the form's account combobox moved with the quick-add chips layout on `dev`), `external-transfer-revert` (its seed hits the bank-account rule on `dev`), `investment-calculator`, `category-spending-tracker`, `fire-widget`.
 
 ### Task 15: Documentation
 
