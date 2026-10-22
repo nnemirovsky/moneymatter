@@ -715,7 +715,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - Modify: `packages/backend/src/controllers/transactions.controller/bulk-update.e2e.ts`, the bulk tool's unit test
 - Modify: `packages/frontend/src/components/transactions-list/bulk-action-dialogs.vue`, `packages/frontend/src/composable/use-bulk-transaction-actions.ts`, `packages/frontend/src/api/transactions.ts` + specs; i18n `en` + `uk`
 
-- [ ] write failing e2e:
+- [x] write failing e2e:
   - `PUT /transactions/bulk` with `transactionIds` and `timeZone: 'Asia/Makassar'` sets the zone on each row and the offset at each row's own time (+480);
   - the same by a filter `selection` (one account, a date range) with one `excludedIds` row left untouched;
   - an own-accounts transfer selected by one leg gets the zone on both legs, by ids and by selection;
@@ -725,10 +725,11 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
   - a bank-synced row is updated, and its `time` is unchanged;
   - an invalid zone → 422; another user's ids → not updated;
   - `timeZone` alone is a valid bulk body (the "at least one field" check counts it)
-- [ ] write failing unit tests: `bulk_update_transactions` accepts `timeZone` and `null`, refuses `+04:00`; its description says what the zone means and that the offset is computed per row
-- [ ] implement per Technical Details → Bulk zone edits
-- [ ] frontend: a "Set time zone" bulk action beside the existing ones. Its dialog uses `time-zone-select-field` (Task 10) plus a "Clear" choice, sends the current target (ids or selection), shows the toast and invalidates the transaction queries. Vitest covers the payload for both target kinds.
-- [ ] gate: e2e `--testPathPattern='transactions.controller/bulk-update\.e2e'`; unit `--testPathPattern='mcp/tools/.*bulk'`; frontend the changed spec files
+- [x] write failing unit tests: `bulk_update_transactions` accepts `timeZone` and `null`, refuses `+04:00`; its description says what the zone means and that the offset is computed per row
+- [x] implement per Technical Details → Bulk zone edits
+- [x] frontend: a "Set time zone" bulk action beside the existing ones. Its dialog uses `time-zone-select-field` (Task 10) plus a "Clear" choice, sends the current target (ids or selection), shows the toast and invalidates the transaction queries. Vitest covers the payload for both target kinds.
+- [x] gate: e2e `--testPathPattern='transactions.controller/bulk-update\.e2e'`; unit `--testPathPattern='mcp/tools/.*bulk'`; frontend the changed spec files
+- ➕ Deviations: MCP `bulk_update_transactions` keeps `transactionIds` as its only target (no `selection`), so no validator entry in `tool-arg-validators.ts`; its unit cases sit in `mcp/tools/transaction-payee-inputs.unit.ts` beside the tool's other input tests. The cross-user transfer test is recipient → owner's shared account. The list and table toolbars share `BulkTimeZoneDialog` (`transactions-list/bulk-time-zone-dialog.vue`), whose Clear entry is a special option of `time-zone-select-field`; the request body comes from `buildBulkTimeZoneBody`. Gates: bulk-update e2e 21/21, vitest for the dialog and the body builder.
 
 ### Task 13: Frontend: filters, presets and widgets in the viewing zone
 

@@ -8,6 +8,7 @@ import {
   type TransactionModel,
   type TransactionsSummaryResponse,
   type BulkTarget,
+  type BulkUpdateTransactionsBody,
 } from '@bt/shared/types';
 import { storeToRefs } from 'pinia';
 import { computed, ref } from 'vue';
@@ -51,6 +52,17 @@ export function buildBulkTarget({
   selectedIds: string[];
 }): BulkTarget {
   return matching ? { selection: { filters: matching.filters, excludedIds } } : { transactionIds: selectedIds };
+}
+
+/** The request that records `timeZone` on every row of the target, or clears it with `null`. */
+export function buildBulkTimeZoneBody({
+  target,
+  timeZone,
+}: {
+  target: BulkTarget;
+  timeZone: string | null;
+}): BulkUpdateTransactionsBody {
+  return { ...target, timeZone };
 }
 
 /**
@@ -156,11 +168,13 @@ export function useBulkTransactionActions({
   const isCreateGroupDialogOpen = ref(false);
   const isAddToGroupDialogOpen = ref(false);
   const isBulkDeleteDialogOpen = ref(false);
+  const isBulkTimeZoneDialogOpen = ref(false);
 
   const bulkUpdateMutation = useBulkUpdateCategory({
     onSuccess: () => {
       selection.clearSelection();
       isBulkEditDialogOpen.value = false;
+      isBulkTimeZoneDialogOpen.value = false;
     },
   });
 
@@ -183,6 +197,11 @@ export function useBulkTransactionActions({
     });
   };
 
+  /** `null` clears the recorded zone of every target row. */
+  const handleBulkTimeZone = (timeZone: string | null) => {
+    bulkUpdateMutation.mutate(buildBulkTimeZoneBody({ target: getBulkTarget(), timeZone }));
+  };
+
   const handleBulkDelete = () => {
     bulkDeleteMutation.mutate(getBulkTarget());
   };
@@ -200,10 +219,12 @@ export function useBulkTransactionActions({
     isCreateGroupDialogOpen,
     isAddToGroupDialogOpen,
     isBulkDeleteDialogOpen,
+    isBulkTimeZoneDialogOpen,
     bulkUpdateMutation,
     bulkDeleteMutation,
     isBulkLoading,
     handleBulkApply,
+    handleBulkTimeZone,
     handleBulkDelete,
   };
 }

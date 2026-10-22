@@ -17,6 +17,7 @@ import {
   PlusIcon,
   ListPlusIcon,
   ChevronDownIcon,
+  GlobeIcon,
   Trash2Icon,
 } from '@lucide/vue';
 import { computed } from 'vue';
@@ -42,6 +43,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   cancel: [];
   edit: [];
+  'set-time-zone': [];
   delete: [];
   'create-group': [];
   'add-to-group': [];
@@ -102,6 +104,10 @@ const handleEdit = () => {
             <PencilIcon class="mr-2 size-4" />
             {{ t('transactions.bulkEdit.editButton') }}
           </DropdownMenuItem>
+          <DropdownMenuItem @select="emit('set-time-zone')">
+            <GlobeIcon class="mr-2 size-4" />
+            {{ t('transactions.bulkTimeZone.button') }}
+          </DropdownMenuItem>
           <DropdownMenuItem :disabled="selectedCount < 2 || isGroupingBlocked" @select="handleCreateGroup">
             <PlusIcon class="mr-2 size-4" />
             {{ t('transactions.transactionGroups.bulkActions.createNewGroup') }}
@@ -123,6 +129,11 @@ const handleEdit = () => {
       <Button variant="outline" size="sm" :disabled="!hasSelection || isLoading" @click="emit('edit')">
         <PencilIcon class="size-4" />
         {{ t('transactions.bulkEdit.editButton') }}
+      </Button>
+
+      <Button variant="outline" size="sm" :disabled="!hasSelection || isLoading" @click="emit('set-time-zone')">
+        <GlobeIcon class="size-4" />
+        {{ t('transactions.bulkTimeZone.button') }}
       </Button>
 
       <DropdownMenu>
