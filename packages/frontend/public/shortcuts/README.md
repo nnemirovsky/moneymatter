@@ -76,3 +76,12 @@ Until the file exists the page hides the iOS 27 button (the HEAD probe fails), e
 3. Run the Shortcut by hand. With no input it sends a dry run and shows `Connected as <username>. …`.
 4. iOS 27: turn **Automation** on for both triggers, add the bank app to the Notification trigger, then tap a linked card and check that the banner reads `Logged …`. A bank push in the selected app logs the same way.
 5. iOS 26: create the Transaction automation, tap a linked card and check the same banner.
+
+## Debugging on a device
+
+iOS keeps no run history for Shortcuts automations, and the served Shortcut carries no debug actions. To see why a run did not fire or which action failed, read the iPhone's system log from a Mac:
+
+- Live: connect the iPhone by cable (trusted), open Console.app, select the phone and filter on `shortcuts` or `WorkflowKit`.
+- After the fact: `sudo log collect --device-name "<iPhone name>" --last 2h --output iphone.logarchive`, then open the archive in Console.app or search it with `log show --archive iphone.logarchive --predicate 'process CONTAINS "shortcuts"'`.
+
+iOS keeps only a limited window of logs (hours to a day or two, depending on how busy the phone is), so collect them soon after the run in question. To trace a run on the iPhone itself, add actions to a personal copy of the Shortcut, never to the served file.
