@@ -685,7 +685,10 @@ describe('context notifications', () => {
       mockNotificationParsing({
         answer: () => ({}),
         contextCategory: ({ prompt }) => {
-          const alias = prompt.split('\n').find((line) => line.endsWith('|Shopping'))!.split('|')[0]!;
+          const alias = prompt
+            .split('\n')
+            .find((line) => line.endsWith('|Shopping'))!
+            .split('|')[0]!;
 
           return { categoryId: alias, confidence: 0.9 };
         },

@@ -19,6 +19,7 @@ import { ingestCardPayment } from '../card-payment/ingest-card-payment';
 import { parkFailedRequest } from '../card-payment/park-failed-request';
 import { readUserLocale } from '../card-payment/read-user-locale';
 import { sanitizeForJsonb } from '../card-payment/sanitize-payload';
+import { senderMatchesRecentPayment } from '../context/recent-payment-match';
 import { getGateStrictness } from '../gate-strictness.service';
 import { notificationLimits } from './constants';
 import { computeNotificationFingerprint, isFoldedRepeat } from './notification-fingerprint';
@@ -37,7 +38,6 @@ import {
   readProbeApp,
   type ParsedNotification,
 } from './parse-notification-payload';
-import { senderMatchesRecentPayment } from '../context/recent-payment-match';
 import { prefilterNotification } from './prefilter-notification';
 import { waitForOutcome } from './wait-for-outcome';
 
@@ -247,7 +247,8 @@ const ingestNotification = async ({
     source?.mode === 'pending' &&
     source.conversational &&
     (await senderMatchesRecentPayment({ userId, sender: notification.title }));
-  const contextApp = oneOffContext || (source ? source.mode === 'context' : isContextApp({ appName: notification.app }));
+  const contextApp =
+    oneOffContext || (source ? source.mode === 'context' : isContextApp({ appName: notification.app }));
 
   const prefiltered = prefilterNotification({
     bundleId: notification.bundleId,
@@ -322,7 +323,11 @@ const probeSender = async ({ userId, body }: { userId: number; body: unknown }):
   let send = source?.mode === 'context';
   // A sender that names a merchant the owner has just paid is offered as a context source: its row is made
   // (the sender and the app, no text) and this one notification is sent to be read for that payment.
-  if (!send && (!source || source.mode === 'pending') && (await senderMatchesRecentPayment({ userId, sender: app.title }))) {
+  if (
+    !send &&
+    (!source || source.mode === 'pending') &&
+    (await senderMatchesRecentPayment({ userId, sender: app.title }))
+  ) {
     await touchNotificationSource({ userId, sourceKey, app: appIdentity });
     send = true;
   }
