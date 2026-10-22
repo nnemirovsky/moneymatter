@@ -326,6 +326,19 @@ describe('short-balance correction', () => {
       expect(unconfirmed!.correction).toMatchObject({ status: 'applied', appliedAccountId: usd.id });
     });
 
+    it('keeps the zone the device reported when the payment moves to a system account', async () => {
+      const { tx } = await logShort();
+      // A payment logged on a bank-linked account waits as planned until the bank reports it.
+      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Tbilisi' } });
+      await tx.update({ isPlanned: true, timeZone: 'Europe/Istanbul', utcOffsetMinutes: 180 });
+
+      await helpers.approveIngestCorrection({ transactionId: tx.id, raw: true });
+
+      const moved = (await Transactions.findOne({ where: { id: tx.id } }))!;
+      expect(moved.isPlanned).toBe(false);
+      expect(moved).toMatchObject({ timeZone: 'Europe/Istanbul', utcOffsetMinutes: 180 });
+    });
+
     it('takes the bank amount when the owner enters it', async () => {
       const { usd, tx } = await logShort();
 

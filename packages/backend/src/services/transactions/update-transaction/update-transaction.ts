@@ -38,6 +38,7 @@ import { canUserAccessResource } from '@services/sharing/auth/can-user-access-re
 import { ensureUserCurrencyConnected } from '@services/sharing/auth/ensure-currency-connected.service';
 import { settlePeriodOnConfirm } from '@services/subscriptions/settle-period-on-match';
 import * as refundsService from '@services/tx-refunds';
+import { getStoredUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { ConnectionError, DatabaseError, UniqueConstraintError } from 'sequelize';
 
 import { withTransaction } from '../../common/with-transaction';
@@ -675,22 +676,46 @@ const isReplaceableCategory = async ({
 };
 
 /**
+ * Unchecking Planned says the money moved now, so the row records the zone the user is in at that
+ * moment (their stored zone) unless the request names one. A user without a stored zone leaves the
+ * row's zone as it is, and an ingested payment keeps the zone its device reported.
+ */
+const stampConfirmedPlanZone = async ({
+  request,
+  prevData,
+}: {
+  request: UpdateTransactionParams;
+  prevData: Transactions.default;
+}): Promise<UpdateTransactionParams> => {
+  if (request.isPlanned !== false || !prevData.isPlanned || request.timeZone !== undefined) return request;
+  // A payment logged by the ingest flows carries the zone its device reported; moving or editing it
+  // is not the user's "the money moved now".
+  if (request.keepIngestUnconfirmed || isUnconfirmedIngestRow({ tx: prevData })) return request;
+
+  const timeZone = await getStoredUserTimeZone({ userId: request.userId });
+
+  return timeZone ? { ...request, timeZone } : request;
+};
+
+/**
  * Updates transaction and updates account balance.
  */
 export const updateTransaction = withTransaction(
   async (
-    payload: UpdateTransactionParams,
+    request: UpdateTransactionParams,
   ): Promise<[baseTx: Transactions.default, oppositeTx?: Transactions.default]> => {
     try {
-      await assertCurrencyCodesVisible({ userId: payload.userId, codes: [payload.originalCurrencyCode] });
+      await assertCurrencyCodesVisible({ userId: request.userId, codes: [request.originalCurrencyCode] });
 
       // Single fetch + write-authorization gate. `getWritableTransactionById` throws 404
       // when the caller has no claim, 401 when scope: 'own' is violated. Returns a
       // pre-resolved `authCtx` so this service doesn't reassemble auth primitives.
       const { tx: prevData, ctx: authCtx } = await getWritableTransactionById({
-        id: payload.id,
-        userId: payload.userId,
+        id: request.id,
+        userId: request.userId,
       });
+
+      const payload = await stampConfirmedPlanZone({ request, prevData });
 
       const ctx: UpdateAuthContext = {
         callerUserId: payload.userId,

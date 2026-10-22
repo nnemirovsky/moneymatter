@@ -21,7 +21,7 @@ const inputSchema = {
     ),
   timeZone: ianaTimeZone()
     .optional()
-    .describe('IANA zone the wall time is read in and the transaction records. Default: the zone the plan already has'),
+    .describe('IANA zone the wall time is read in and the transaction records. Default: the zone the plan already has; a plan with none records the user\'s current zone'),
 };
 
 export function registerConfirmPlannedTransaction(server: McpServer) {

@@ -178,6 +178,70 @@ describe('Transaction time zone', () => {
     });
   });
 
+  describe('confirming a planned row', () => {
+    const plan = async ({ timeZone }: { timeZone?: string | null } = {}) => {
+      const account = await helpers.createAccount({ raw: true });
+      const [planned] = await helpers.createPlannedTransaction({
+        payload: { accountId: account.id, amount: 10, time: '2026-07-15T12:00:00.000Z', timeZone },
+        raw: true,
+      });
+      return planned!;
+    };
+
+    it('records the stored zone of the user at confirmation', async () => {
+      const planned = await plan();
+      expect(planned.timeZone).toBeNull();
+
+      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Tbilisi' } });
+      const [confirmed] = await helpers.updateTransaction({ id: planned.id, payload: { isPlanned: false }, raw: true });
+
+      expect(confirmed!.isPlanned).toBe(false);
+      expect(confirmed!.timeZone).toBe('Asia/Tbilisi');
+      expect(confirmed!.utcOffsetMinutes).toBe(240);
+    });
+
+    it('replaces the zone the plan was made in with the one the user is in now', async () => {
+      const planned = await plan({ timeZone: 'America/New_York' });
+
+      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Tbilisi' } });
+      const [confirmed] = await helpers.updateTransaction({ id: planned.id, payload: { isPlanned: false }, raw: true });
+
+      expect(confirmed!.timeZone).toBe('Asia/Tbilisi');
+    });
+
+    it('keeps a zone named in the confirmation request', async () => {
+      const planned = await plan();
+
+      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Tbilisi' } });
+      const [confirmed] = await helpers.updateTransaction({
+        id: planned.id,
+        payload: { isPlanned: false, timeZone: 'Europe/Istanbul' },
+        raw: true,
+      });
+
+      expect(confirmed!.timeZone).toBe('Europe/Istanbul');
+      expect(confirmed!.utcOffsetMinutes).toBe(180);
+    });
+
+    it('leaves the row as it is for a user without a stored zone', async () => {
+      const planned = await plan();
+
+      const [confirmed] = await helpers.updateTransaction({ id: planned.id, payload: { isPlanned: false }, raw: true });
+
+      expect(confirmed!.timeZone).toBeNull();
+      expect(confirmed!.utcOffsetMinutes).toBeNull();
+    });
+
+    it('does not re-zone a row that is edited while still planned', async () => {
+      const planned = await plan();
+
+      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Tbilisi' } });
+      const [edited] = await helpers.updateTransaction({ id: planned.id, payload: { note: 'edit' }, raw: true });
+
+      expect(edited!.timeZone).toBeNull();
+    });
+  });
+
   describe('services that create a row', () => {
     it('records the zone of a balance adjustment', async () => {
       const account = await helpers.createAccount({ raw: true });
