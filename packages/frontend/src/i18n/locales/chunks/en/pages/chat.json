@@ -118,6 +118,7 @@
       "ignoredNameId": "Ignored name",
       "import": "Import settings",
       "importPendingBankTransactions": "Import pending bank transactions",
+      "inboxKeepResolved": "Resolved inbox items to keep",
       "includeCreditLimitInStats": "Include the credit limit in stats",
       "incomeCategoryIds": "Income categories",
       "incomeTransactionId": "Income transaction",
@@ -208,6 +209,7 @@
       "replaceWithCategoryId": "Replace with category",
       "requestId": "Automation payment",
       "resetOverrides": "Reset overrides",
+      "retentionDays": "Chat history kept (days)",
       "salvageFloorPct": "Salvage floor (%)",
       "savedPivotViews": "Saved pivot views",
       "savedTransactionViews": "Saved transaction views",
@@ -367,6 +369,7 @@
       "fromCard": "From the card “{title}”",
       "yes": "Yes",
       "no": "No",
+      "retentionNever": "Never deleted",
       "noValue": "Not set",
       "affected": {
         "count": "{count} record affected | {count} records affected",
