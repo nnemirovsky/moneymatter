@@ -175,3 +175,11 @@ The ingest pipeline (`services/ingest/`, user guide `packages/docs/.../integrati
 - **Inbox items are system proposals.** The Automation inbox is a `ChatThreads.kind = automationInbox` thread that never runs AI (`startChatRun` refuses it). Post items with `createSystemProposal` (run-free `storeProposal`), never `createProposal`, and close them through `inbox-resolution` (`resolvedElsewhere`) when the record settles elsewhere. A new record kind needs a `proposalId` column, an `onInboxCardRejected` branch and a `nullOnRestore` backup entry.
 - **BullMQ job ids join their parts with `-`**, never `:` (`${requestId}-${attempt}`).
 - **Each new job-backed or mutating route is classified** in `base-currency-guard-coverage.e2e.ts`; a job checks `isBaseCurrencyChangeLocked` itself and re-delays without using an attempt.
+
+## Times and zones
+
+- `Transactions.time` is an instant. `timeZone` and `utcOffsetMinutes` (both nullable, `null` means unknown) say where it happened.
+- A row's zone comes from `resolveRecordedZone` (`@bt/shared/time-zone`), never from ad hoc code. `getStoredUserTimeZone` is the only candidate zone for recording (a user with no setting records `null`); `getUserTimeZone` (`UTC` fallback) is for reading wall clocks and cutting days.
+- Day bounds, report buckets and budget periods use the user's zone (`zonedDayStart` / `zonedDayEnd`, `tzOptions`, `AT TIME ZONE :zone`). A row's own zone never decides which day it belongs to. `Balances` and net-worth history stay on UTC days.
+- MCP and chat tools take a ledger time through `resolveTimeInput` and date ranges through `resolveRangeBound`; they never require UTC from the model. Only tools about market data (security prices, investment trades) keep UTC input.
+- Update tools never re-zone a row: without `timeZone` the stored zone stays and the offset is recomputed at the new time; `timeZone: null` clears both columns.

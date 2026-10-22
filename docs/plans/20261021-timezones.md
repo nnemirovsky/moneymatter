@@ -755,10 +755,10 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 
 ### Task 15: Documentation
 
-- [ ] user docs (`packages/docs`, via `user-docs`): a "Time zone and clock" settings page; how each source records a zone; the note that balance history uses UTC days
-- [ ] `packages/docs/.../integrations/ios-automation.mdx` and `packages/backend/docs/card-payment-ingest.md`: the `timeZone` key and the offset fallback
-- [ ] MCP: the guide paragraph and SKILL.md (done in Task 4), checked against the final tool descriptions
-- [ ] `.claude/docs/backend-conventions.md`: a short "Times and zones" section (instants in `time`, `resolveRecordedZone` for the zone, `getUserTimeZone` for day bounds, `getStoredUserTimeZone` for recording, ledger-time and range tools never take UTC-only input, update tools never re-zone a row)
+- [x] user docs (`packages/docs`, via `user-docs`): a "Time zone and clock" settings page; how each source records a zone; the note that balance history uses UTC days
+- [x] `packages/docs/.../integrations/ios-automation.mdx` and `packages/backend/docs/card-payment-ingest.md`: the `timeZone` key and the offset fallback
+- [x] MCP: the guide paragraph and SKILL.md (done in Task 4), checked against the final tool descriptions
+- [x] `.claude/docs/backend-conventions.md`: a short "Times and zones" section (instants in `time`, `resolveRecordedZone` for the zone, `getUserTimeZone` for day bounds, `getStoredUserTimeZone` for recording, ledger-time and range tools never take UTC-only input, update tools never re-zone a row)
 - [ ] move this plan to `docs/plans/completed/`
 
 ## Post-Completion

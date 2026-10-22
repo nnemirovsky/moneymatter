@@ -331,6 +331,8 @@ This is the manual guide for **iOS 26 or earlier**, and for anyone whose instanc
 
 3. **Format Date** again on the current date, with **Date Format** set to **Custom** and the format `yyyy-MM-dd'T'HH:mmZZZZZ`. This is the time to the minute, used in the next step.
 
+   Optionally add one more **Format Date** on the current date with **Date Format** set to **Custom** and the format `VV`. It prints the time zone's name, such as `Asia/Tbilisi`. Send it as `timeZone` in step 6. Without it MoneyMatter stores the offset of the payment time, and your time zone too when it has that offset.
+
 4. **Text.** Join four values with `|` between them: the card, the merchant, the amount and the time to the minute from step 3.
 
    ```
@@ -354,6 +356,7 @@ This is the manual guide for **iOS 26 or earlier**, and for anyone whose instanc
      | `card`           | Text   | `card` from the dictionary             |
      | `name`           | Text   | `name` from the dictionary             |
      | `time`           | Text   | the ISO 8601 date from step 2          |
+     | `timeZone`       | Text   | the `VV` result (optional)             |
 
 7. **Get Dictionary Value.** Set it to **Value** for the key `response`, on the result of **Get Contents of URL**.
 
