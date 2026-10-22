@@ -146,6 +146,8 @@ const STATUS_VARIANTS: Record<IngestRequestStatus, Variant> = {
   rejected: 'destructive',
   dismissed: 'info',
   ignored: 'info',
+  held: 'warning',
+  enriched: 'success',
 };
 
 const { t } = useI18n({ useScope: 'global' });

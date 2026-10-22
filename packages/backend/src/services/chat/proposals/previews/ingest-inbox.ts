@@ -53,8 +53,6 @@ export const resolveConfirmIngestPayment: PreviewResolver = async ({ userId, arg
     preview: {
       before: {
         ...serializeRow({ row: tx }),
-        // A merchant-app notification that was matched by a guess: the owner is asked to check it.
-        ...(context?.guess && { contextGuess: { service: context.service, store: context.store } }),
         ...(correction && {
           correction: {
             suggestedAccountId: correction.suggestedAccountId,
@@ -67,12 +65,23 @@ export const resolveConfirmIngestPayment: PreviewResolver = async ({ userId, arg
       },
     },
     snapshot: snapshotOf({ id: tx.id }),
-    ...(correction && {
+    ...((correction || context?.guess) && {
       warnings: [
-        {
-          key: 'chat.warnings.ingestEstimate',
-          params: { amount: correction.estimatedAmount.amount, currencyCode: correction.estimatedAmount.currencyCode },
-        },
+        ...(correction
+          ? [
+              {
+                key: 'chat.warnings.ingestEstimate',
+                params: {
+                  amount: correction.estimatedAmount.amount,
+                  currencyCode: correction.estimatedAmount.currencyCode,
+                },
+              },
+            ]
+          : []),
+        // A merchant-app notification matched by a guess between several payments: the owner checks it.
+        ...(context?.guess
+          ? [{ key: 'chat.warnings.ingestContextGuess', params: { service: context.service, store: context.store } }]
+          : []),
       ],
     }),
   };

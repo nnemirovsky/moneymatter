@@ -5,7 +5,7 @@ import IngestRequests from '@models/ingest-requests.model';
 import Transactions from '@models/transactions.model';
 import { RateLimitService } from '@services/common/rate-limit.service';
 import * as helpers from '@tests/helpers';
-import { useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
+import { enableServerModel, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
 import { approveCardAsIs, confirmCardOf } from '@tests/helpers/ingest-cards';
 import * as ingestHelpers from '@tests/helpers/ingest-tokens';
 import { mockNotificationParsing } from '@tests/helpers/notification-ai';
@@ -198,10 +198,12 @@ describe('context notifications', () => {
     });
 
     it('changes the category to the one the store fits, only while it is the pipeline’s own', async () => {
-      const cafe = await helpers.addCustomCategory({ name: 'Bar, cafe', raw: true });
+      await helpers.addCustomCategory({ name: 'Bar, cafe', raw: true });
+      const cafe = (await helpers.getCategoriesList()).find((category) => category.name === 'Bar, cafe')!;
       const { secret } = await setUp();
       const tx = await pay({ secret });
       const prompts: string[] = [];
+      enableServerModel();
       mockNotificationParsing({
         answer: () => ({}),
         contextCategory: ({ prompt }) => {
@@ -232,6 +234,7 @@ describe('context notifications', () => {
         { where: { id: tx.id } },
       );
       const prompts: string[] = [];
+      enableServerModel();
       mockNotificationParsing({ answer: () => ({}), contextCategory: ({ prompt }) => (prompts.push(prompt), { categoryId: null, confidence: 0 }) });
 
       await send({ secret, body: accepted() });
@@ -285,6 +288,7 @@ describe('context notifications', () => {
       const first = await pay({ secret, amount: '60.64' });
       const second = await pay({ secret, amount: '12.30' });
       const prompts: string[] = [];
+      enableServerModel();
       mockNotificationParsing({
         answer: () => ({}),
         contextPick: ({ prompt }) => {
@@ -302,6 +306,13 @@ describe('context notifications', () => {
       const enriched = rows.filter((row) => row.note === 'Urban Roastery&Coffee order from Wolt');
       expect(enriched).toHaveLength(1);
       expect(enriched[0]!.externalData).toMatchObject({ ingest: { context: { guess: true } } });
+
+      // The owner is asked to check a guess on the payment's confirm card.
+      const card = await confirmCardOf({ transactionId: enriched[0]!.id });
+      expect(card.warnings).toContainEqual({
+        key: 'chat.warnings.ingestContextGuess',
+        params: { service: 'Wolt', store: 'Urban Roastery&Coffee' },
+      });
     });
 
     it('falls back to the nearest payment when there is no model', async () => {
@@ -333,6 +344,7 @@ describe('context notifications', () => {
     it('reads a text no rule reads, and keeps only a store the text prints', async () => {
       const { secret } = await setUp();
       const tx = await pay({ secret });
+      enableServerModel();
       mockNotificationParsing({
         answer: () => ({}),
         contextParse: () => ({ isOrderUpdate: true, store: 'Urban Roastery&Coffee', status: 'accepted', confidence: 0.9 }),
@@ -349,6 +361,7 @@ describe('context notifications', () => {
 
     it('ignores a text that is no order, and one it cannot read without a model', async () => {
       const { secret } = await setUp();
+      enableServerModel();
       mockNotificationParsing({ answer: () => ({}), contextParse: () => ({ isOrderUpdate: false, store: null, status: 'other', confidence: 0.9 }) });
 
       const promo = await send({

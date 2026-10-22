@@ -220,7 +220,12 @@
               "security": "Read as a security message, such as a code, so nothing was logged.",
               "promo": "Read as a promotion, so nothing was logged.",
               "info": "Read as information without a payment, so nothing was logged.",
-              "other": "Not a payment, so nothing was logged."
+              "other": "Not a payment, so nothing was logged.",
+              "contextRepeat": "Another notification of an order that was already added, so nothing changed.",
+              "contextNoteKept": "The payment already has your note, so nothing was added.",
+              "contextUnreadable": "The text could not be read as an order, so nothing was added.",
+              "contextExpired": "No payment came in time, so nothing was added.",
+              "contextConfirmed": "The payment was already confirmed, so nothing was changed."
             }
           },
           "retry": "Retry",
@@ -250,7 +255,9 @@
             "parked": "Waiting",
             "rejected": "Refused",
             "dismissed": "Dismissed",
-            "ignored": "Ignored"
+            "ignored": "Ignored",
+            "held": "Waiting for its payment",
+            "enriched": "Added to a payment"
           },
           "kinds": {
             "cardPayment": "Wallet tap",
@@ -326,7 +333,7 @@
         },
         "sources": {
           "title": "Notification sources",
-          "description": "Apps that sent notifications. Wallet and known banks are trusted from the start, you approve the rest. Mute a source to ignore its notifications.",
+          "description": "Apps that sent notifications. Wallet and known banks are trusted from the start, you approve the rest. Delivery and shopping apps are read as context: they add the store to the payment they belong to. Mute a source to ignore its notifications.",
           "loadError": "Could not load the notification sources.",
           "empty": "No sources yet. They appear after the first notification arrives.",
           "unknownApp": "Unknown app",
@@ -338,7 +345,8 @@
             "auto": "Trusted",
             "pending": "Waiting",
             "approved": "Approved",
-            "muted": "Muted"
+            "muted": "Muted",
+            "context": "Context"
           },
           "approve": "Approve",
           "approveAria": "Approve {name}",
@@ -353,7 +361,10 @@
             "confirm": "Forget source",
             "success": "Source forgotten",
             "error": "Could not forget the source"
-          }
+          },
+          "useAsContext": "Use as context",
+          "useAsContextAria": "Use {name} as context",
+          "contextHint": "Its notifications add the store to the payment they belong to. They never create a payment."
         },
         "pending": {
           "title": "Sources waiting for your OK",
@@ -365,7 +376,10 @@
           "approveAria": "Approve {name}",
           "mute": "Mute",
           "muteAria": "Mute {name}",
-          "saveError": "Could not update the source"
+          "saveError": "Could not update the source",
+          "context": "Context only",
+          "contextAria": "Use {name} as context only",
+          "droppedNoAmount": "{count} notification without an amount was dropped. If this app describes your purchases, such as a delivery order, use it as context. | {count} notifications without an amount were dropped. If this app describes your purchases, such as a delivery order, use it as context."
         }
       }
     }

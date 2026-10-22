@@ -24,10 +24,12 @@ The action identifiers and parameter keys are the one thing the generators take 
 
 1. Decodes the setup code (url, token, Cloudflare Access pair, optional `gate`), points the url at `/ingest/event`, and takes the setup code's gate regex or the built-in standard one.
 2. A Wallet tap (`Transaction → Merchant` has a value) posts `kind: walletTransaction` with the run time and `timeSource: run`.
-3. A notification (`Notification → App` has a value) stops when it comes from the Shortcuts app or the MoneyMatter web app, then runs **Match Text** on title, subtitle and body with the gate and stops without a match. Only a text that shows an amount is posted, as `kind: notification` with the notification's own date.
+3. A notification (`Notification → App` has a value) stops when it comes from the Shortcuts app or the MoneyMatter web app, then runs **Match Text** on title, subtitle and body with the gate. Without a match it matches the app's name against the messaging and mail apps (`CONVERSATIONAL_APP_GATE_PATTERN`) and stops for those, so a chat never leaves the phone without an amount; any other app of the trigger list is posted too, and the server decides by the source's mode (a context source is read, anything else without an amount is dropped before it is stored). Posted as `kind: notification` with the notification's own date.
 4. A manual run posts a dry run.
 5. On a 423 (a base-currency change is running) it waits 20 seconds and sends the same body and key once more.
-6. It shows the answer's `summary`, or its `message` on an error, and nothing for an ignored or dropped notification.
+6. It shows the answer's `summary`, or its `message` on an error, and nothing for an ignored or dropped notification. The banner has no title of its own: iOS names the shortcut once in its header.
+
+After any change to a generator, the signed `.shortcut` must be exported again from an iPhone (import the regenerated plist, export, replace the file here); until then `served-payments-shortcut.spec.ts` reports that the served file differs from the generated one.
 
 The trigger variables render the run's input whatever trigger fired, so the Shortcut tells the two apart by typed properties only. It never reads `Sender` or `Recipients`: a notification that is not a chat has neither, and the missing property silently aborts the step.
 

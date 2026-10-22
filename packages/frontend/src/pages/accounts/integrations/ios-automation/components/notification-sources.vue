@@ -36,6 +36,9 @@
           <p v-if="source.sender" class="text-muted-foreground mt-1 text-sm break-words">
             {{ $t(`${LABEL_ROOT}.sender`, { sender: source.sender }) }}
           </p>
+          <p v-if="source.mode === 'context'" class="text-muted-foreground mt-1 text-sm" data-testid="notification-source-context-hint">
+            {{ $t(`${LABEL_ROOT}.contextHint`) }}
+          </p>
         </div>
 
         <!-- The picker is named for assistive tech instead of a visible label: a label above it would push it
@@ -70,7 +73,18 @@
             {{ $t(`${LABEL_ROOT}.approve`) }}
           </Button>
           <Button
-            v-else
+            v-if="source.mode !== 'context' && source.mode !== 'muted' && !source.conversational"
+            variant="outline"
+            class="md:h-9"
+            :disabled="isBusy"
+            :aria-label="$t(`${LABEL_ROOT}.useAsContextAria`, { name: getSourceName({ source, fallback: '' }) })"
+            data-testid="notification-source-context"
+            @click="setMode({ source, mode: 'context' })"
+          >
+            {{ $t(`${LABEL_ROOT}.useAsContext`) }}
+          </Button>
+          <Button
+            v-if="source.mode !== 'muted'"
             variant="outline"
             class="md:h-9"
             :disabled="isBusy"
@@ -146,6 +160,7 @@ const MODE_VARIANTS: Record<NotificationSourceMode, Variant> = {
   pending: 'warning',
   approved: 'success',
   muted: 'destructive',
+  context: 'info',
 };
 
 const { data, isLoading, isError } = useQuery({
@@ -189,7 +204,7 @@ const isBusy = computed(() => isUpdating.value || isForgetting.value);
 const isForgetOpen = ref(false);
 const forgetTarget = ref<NotificationSourceDto | null>(null);
 
-const setMode = async ({ source, mode }: { source: NotificationSourceDto; mode: 'approved' | 'muted' }) => {
+const setMode = async ({ source, mode }: { source: NotificationSourceDto; mode: 'approved' | 'muted' | 'context' }) => {
   try {
     await update({ id: source.id, mode });
   } catch {

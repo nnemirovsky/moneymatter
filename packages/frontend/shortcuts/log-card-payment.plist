@@ -274,8 +274,6 @@
 				<string>is.workflow.actions.notification</string>
 				<key>WFWorkflowActionParameters</key>
 				<dict>
-					<key>WFNotificationActionTitle</key>
-					<string>MoneyMatter - Log card payment</string>
 					<key>WFNotificationActionBody</key>
 					<dict>
 						<key>Value</key>
@@ -351,8 +349,6 @@
 				<string>is.workflow.actions.notification</string>
 				<key>WFWorkflowActionParameters</key>
 				<dict>
-					<key>WFNotificationActionTitle</key>
-					<string>MoneyMatter - Log card payment</string>
 					<key>WFNotificationActionBody</key>
 					<dict>
 						<key>Value</key>
@@ -428,8 +424,6 @@
 				<string>is.workflow.actions.notification</string>
 				<key>WFWorkflowActionParameters</key>
 				<dict>
-					<key>WFNotificationActionTitle</key>
-					<string>MoneyMatter - Log card payment</string>
 					<key>WFNotificationActionBody</key>
 					<dict>
 						<key>Value</key>
@@ -2116,8 +2110,6 @@
 				<string>is.workflow.actions.notification</string>
 				<key>WFWorkflowActionParameters</key>
 				<dict>
-					<key>WFNotificationActionTitle</key>
-					<string>MoneyMatter - Log card payment</string>
 					<key>WFNotificationActionBody</key>
 					<dict>
 						<key>Value</key>

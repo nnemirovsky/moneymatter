@@ -654,7 +654,8 @@
       "ingestEstimate": "The amount on the suggested account, {amount} {currencyCode}, is an estimate from today's exchange rate. Enter the bank's figure if you know it.",
       "subscriptionAlreadyLinked": "{count} of these transactions is already linked to a subscription, so linking is refused until it is unlinked. | {count} of these transactions are already linked to a subscription, so linking is refused until they are unlinked.",
       "subscriptionTypeMismatch": "{count} of these transactions is not of the same type (expense or income) as the subscription, so linking is refused. | {count} of these transactions are not of the same type (expense or income) as the subscription, so linking is refused.",
-      "subscriptionNotLinked": "{count} of these transactions is not linked to this subscription and stays as it is. | {count} of these transactions are not linked to this subscription and stay as they are."
+      "subscriptionNotLinked": "{count} of these transactions is not linked to this subscription and stays as it is. | {count} of these transactions are not linked to this subscription and stay as they are.",
+      "ingestContextGuess": "Matched to this payment from a {service} notification about {store}, by a guess between several payments. Check the note and the category."
     },
     "notices": {
       "stepLimit": "Stopped after {limit} steps. Ask again to continue.",

@@ -6,6 +6,7 @@
  */
 
 import { isContextApp } from './context-apps';
+import { CONVERSATIONAL_APP_NAMES } from './conversational-apps';
 
 /**
  * `auto`: trusted from the start (Wallet and the seeded bank apps); `pending`: waits for the user and
@@ -80,28 +81,6 @@ const CONVERSATIONAL_BUNDLE_IDS: ReadonlySet<string> = new Set([
   'com.facebook.messenger',
   'com.tinyspeck.chatslack',
   'com.hammerandchisel.discord',
-]);
-
-/** The same apps by normalized name, for a notification that carries no bundle id. */
-export const CONVERSATIONAL_APP_NAMES: ReadonlySet<string> = new Set([
-  'messages',
-  'sms',
-  'mail',
-  'gmail',
-  'outlook',
-  'whatsapp',
-  'telegram',
-  'viber',
-  'signal',
-  'messenger',
-  'slack',
-  'discord',
-  'сообщения',
-  'почта',
-  'повідомлення',
-  'пошта',
-  'შეტყობინებები',
-  'ფოსტა',
 ]);
 
 /**
@@ -206,12 +185,3 @@ export const getDefaultSourceMode = ({ bundleId, appName }: AppIdentity): Notifi
 
   return isKnownBankApp({ bundleId, appName }) ? 'auto' : 'pending';
 };
-
-/**
- * The messaging and mail apps as one ICU pattern the shortcut matches against a notification's App
- * name: a match stops the shortcut when the amount gate missed, so a chat or a mail never leaves the
- * phone without an amount. Case-insensitive through `(?i:...)`, the syntax ICU and JavaScript read alike.
- */
-export const CONVERSATIONAL_APP_GATE_PATTERN = `^(?i:${[...CONVERSATIONAL_APP_NAMES]
-  .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-  .join('|')})$`;

@@ -4,8 +4,10 @@ import type { GateStrictness } from './amount-gate';
 export * from './amount-gate';
 export * from './card-payment-setup-code';
 export * from './context-apps';
+export * from './conversational-apps';
 export * from './ingest-event';
 export * from './normalize-card-label';
+export * from './security-markers';
 export * from './notification-sources';
 
 /** Scopes an ingest token can carry. A scope names the one thing the token may do. */

@@ -13,7 +13,8 @@
  *    `/ingest/event` and pick the gate regex;
  * 2. a Wallet tap (`Transaction → Merchant` has a value) posts `kind: walletTransaction`;
  * 3. a notification (`Notification → App` has a value) stops for our own output, runs the amount gate
- *    (Match Text, then If) and posts `kind: notification`;
+ *    (Match Text, then If) and posts `kind: notification`; without an amount only a messaging or mail app
+ *    stops, any other app of the trigger list is posted and the server decides by its source's mode;
  * 4. a manual run posts a dry run;
  * 5. one retry after a wait when a base-currency change answers 423, then the banner.
  */
@@ -22,6 +23,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import plist from 'plist';
 
 import { AMOUNT_GATE_PATTERNS } from '../../../shared/src/types/ingest/amount-gate.ts';
+import { CONVERSATIONAL_APP_GATE_PATTERN } from '../../../shared/src/types/ingest/conversational-apps.ts';
+import { SECURITY_GATE_PATTERN } from '../../../shared/src/types/ingest/security-markers.ts';
 import {
   type Dict,
   INPUT_CONTENT_ITEM_CLASSES,
@@ -250,6 +253,11 @@ export const buildPaymentsShortcut = (): Dict => {
       [SHORTCUT_PARAMS.matchCaseSensitive]: true,
     },
   });
+  // No amount. Two stops, then the notification goes on and the server decides by the source's mode (a
+  // context source is read, anything else without an amount is dropped before it is stored):
+  //  1. a messaging or mail app stops, so a chat never leaves the phone without an amount. This is the one
+  //     rule about chats: change it here and in the server's source handling (`ingestNotification`);
+  //  2. a text that asks for a one-time code stops, for every app, so a code is never sent.
   const gateMissGroup = kit.openGroup();
   kit.conditional({
     group: gateMissGroup,
@@ -257,7 +265,38 @@ export const buildPaymentsShortcut = (): Dict => {
     subject: from({ output: matches }),
     condition: 'Does Not Have Any Value',
   });
-  kit.stop();
+  const stopForConversationalApps = () => {
+    const conversational = add({
+      identifier: SHORTCUT_ACTIONS.matchText,
+      name: 'Matches',
+      parameters: {
+        [SHORTCUT_PARAMS.matchText]: tokenString({ parts: [notification({ property: NOTIFICATION_PROPERTY.app })] }),
+        [SHORTCUT_PARAMS.matchPattern]: CONVERSATIONAL_APP_GATE_PATTERN,
+        [SHORTCUT_PARAMS.matchCaseSensitive]: true,
+      },
+    });
+    const group = kit.openGroup();
+    kit.conditional({ group, mode: 0, subject: from({ output: conversational }), condition: 'Has Any Value' });
+    kit.stop();
+    kit.conditional({ group, mode: 2 });
+  };
+  const stopForSecurityText = () => {
+    const security = add({
+      identifier: SHORTCUT_ACTIONS.matchText,
+      name: 'Matches',
+      parameters: {
+        [SHORTCUT_PARAMS.matchText]: tokenString({ parts: [from({ output: gateText })] }),
+        [SHORTCUT_PARAMS.matchPattern]: SECURITY_GATE_PATTERN,
+        [SHORTCUT_PARAMS.matchCaseSensitive]: true,
+      },
+    });
+    const group = kit.openGroup();
+    kit.conditional({ group, mode: 0, subject: from({ output: security }), condition: 'Has Any Value' });
+    kit.stop();
+    kit.conditional({ group, mode: 2 });
+  };
+  stopForConversationalApps();
+  stopForSecurityText();
   kit.conditional({ group: gateMissGroup, mode: 2 });
 
   // The notification's own date is its time; the key holds it to the second.

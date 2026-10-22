@@ -23,9 +23,27 @@
           <p v-if="source.sender" class="text-muted-foreground mt-1 text-sm break-words">
             {{ $t(`${LABEL_ROOT}.sender`, { sender: source.sender }) }}
           </p>
+          <p
+            v-if="source.counters.noAmount"
+            class="text-muted-foreground mt-1 text-sm"
+            data-testid="pending-source-dropped"
+          >
+            {{ $t(`${LABEL_ROOT}.droppedNoAmount`, { count: source.counters.noAmount }, source.counters.noAmount) }}
+          </p>
         </div>
 
-        <div class="flex gap-2 self-start @lg/integrations:self-center">
+        <div class="flex flex-wrap gap-2 self-start @lg/integrations:self-center">
+          <Button
+            v-if="!source.conversational"
+            size="sm"
+            variant="outline"
+            :disabled="isUpdating"
+            :aria-label="$t(`${LABEL_ROOT}.contextAria`, { name: getSourceName({ source, fallback: '' }) })"
+            data-testid="pending-source-context"
+            @click="setMode({ source, mode: 'context' })"
+          >
+            {{ $t(`${LABEL_ROOT}.context`) }}
+          </Button>
           <Button
             size="sm"
             :disabled="isUpdating"
@@ -78,13 +96,13 @@ const sources = computed(() => (data.value ?? []).filter((source) => source.mode
 
 // Approving releases the requests held for the source and muting deletes their text, so both lists refresh.
 const { mutateAsync: update, isPending: isUpdating } = useInvalidatingMutation({
-  mutationFn: (variables: { id: NotificationSourceDto['id']; mode: 'approved' | 'muted' }) =>
+  mutationFn: (variables: { id: NotificationSourceDto['id']; mode: 'approved' | 'muted' | 'context' }) =>
     updateNotificationSource(variables),
   invalidateKeys: [VUE_QUERY_CACHE_KEYS.notificationSources, VUE_QUERY_CACHE_KEYS.cardPaymentRequests],
   errorKey: `${LABEL_ROOT}.saveError`,
 });
 
-const setMode = async ({ source, mode }: { source: NotificationSourceDto; mode: 'approved' | 'muted' }) => {
+const setMode = async ({ source, mode }: { source: NotificationSourceDto; mode: 'approved' | 'muted' | 'context' }) => {
   try {
     await update({ id: source.id, mode });
   } catch {

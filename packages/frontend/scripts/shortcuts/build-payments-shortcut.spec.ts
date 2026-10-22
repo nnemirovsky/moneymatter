@@ -4,8 +4,10 @@ import {
   AMOUNT_GATE_SAMPLES,
   API_ERROR_CODES,
   CARD_PAYMENT_REQUEST_KEYS,
+  CONVERSATIONAL_APP_GATE_PATTERN,
   INGEST_EVENT_KINDS,
   NOTIFICATION_REQUEST_KEYS,
+  SECURITY_GATE_PATTERN,
   encodeSetupCode,
 } from '@bt/shared/types';
 // @vitest-environment node
@@ -300,15 +302,58 @@ describe('payments shortcut generator', () => {
       expect(names).toEqual(['Title', 'Subtitle', 'Body']);
     });
 
-    it('stops when nothing matched, before anything is sent', () => {
+    it('checks the app when nothing matched, and stops only for a messaging or mail app', () => {
       const index = indexOfAction(match!);
       const check = actions[index + 1]!;
+      const appMatch = actions[index + 2]!;
+      const appCheck = actions[index + 3]!;
 
       expect(id(check)).toBe(SHORTCUT_ACTIONS.conditional);
       expect(params(check)[SHORTCUT_PARAMS.condition]).toBe(CONDITION_CODES['Does Not Have Any Value']);
       expect(params(check)[SHORTCUT_PARAMS.input].Variable.Value.OutputUUID).toBe(params(match!).UUID);
-      expect(id(actions[index + 2]!)).toBe(SHORTCUT_ACTIONS.exit);
+
+      expect(id(appMatch)).toBe(SHORTCUT_ACTIONS.matchText);
+      expect(params(appMatch)[SHORTCUT_PARAMS.matchPattern]).toBe(CONVERSATIONAL_APP_GATE_PATTERN);
+      const input = Object.values<Dict>(params(appMatch)[SHORTCUT_PARAMS.matchText].Value.attachmentsByRange)[0]!;
+      expect(input.Aggrandizements[0].PropertyName).toBe('App');
+
+      expect(params(appCheck)[SHORTCUT_PARAMS.condition]).toBe(CONDITION_CODES['Has Any Value']);
+      expect(params(appCheck)[SHORTCUT_PARAMS.input].Variable.Value.OutputUUID).toBe(params(appMatch).UUID);
+      expect(id(actions[index + 4]!)).toBe(SHORTCUT_ACTIONS.exit);
       expect(index).toBeLessThan(indexOfAction(notificationRequest!));
+    });
+
+    it('stops a text that asks for a one-time code, for every app, before anything is sent', () => {
+      const index = indexOfAction(match!);
+      const securityMatch = actions[index + 6]!;
+      const securityCheck = actions[index + 7]!;
+
+      expect(id(securityMatch)).toBe(SHORTCUT_ACTIONS.matchText);
+      expect(params(securityMatch)[SHORTCUT_PARAMS.matchPattern]).toBe(SECURITY_GATE_PATTERN);
+      expect(params(securityCheck)[SHORTCUT_PARAMS.condition]).toBe(CONDITION_CODES['Has Any Value']);
+      expect(params(securityCheck)[SHORTCUT_PARAMS.input].Variable.Value.OutputUUID).toBe(params(securityMatch).UUID);
+      expect(id(actions[index + 8]!)).toBe(SHORTCUT_ACTIONS.exit);
+      expect(index + 8).toBeLessThan(indexOfAction(notificationRequest!));
+    });
+
+    it('reads the security pattern the way the server does', () => {
+      const pattern = new RegExp(SECURITY_GATE_PATTERN, 'u');
+
+      expect(pattern.test('Your code is 123456. Do not share it with anyone')).toBe(true);
+      expect(pattern.test('Enter the code 482913 to confirm the login')).toBe(true);
+      expect(pattern.test('Код 5521, никому не сообщайте')).toBe(true);
+      expect(pattern.test('Purchase approved. Auth code 123456')).toBe(false);
+      expect(pattern.test('Order confirmed! Urban Roastery has accepted your order')).toBe(false);
+      expect(pattern.test('Do not share your card with anyone')).toBe(false);
+    });
+
+    it('sends a notification without an amount from any other app', () => {
+      // Between the app check and the request there is no further Stop that a non-chat app could meet.
+      const request = indexOfAction(notificationRequest!);
+      const appMatch = indexOfAction(byId(SHORTCUT_ACTIONS.matchText)[1]!);
+      const stops = actions.slice(appMatch + 9, request).filter((action) => id(action) === SHORTCUT_ACTIONS.exit);
+
+      expect(stops).toEqual([]);
     });
 
     it('lets the shared samples through the same regex as the server does', () => {
