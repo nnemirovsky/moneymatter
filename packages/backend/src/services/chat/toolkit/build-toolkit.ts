@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 
 import { getToolCatalog, type ToolCatalogEntry } from '../../mcp/tool-catalog';
-import { CHAT_CORE_TOOLS } from '../policies/core-tools';
+import { CHAT_CORE_TOOLS, CHAT_WRITE_PRELOAD_TOOLS } from '../policies/core-tools';
 import { CHAT_EXCLUDED_TOOLS } from '../policies/excluded';
 import { createAskClarificationTool, CLARIFICATION_WAITING_MESSAGE } from './ask-clarification';
 import { runCatalogRead } from './catalog-read';
@@ -156,11 +156,15 @@ export function buildChatToolkit({
   const byName = new Map(tools.map((tool) => [tool.name, tool]));
   const nativeNames = tools.filter((tool) => tool.kind === 'native').map((tool) => tool.name);
 
+  const baseToolNames = () =>
+    [...CHAT_CORE_TOOLS, ...(run.preloadWrites ? CHAT_WRITE_PRELOAD_TOOLS : [])].filter((name) => byName.has(name));
+
   return {
     tools,
     getTool: ({ name }) => byName.get(name),
+    baseToolNames,
     activeToolNames: () =>
-      [...new Set([...CHAT_CORE_TOOLS, ...nativeNames, ...state.discovered])].filter((name) => byName.has(name)),
+      [...new Set([...baseToolNames(), ...nativeNames, ...state.discovered])].filter((name) => byName.has(name)),
     isAwaitingClarification: () => state.awaitingClarification,
     getReadResult: ({ callId }) => state.reads.get(callId)?.fullText ?? null,
     toolCallRecords: () => state.records,

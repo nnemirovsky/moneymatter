@@ -119,6 +119,7 @@
       "ignoredNameId": "Ігнороване ім'я",
       "import": "Налаштування імпорту",
       "importPendingBankTransactions": "Імпортувати очікувані банківські транзакції",
+      "inboxKeepResolved": "Опрацьованих пунктів інбоксу зберігати",
       "includeCreditLimitInStats": "Враховувати кредитний ліміт у статистиці",
       "incomeCategoryIds": "Категорії доходів",
       "incomeTransactionId": "Транзакція доходу",
@@ -209,6 +210,7 @@
       "replaceWithCategoryId": "Замінити категорією",
       "requestId": "Платіж з автоматизації",
       "resetOverrides": "Скинути ручні значення",
+      "retentionDays": "Зберігати історію чатів (днів)",
       "salvageFloorPct": "Мінімальна залишкова вартість (%)",
       "savedPivotViews": "Збережені зведені подання",
       "savedTransactionViews": "Збережені подання транзакцій",
@@ -370,6 +372,7 @@
       "fromCard": "З картки «{title}»",
       "yes": "Так",
       "no": "Ні",
+      "retentionNever": "Не видаляти",
       "noValue": "Не вказано",
       "affected": {
         "count": "Зачеплено {count} запис | Зачеплено {count} записи | Зачеплено {count} записів",

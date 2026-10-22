@@ -61,7 +61,7 @@ export const runAiSdkChat: ChatRunner = async (input) => {
     system: toSystemMessage({ content: system, provider: aiClient.provider }),
     messages,
     tools: toAiSdkTools({ toolkit }),
-    // The core set and the chat's own tools, plus whatever `find_capabilities` found so far.
+    // The core reads (and the preloaded writes on a turn that starts with them), the chat's own tools, plus whatever `find_capabilities` found so far.
     prepareStep: () => ({ activeTools: toolkit.activeToolNames() }),
     stopWhen: [stepCountIs(CHAT_MAX_STEPS), hasToolCall('ask_clarification')],
     abortSignal: AbortSignal.any([signal, callSignal]),

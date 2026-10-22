@@ -154,13 +154,14 @@ describe('AI SDK chat runner', () => {
     expect(toolNames).toEqual(
       expect.arrayContaining([
         'get_spending_by_categories',
-        'create_transaction',
         'find_capabilities',
         'ask_clarification',
         'render_chart',
         'read_attachment',
       ]),
     );
+    // An answer turn offers no write tool: a change finds its tool first.
+    expect(toolNames).not.toContain('create_transaction');
     expect(toolNames).not.toContain('delete_account');
     expect(toolMessages({ body: script.requests[1]! })[0]).toMatch(
       /^<<<UNTRUSTED kind=toolResult nonce=[0-9a-f]{32}>>>/,
@@ -174,6 +175,15 @@ describe('AI SDK chat runner', () => {
         {
           text: 'Let me check',
           toolCalls: [{ id: 'call_cats', name: 'get_categories', arguments: {} }],
+        },
+        {
+          toolCalls: [
+            {
+              id: 'call_find',
+              name: 'find_capabilities',
+              arguments: { query: 'create category create transaction', limit: 8 },
+            },
+          ],
         },
         { toolCalls: [{ id: 'call_cat', name: 'create_category', arguments: { name: 'Coffee beans' } }] },
         (body) => {
@@ -225,6 +235,7 @@ describe('AI SDK chat runner', () => {
     const account = await helpers.createAccount({ raw: true });
     const { script, threadId } = await arrange({
       turns: [
+        { toolCalls: [{ id: 'call_find', name: 'find_capabilities', arguments: { query: 'create transaction' } }] },
         {
           toolCalls: [
             {
@@ -241,10 +252,10 @@ describe('AI SDK chat runner', () => {
     const { message } = await send({ threadId, payload: { text: 'Log a PLN invoice' } });
 
     expect(message.status).toBe('complete');
-    expect(toolMessages({ body: script.requests[1]! }).join('\n')).toMatch(/originalCurrencyCode/);
+    expect(toolMessages({ body: script.requests[2]! }).join('\n')).toMatch(/originalCurrencyCode/);
     expect(await ChatProposals.count({ where: { threadId } })).toBe(0);
     expect(partsOfType({ parts: message.parts, type: 'proposal' })).toEqual([]);
-    expect(partsOfType({ parts: message.parts, type: 'toolCall' })[0]).toMatchObject({
+    expect(partsOfType({ parts: message.parts, type: 'toolCall' }).at(-1)).toMatchObject({
       toolName: 'create_transaction',
       status: 'error',
     });

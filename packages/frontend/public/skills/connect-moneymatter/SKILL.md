@@ -173,6 +173,7 @@ Includes tag reminders.
 | `dismiss_notification`    | Dismiss a notification from the list and the unread count (`finance:write`)                    |
 | `get_user_settings`       | App settings: language, notifications, dashboard, layout, saved views, FIRE inputs; no AI part |
 | `update_user_settings`    | Patch app settings; arrays replaced whole; `fire` needs the FIRE planner (`finance:write`)     |
+| `update_chat_settings`    | Chat retention (7/30/90/365 days or null), resolved inbox cards kept (`finance:write`)         |
 
 ### Payees
 
@@ -597,7 +598,7 @@ multi-currency data.
   `preview_transaction_automation` and `list_transfer_suggestions`, which are
   refused too. A few writes that touch no amounts (attachments, rate-source
   tests) are exempt. Wait for the status to finish, then retry. A read-only account (expired plan) can read
-  and use only a few writes (`mark_notifications_read`, `update_user_settings`,
+  and use only a few writes (`mark_notifications_read`, `update_user_settings`, `update_chat_settings`,
   the first `change_base_currency`); every other write is refused whatever
   scopes were granted.
 - Destructive calls are deliberately narrow. `bulk_delete_transactions` needs

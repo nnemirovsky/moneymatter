@@ -65,6 +65,15 @@ describe('editing a card that is still pending', () => {
   it('keeps the pending card and tells the model when its replacement cannot be approved', async () => {
     const { threadId, script } = await proposeCards({
       turns: [
+        {
+          toolCalls: [
+            {
+              id: 'call_find',
+              name: 'find_capabilities',
+              arguments: { query: 'create category delete transaction', limit: 8 },
+            },
+          ],
+        },
         { toolCalls: [{ name: 'create_category', arguments: { name: 'Taxi' } }] },
         (body) => {
           const ref = proposalRefsIn({ body }).at(-1)!;
@@ -84,7 +93,7 @@ describe('editing a card that is still pending', () => {
     const stored = await ChatProposals.findAll({ where: { threadId }, order: [['createdAt', 'ASC']] });
     expect(stored.map((card) => [card.toolName, card.status])).toEqual([['create_category', 'pending']]);
 
-    const toolResults = (script.requests[2]!.messages ?? []).filter((message) => message.role === 'tool');
+    const toolResults = (script.requests[3]!.messages ?? []).filter((message) => message.role === 'tool');
     expect(String(toolResults.at(-1)!.content)).toMatch(/cannot be approved/);
   });
 });
