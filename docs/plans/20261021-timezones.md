@@ -391,7 +391,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - **`timeZone: null` means "Unknown" and is shown as if the feature did not exist.** Every display path formats the instant in the viewing zone and never converts to, labels, or compares with a recorded zone:
   - the list and table tooltip show one line (`formatDateTime` in the viewing zone) and no second-zone line;
   - the transaction dialog shows no "Recorded in" caption; the optional zone field, when the user has turned it on, shows its placeholder "Unknown" and stays empty;
-  - chat cards, edit inputs and data export behave the same for `null` and non-`null` rows (viewing zone only; export's `localTime` uses the user's zone).
+  - chat cards and edit inputs behave the same for `null` and non-`null` rows (viewing zone only); data export's `localTime` uses the row's own offset, or the user's zone when the row has none (Task 7).
   - Chosen: no "Unknown" text in the detail view. Almost every existing row is `null`, so a label there would be noise on every old transaction.
 - A helper `hasDistinctRecordedZone({ timeZone, utcOffsetMinutes, viewingZone, instant })` is the only gate for the second line and the caption: `false` for `null`/`null`, `false` when the recorded offset equals the viewing zone's offset at that instant, `true` otherwise. An offset-only row shows its second line as `UTC+02:00`.
 
