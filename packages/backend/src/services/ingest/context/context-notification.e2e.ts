@@ -52,8 +52,8 @@ const setUp = async () => {
 };
 
 /** Logs a Wolt payment through Wallet's notification and returns its row. */
-const pay = async ({ secret, amount }: { secret: string; amount?: string }) => {
-  const res = await send({ secret, body: walletPayment({ amount }) });
+const pay = async ({ secret, amount, merchant }: { secret: string; amount?: string; merchant?: string }) => {
+  const res = await send({ secret, body: walletPayment({ amount, merchant }) });
   expect(res.body.response.outcome).toBe('logged');
   const request = (await IngestRequests.findOne({ where: { id: res.body.response.requestId } }))!;
 
@@ -644,6 +644,76 @@ describe('context notifications', () => {
       expect(statuses[120]).toBe(429);
       expect(payment.status).toBe(200);
       expect(payment.body.response.outcome).toBe('logged');
+    });
+
+    it('offers a sender named after a merchant just paid, and keeps the names of other senders to itself', async () => {
+      const { secret } = await setUp();
+      await pay({ secret, merchant: 'Temu' });
+
+      const other = await send({ secret, body: probe({ title: 'Somebody else' }) });
+      const temu = await send({ secret, body: probe({ title: 'Temu' }) });
+
+      expect(other.body.response).toEqual({ outcome: 'probe', notify: false });
+      expect(temu.body.response).toEqual({ outcome: 'probe', notify: false, send: 'yes' });
+      const sources = await helpers.listNotificationSources({ raw: true });
+      expect(sources.map((source) => source.sender)).toEqual(['Temu']);
+      expect(sources[0]).toMatchObject({ appName: 'Mail', mode: 'pending', conversational: true, counters: {} });
+    });
+
+    it('never offers a sender the owner muted, or one that paid nothing recently', async () => {
+      const { secret } = await setUp();
+      await pay({ secret, merchant: 'Temu' });
+      await send({ secret, body: probe({ title: 'Temu' }) });
+      const [source] = await helpers.listNotificationSources({ raw: true });
+      await helpers.updateNotificationSource({ id: source!.id, payload: { mode: 'muted' }, raw: true });
+
+      const muted = await send({ secret, body: probe({ title: 'Temu' }) });
+      const unrelated = await send({ secret, body: probe({ title: 'Amazon' }) });
+
+      expect(muted.body.response.send).toBeUndefined();
+      expect(unrelated.body.response.send).toBeUndefined();
+    });
+
+    it('reads that one notification for the payment: no note that repeats the merchant, the store’s category', async () => {
+      const shopping = await helpers.addCustomCategory({ name: 'Shopping', raw: true });
+      const shoppingId = (await helpers.getCategoriesList()).find((category) => category.name === 'Shopping')!.id;
+      expect(shopping).toBeDefined();
+      const { secret } = await setUp();
+      const tx = await pay({ secret, merchant: 'Temu' });
+      await send({ secret, body: probe({ title: 'Temu' }) });
+      enableServerModel();
+      mockNotificationParsing({
+        answer: () => ({}),
+        contextCategory: ({ prompt }) => {
+          const alias = prompt.split('\n').find((line) => line.endsWith('|Shopping'))!.split('|')[0]!;
+
+          return { categoryId: alias, confidence: 0.9 };
+        },
+      });
+
+      const res = await send({
+        secret,
+        body: mail({ title: 'Temu', body: 'Your Temu order confirmation. Your order is confirmed!' }),
+      });
+
+      expect(res.body.response.outcome).toBe('enriched');
+      const updated = await reload({ id: tx.id });
+      expect(updated.note).toBeNull();
+      expect(updated.categoryId).toBe(shoppingId);
+    });
+
+    it('adds nothing for a marketplace order when there is no category to give', async () => {
+      const { secret } = await setUp();
+      const tx = await pay({ secret, merchant: 'Temu' });
+      await send({ secret, body: probe({ title: 'Temu' }) });
+
+      const res = await send({
+        secret,
+        body: mail({ title: 'Temu', body: 'Your Temu order confirmation. Your order is confirmed!' }),
+      });
+
+      expect(res.body.response).toMatchObject({ outcome: 'ignored', reason: 'contextNoteKept' });
+      expect((await reload({ id: tx.id })).note).toBeNull();
     });
 
     it('answers a probe that has no sender with no text to send', async () => {

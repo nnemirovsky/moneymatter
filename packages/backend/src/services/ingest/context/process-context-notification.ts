@@ -64,7 +64,10 @@ export const processContextNotification = async ({
   }
 
   // A status line without a store, a cancelled order and a text that is no order add nothing.
-  if (!parsed || !parsed.store || parsed.status === 'cancelled') {
+  // A sender read once for a payment just made (a marketplace: "Temu" writes about its own order) names no
+  // store besides itself: the service stands in, so the order can still give the payment its category.
+  const store = parsed?.store ?? (parsed && row.payload.oneOffContext === true ? service : null);
+  if (!parsed || !store || parsed.status === 'cancelled') {
     await ignoreContext({ requestId: row.id, reason: 'info', parsed: { parser, kind: 'context', confidence } });
 
     return;
@@ -72,7 +75,7 @@ export const processContextNotification = async ({
 
   const context: StoredContext = {
     service,
-    store: parsed.store,
+    store,
     status: parsed.status,
     at: typeof row.payload.time === 'string' ? row.payload.time : row.createdAt.toISOString(),
     excerpt: excerptOf(text),

@@ -17,6 +17,7 @@ import { ingestMarkersOf, isUnconfirmedIngest } from '../ingest-markers';
 import { lockContext } from './context-lock';
 import type { StoredContext } from './context-types';
 import { findContextCandidates } from './find-context-payment';
+import { isSameMerchant } from '../twins/parked-twin-rule';
 import { isPipelineCategory } from './pick-context-category';
 
 /** Why the request ends up where it does; the caller decides what to do with a refusal. */
@@ -107,7 +108,9 @@ const applyContextImpl = async ({
   }
 
   const noteEligible = isNoteReplaceable({ note: tx.note, systemNote: markers.systemNote });
-  const note = noteEligible
+  // A store that is the service itself ("Temu order from Temu") says nothing the payee does not: no note.
+  const redundant = isSameMerchant({ left: context.store, right: context.service });
+  const note = noteEligible && !redundant
     ? t({ key: 'ingest.contextNote', variables: { store: context.store, service: context.service }, locale })
     : null;
   const categoryEligible =
