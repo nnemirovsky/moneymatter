@@ -765,7 +765,7 @@ manual IANA zone ─────┴─> settings.timeZone  (+ timeZoneSource, ho
 - [x] `packages/docs/.../integrations/ios-automation.mdx` and `packages/backend/docs/card-payment-ingest.md`: the `timeZone` key and the offset fallback
 - [x] MCP: the guide paragraph and SKILL.md (done in Task 4), checked against the final tool descriptions
 - [x] `.claude/docs/backend-conventions.md`: a short "Times and zones" section (instants in `time`, `resolveRecordedZone` for the zone, `getUserTimeZone` for day bounds, `getStoredUserTimeZone` for recording, ledger-time and range tools never take UTC-only input, update tools never re-zone a row)
-- [ ] move this plan to `docs/plans/completed/`
+- [x] move this plan to `docs/plans/completed/`
 
 ## Post-Completion
 
