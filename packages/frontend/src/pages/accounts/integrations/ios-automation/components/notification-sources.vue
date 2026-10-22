@@ -56,12 +56,14 @@
           />
         </div>
 
-        <!-- `md:h-9` is the picker's own height rule, so the buttons are as tall as the picker next to them. -->
+        <!-- `md:h-9` is the picker's own height rule, so the buttons are as tall as the picker next to them.
+             The buttons have fixed widths on the row layout (sized for the longest en and uk label), so
+             Approve and Mute take the same room and the picker keeps its edges from row to row. -->
         <div class="flex gap-2 @lg/integrations:shrink-0">
           <Button
             v-if="source.mode === 'muted'"
             variant="outline"
-            class="md:h-9"
+            class="flex-1 md:h-9 @lg/integrations:w-32 @lg/integrations:flex-none"
             :disabled="isBusy"
             :aria-label="$t(`${LABEL_ROOT}.approveAria`, { name: getSourceName({ source, fallback: '' }) })"
             data-testid="notification-source-approve"
@@ -72,7 +74,7 @@
           <Button
             v-else
             variant="outline"
-            class="md:h-9"
+            class="flex-1 md:h-9 @lg/integrations:w-32 @lg/integrations:flex-none"
             :disabled="isBusy"
             :aria-label="$t(`${LABEL_ROOT}.muteAria`, { name: getSourceName({ source, fallback: '' }) })"
             data-testid="notification-source-mute"
@@ -82,7 +84,7 @@
           </Button>
           <Button
             variant="soft-destructive"
-            class="md:h-9"
+            class="flex-1 md:h-9 @lg/integrations:w-24 @lg/integrations:flex-none"
             :disabled="isBusy"
             :aria-label="$t(`${LABEL_ROOT}.forgetAria`, { name: getSourceName({ source, fallback: '' }) })"
             data-testid="notification-source-forget"
