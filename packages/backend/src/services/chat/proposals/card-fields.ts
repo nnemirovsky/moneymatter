@@ -31,6 +31,11 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const isIdLike = ({ node }: { node: JsonSchema }) =>
   node.type === 'string' || (node.type === 'array' && simplify({ node: node.items }).type === 'string');
 
+/** Whether the schema also accepts `null`. */
+const isNullable = ({ node }: { node: unknown }): boolean =>
+  Array.isArray((node as JsonSchema | null)?.anyOf) &&
+  ((node as JsonSchema).anyOf as JsonSchema[]).some((alternative) => alternative.type === 'null');
+
 /** How a card shows one argument, from its schema and the entity the policy maps it to. */
 export function describeField({
   key,
@@ -57,6 +62,12 @@ export function describeField({
   // A list of presets (reminder offsets) reads as its options, one name each.
   if (schema.type === 'array' && Array.isArray(simplify({ node: schema.items }).enum)) {
     return { display: { kind: 'enum' }, editable: null };
+  }
+
+  // The editor's options are strings and have no "none": a number-or-null choice would send "30" back
+  // for a number, or never offer null. The card shows it and leaves the change to a new proposal.
+  if (Array.isArray(schema.enum) && schema.enum.some((option) => typeof option !== 'string') && isNullable({ node })) {
+    return { display: { kind: 'text' }, editable: null };
   }
 
   if (Array.isArray(schema.enum)) {

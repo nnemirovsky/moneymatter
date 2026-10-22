@@ -295,7 +295,7 @@ A **source** is `NotificationSources`: the app (bundle id, else the normalized a
 
 | Mode       | Meaning                                                                                                                          |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `auto`     | Trusted from the start: Wallet and a seed list of known bank apps.                                                               |
+| `auto`     | Known: trusted from the start. Wallet and a seed list of known apps.                                                             |
 | `pending`  | Every other new source. Its notifications park as `sourceNotApproved` without an AI call, and its first one posts an inbox card. |
 | `approved` | The user said yes. Approving enqueues the requests it holds.                                                                     |
 | `muted`    | The user said no. Muting deletes the held requests and drops new ones.                                                           |

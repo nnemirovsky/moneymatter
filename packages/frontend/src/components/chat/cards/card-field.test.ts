@@ -199,6 +199,26 @@ describe('CardField', () => {
     expect(wrapper.find('[data-testid="field-value"]').text()).toBe('Dinner');
   });
 
+  it('reads a null retention as threads that are never deleted, before and after', () => {
+    const wrapper = mountField({
+      field: buildField({
+        path: 'retentionDays',
+        value: null,
+        before: 30,
+        display: { kind: 'text' },
+      }),
+    });
+
+    expect(wrapper.text()).toContain('Chat history kept (days)');
+    expect(wrapper.find('[data-testid="field-value"]').text()).toBe('Never deleted');
+    expect(wrapper.find('[data-testid="field-before"]').text()).toContain('Was 30');
+    expect(
+      mountField({ field: buildField({ path: 'retentionDays', value: 7, before: null, display: { kind: 'text' } }) })
+        .find('[data-testid="field-before"]')
+        .text(),
+    ).toContain('Was Never deleted');
+  });
+
   it('does not show a before value when there is none', () => {
     const wrapper = mountField({ field: buildField({ path: 'note', value: 'Dinner', display: { kind: 'text' } }) });
 

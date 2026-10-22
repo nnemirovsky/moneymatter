@@ -12,6 +12,19 @@ import { describeField } from './card-fields';
 const ID = '3f1b9c2e-8d4a-4b6e-9c1d-2a7e5f0b8c11';
 
 describe('describeField', () => {
+  it('shows the retention of update_chat_settings without an editor: its options are numbers or none', () => {
+    const entry = getToolCatalog().find((tool) => tool.name === 'update_chat_settings')!;
+    const properties = (getModelSchema({ entry }).properties ?? {}) as Record<string, unknown>;
+
+    expect(
+      describeField({ key: 'retentionDays', value: 30, node: properties.retentionDays, entityKind: undefined }),
+    ).toEqual({ display: { kind: 'text' }, editable: null });
+    expect(
+      describeField({ key: 'inboxKeepResolved', value: 100, node: properties.inboxKeepResolved, entityKind: undefined })
+        .editable,
+    ).toEqual({ type: 'number' });
+  });
+
   it('shows an id argument that the policy maps to an entity as a record, for every write tool, nullable or not', () => {
     const misses: string[] = [];
 

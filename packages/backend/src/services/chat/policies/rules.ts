@@ -34,6 +34,7 @@ export const PREVIEW_RESOLVER_NAMES = [
   'confirmIngestPayment',
   'ingestRequest',
   'notificationSource',
+  'chatSettings',
 ] as const;
 
 export type PreviewResolverName = (typeof PREVIEW_RESOLVER_NAMES)[number];

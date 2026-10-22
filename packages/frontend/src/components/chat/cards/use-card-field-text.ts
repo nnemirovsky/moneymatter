@@ -90,6 +90,8 @@ export const useCardFieldText = () => {
     /** The cards this one depends on, to name a `$proposal:` ref. */
     dependsOn: ChatCardDependency[];
   }): CardValuePart[] => {
+    // `null` is a choice here: threads are never deleted.
+    if (value === null && field.path === 'retentionDays') return [{ text: t('chat.cards.retentionNever') }];
     if (value === null || value === undefined || value === '') return [{ text: t('chat.cards.noValue') }];
 
     const displayKind = field.display?.kind ?? 'text';
