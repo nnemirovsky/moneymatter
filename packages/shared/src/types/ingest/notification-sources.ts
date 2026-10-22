@@ -6,7 +6,7 @@
  */
 
 /**
- * `auto`: trusted from the start (Wallet and the seeded bank apps); `pending`: waits for the user and
+ * `auto`: trusted from the start (shown as "Known": Wallet and the seeded known apps); `pending`: waits for the user and
  * reaches the AI only after approval; `approved`: the user said yes; `muted`: the user said no.
  */
 export const NOTIFICATION_SOURCE_MODES = ['auto', 'pending', 'approved', 'muted'] as const;
