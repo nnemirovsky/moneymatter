@@ -1,7 +1,12 @@
+import { format } from 'date-fns';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   formatDateTime,
+  deviceTimeZone,
+  formatRecordedZoneLine,
+  getTransactionTimeTooltip,
+  hasDistinctRecordedZone,
   formatInViewingZone,
   formatTime,
   formatZoneLabel,
@@ -93,6 +98,80 @@ describe('js/helpers/time-zone', () => {
       expect(resolveViewingTimeZone({ settings: { timeZoneSource: 'manual' }, deviceZone: 'Europe/Kyiv' })).toBe(
         'Europe/Kyiv',
       );
+    });
+  });
+
+  describe('hasDistinctRecordedZone', () => {
+    const base = { viewingZone: 'Asia/Tbilisi', instant: INSTANT };
+
+    it('is false for an unknown zone', () => {
+      expect(hasDistinctRecordedZone({ ...base, timeZone: null, utcOffsetMinutes: null })).toBe(false);
+    });
+
+    it('is false when the recorded offset equals the viewing offset at that instant', () => {
+      expect(hasDistinctRecordedZone({ ...base, timeZone: 'Asia/Dubai', utcOffsetMinutes: 240 })).toBe(false);
+    });
+
+    it('is true for a zone with another offset', () => {
+      expect(hasDistinctRecordedZone({ ...base, timeZone: 'America/New_York', utcOffsetMinutes: -240 })).toBe(true);
+    });
+
+    it('is true for an offset-only row that differs, false when it matches', () => {
+      expect(hasDistinctRecordedZone({ ...base, timeZone: null, utcOffsetMinutes: 120 })).toBe(true);
+      expect(hasDistinctRecordedZone({ ...base, timeZone: null, utcOffsetMinutes: 240 })).toBe(false);
+    });
+  });
+
+  describe('formatRecordedZoneLine', () => {
+    afterEach(() => {
+      hourCyclePreference.value = null;
+    });
+
+    it('names the zone with the time and offset label there', () => {
+      hourCyclePreference.value = 'h23';
+      expect(formatRecordedZoneLine({ timeZone: 'America/New_York', utcOffsetMinutes: -240, instant: INSTANT })).toBe(
+        'America/New_York: 08:00 GMT-4',
+      );
+    });
+
+    it('shows an offset-only row as its UTC offset', () => {
+      hourCyclePreference.value = 'h23';
+      expect(formatRecordedZoneLine({ timeZone: null, utcOffsetMinutes: 120, instant: INSTANT })).toBe(
+        'UTC+02:00: 14:00',
+      );
+    });
+  });
+
+  describe('getTransactionTimeTooltip', () => {
+    afterEach(() => {
+      hourCyclePreference.value = null;
+    });
+
+    it('has a single line for an unknown zone', () => {
+      viewingTimeZone.value = 'Asia/Tbilisi';
+      hourCyclePreference.value = 'h23';
+      expect(getTransactionTimeTooltip({ time: INSTANT, timeZone: null, utcOffsetMinutes: null })).toEqual({
+        primary: '21 Oct 2026, 16:00 GMT+4',
+        recordedLine: null,
+      });
+    });
+
+    it('adds the recorded zone line only when it differs', () => {
+      viewingTimeZone.value = 'Asia/Tbilisi';
+      hourCyclePreference.value = 'h23';
+      expect(
+        getTransactionTimeTooltip({ time: INSTANT, timeZone: 'America/New_York', utcOffsetMinutes: -240 }).recordedLine,
+      ).toBe('America/New_York: 08:00 GMT-4');
+      expect(
+        getTransactionTimeTooltip({ time: INSTANT, timeZone: 'Asia/Tbilisi', utcOffsetMinutes: 240 }).recordedLine,
+      ).toBeNull();
+    });
+  });
+
+  describe('a row with no recorded zone', () => {
+    it('shows its date as plain date-fns formatting in the device zone does', () => {
+      viewingTimeZone.value = deviceTimeZone();
+      expect(formatInViewingZone({ date: INSTANT, pattern: 'd MMM y' })).toBe(format(INSTANT, 'd MMM y'));
     });
   });
 });

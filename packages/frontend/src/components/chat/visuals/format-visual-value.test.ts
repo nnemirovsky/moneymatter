@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { hourCyclePreference, viewingTimeZone } from '@/js/helpers/time-zone';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { formatVisualAxisDate, formatVisualDate, formatVisualValue } from './format-visual-value';
 
@@ -31,6 +32,27 @@ describe('formatVisualDate', () => {
 
   it('returns the raw text for a value that is not a date', () => {
     expect(formatVisualDate({ value: 'someday' })).toBe('someday');
+  });
+
+  describe('date-time instants', () => {
+    afterEach(() => {
+      viewingTimeZone.value = 'UTC';
+      hourCyclePreference.value = null;
+    });
+
+    it('shows a Z instant in the viewing zone with the hour cycle', () => {
+      viewingTimeZone.value = 'Asia/Tbilisi';
+      hourCyclePreference.value = 'h23';
+      expect(formatVisualDate({ value: '2026-10-21T12:00:00.000Z' })).toBe('Oct 21, 2026, 16:00');
+      hourCyclePreference.value = 'h12';
+      expect(formatVisualDate({ value: '2026-10-21T12:00:00.000Z' })).toBe('Oct 21, 2026, 4:00 PM');
+    });
+
+    it('shows an offset instant in the viewing zone', () => {
+      viewingTimeZone.value = 'Asia/Tbilisi';
+      hourCyclePreference.value = 'h23';
+      expect(formatVisualDate({ value: '2026-10-21T16:00:00+02:00' })).toBe('Oct 21, 2026, 18:00');
+    });
   });
 });
 

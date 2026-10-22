@@ -1,4 +1,5 @@
 import { api } from '@/api/_api';
+import { viewingTimeZone } from '@/js/helpers/time-zone';
 import {
   ACCOUNT_CATEGORIES,
   AccountModel,
@@ -57,7 +58,7 @@ export const balanceAdjustment = async ({
   transaction: TransactionModel | null;
   previousBalance: number;
   newBalance: number;
-}> => api.post(`/accounts/${id}/balance-adjustment`, { targetBalance, note, time });
+}> => api.post(`/accounts/${id}/balance-adjustment`, { targetBalance, note, time, timeZone: viewingTimeZone.value });
 
 export const unlinkAccountFromBankConnection = async ({
   id,

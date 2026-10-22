@@ -17,7 +17,9 @@
 
     <div class="text-muted-foreground mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
       <span data-testid="payment-request-card">{{ request.cardLabel ?? $t(`${LABEL_ROOT}.unknownCard`) }}</span>
-      <span data-testid="payment-request-time">{{ format(request.time, 'PPp') }}</span>
+      <span data-testid="payment-request-time">{{
+        formatDateWithTime({ date: new Date(request.time), locale: getDateFnsLocale() })
+      }}</span>
     </div>
 
     <p v-if="reasonKey" class="text-muted-foreground mt-2 text-sm" data-testid="payment-request-reason">
@@ -36,7 +38,8 @@
 </template>
 
 <script setup lang="ts">
-import { useDateLocale } from '@/composable/use-date-locale';
+import { getDateFnsLocale } from '@/composable/use-date-locale';
+import { formatDateWithTime } from '@/js/helpers/time-zone';
 import { ROUTES_NAMES } from '@/routes';
 import type { CardPaymentRequestDto } from '@bt/shared/types';
 import { computed } from 'vue';
@@ -50,8 +53,6 @@ const props = defineProps<{
   /** The Automation inbox thread; the link to the request's card shows only when it is known. */
   inboxThreadId?: string | null;
 }>();
-
-const { format } = useDateLocale();
 
 const reasonKey = computed(() => getRequestReasonKey({ reason: props.request.reason }));
 const hasCard = computed(() => hasInboxCard({ request: props.request }));

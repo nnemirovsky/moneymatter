@@ -1,4 +1,5 @@
 import { api } from '@/api/_api';
+import { viewingTimeZone } from '@/js/helpers/time-zone';
 import type {
   RecordId,
   RemindBeforePreset,
@@ -226,6 +227,7 @@ export const markSubscriptionPeriodPaid = async ({
   if (createTransaction !== undefined) payload.createTransaction = createTransaction;
   if (amount !== undefined) payload.amount = amount;
   if (time !== undefined) payload.time = time.toISOString();
+  if (createTransaction) payload.timeZone = viewingTimeZone.value;
   if (accountId !== undefined) payload.accountId = accountId;
 
   return api.post(`/subscriptions/${id}/periods/${periodId}/pay`, Object.keys(payload).length ? payload : undefined);
