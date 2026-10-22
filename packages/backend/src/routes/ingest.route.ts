@@ -2,12 +2,16 @@ import { INGEST_SCOPES } from '@bt/shared/types';
 import { cardPaymentController } from '@controllers/ingest/card-payment.controller';
 import { eventController } from '@controllers/ingest/event.controller';
 import { createBaseCurrencyLockCheck } from '@middlewares/check-base-currency-lock';
+import { ingestDebugTrace } from '@middlewares/ingest-debug-trace';
 import { authenticateIngestToken } from '@middlewares/ingest-token-auth';
 import { ingestEventRateLimit, ingestProbeRateLimit, ingestTokenRateLimit } from '@middlewares/rate-limit';
 import type { NextFunction, Request, Response } from 'express';
 import { Router } from 'express';
 
 const router = Router();
+
+// Operator tracing for the tokens in INGEST_DEBUG_TOKEN_IDS; ahead of authentication so refusals are traced too.
+router.use(ingestDebugTrace);
 
 // The shortcut shows the 423 message as a banner, so it says the payment was not saved.
 const checkBaseCurrencyLock = createBaseCurrencyLockCheck({ messageKey: 'ingest.busy' });

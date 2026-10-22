@@ -127,6 +127,16 @@ day per user, and 30 requests a minute per ingest token; those are not settings.
 Notification text is stored encrypted with the instance's `APPLICATION_JWT_SECRET`
 key and kept at most 7 days unless it became a payment (90 days).
 
+### Debugging the iOS Shortcut ingest
+
+An operator can trace what the server did with the requests of chosen ingest tokens:
+
+| Variable                  | Effect                                                                                                                                                                                                                                                                        |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INGEST_DEBUG_TOKEN_IDS`  | Comma-separated ingest token ids to trace. Each `/ingest/*` request from a listed token is written to `IngestDebugEvents` (time, endpoint, kind, app, sender, decision path, the answer sent to the shortcut, latency, related request, card and transaction ids). Notification text and the summary shown are stored only encrypted, with the same key as notification text. Rows are deleted after 7 days. Empty or unset is off; it is read from the process environment, so a change needs a restart or a recreated container |
+
+The token ids are the `id` column of the `IngestTokens` table (the Settings page lists tokens by name and the first characters of the secret, not by id). Example: `SELECT id, name, start FROM "IngestTokens"`.
+
 ## Claude and ChatGPT subscriptions as AI models
 
 An admin (see `ADMIN_USERS`) can add **Claude Code (subscription)** and **Codex (ChatGPT subscription)** under Settings → AI → AI models, signing in with their own Claude or ChatGPT account instead of pasting an API key. See the user guide: [Use your Claude or ChatGPT subscription for AI](https://docs.moneymatter.app/ai/use-your-ai-subscription/). Setup on the server is two steps: list the admin's username in `ADMIN_USERS` and restart the backend. Nothing else is needed with the published images.

@@ -289,6 +289,8 @@ A notification's title, subtitle, body and `raw` are never stored as plain JSON.
 | A payment                                                                            | `textEnc` is kept under the 90-day retention, for review and retry.                                                                                           |
 | A source nobody approved                                                             | Deleted with what it holds after 30 days.                                                                                                                     |
 
+For a token listed in `INGEST_DEBUG_TOKEN_IDS` the operator trace (`IngestDebugEvents`, 7 days) also holds the notification text and the summary shown, only as `textEnc` (the same encryption), including for notifications that are dropped and stored nowhere else.
+
 The inbox card shows only the amount the gate matched, at most 32 characters, never the message.
 
 ### Sources

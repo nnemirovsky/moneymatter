@@ -1,9 +1,11 @@
 import { INGEST_REQUEST_RETENTION_DAYS } from '@bt/shared/types';
 import { connection } from '@models/connection';
+import IngestDebugEvents from '@models/ingest-debug-events.model';
 import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
 import { resolveCardsElsewhere, sweepOrphanedInboxCards } from '@services/chat/inbox/inbox-resolution';
 import { contextConfig } from '@services/ingest/context/context-config';
+import { INGEST_DEBUG_RETENTION_DAYS } from '@services/ingest/debug/debug-config';
 import { notificationTimings } from '@services/ingest/event/constants';
 import { UNCLASSIFIED_PARK_REASONS } from '@services/ingest/event/stored-parse';
 import {
@@ -22,6 +24,8 @@ interface IngestCleanupResult {
   ignoredDeleted: number;
   /** Context notifications that waited longer than the hold for a payment. */
   contextsExpired: number;
+  /** Operator debug-trace rows past their keep. */
+  debugEventsDeleted: number;
   /** Notifications whose text was never classified, past their short keep. */
   unclassifiedExpired: number;
   /** Sources nobody approved, with what they held. */
@@ -151,9 +155,14 @@ const deleteStalePendingSources = async (): Promise<number> => {
   return NotificationSources.destroy({ where: { id: { [Op.in]: sourceIds } } });
 };
 
+/** The operator's debug trace (`INGEST_DEBUG_TOKEN_IDS`) is kept for a week. */
+const deleteDebugEvents = async (): Promise<number> =>
+  IngestDebugEvents.destroy({ where: { createdAt: { [Op.lt]: subDays(new Date(), INGEST_DEBUG_RETENTION_DAYS) } } });
+
 const runCleanup = async (): Promise<IngestCleanupResult> => ({
   deleted: await deleteFinishedRequests(),
   ignoredDeleted: await deleteIgnoredRequests(),
+  debugEventsDeleted: await deleteDebugEvents(),
   contextsExpired: await expireHeldContexts(),
   unclassifiedExpired: await expireUnclassifiedRequests(),
   pendingSourcesDeleted: await deleteStalePendingSources(),

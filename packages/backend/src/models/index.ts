@@ -32,6 +32,7 @@ import ExchangeRatesModel from './exchange-rates.model';
 import FeatureUsagesModel from './feature-usages.model';
 import ImportBatchAccountEffectsModel from './import-batch-account-effects.model';
 import ImportBatchesModel from './import-batches.model';
+import IngestDebugEventsModel from './ingest-debug-events.model';
 import IngestRequestsModel from './ingest-requests.model';
 import IngestSettingsModel from './ingest-settings.model';
 import IngestTokensModel from './ingest-tokens.model';
@@ -165,6 +166,7 @@ const models = [
   BrandLogosModel,
   IngestTokensModel,
   IngestRequestsModel,
+  IngestDebugEventsModel,
   IngestSettingsModel,
   CardAccountMappingsModel,
   NotificationSourcesModel,
