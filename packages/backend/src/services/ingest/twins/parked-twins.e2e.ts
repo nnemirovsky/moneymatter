@@ -290,4 +290,24 @@ describe('the same payment parked by two sources', () => {
       interval: 150,
     });
   });
+
+  it('logs the second coffee of a source apart once the first, with its twin, is approved', async () => {
+    const { secret } = await ingestHelpers.createTestIngestToken();
+    answerBank();
+    const tbc = await account();
+    await send({ secret, body: walletTemu() });
+    await send({ secret, body: bankTemu() });
+    // A second coffee paid with the physical card: only the bank tells of it.
+    await send({ secret, body: { ...bankTemu(), body: `Purchase ${BASE} 143.97, TEMU.COM, card *1234 (2)` } });
+    const cards = await waitForCards({ count: 2 });
+    const first = cards.find((card) => card.ingestRequest?.alsoSeenIn?.length)!;
+
+    await approve({ card: first, accountId: tbc.id });
+
+    // The card is linked now, so the waiting second coffee is logged too, as its own payment.
+    await until(async () => (await helpers.getTransactions({ raw: true })).length === 2, {
+      timeout: 20_000,
+      interval: 150,
+    });
+  });
 });

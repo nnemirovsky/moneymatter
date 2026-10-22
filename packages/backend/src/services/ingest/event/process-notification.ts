@@ -15,6 +15,7 @@ import { processContextNotification } from '../context/process-context-notificat
 import { enqueueAfterPaymentLogged } from '../follow-up-queue';
 import { dropParkedHoldRelease } from '../hold-release/drop-hold-release';
 import { absorbWaitingTwins } from '../twins/absorb-waiting-twins';
+import { holdJoinedSlots } from '../twins/hold-joined-slots';
 import { listNonZeroCurrencies } from './balance-authority';
 import type { ClassifiedNotification, ParsedPayment } from './classify-notification';
 import { notificationTimings } from './constants';
@@ -321,7 +322,8 @@ export const processNotification = async ({
   // The same payment told by another source may wait on a card of its own: it is this payment now.
   if (result.kind === 'logged') {
     try {
-      await absorbWaitingTwins({ request: row, payment: toStoredPayment({ payment: reading.payment }) });
+      const heldSlots = await holdJoinedSlots({ request: row, transactionId: result.transactionId });
+      await absorbWaitingTwins({ request: row, payment: toStoredPayment({ payment: reading.payment }), heldSlots });
     } catch (error) {
       // The payment is logged and must not be retried for this: a twin left waiting is settled by the owner.
       logger.error({ message: 'Failed to settle the twins of a logged payment', error: error as Error });

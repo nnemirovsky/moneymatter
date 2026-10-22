@@ -15,9 +15,12 @@ import { lockTwins } from './lock-twins';
 const absorbWaitingTwinsImpl = async ({
   request,
   payment,
+  heldSlots = [],
 }: {
   request: IngestRequests;
   payment?: StoredPayment;
+  /** The slots the logged row already holds, so a request of one of them stays waiting. */
+  heldSlots?: readonly string[];
 }): Promise<IngestRequests[]> => {
   await lockTwins({ userId: request.userId });
 
@@ -29,7 +32,7 @@ const absorbWaitingTwinsImpl = async ({
     userId: request.userId,
     requestId: request.id,
     probe,
-    takenSlots: await joinedSlots({ twins: joined }),
+    takenSlots: [...heldSlots, ...(await joinedSlots({ twins: joined }))],
   });
   const absorbed: IngestRequests[] = [];
   for (const { request: twin } of twins) {
