@@ -42,7 +42,7 @@ Out of scope: amounts or payee from a context notification, creating transaction
 
 Moving a source **to** `context` (by the owner or by the rule above) also resolves its open approval card (`resolveCardsElsewhere`) and deletes its parked `sourceNotApproved` requests with their stored text; it never feeds them to the payment parser. Muting or leaving `context` deletes the source's `held` requests as well as its parked ones.
 
-*Alternative rejected:* start them `pending` and make the owner approve. It adds a step for a mode that cannot create a transaction, and the first Wolt notification would be held and never matched.
+_Alternative rejected:_ start them `pending` and make the owner approve. It adds a step for a mode that cannot create a transaction, and the first Wolt notification would be held and never matched.
 
 ### D2. Which apps the shortcut forwards, and who decides
 
@@ -53,7 +53,7 @@ The owner configures context apps the way bank apps are configured: by adding th
 - **A new app.** A no-amount notification of an app with no source row creates the source (D1) without storing the notification: a seed app as `context`, any other non-conversational app as `pending`, with the drop counted on it (`noAmount`). A conversational app never creates a source from a no-amount notification (nothing for the owner to decide, and it should not have been sent). The `pending` source appears in Notification sources with "N notifications without an amount were dropped" and the choices **Context only**, **Approve as payment source** and **Mute**; there is no inbox card for it (a source with no stored notification has nothing to settle), so the list does not fill the inbox with every promo.
 - **Cost.** One POST per notification of the trigger apps only (the trigger app list bounds it; Messages/Mail and everything else never fire the shortcut or are stopped before the POST). The request is small (JSON of a few hundred bytes), is answered from the prefilter without a queue job when it is dropped, and counts against the per-token limit (30 per minute) and the per-user caps only after the prefilter passes, so a chatty app costs a radio wake-up per notification and nothing more. A bank app that sends many no-amount promos is the heaviest case; the owner can remove it from the trigger list or mute it, and a `muted` source is dropped at the cheapest point.
 
-*Rejected: a per-app pattern embedded in the shortcut or carried by the setup code* (a second configuration surface that needs a new code and re-import for every app) *and a per-notification list fetch* (a network call per notification and a new offline failure mode).
+_Rejected: a per-app pattern embedded in the shortcut or carried by the setup code_ (a second configuration surface that needs a new code and re-import for every app) _and a per-notification list fetch_ (a network call per notification and a new offline failure mode).
 
 ### D3. Reading a context notification
 
@@ -257,3 +257,11 @@ Decided by the owner: the context sets the category too (D5), only on unconfirme
 - Owner: import the regenerated `log-payments.plist` on an iPhone, export the signed `.shortcut`, replace `public/shortcuts/log-payments.shortcut`, and add Wolt (and the like) to the Notification trigger's app list.
 - Owner: watch the first real Wolt / Glovo notifications in the request history; each rule that the AI had to cover is a candidate line in `context-rules.ts`.
 - Follow-up if wanted: category refinement from the store (D9).
+
+## Revision 3 (owner decisions during implementation)
+
+- **Messaging and mail:** a two-step handshake. The shortcut sends `kind: notificationProbe` with the app and the sender (the title) only; the server answers `send: 'yes'` only for a sender whose source is `context`, and stores and creates nothing for an unknown one. Context sources of a messaging app are one sender each; the sender is the service. They are made from the sender's row or by name (`POST /user/settings/notification-sources`, the "Add a context source by name" form).
+- **Device code check:** for every app, a text that asks for a one-time code (the server's OTP markers and a standalone 4 to 8 digit code, as one ICU pattern, `SECURITY_GATE_PATTERN`) stops the shortcut when the amount gate missed. The markers live in one shared module the server and the shortcut both read.
+- The "messaging and mail stop" of D2 is replaced by the handshake; it is one function in the shortcut builder (`probeConversationalApps`) and `probeSender` on the server.
+- The signed `.shortcut` files are not rebuilt here; `served-payments-shortcut.spec.ts` stays red until the owner re-exports the regenerated plist from an iPhone.
+
