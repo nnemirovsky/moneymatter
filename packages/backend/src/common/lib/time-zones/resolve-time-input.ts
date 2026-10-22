@@ -230,18 +230,19 @@ export function resolveRangeBound({ value, edge, zone }: { value: string; edge: 
   return edge === 'start' ? zonedDayStart({ date, zone }) : zonedDayEnd({ date, zone });
 }
 
+/** A range bound of a tool: the same shapes as a time, with no lower limit. */
+export const rangeBoundInputSchema = () =>
+  z.string().refine((value) => isTimeInput({ value }), { message: `Not a valid time. ${HINT}` });
+
 /** The `time` argument of a tool: a date, a wall clock, or an ISO time with `Z` or an offset. */
 export const timeInputSchema = () =>
-  z
-    .string()
-    .refine((value) => isTimeInput({ value }), { message: `Not a valid time. ${HINT}` })
-    .refine(
-      (value) => {
-        const parsed = parseTime({ value });
-        return parsed === null || !isBeforeMin({ parsed });
-      },
-      { message: BEFORE_MIN_MESSAGE },
-    );
+  rangeBoundInputSchema().refine(
+    (value) => {
+      const parsed = parseTime({ value });
+      return parsed === null || !isBeforeMin({ parsed });
+    },
+    { message: BEFORE_MIN_MESSAGE },
+  );
 
 /**
  * Rewrites the start and end bound fields of `args` as `Z` strings cut in `zone`, leaving other

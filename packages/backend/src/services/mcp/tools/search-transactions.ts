@@ -1,5 +1,5 @@
 import { SORT_DIRECTIONS, TRANSACTION_TYPES } from '@bt/shared/types';
-import { timeInputSchema } from '@common/lib/time-zones/resolve-time-input';
+import { rangeBoundInputSchema } from '@common/lib/time-zones/resolve-time-input';
 import { resolveUserRangeBound } from '@common/lib/time-zones/resolve-user-time';
 import { localDay } from '@common/lib/time-zones/tz-options';
 import { recordId } from '@common/lib/zod/custom-types';
@@ -15,8 +15,10 @@ import { getUserId, jsonContent } from './helpers';
 import { presentTransactions } from './transaction-output';
 
 const inputSchema = {
-  startDate: timeInputSchema().optional().describe('Range start: date, wall time or ISO time. Default: 30 days ago'),
-  endDate: timeInputSchema()
+  startDate: rangeBoundInputSchema()
+    .optional()
+    .describe('Range start: date, wall time or ISO time. Default: 30 days ago'),
+  endDate: rangeBoundInputSchema()
     .optional()
     .describe(
       'Range end: same; a date runs through its end. Default: now, which hides planned (future-dated) transactions. Set it to a future date to see upcoming plans',

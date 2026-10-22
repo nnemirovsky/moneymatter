@@ -1,6 +1,12 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { isTimeInput, resolveRangeBound, resolveTimeInput, timeInputSchema } from './resolve-time-input';
+import {
+  isTimeInput,
+  rangeBoundInputSchema,
+  resolveRangeBound,
+  resolveTimeInput,
+  timeInputSchema,
+} from './resolve-time-input';
 
 const tbilisiUser = { viewingZone: 'Asia/Tbilisi', storedZone: 'Asia/Tbilisi' };
 const noSettingUser = { viewingZone: 'UTC', storedZone: null };
@@ -165,6 +171,7 @@ describe('the earliest ledger time', () => {
 
   it('accepts the first day of 2000 and leaves range bounds alone', () => {
     expect(timeInputSchema().safeParse('2000-01-01').success).toBe(true);
+    expect(rangeBoundInputSchema().safeParse('1990-01-01').success).toBe(true);
     expect(resolveRangeBound({ value: '1990-01-01', edge: 'start', zone: 'UTC' })).toEqual(
       new Date('1990-01-01T00:00:00.000Z'),
     );

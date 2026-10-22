@@ -4,7 +4,7 @@ import {
   TRACKER_AI_DESCRIPTION_MAX_LENGTH,
   TRACKER_AI_PRE_WINDOW_DAYS,
 } from '@bt/shared/types';
-import { normalizeRangeBounds, timeInputSchema } from '@common/lib/time-zones/resolve-time-input';
+import { normalizeRangeBounds, rangeBoundInputSchema } from '@common/lib/time-zones/resolve-time-input';
 import { resolveUserRangeBounds } from '@common/lib/time-zones/resolve-user-time';
 import { createTrackerBodySchema, createTrackerBodyShape } from '@controllers/trackers/shared-schemas';
 import { smartTrackingFieldsShape } from '@controllers/trackers/smart-tracking-fields.schema';
@@ -28,11 +28,11 @@ const inputSchema = {
   categoryIds: createTrackerBodyShape.categoryIds.describe(
     'Category IDs to link. Required (at least one) when type is "category"',
   ),
-  startDate: timeInputSchema()
+  startDate: rangeBoundInputSchema()
     .nullable()
     .optional()
     .describe("Tracker start: a date (2026-10-01, day start, user's zone), a wall time or ISO time"),
-  endDate: timeInputSchema()
+  endDate: rangeBoundInputSchema()
     .nullable()
     .optional()
     .describe("Tracker end: a date (2026-10-31, day end, user's zone), a wall time or ISO time; not before startDate"),

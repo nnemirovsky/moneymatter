@@ -1,5 +1,5 @@
 import { TRACKER_AI_DESCRIPTION_MAX_LENGTH, TRACKER_AI_PRE_WINDOW_DAYS } from '@bt/shared/types';
-import { normalizeRangeBounds, timeInputSchema } from '@common/lib/time-zones/resolve-time-input';
+import { normalizeRangeBounds, rangeBoundInputSchema } from '@common/lib/time-zones/resolve-time-input';
 import { resolveUserRangeBounds } from '@common/lib/time-zones/resolve-user-time';
 import { recordId } from '@common/lib/zod/custom-types';
 import { editTrackerBodySchema, editTrackerBodyShape } from '@controllers/trackers/shared-schemas';
@@ -15,11 +15,11 @@ import { assertBaseCurrencyUnlocked, getUserId, jsonContent, requireScope, type 
 const inputSchema = {
   trackerId: recordId().describe('ID of the tracker to update'),
   name: editTrackerBodyShape.name.describe('New tracker name, 1-200 characters'),
-  startDate: timeInputSchema()
+  startDate: rangeBoundInputSchema()
     .nullable()
     .optional()
     .describe("New start: a date (2026-10-01, day start, user's zone), a wall time or ISO time; null clears it"),
-  endDate: timeInputSchema()
+  endDate: rangeBoundInputSchema()
     .nullable()
     .optional()
     .describe(

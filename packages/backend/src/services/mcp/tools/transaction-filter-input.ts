@@ -6,7 +6,7 @@ import {
   TRANSACTION_TRANSFER_NATURE,
   TRANSACTION_TYPES,
 } from '@bt/shared/types';
-import { normalizeRangeBounds, timeInputSchema } from '@common/lib/time-zones/resolve-time-input';
+import { normalizeRangeBounds, rangeBoundInputSchema } from '@common/lib/time-zones/resolve-time-input';
 import { recordId } from '@common/lib/zod/custom-types';
 import {
   bulkTargetFields,
@@ -28,8 +28,8 @@ const idOrBlank = z.union([recordId(), z.literal(BLANK_FILTER_VALUE)]);
  * the two key sets equal.
  */
 export const transactionFilterInput = {
-  from: timeInputSchema().optional().describe('Range start: date, wall time or ISO time'),
-  to: timeInputSchema().optional().describe('Range end: same; a date runs through its end'),
+  from: rangeBoundInputSchema().optional().describe('Range start: date, wall time or ISO time'),
+  to: rangeBoundInputSchema().optional().describe('Range end: same; a date runs through its end'),
   transactionType: z.nativeEnum(TRANSACTION_TYPES).optional().describe('Only income, expense or transfer rows'),
   transferNatures: z
     .array(z.nativeEnum(TRANSACTION_TRANSFER_NATURE))

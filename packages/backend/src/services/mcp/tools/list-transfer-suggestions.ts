@@ -1,4 +1,4 @@
-import { timeInputSchema } from '@common/lib/time-zones/resolve-time-input';
+import { rangeBoundInputSchema } from '@common/lib/time-zones/resolve-time-input';
 import { resolveUserRangeBounds } from '@common/lib/time-zones/resolve-user-time';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -17,10 +17,10 @@ import { presentTransactions } from './transaction-output';
 // Restates the REST body fields so the SDK can publish them; the handler validates with the REST
 // schema, and a unit test keeps the two key sets equal.
 const inputSchema = {
-  from: timeInputSchema().describe(
+  from: rangeBoundInputSchema().describe(
     "Start of the period: a date (2026-09-01, day start, user's zone), a wall time or ISO time",
   ),
-  to: timeInputSchema().describe(
+  to: rangeBoundInputSchema().describe(
     "End of the period: a date (2026-09-30, day end, user's zone), a wall time or ISO time. Must not precede from",
   ),
   limit: z
