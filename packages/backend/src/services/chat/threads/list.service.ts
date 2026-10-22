@@ -2,6 +2,7 @@ import type { ChatThreadListPage } from '@bt/shared/types';
 import { connection } from '@models/index';
 import { QueryTypes } from 'sequelize';
 
+import { THREAD_BADGE_SQL } from './thread-badges';
 import { withPageContextNames } from './thread-page-context';
 import { buildPrefixTsQuery, buildSnippet, buildTitlePattern } from './thread-search';
 import { type ChatThreadRow, toChatThread } from './to-chat-thread';
@@ -9,6 +10,8 @@ import { type ChatThreadRow, toChatThread } from './to-chat-thread';
 interface ThreadListRow extends ChatThreadRow {
   /** Text of the newest message that matched the search words; null without a text match. */
   matchText: string | null;
+  /** BIGINT comes back from Postgres as a string. */
+  badgeCount: string | number;
 }
 
 /**
@@ -62,7 +65,8 @@ export const listThreads = async ({
   }
 
   const rows = await connection.sequelize.query(
-    `SELECT t.id, t.title, t."titleSource", t.pinned, t."lastMessageAt", t."expiresAt", t."connectionId", t."modelId", t."pageContext", t."kind", t."inboxState",
+    `SELECT t.id, t.title, t."titleSource", t.pinned, t."lastMessageAt", t."expiresAt", t."connectionId", t."modelId", t."pageContext", t."kind",
+            ${THREAD_BADGE_SQL} AS "badgeCount",
             t."inputTokens", t."outputTokens", t."cachedInputTokens", t."createdAt",
             ${tsQuery ? 'm."plainText"' : 'NULL::text'} AS "matchText"
      FROM "ChatThreads" AS t
@@ -75,7 +79,10 @@ export const listThreads = async ({
 
   const page = (rows as ThreadListRow[]).slice(0, limit);
 
-  const named = await withPageContextNames({ userId, threads: page.map((row) => toChatThread({ row })) });
+  const named = await withPageContextNames({
+    userId,
+    threads: page.map((row) => ({ ...toChatThread({ row }), badgeCount: Number(row.badgeCount) })),
+  });
 
   return {
     threads: named.map((thread, index) => ({

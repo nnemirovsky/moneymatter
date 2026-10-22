@@ -14,10 +14,9 @@ import rejectProposal from '@controllers/chat/proposals/reject-proposal.controll
 import cancelRun from '@controllers/chat/runs/cancel-run.controller';
 import streamRunEvents from '@controllers/chat/runs/stream-run-events.controller';
 import { updateChatSettings } from '@controllers/chat/settings.controller';
-import archiveThread from '@controllers/chat/threads/archive-thread.controller';
-import clearResolvedThread from '@controllers/chat/threads/clear-resolved-thread.controller';
 import createThread from '@controllers/chat/threads/create-thread.controller';
 import deleteThread from '@controllers/chat/threads/delete-thread.controller';
+import getBadgeTotal from '@controllers/chat/threads/get-badge-total.controller';
 import getDefaultConnection from '@controllers/chat/threads/get-default-connection.controller';
 import getThread from '@controllers/chat/threads/get-thread.controller';
 import listThreads from '@controllers/chat/threads/list-threads.controller';
@@ -45,12 +44,10 @@ router.post('/threads', blockDemoUsers, createThread);
 router.get('/threads/:id', getThread);
 router.patch('/threads/:id', updateThread);
 router.delete('/threads/:id', deleteThread);
-// Housekeeping of the automation inbox thread. It writes no financial data, and a read-only user keeps it.
-router.post('/threads/:id/clear-resolved', clearResolvedThread);
-router.post('/threads/:id/archive', archiveThread);
+router.get('/badge', getBadgeTotal);
 
-// Presence: the client is looking at a thread, so the assistant sends no push for it. It writes no
-// financial data and expires on its own, so a read-only user keeps it.
+// Presence: the client is looking at a thread, so the assistant sends no push for it and its replies are
+// read. It writes no financial data and expires on its own, so a read-only user keeps it.
 router.put('/presence', putChatPresence);
 router.delete('/presence', deleteChatPresence);
 

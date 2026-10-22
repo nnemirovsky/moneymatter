@@ -521,7 +521,7 @@
     "connectionModel": {
       "label": "Модель із цього підключення",
       "placeholder": "Виберіть модель",
-      "default": "За замовчуванням ({model})"
+      "defaultTag": "За замовчуванням"
     }
   },
   "aiUsage": {

@@ -1,6 +1,5 @@
 import {
   AI_MODEL_NAME_MAX_LENGTH,
-  ChatInboxState,
   ChatPageContext,
   ChatThreadKind,
   ChatThreadTitleSource,
@@ -44,19 +43,26 @@ export default class ChatThreads extends Model {
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   pinned!: boolean;
 
-  /** `automationInbox` is the thread MoneyMatter owns and fills with cards; it never runs the assistant. */
+  /**
+   * `automationInbox` is the thread MoneyMatter owns and fills with cards; it never runs the assistant.
+   * A user has at most one (a partial unique index), pinned for good.
+   */
   @Column({ type: DataType.STRING(24), allowNull: false, defaultValue: 'chat' })
   kind!: ChatThreadKind;
 
-  /** The life stage of an inbox thread; null on a chat thread. At most one thread per user is `live`. */
+  /** `live` on the inbox thread, null on a chat thread. */
   @Column({ type: DataType.STRING(8), allowNull: true })
-  inboxState!: ChatInboxState | null;
+  inboxState!: 'live' | null;
 
   @Column({ type: DataType.DATE, allowNull: false, defaultValue: DataType.NOW })
   lastMessageAt!: Date;
 
   @Column({ type: DataType.DATE, allowNull: true })
   expiresAt!: Date | null;
+
+  /** When the user last viewed the thread: a reply after it is unread. */
+  @Column({ type: DataType.DATE, allowNull: true })
+  lastReadAt!: Date | null;
 
   /** An id in the owner's settings (`ai.connections`); null is the included server model or no choice yet. */
   @Column({ type: DataType.UUID, allowNull: true })

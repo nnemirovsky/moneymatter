@@ -269,7 +269,6 @@ describe('ChatConversation', () => {
         connectionId: null,
         modelId: null,
         kind: 'automationInbox',
-        inboxState: 'live',
       } as ChatThread;
     });
 

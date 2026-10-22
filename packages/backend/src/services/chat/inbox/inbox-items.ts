@@ -12,14 +12,13 @@ import { withTransaction } from '@services/common/with-transaction';
 import { correctionOf, transferSuggestionOf } from '@services/ingest/corrections/read-ingest-suggestions';
 import { chooseSurvivor } from '@services/ingest/dedup/choose-survivor';
 import { readStoredParse } from '@services/ingest/event/stored-parse';
+import { suggestParkedNote } from '@services/ingest/event/suggest-parked-note';
 import { findWaitingSiblings, siblingMatchOf } from '@services/ingest/event/waiting-siblings';
 import { isUnconfirmedIngest, type ConfirmBaseline } from '@services/ingest/ingest-markers';
 import { Op, QueryTypes } from 'sequelize';
 
 import { refreshProposal } from '../proposals/refresh';
 import { createSystemProposal, refreshSystemProposal } from './create-system-proposal';
-import { findCardsOfTransactions, resolveCardsElsewhere } from './inbox-resolution';
-import { lockInbox } from './inbox-thread';
 import {
   CONFIRM_TOOL,
   LINK_TRANSFER_TOOL,
@@ -27,7 +26,9 @@ import {
   MERGE_DUPLICATES_TOOL,
   OPEN_CARD_STATUSES,
   SET_NOTIFICATION_SOURCE_TOOL,
-} from './inbox-transitions';
+} from './inbox-config';
+import { findCardsOfTransactions, resolveCardsElsewhere } from './inbox-resolution';
+import { lockInbox } from './inbox-thread';
 
 /** Park reasons whose request gets a card of its own; the others have no action the owner can take. */
 const REQUEST_CARD_REASONS = ['unknownAccount', 'ownTransfer', 'lowConfidence', 'unverifiedParse'];
@@ -231,6 +232,14 @@ const postRequestCardInTransaction = async ({
 
   const stored = readStoredParse({ value: request.parsed });
   const direction = stored?.payment?.kind;
+  const note = stored?.payment
+    ? await suggestParkedNote({
+        userId,
+        requestId: request.id,
+        payment: stored.payment,
+        time: new Date(typeof request.payload.time === 'string' ? request.payload.time : request.createdAt),
+      })
+    : null;
   const proposal = await createSystemProposal({
     userId,
     toolName: LOG_INGEST_REQUEST_TOOL,
@@ -238,6 +247,7 @@ const postRequestCardInTransaction = async ({
       requestId: request.id,
       ...(stored?.accountGuessId && { accountId: stored.accountGuessId }),
       ...((direction === 'debit' || direction === 'credit') && { direction }),
+      ...(note && { note }),
     },
   });
   if (proposal) await request.update({ proposalId: proposal.proposalId });
@@ -254,6 +264,34 @@ const postRequestCardInTransaction = async ({
       await refreshProposal({ userId, proposalId: sibling.proposalId });
     } catch {
       // A card that is settled or gone has nothing to refresh.
+    }
+  }
+};
+
+/**
+ * The "drop both?" card of a hold and its release lists the new payment, which the pipeline keeps refining
+ * after the card is posted (the AI's category, a bank's figure). Its preview is read again each time, so the
+ * owner's first Approve is not refused as stale.
+ */
+export const refreshDropBothCards = async ({
+  userId,
+  transactionId,
+}: {
+  userId: number;
+  transactionId: RecordId;
+}): Promise<void> => {
+  const cards = (await connection.sequelize.query(
+    `SELECT "id" FROM "ChatProposals"
+      WHERE "userId" = :userId AND "toolName" = 'bulk_delete_transactions' AND "status" = 'pending'
+        AND "args"->'transactionIds' @> CAST(:ids AS jsonb)`,
+    { replacements: { userId, ids: JSON.stringify([transactionId]) }, type: QueryTypes.SELECT },
+  )) as { id: string }[];
+
+  for (const card of cards) {
+    try {
+      await refreshProposal({ userId, proposalId: card.id });
+    } catch {
+      // A card that was settled meanwhile has nothing to refresh.
     }
   }
 };

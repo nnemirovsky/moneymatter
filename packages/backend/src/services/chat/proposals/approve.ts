@@ -9,7 +9,6 @@ import { randomUUID } from 'crypto';
 import { z } from 'zod';
 
 import { findToolCatalogEntry } from '../../mcp/tool-catalog';
-import { reevaluateInboxThreads } from '../inbox/inbox-thread';
 import { getToolPolicy, resolveToolPolicy } from '../policies';
 import { notifyThreadUpdated } from '../threads/thread-events';
 import { buildChatApplyExtra } from '../toolkit/extras';
@@ -310,8 +309,7 @@ export async function approveProposal({
   }
 
   if (attempt.kind === 'applied') {
-    // An open inbox thread closes with its last waiting card.
-    await reevaluateInboxThreads({ threadIds: [target.threadId] });
+    // The thread's badge counts its waiting cards: the user's other tabs refresh it.
     notifyThreadUpdated({ userId: user.id, threadId: target.threadId });
   }
   return toResponse({

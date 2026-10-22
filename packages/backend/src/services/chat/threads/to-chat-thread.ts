@@ -12,7 +12,6 @@ export interface ChatThreadRow {
   connectionId: string | null;
   modelId: string | null;
   kind: ChatThread['kind'];
-  inboxState: ChatThread['inboxState'];
   pageContext: ChatPageContext | null;
   inputTokens: string | number;
   outputTokens: string | number;
@@ -38,7 +37,8 @@ export const toChatThread = ({ row }: { row: ChatThreadRow }): ChatThread => ({
   connectionId: row.connectionId,
   modelId: row.modelId,
   kind: row.kind,
-  inboxState: row.inboxState,
+  // Filled by `withBadgeCounts` or the list query, which count it for a whole page of threads.
+  badgeCount: 0,
   pageContext: row.pageContext ?? null,
   // Filled by `withPageContextNames`, which looks the names up for a whole page of threads.
   pageContextNames: {},

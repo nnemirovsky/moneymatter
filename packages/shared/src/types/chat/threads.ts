@@ -31,10 +31,16 @@ export interface ChatThread {
    * Null: the connection's own model.
    */
   modelId: string | null;
-  /** `automationInbox` is the thread MoneyMatter fills with cards; the assistant never runs in it. */
+  /**
+   * `automationInbox` is the thread MoneyMatter fills with cards; the assistant never runs in it. A user
+   * has at most one, pinned for good: it cannot be unpinned or deleted.
+   */
   kind: ChatThreadKind;
-  /** Where an inbox thread is in its life; null on a chat thread. A `live` or `open` thread is pinned and protected. */
-  inboxState: ChatInboxState | null;
+  /**
+   * What waits for the user in the thread: the replies that arrived since the user last viewed it and, in
+   * the inbox, the cards still waiting for an answer (`CHAT_BADGE_CARD_STATUSES`). Zero shows no badge.
+   */
+  badgeCount: number;
   /** The page the conversation is about, kept for the whole thread; null is none. */
   pageContext: ChatPageContext | null;
   /**
@@ -93,17 +99,12 @@ export const CHAT_THREAD_KINDS = ['chat', 'automationInbox'] as const;
 
 export type ChatThreadKind = (typeof CHAT_THREAD_KINDS)[number];
 
-/**
- * Where an automation inbox thread is in its life; null on a chat thread. `live` takes new items (one
- * per user), `open` is full but still holds pending cards, `closed` is finished and expires like a chat.
- */
-export const CHAT_INBOX_STATES = ['live', 'open', 'closed'] as const;
+/** The inbox cards a thread's badge counts: the ones the owner still has to answer or refresh. */
+export const CHAT_BADGE_CARD_STATUSES = ['pending', 'stale'] as const;
 
-export type ChatInboxState = (typeof CHAT_INBOX_STATES)[number];
-
-/** What `POST /chat/threads/:id/clear-resolved` answers: how many messages (and their cards) it deleted. */
-export interface ChatClearResolvedResponse {
-  deletedMessages: number;
+/** `GET /chat/badge`: the sum of every thread's `badgeCount`, for the AI chat entry of the navigation. */
+export interface ChatBadgeTotal {
+  total: number;
 }
 
 /**

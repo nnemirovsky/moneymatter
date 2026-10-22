@@ -126,6 +126,13 @@ const createCard = (overrides: Partial<ChatProposalCard> = {}) =>
   buildCard({ fields: [fields.amount, fields.account, fields.category, fields.note], ...overrides });
 
 const approveButton = (wrapper: ReturnType<typeof mountCard>) => wrapper.find('[data-testid="approve"]');
+const foldToggle = (wrapper: ReturnType<typeof mountCard>) => wrapper.find('[data-testid="card-fold-toggle"]');
+
+/** Opens a card that starts folded. */
+const expand = async (wrapper: ReturnType<typeof mountCard>) => {
+  await foldToggle(wrapper).trigger('click');
+  return wrapper;
+};
 
 /** The first argument of each call: the mutation also passes its own context as a second one. */
 const firstArgsOf = (fn: unknown) => vi.mocked(fn as (...args: unknown[]) => unknown).mock.calls.map((call) => call[0]);
@@ -195,6 +202,20 @@ describe('ProposalCard', () => {
           alsoWaiting: 0,
         },
       });
+
+    it('sums up a folded payment card by date, amount, payee and the account it went to', () => {
+      const wrapper = mountCard({ card: { ...paymentCard({ account: 'acc-1' }), status: 'applied' }, inbox: true });
+
+      expect(wrapper.find('[data-testid="card-summary"]').text()).toMatch(
+        /^Oct 21, 2026, [^·]+ · [^·]*3,000[^·]* · Salary · Main card$/,
+      );
+    });
+
+    it('names the card it was paid with while no account is chosen', () => {
+      const wrapper = mountCard({ card: { ...paymentCard(), status: 'rejected' }, inbox: true });
+
+      expect(wrapper.find('[data-testid="card-summary"]').text()).toMatch(/ · Salary · •1258$/);
+    });
 
     it('shows the payment as a payment, not as a generic action', () => {
       const wrapper = mountCard({ card: paymentCard(), inbox: true });
@@ -274,7 +295,9 @@ describe('ProposalCard', () => {
         canApply: { ok: false as const, reasonKey: 'chat.cards.notPending' },
       };
       vi.mocked(editChatProposal).mockResolvedValue(paymentCard({ account: 'acc-raif' }));
+      // The picker is an action left to the owner, so the failed card starts open.
       const wrapper = mountCard({ card: failed, inbox: true });
+      expect(foldToggle(wrapper).attributes('aria-expanded')).toBe('true');
 
       const picker = wrapper.findComponent(AccountSelectField);
       expect(picker.props('disabled')).toBe(false);
@@ -284,6 +307,38 @@ describe('ProposalCard', () => {
       expect(firstArgsOf(editChatProposal)).toEqual([
         { proposalId: 'card-1', payload: { revision: 1, args: { requestId: 'req-1', accountId: 'acc-raif' } } },
       ]);
+    });
+
+    it('lets the owner write the note, saves it on the card on leaving the field, and holds Approve until then', async () => {
+      const saved = paymentCard({ account: 'acc-raif' });
+      vi.mocked(editChatProposal).mockResolvedValue(saved);
+      const wrapper = mountCard({ card: paymentCard({ account: 'acc-raif' }), inbox: true });
+      const input = wrapper.get('[data-testid="ingest-note-field"] input');
+
+      await input.setValue('October salary');
+      expect(approveButton(wrapper).attributes('disabled')).toBeDefined();
+
+      await input.trigger('focusout');
+      await flushPromises();
+
+      expect(firstArgsOf(editChatProposal)).toEqual([
+        {
+          proposalId: 'card-1',
+          payload: { revision: 1, args: { requestId: 'req-1', accountId: 'acc-raif', note: 'October salary' } },
+        },
+      ]);
+    });
+
+    it('shows the note the history suggested, already on the card', () => {
+      const card = paymentCard({ account: 'acc-raif' });
+      card.fields.push(buildField({ path: 'note', value: 'Monthly salary', editable: { type: 'text' } }));
+
+      const wrapper = mountCard({ card, inbox: true });
+
+      expect((wrapper.get('[data-testid="ingest-note-field"] input').element as HTMLInputElement).value).toBe(
+        'Monthly salary',
+      );
+      expect(approveButton(wrapper).attributes('disabled')).toBeUndefined();
     });
 
     it('says nothing about learning when approving teaches nothing', () => {
@@ -605,7 +660,7 @@ describe('ProposalCard', () => {
   });
 
   describe('finished states', () => {
-    it('shows an applied card with its result and no actions', () => {
+    it('shows an applied card with its result and no actions', async () => {
       const card = createCard({
         status: 'applied',
         result: {
@@ -623,7 +678,7 @@ describe('ProposalCard', () => {
           },
         ],
       });
-      const wrapper = mountCard({ card });
+      const wrapper = await expand(mountCard({ card }));
 
       expect(wrapper.text()).toContain('Applied');
       expect(wrapper.text()).toContain('Also applied: Create category');
@@ -634,10 +689,10 @@ describe('ProposalCard', () => {
 
     it('shows a failed card with the error and a way to try again', async () => {
       vi.mocked(refreshChatProposal).mockResolvedValue(createCard());
-      const wrapper = mountCard({
-        card: createCard({ status: 'failed', error: { message: 'Account is archived' } }),
-      });
+      // Refresh, edit and reject are still the owner's to take, so the card starts open.
+      const wrapper = mountCard({ card: createCard({ status: 'failed', error: { message: 'Account is archived' } }) });
 
+      expect(foldToggle(wrapper).attributes('aria-expanded')).toBe('true');
       expect(wrapper.text()).toContain('Failed');
       expect(wrapper.text()).toContain('This change could not be applied. Nothing was changed.');
       expect(wrapper.find('[data-testid="card-error"]').text()).toBe('Account is archived');
@@ -647,7 +702,7 @@ describe('ProposalCard', () => {
       expect(firstArgsOf(refreshChatProposal)).toContainEqual({ proposalId: 'card-1' });
     });
 
-    it('translates the error key of a card whose preview failed', () => {
+    it('translates the error key of a card whose preview failed', async () => {
       const wrapper = mountCard({
         card: createCard({ status: 'failed', error: { messageKey: 'chat.cards.targetNotFound' } }),
       });
@@ -661,11 +716,120 @@ describe('ProposalCard', () => {
       ['expired', 'This change expired before it was approved.'],
       ['superseded', 'Replaced by a newer proposal.'],
       ['unknown', 'The result of this change is unknown.'],
-    ] as const)('explains a %s card', (status, text) => {
+    ] as const)('explains a %s card', async (status, text) => {
       const wrapper = mountCard({ card: createCard({ status }) });
+      if (foldToggle(wrapper).attributes('aria-expanded') === 'false') await expand(wrapper);
 
       expect(wrapper.text()).toContain(text);
       expect(approveButton(wrapper).exists()).toBe(false);
+    });
+  });
+
+  describe('folding', () => {
+    const transactionTarget: ChatCardField[] = [
+      buildField({ path: 'amount', value: 28.1, display: { kind: 'money', currencyCode: 'GEL' } }),
+      buildField({ path: 'time', value: '2026-10-19T07:26:00Z', display: { kind: 'datetime' } }),
+      buildField({ path: 'note', value: 'Nord Coffee', display: { kind: 'text' } }),
+      buildField({
+        path: 'accountId',
+        value: 'acc-1',
+        display: { kind: 'entity', entity: { kind: 'account', id: 'acc-1', label: '' } },
+      }),
+    ];
+    const updateCard = (overrides: Partial<ChatProposalCard> = {}) =>
+      buildCard({
+        kind: 'update',
+        toolName: 'update_transaction',
+        title: { key: 'chat.cards.title.update', params: { entity: 'transaction' } },
+        fields: [fields.category],
+        target: transactionTarget,
+        ...overrides,
+      });
+
+    it.each(['pending', 'stale', 'failed', 'applying', 'unknown'] as const)('keeps a %s card open', (status) => {
+      const wrapper = mountCard({ card: updateCard({ status }) });
+
+      expect(foldToggle(wrapper).attributes('aria-expanded')).toBe('true');
+      expect(wrapper.find('[data-testid="card-body"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="card-summary"]').exists()).toBe(false);
+    });
+
+    it.each(['applied', 'rejected', 'blocked', 'superseded', 'expired'] as const)(
+      'folds a %s card to its header and a one-line summary of the record',
+      (status) => {
+        const wrapper = mountCard({ card: updateCard({ status }) });
+
+        expect(foldToggle(wrapper).attributes('aria-expanded')).toBe('false');
+        expect(wrapper.find('[data-testid="card-body"]').exists()).toBe(false);
+        expect(wrapper.text()).toContain('Update transaction');
+        // Date · amount · payee (or note) · account.
+        const summary = wrapper.find('[data-testid="card-summary"]').text();
+        expect(summary).toMatch(/^Oct 19, 2026, [^·]+ · [^·]*28\.10[^·]* · Nord Coffee · Main card$/);
+      },
+    );
+
+    it('opens and folds again from the header, a button that says whether it is open', async () => {
+      const wrapper = mountCard({ card: updateCard({ status: 'applied' }) });
+      const toggle = foldToggle(wrapper);
+
+      expect(toggle.element.tagName).toBe('BUTTON');
+      expect(toggle.attributes('type')).toBe('button');
+
+      await toggle.trigger('click');
+
+      expect(toggle.attributes('aria-expanded')).toBe('true');
+      const body = wrapper.find('[data-testid="card-body"]');
+      expect(body.exists()).toBe(true);
+      expect(toggle.attributes('aria-controls')).toBe(body.attributes('id'));
+      expect(wrapper.find('[data-testid="card-summary"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="card-target"]').text()).toContain('Nord Coffee');
+
+      await toggle.trigger('click');
+
+      expect(toggle.attributes('aria-expanded')).toBe('false');
+      expect(wrapper.find('[data-testid="card-body"]').exists()).toBe(false);
+    });
+
+    it('keeps a card open when it is approved while in view', async () => {
+      const wrapper = mountCard({ card: updateCard() });
+
+      await wrapper.setProps({ card: updateCard({ status: 'applied', revision: 2 }) });
+
+      expect(foldToggle(wrapper).attributes('aria-expanded')).toBe('true');
+    });
+
+    it('sums up a create card from its own fields', () => {
+      const wrapper = mountCard({ card: createCard({ status: 'applied' }) });
+
+      expect(wrapper.find('[data-testid="card-summary"]').text()).toMatch(/12\.50.* · Lunch · Main card$/);
+    });
+  });
+
+  describe('the status badge', () => {
+    const badge = (wrapper: ReturnType<typeof mountCard>) => wrapper.find('[data-testid="card-status"]');
+
+    it.each([
+      ['pending', 'Waiting for you', 'info'],
+      ['applied', 'Applied', 'success'],
+      ['rejected', 'Rejected', 'destructive'],
+      ['failed', 'Failed', 'destructive'],
+      ['stale', 'Out of date', 'warning'],
+      ['expired', 'Expired', 'neutral'],
+    ] as const)('shows a %s card as "%s" in the %s colour', (status, text, variant) => {
+      const wrapper = mountCard({ card: createCard({ status }) });
+
+      expect(badge(wrapper).text()).toBe(text);
+      expect(badge(wrapper).attributes('data-variant')).toBe(variant);
+    });
+
+    it('shows a card settled somewhere else as Closed in grey, not as Rejected', () => {
+      const wrapper = mountCard({
+        card: createCard({ status: 'rejected', statusReason: 'resolvedElsewhere' }),
+        inbox: true,
+      });
+
+      expect(badge(wrapper).text()).toBe('Closed');
+      expect(badge(wrapper).attributes('data-variant')).toBe('neutral');
     });
   });
 
@@ -791,18 +955,19 @@ describe('ProposalCard', () => {
       expect(wrapper.find('[data-testid="comment-toggle"]').exists()).toBe(false);
     });
 
-    it('says a card settled somewhere else is closed, not rejected by the owner', () => {
-      const wrapper = mountCard({
-        card: createCard({ status: 'rejected', statusReason: 'resolvedElsewhere' }),
-        inbox: true,
-      });
+    it('says a card settled somewhere else is closed, not rejected by the owner', async () => {
+      const wrapper = await expand(
+        mountCard({ card: createCard({ status: 'rejected', statusReason: 'resolvedElsewhere' }), inbox: true }),
+      );
 
       expect(wrapper.text()).toContain('Settled somewhere else, so this item is closed.');
       expect(wrapper.text()).not.toContain('You rejected this change.');
     });
 
-    it('keeps the rejected line for a card the owner rejected', () => {
-      const wrapper = mountCard({ card: createCard({ status: 'rejected', statusReason: 'rejectedByUser' }) });
+    it('keeps the rejected line for a card the owner rejected', async () => {
+      const wrapper = await expand(
+        mountCard({ card: createCard({ status: 'rejected', statusReason: 'rejectedByUser' }) }),
+      );
 
       expect(wrapper.text()).toContain('You rejected this change.');
     });

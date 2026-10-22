@@ -63,6 +63,14 @@ export const CODEX_TOOL_DISABLE_ARGS: readonly string[] = CODEX_DISABLED_FEATURE
   name,
 ]);
 
+/**
+ * Features in `CODEX_DISABLED_FEATURES` that a chat run turns back on. With `code_mode_host` off,
+ * Codex routes MCP tools through its code-mode `exec` tool, which is itself unavailable, so the model
+ * is shown none of the bridge's tools (verified on 0.160.1 and 0.163.0). Anything the host could run
+ * is still refused by the fail-closed item guard.
+ */
+const CODEX_CHAT_ENABLED_FEATURES: readonly string[] = ['code_mode_host'];
+
 /** `--json` item types a plain answer produces; anything else is tool activity or a type this code has not vetted. */
 const ALLOWED_ITEM_TYPES = new Set(['agent_message', 'reasoning', 'error']);
 
@@ -112,7 +120,7 @@ export const toTomlString = ({ value }: { value: string }) => JSON.stringify(val
  * search, an empty shell environment, the user config and rules ignored, and the agent tool
  * features switched off. Chat mode adds its one MCP server on top.
  */
-export const CODEX_HARDENING_ARGS: readonly string[] = [
+const CODEX_BASE_ARGS: readonly string[] = [
   'exec',
   '--json',
   '--ephemeral',
@@ -129,7 +137,17 @@ export const CODEX_HARDENING_ARGS: readonly string[] = [
   'web_search="disabled"',
   '-c',
   'shell_environment_policy.inherit="none"',
-  ...CODEX_TOOL_DISABLE_ARGS,
+];
+
+export const CODEX_HARDENING_ARGS: readonly string[] = [...CODEX_BASE_ARGS, ...CODEX_TOOL_DISABLE_ARGS];
+
+/** The hardening list of a chat run: the same, minus the features a chat run needs for its MCP tools. */
+export const CODEX_CHAT_HARDENING_ARGS: readonly string[] = [
+  ...CODEX_BASE_ARGS,
+  ...CODEX_DISABLED_FEATURES.filter((name) => !CODEX_CHAT_ENABLED_FEATURES.includes(name)).flatMap((name) => [
+    '--disable',
+    name,
+  ]),
 ];
 
 /**

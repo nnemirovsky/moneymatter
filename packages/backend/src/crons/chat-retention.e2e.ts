@@ -216,6 +216,53 @@ describe('Chat retention cron', () => {
     expect(await statusOf({ cardId: running })).toBe('applying');
   });
 
+  it('prunes the inbox items resolved longer ago than the chat history, and keeps the waiting ones', async () => {
+    const userId = await helpers.getTestUserId();
+    const inbox = await ChatThreads.create({
+      userId,
+      title: 'Automation inbox',
+      titleSource: 'model',
+      pinned: true,
+      kind: 'automationInbox',
+      inboxState: 'live',
+      lastMessageAt: new Date(),
+      lastReadAt: new Date(),
+      expiresAt: null,
+    });
+    const item = async ({ status, decidedAt }: { status: ChatProposalStatus; decidedAt: Date | null }) => {
+      const message = await ChatMessages.create({
+        threadId: inbox.id,
+        userId,
+        role: 'assistant',
+        status: 'complete',
+        parts: [],
+      });
+      // Posted long ago; what counts is when the card was decided.
+      await ChatMessages.sequelize!.query('UPDATE "ChatMessages" SET "createdAt" = :createdAt WHERE "id" = :id', {
+        replacements: { createdAt: ago({ ms: 90 * DAY_MS }), id: message.id },
+      });
+      return seedCard({
+        threadId: inbox.id,
+        messageId: message.id as string,
+        userId,
+        status,
+        decidedAt,
+        expiresAt: new Date(Date.now() + DAY_MS),
+      });
+    };
+    const old = await item({ status: 'applied', decidedAt: ago({ ms: 40 * DAY_MS }) });
+    const recent = await item({ status: 'rejected', decidedAt: ago({ ms: DAY_MS }) });
+    const waiting = await item({ status: 'pending', decidedAt: null });
+
+    const result = await chatRetentionCron.triggerManualSync();
+
+    // The default history is 30 days.
+    expect(result.prunedInboxItems).toBe(1);
+    expect(await statusOf({ cardId: old })).toBeUndefined();
+    expect(await statusOf({ cardId: recent })).toBe('rejected');
+    expect(await statusOf({ cardId: waiting })).toBe('pending');
+  });
+
   it('works through more rows than one batch holds', async () => {
     const seeded = await seedThread({ expiry: 'future' });
     const dueIds: string[] = [];
@@ -227,13 +274,20 @@ describe('Chat retention cron', () => {
 
     const result = await chatRetentionCron.triggerManualSync({ batchSize: 2 });
 
-    expect(result).toEqual({ expiredCards: 5, unknownCards: 0, deletedAttachments: 5, deletedThreads: 5 });
+    expect(result).toEqual({
+      expiredCards: 5,
+      prunedInboxItems: 0,
+      unknownCards: 0,
+      deletedAttachments: 5,
+      deletedThreads: 5,
+    });
     expect(await ChatProposals.count({ where: { id: dueIds, status: 'expired' } })).toBe(5);
   });
 
   it('does nothing when there is nothing to sweep', async () => {
     expect(await chatRetentionCron.triggerManualSync()).toEqual({
       expiredCards: 0,
+      prunedInboxItems: 0,
       unknownCards: 0,
       deletedAttachments: 0,
       deletedThreads: 0,

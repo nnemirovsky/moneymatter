@@ -2,8 +2,6 @@ import ChatProposals from '@models/chat-proposals.model';
 import { withTransaction } from '@services/common/with-transaction';
 import { Op } from 'sequelize';
 
-import { reevaluateInboxThreads } from '../inbox/inbox-thread';
-
 /** A pending card past its lifetime. The cron expires them in bulk; an action expires the one it touches. */
 export const isExpiryDue = ({
   row,
@@ -21,8 +19,7 @@ interface ExpiryResult {
 
 /**
  * Turns the pending cards among `ids` that are past their lifetime into `expired`; returns how many it turned
- * and the threads they belong to. An inbox thread that was held open by those cards is re-evaluated: one
- * whose last waiting card expired closes and is unpinned.
+ * and the threads they belong to.
  * The due rows are locked first, ids ascending, the order an approval locks its chain in, because an
  * `UPDATE` over several rows locks them in scan order and could deadlock against an approval or a
  * reject that holds one of them and wants another.
@@ -44,7 +41,6 @@ export const expireDueCards = withTransaction(async ({ ids }: { ids: string[] })
   );
 
   const threadIds = [...new Set(due.map((row) => row.threadId as string))];
-  await reevaluateInboxThreads({ threadIds });
 
   return { count: updated, threadIds };
 });

@@ -13,6 +13,7 @@ import CardAccountMappings from '@models/card-account-mappings.model';
 import ChatMessages from '@models/chat-messages.model';
 import ChatProposals from '@models/chat-proposals.model';
 import ChatThreads from '@models/chat-threads.model';
+import { connection } from '@models/connection';
 import DuplicateSuggestions from '@models/duplicate-suggestions.model';
 import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
@@ -30,7 +31,8 @@ import { mockNotificationParsing } from '@tests/helpers/notification-ai';
 import { addMinutes, startOfDay, subDays } from 'date-fns';
 import { randomUUID } from 'node:crypto';
 
-import { inboxConfig } from './inbox-transitions';
+import { mergeInboxThreads } from '../../../migrations/utils/merge-inbox-threads-20261022';
+import { inboxConfig } from './inbox-config';
 
 const CARD = woltOnlinePayment.tap.card;
 const BASE = global.BASE_CURRENCY_CODE;
@@ -158,6 +160,10 @@ interface SeedCard {
   expiresAt?: Date;
   toolName?: string;
   args?: Record<string, unknown>;
+  /** When the card's message was posted; now by default. */
+  postedAt?: Date;
+  /** When the owner (or the inbox) decided the card; unset on a waiting card. */
+  decidedAt?: Date;
 }
 
 /** One message and its card, written directly: lifecycle cases need states no flow reaches quickly. */
@@ -172,6 +178,8 @@ const seedCard = async ({ thread, userId, card }: { thread: ChatThreads; userId:
     parts: [{ type: 'proposal', id: randomUUID(), proposalId }],
   });
 
+  if (card.postedAt) await backdateMessage({ id: message.id, createdAt: card.postedAt });
+
   return ChatProposals.create({
     id: proposalId,
     threadId: thread.id,
@@ -184,7 +192,29 @@ const seedCard = async ({ thread, userId, card }: { thread: ChatThreads; userId:
     entity: 'notificationSource',
     status: card.status,
     expiresAt: card.expiresAt ?? new Date(Date.now() + 86_400_000),
+    decidedAt: card.decidedAt ?? null,
   });
+};
+
+/** `createdAt` is written by Sequelize on insert; a case about age moves it back afterwards. */
+const backdateMessage = async ({ id, createdAt }: { id: string; createdAt: Date }) => {
+  await connection.sequelize.query('UPDATE "ChatMessages" SET "createdAt" = :createdAt WHERE id = :id', {
+    replacements: { id, createdAt },
+  });
+};
+
+/** A notice in the inbox: a message with no card, which the inbox treats as a resolved item. */
+const seedNotice = async ({ thread, userId, postedAt }: { thread: ChatThreads; userId: number; postedAt?: Date }) => {
+  const message = await ChatMessages.create({
+    threadId: thread.id,
+    userId,
+    role: 'assistant',
+    status: 'complete',
+    parts: [{ type: 'notice', id: randomUUID(), key: 'chat.inbox.notices.test', params: {} }],
+  });
+  if (postedAt) await backdateMessage({ id: message.id, createdAt: postedAt });
+
+  return message;
 };
 
 const answerFor = ({ prompt }: { prompt: string }) =>
@@ -205,6 +235,14 @@ const answerFor = ({ prompt }: { prompt: string }) =>
       };
 
 const threadOf = async ({ id }: { id: string }) => (await ChatThreads.findByPk(id))!;
+
+/** The statuses of a thread's cards, oldest decision first. */
+const remainingStatuses = async ({ threadId }: { threadId: string }) =>
+  (await ChatProposals.findAll({ where: { threadId }, order: [['decidedAt', 'ASC']] })).map((card) => card.status);
+
+/** A thread as the list shows it, badge included. */
+const listed = async ({ id }: { id: string }) =>
+  (await helpers.listChatThreads({ raw: true })).threads.find((thread) => thread.id === id)!;
 
 const becomeReadOnly = () => helpers.setUserBilling({ trialEndsAt: new Date(Date.now() - 86_400_000) });
 
@@ -236,7 +274,8 @@ describe('Automation inbox', () => {
 
       expect(thread).toMatchObject({
         kind: 'automationInbox',
-        inboxState: 'live',
+        // The waiting card is what the thread's badge counts.
+        badgeCount: 1,
         pinned: true,
         title: 'Automation inbox',
         expiresAt: null,
@@ -1018,25 +1057,18 @@ describe('Automation inbox', () => {
   });
 
   describe('the thread', () => {
-    /** An inbox thread with the given cards, written directly: lifecycle cases need states no flow reaches quickly. */
-    const seedInboxThread = async ({
-      state = 'live',
-      cards = [],
-      createdAt,
-    }: {
-      state?: 'live' | 'open' | 'closed';
-      cards?: SeedCard[];
-      createdAt?: Date;
-    } = {}) => {
+    /** The user's inbox thread with the given cards, written directly: lifecycle cases need states no flow reaches quickly. */
+    const seedInboxThread = async ({ cards = [], createdAt }: { cards?: SeedCard[]; createdAt?: Date } = {}) => {
       const { id: userId } = await helpers.getUserInfo({ raw: true });
       const thread = await ChatThreads.create({
         userId,
         title: 'Automation inbox',
         titleSource: 'model',
-        pinned: state !== 'closed',
+        pinned: true,
         kind: 'automationInbox',
-        inboxState: state,
+        inboxState: 'live',
         lastMessageAt: new Date(),
+        lastReadAt: new Date(),
         expiresAt: null,
         ...(createdAt && { createdAt }),
       });
@@ -1048,6 +1080,19 @@ describe('Automation inbox', () => {
 
       return { thread, proposals, userId };
     };
+
+    const parkNewSource = ({ secret, app }: { secret: string; app: string }) =>
+      ingestHelpers.postIngestEvent({
+        secret,
+        body: {
+          kind: 'notification',
+          app,
+          title: app,
+          subtitle: '',
+          body: `Purchase ${BASE} 12.50 at SHOP`,
+          idempotencyKey: `push-${randomUUID()}`,
+        },
+      });
 
     describe('no assistant', () => {
       it('refuses a message with 409', async () => {
@@ -1067,21 +1112,8 @@ describe('Automation inbox', () => {
       });
     });
 
-    describe('one live thread', () => {
-      const parkNewSource = ({ secret, app }: { secret: string; app: string }) =>
-        ingestHelpers.postIngestEvent({
-          secret,
-          body: {
-            kind: 'notification',
-            app,
-            title: app,
-            subtitle: '',
-            body: `Purchase ${BASE} 12.50 at SHOP`,
-            idempotencyKey: `push-${randomUUID()}`,
-          },
-        });
-
-      it('holds both cards when two items arrive together and there is no live thread yet', async () => {
+    describe('one permanent thread', () => {
+      it('holds both cards when two items arrive together and there is no inbox yet', async () => {
         const { secret } = { secret: (await ingestHelpers.createTestIngestToken()).secret };
 
         await Promise.all([parkNewSource({ secret, app: 'Cashly' }), parkNewSource({ secret, app: 'Paymo' })]);
@@ -1089,174 +1121,278 @@ describe('Automation inbox', () => {
 
         const threads = await inboxThreads();
         expect(threads).toHaveLength(1);
-        expect(threads[0]).toMatchObject({ inboxState: 'live', pinned: true });
-        expect(await ChatThreads.count({ where: { kind: 'automationInbox', inboxState: 'live' } })).toBe(1);
+        expect(threads[0]).toMatchObject({ pinned: true, expiresAt: null });
+        expect(await ChatThreads.count({ where: { kind: 'automationInbox' } })).toBe(1);
         expect(await inboxCards({ toolName: SET_SOURCE })).toHaveLength(2);
       });
 
-      it('opens a full thread that still has pending cards, keeps it pinned, and starts a new live one', async () => {
-        inboxConfig.maxCards = 2;
-        const { secret } = { secret: (await ingestHelpers.createTestIngestToken()).secret };
-
-        for (const app of ['Cashly', 'Paymo', 'Spendly']) {
-          await parkNewSource({ secret, app });
-          await until(
-            async () => (await NotificationSources.findOne({ where: { appName: app } }))?.proposalId != null,
-            {
-              timeout: 20_000,
-              interval: 150,
-            },
-          );
-        }
-
-        const threads = await ChatThreads.findAll({
-          where: { kind: 'automationInbox' },
-          order: [['createdAt', 'ASC']],
-        });
-        expect(threads.map((thread) => [thread.inboxState, thread.pinned])).toEqual([
-          ['open', true],
-          ['live', true],
-        ]);
-        expect(await ChatProposals.count({ where: { threadId: threads[0]!.id } })).toBe(2);
-      });
-
-      it('closes an open thread when its last pending card is resolved, unpins it, and then lets it be deleted', async () => {
-        const { thread, proposals } = await seedInboxThread({
-          state: 'open',
-          cards: [{ status: 'pending' }, { status: 'pending' }],
-        });
-
-        await helpers.rejectChatProposal({ proposalId: proposals[0]!.id });
-        expect(await threadOf({ id: thread.id })).toMatchObject({ inboxState: 'open', pinned: true });
-
-        await helpers.rejectChatProposal({ proposalId: proposals[1]!.id });
-
-        expect(await threadOf({ id: thread.id })).toMatchObject({ inboxState: 'closed', pinned: false });
-        expect((await helpers.deleteChatThread({ threadId: thread.id })).statusCode).toBe(200);
-      });
-
-      it('closes an open thread whose last pending card expires, through the existing card expiry', async () => {
+      it('keeps posting into the same thread however old it is and whatever it holds', async () => {
         const { thread } = await seedInboxThread({
-          state: 'open',
-          cards: [{ status: 'pending', expiresAt: new Date(Date.now() - 1000) }, { status: 'applied' }],
-        });
-
-        // Reading the thread expires the due card.
-        const page = await helpers.getChatThread({ threadId: thread.id, raw: true });
-
-        expect(
-          Object.values(page.cards)
-            .map((card) => card.status)
-            .toSorted(),
-        ).toEqual(['applied', 'expired']);
-        expect(await threadOf({ id: thread.id })).toMatchObject({ inboxState: 'closed', pinned: false });
-        expect((await helpers.deleteChatThread({ threadId: thread.id })).statusCode).toBe(200);
-      });
-
-      it('rolls an old live thread with nothing pending over to a new one', async () => {
-        const { thread } = await seedInboxThread({
-          state: 'live',
-          cards: [{ status: 'applied' }],
-          createdAt: new Date(Date.now() - 8 * 86_400_000),
+          cards: [{ status: 'applied' }, { status: 'rejected' }],
+          createdAt: new Date(Date.now() - 90 * 86_400_000),
         });
         const { secret } = { secret: (await ingestHelpers.createTestIngestToken()).secret };
 
         await parkNewSource({ secret, app: 'Cashly' });
         await waitForCards({ toolName: SET_SOURCE });
 
-        expect(await threadOf({ id: thread.id })).toMatchObject({ inboxState: 'closed', pinned: false });
-        const live = await ChatThreads.findAll({ where: { kind: 'automationInbox', inboxState: 'live' } });
-        expect(live).toHaveLength(1);
-        expect(live[0]!.id).not.toBe(thread.id);
-      });
-    });
-
-    describe('protection', () => {
-      it.each(['live', 'open'] as const)('refuses to delete or unpin a %s thread with 409', async (state) => {
-        const { thread } = await seedInboxThread({ state, cards: [{ status: 'pending' }] });
-
-        expect((await helpers.deleteChatThread({ threadId: thread.id })).statusCode).toBe(ERROR_CODES.ConflictError);
-        expect((await helpers.updateChatThread({ threadId: thread.id, payload: { pinned: false } })).statusCode).toBe(
-          ERROR_CODES.ConflictError,
-        );
-        expect(await ChatThreads.findByPk(thread.id)).not.toBeNull();
+        const threads = await ChatThreads.findAll({ where: { kind: 'automationInbox' } });
+        expect(threads.map((row) => row.id)).toEqual([thread.id]);
+        expect(await ChatProposals.count({ where: { threadId: thread.id } })).toBe(3);
       });
 
-      it('deletes a closed thread like any other', async () => {
-        const { thread } = await seedInboxThread({ state: 'closed', cards: [{ status: 'rejected' }] });
-
-        expect((await helpers.deleteChatThread({ threadId: thread.id })).statusCode).toBe(200);
-        expect(await ChatThreads.findByPk(thread.id)).toBeNull();
-      });
-    });
-
-    describe('Clear resolved', () => {
-      it('deletes the messages of resolved cards and keeps the ones still waiting', async () => {
+      it('stays when its last waiting card is resolved or expires', async () => {
         const { thread, proposals } = await seedInboxThread({
-          cards: [{ status: 'pending' }, { status: 'applied' }, { status: 'rejected' }, { status: 'stale' }],
+          cards: [{ status: 'pending' }, { status: 'pending', expiresAt: new Date(Date.now() - 1000) }],
         });
-
-        const cleared = await helpers.clearResolvedChatThread({ threadId: thread.id });
-
-        expect(cleared.statusCode).toBe(200);
-        expect(cleared.body.response).toEqual({ deletedMessages: 2 });
-        const left = await ChatProposals.findAll({ where: { threadId: thread.id }, order: [['createdAt', 'ASC']] });
-        expect(left.map((card) => card.id)).toEqual([proposals[0]!.id, proposals[3]!.id]);
-        expect(await ChatMessages.count({ where: { threadId: thread.id } })).toBe(2);
-      });
-
-      it('refuses a thread that is not the inbox', async () => {
-        const chat = await helpers.createChatThread({ raw: true });
-
-        expect((await helpers.clearResolvedChatThread({ threadId: chat.id })).statusCode).toBe(
-          ERROR_CODES.ValidationError,
-        );
-      });
-    });
-
-    describe('Archive', () => {
-      it('refuses while a card is pending with 409, and closes the thread once nothing is', async () => {
-        const { thread, proposals } = await seedInboxThread({ cards: [{ status: 'pending' }, { status: 'applied' }] });
-
-        const refused = await helpers.archiveChatThread({ threadId: thread.id });
-        expect(refused.statusCode).toBe(ERROR_CODES.ConflictError);
-        expect(await threadOf({ id: thread.id })).toMatchObject({ inboxState: 'live', pinned: true });
 
         await helpers.rejectChatProposal({ proposalId: proposals[0]!.id });
-        const archived = await helpers.archiveChatThread({ threadId: thread.id });
+        // Reading the thread expires the due card.
+        await helpers.getChatThread({ threadId: thread.id, raw: true });
 
-        expect(archived.statusCode).toBe(200);
-        expect(archived.body.response).toMatchObject({ inboxState: 'closed', pinned: false });
-        expect(await threadOf({ id: thread.id })).toMatchObject({ inboxState: 'closed', pinned: false });
+        expect(await threadOf({ id: thread.id })).toMatchObject({ pinned: true, expiresAt: null });
       });
 
-      it('lets the next item open a new live thread', async () => {
+      it('refuses to delete or unpin it with 409, with or without a waiting card', async () => {
+        for (const cards of [[{ status: 'pending' as const }], [{ status: 'applied' as const }]]) {
+          await ChatThreads.destroy({ where: { kind: 'automationInbox' } });
+          const { thread } = await seedInboxThread({ cards });
+
+          expect((await helpers.deleteChatThread({ threadId: thread.id })).statusCode).toBe(ERROR_CODES.ConflictError);
+          expect((await helpers.updateChatThread({ threadId: thread.id, payload: { pinned: false } })).statusCode).toBe(
+            ERROR_CODES.ConflictError,
+          );
+          expect(await ChatThreads.findByPk(thread.id)).not.toBeNull();
+        }
+      });
+
+      it('refuses a second inbox thread for the same user at the database', async () => {
+        const { userId } = await seedInboxThread();
+
+        await expect(
+          ChatThreads.create({
+            userId,
+            title: 'Automation inbox',
+            titleSource: 'model',
+            pinned: true,
+            kind: 'automationInbox',
+            inboxState: 'live',
+            lastMessageAt: new Date(),
+            expiresAt: null,
+          }),
+        ).rejects.toThrow();
+      });
+
+      it('no longer answers the archive and clear-resolved routes', async () => {
         const { thread } = await seedInboxThread({ cards: [{ status: 'applied' }] });
-        await helpers.archiveChatThread({ threadId: thread.id });
+
+        for (const action of ['archive', 'clear-resolved']) {
+          const response = await helpers.makeRequest({ method: 'post', url: `/chat/threads/${thread.id}/${action}` });
+          expect(response.statusCode).toBe(404);
+        }
+      });
+    });
+
+    describe('pruning', () => {
+      const DAY = 86_400_000;
+      const daysAgo = (days: number) => new Date(Date.now() - days * DAY);
+
+      it('keeps the newest resolved items up to the setting and every item that still waits', async () => {
+        const resolved: SeedCard[] = Array.from({ length: 12 }, (_, index) => ({
+          status: index % 2 ? ('applied' as const) : ('rejected' as const),
+          postedAt: daysAgo(2),
+          // The first one was decided the longest ago.
+          decidedAt: new Date(Date.now() - (12 - index) * 60_000),
+        }));
+        const { thread, proposals } = await seedInboxThread({
+          cards: [
+            { status: 'pending', postedAt: daysAgo(3) },
+            { status: 'stale', postedAt: daysAgo(3) },
+            { status: 'failed', postedAt: daysAgo(3) },
+            ...resolved,
+          ],
+        });
+
+        const response = await helpers.updateChatSettings({ payload: { inboxKeepResolved: 10 } });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.body.response).toEqual({ retentionDays: 30, inboxKeepResolved: 10 });
+        const left = await ChatProposals.findAll({ where: { threadId: thread.id } });
+        const leftIds = new Set(left.map((card) => card.id));
+        // The two decided first are gone, with their messages.
+        expect(leftIds.has(proposals[3]!.id)).toBe(false);
+        expect(leftIds.has(proposals[4]!.id)).toBe(false);
+        expect(left).toHaveLength(13);
+        expect(left.filter((card) => ['pending', 'stale', 'failed'].includes(card.status))).toHaveLength(3);
+        expect(await ChatMessages.count({ where: { threadId: thread.id } })).toBe(13);
+      });
+
+      it('deletes resolved items older than the chat history, counting from when they were decided', async () => {
+        const { userId, thread } = await seedInboxThread({
+          cards: [
+            { status: 'applied', postedAt: daysAgo(20), decidedAt: daysAgo(10) },
+            { status: 'rejected', postedAt: daysAgo(20), decidedAt: daysAgo(2) },
+            { status: 'pending', postedAt: daysAgo(40) },
+          ],
+        });
+        await seedNotice({ thread, userId, postedAt: daysAgo(9) });
+        await seedNotice({ thread, userId, postedAt: daysAgo(1) });
+
+        await helpers.updateChatSettings({ payload: { retentionDays: 7 } });
+
+        expect((await remainingStatuses({ threadId: thread.id })).toSorted()).toEqual(['pending', 'rejected']);
+        expect(await ChatMessages.count({ where: { threadId: thread.id } })).toBe(3);
+      });
+
+      it('keeps resolved items of any age when the chat history is kept forever', async () => {
+        const { thread } = await seedInboxThread({
+          cards: [{ status: 'applied', postedAt: daysAgo(400), decidedAt: daysAgo(400) }],
+        });
+
+        await helpers.updateChatSettings({ payload: { retentionDays: null } });
+
+        expect(await remainingStatuses({ threadId: thread.id })).toEqual(['applied']);
+      });
+
+      it('prunes on a new item too', async () => {
+        await helpers.updateChatSettings({ payload: { inboxKeepResolved: 10 } });
+        const { userId, thread } = await seedInboxThread({
+          cards: Array.from({ length: 11 }, (_, index) => ({
+            status: 'applied' as const,
+            decidedAt: new Date(Date.now() - (11 - index) * 60_000),
+          })),
+        });
+        await seedNotice({ thread, userId, postedAt: daysAgo(1) });
         const { secret } = { secret: (await ingestHelpers.createTestIngestToken()).secret };
 
-        await ingestHelpers.postIngestEvent({
-          secret,
-          body: {
-            kind: 'notification',
-            app: 'Cashly',
-            title: 'Cashly',
-            subtitle: '',
-            body: `Purchase ${BASE} 12.50 at SHOP`,
-            idempotencyKey: `push-${randomUUID()}`,
-          },
-        });
+        await parkNewSource({ secret, app: 'Cashly' });
         await waitForCards({ toolName: SET_SOURCE });
 
-        const live = await ChatThreads.findAll({ where: { kind: 'automationInbox', inboxState: 'live' } });
-        expect(live).toHaveLength(1);
-        expect(live[0]!.id).not.toBe(thread.id);
+        await until(async () => (await ChatMessages.count({ where: { threadId: thread.id } })) === 11, {
+          timeout: 20_000,
+          interval: 150,
+        });
+        expect(await ChatProposals.count({ where: { threadId: thread.id, status: 'applied' } })).toBe(10);
       });
 
-      it('refuses a thread that is not the inbox', async () => {
+      it.each([9, 1001, 10.5])('refuses to keep %s resolved items with 422 and changes nothing', async (value) => {
+        const response = await helpers.updateChatSettings({ payload: { inboxKeepResolved: value } });
+
+        expect(response.statusCode).toBe(ERROR_CODES.ValidationError);
+        expect(
+          (await helpers.updateChatSettings({ payload: { retentionDays: 30 }, raw: true })).inboxKeepResolved,
+        ).toBe(100);
+      });
+
+      it('keeps the retention when only the number of items changes', async () => {
+        await helpers.updateChatSettings({ payload: { retentionDays: 90 } });
+
+        const settings = await helpers.updateChatSettings({ payload: { inboxKeepResolved: 500 }, raw: true });
+
+        expect(settings).toEqual({ retentionDays: 90, inboxKeepResolved: 500 });
+      });
+    });
+
+    describe('badges', () => {
+      it('counts the cards that wait for the owner and the notices that arrived since the inbox was viewed', async () => {
+        const { userId, thread } = await seedInboxThread({
+          cards: [{ status: 'pending' }, { status: 'stale' }, { status: 'applied' }, { status: 'failed' }],
+        });
+        await seedNotice({ thread, userId });
+
+        expect((await listed({ id: thread.id })).badgeCount).toBe(3);
+        expect((await helpers.getChatBadgeTotal({ raw: true })).total).toBe(3);
+
+        // Viewing reads the notice; the cards keep counting until they are answered.
+        const page = await helpers.getChatThread({ threadId: thread.id, raw: true });
+        expect(page.thread.badgeCount).toBe(2);
+        expect((await listed({ id: thread.id })).badgeCount).toBe(2);
+      });
+
+      it('counts a chat reply until the thread is viewed, by opening it or by presence', async () => {
+        const { id: userId } = await helpers.getUserInfo({ raw: true });
+        const chat = await helpers.createChatThread({ raw: true });
+        const other = await helpers.createChatThread({ raw: true });
+        const reply = ({ threadId }: { threadId: string }) =>
+          ChatMessages.create({
+            threadId,
+            userId,
+            role: 'assistant',
+            status: 'complete',
+            parts: [{ type: 'text', id: randomUUID(), text: 'Done.' }],
+          });
+        expect((await listed({ id: chat.id })).badgeCount).toBe(0);
+
+        await reply({ threadId: chat.id });
+        await reply({ threadId: chat.id });
+        await reply({ threadId: other.id });
+
+        expect((await listed({ id: chat.id })).badgeCount).toBe(2);
+        expect((await helpers.getChatBadgeTotal({ raw: true })).total).toBe(3);
+
+        await helpers.getChatThread({ threadId: chat.id, raw: true });
+        expect((await listed({ id: chat.id })).badgeCount).toBe(0);
+
+        expect((await helpers.putChatPresence({ threadId: other.id })).statusCode).toBe(200);
+        expect((await listed({ id: other.id })).badgeCount).toBe(0);
+        expect((await helpers.getChatBadgeTotal({ raw: true })).total).toBe(0);
+      });
+
+      it('does not count a reply that is still streaming', async () => {
+        const { id: userId } = await helpers.getUserInfo({ raw: true });
+        const chat = await helpers.createChatThread({ raw: true });
+        await ChatMessages.create({ threadId: chat.id, userId, role: 'assistant', status: 'streaming', parts: [] });
+
+        expect((await listed({ id: chat.id })).badgeCount).toBe(0);
+      });
+    });
+
+    describe('merging the inboxes a user had before one permanent thread', () => {
+      it('moves every message and card into the live thread, keeps one per user and deletes the rest', async () => {
+        const { id: userId } = await helpers.getUserInfo({ raw: true });
+        const newest = new Date();
+        // Made over HTTP, so before the transaction below locks the table.
         const chat = await helpers.createChatThread({ raw: true });
 
-        expect((await helpers.archiveChatThread({ threadId: chat.id })).statusCode).toBe(ERROR_CODES.ValidationError);
+        await expect(
+          connection.sequelize.transaction(async (transaction) => {
+            // The index of one inbox per user did not exist when there were several.
+            await connection.sequelize.query('DROP INDEX "ChatThreads_userId_inbox_unique"', { transaction });
+            const make = (state: string, lastMessageAt: Date) =>
+              ChatThreads.create(
+                {
+                  userId,
+                  title: 'Automation inbox',
+                  titleSource: 'model',
+                  pinned: state !== 'closed',
+                  kind: 'automationInbox',
+                  inboxState: state,
+                  lastMessageAt,
+                  lastReadAt: lastMessageAt,
+                  expiresAt: state === 'closed' ? new Date(Date.now() + 86_400_000) : null,
+                },
+                { transaction },
+              );
+            const closed = await make('closed', new Date(Date.now() - 20 * 86_400_000));
+            const open = await make('open', newest);
+            const live = await make('live', new Date(Date.now() - 86_400_000));
+            await seedCard({ thread: closed, userId, card: { status: 'applied' } });
+            await seedCard({ thread: open, userId, card: { status: 'pending' } });
+            await seedCard({ thread: live, userId, card: { status: 'pending' } });
+
+            await mergeInboxThreads({ queryInterface: connection.sequelize.getQueryInterface(), transaction });
+
+            const inboxes = await ChatThreads.findAll({ where: { kind: 'automationInbox' }, transaction });
+            expect(inboxes.map((thread) => thread.id)).toEqual([live.id]);
+            expect(inboxes[0]).toMatchObject({ inboxState: 'live', pinned: true, expiresAt: null });
+            expect(inboxes[0]!.lastMessageAt.getTime()).toBe(newest.getTime());
+            expect(await ChatProposals.count({ where: { threadId: live.id }, transaction })).toBe(3);
+            expect(await ChatMessages.count({ where: { threadId: live.id }, transaction })).toBe(3);
+            expect(await ChatThreads.findByPk(chat.id, { transaction })).not.toBeNull();
+
+            throw new Error('rollback');
+          }),
+        ).rejects.toThrow('rollback');
       });
     });
   });
@@ -1283,17 +1419,13 @@ describe('Automation inbox for a read-only user (lapsed plan)', () => {
     return { thread, proposals };
   };
 
-  it('can clear resolved items and archive the inbox', async () => {
-    const { thread } = await seedThreadWith({ cards: [{ status: 'applied' }, { status: 'rejected' }] });
+  it('can change how many resolved items the inbox keeps', async () => {
     await becomeReadOnly();
 
-    const cleared = await helpers.clearResolvedChatThread({ threadId: thread.id });
-    const archived = await helpers.archiveChatThread({ threadId: thread.id });
+    const response = await helpers.updateChatSettings({ payload: { inboxKeepResolved: 50 } });
 
-    expect(cleared.statusCode).toBe(200);
-    expect(cleared.body.response).toEqual({ deletedMessages: 2 });
-    expect(archived.statusCode).toBe(200);
-    expect(archived.body.response).toMatchObject({ inboxState: 'closed' });
+    expect(response.statusCode).toBe(200);
+    expect(response.body.response).toMatchObject({ inboxKeepResolved: 50 });
   });
 
   it('cannot delete a payment by rejecting its confirm card (402), and the payment stays', async () => {

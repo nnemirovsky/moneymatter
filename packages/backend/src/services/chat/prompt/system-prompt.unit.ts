@@ -89,8 +89,24 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toMatch(/one (tool )?call per change/i);
   });
 
-  it('forbids text in acting turns', () => {
-    expect(buildSystemPrompt(params)).toMatch(/no text in acting turns|write no text in an acting turn/i);
+  it('forbids text in an acting turn that ends with cards, and requires a sentence when none is proposed', () => {
+    const prompt = buildSystemPrompt(params);
+
+    expect(prompt).toMatch(/acting turn that ends with cards, write no text/i);
+    expect(prompt).toMatch(/neither a card nor a sentence/i);
+  });
+
+  it('logs a payment picture sent with no or vague text: search for it first, then propose or say it exists', () => {
+    const prompt = buildSystemPrompt(params);
+
+    expect(prompt).toMatch(/is a request to log it\. Do not ask what the user wants/);
+    expect(prompt).toMatch(/search_transactions for the same amount within a day/);
+    expect(prompt).toMatch(/already logged/);
+    expect(prompt).toMatch(/propose create_transaction right away/);
+  });
+
+  it('tells the model to revise a pending card by replacing it, never by updating a $proposal ref', () => {
+    expect(buildSystemPrompt(params)).toMatch(/Never call an update or delete tool with a "\$proposal:" ref/);
   });
 
   it('has the answering rules: numbers from results, visuals through the render tools', () => {

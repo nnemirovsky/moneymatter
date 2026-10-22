@@ -57,11 +57,8 @@ describe('ConnectionModelSelect', () => {
     const wrapper = mountSelect({ modelId: null });
 
     expect(vi.mocked(useAiConnectionModels).mock.calls[0]![0].params).toBeTypeOf('function');
-    expect(wrapper.findAll('button').map((button) => button.text())).toEqual([
-      'Default (claude-haiku-5-5)',
-      'claude-sonnet-5-5',
-    ]);
-    expect(wrapper.find('[data-testid="select"]').attributes('data-selected')).toBe('Default (claude-haiku-5-5)');
+    expect(wrapper.findAll('button').map((button) => button.text())).toEqual(['claude-haiku-5-5', 'claude-sonnet-5-5']);
+    expect(wrapper.find('[data-testid="select"]').attributes('data-selected')).toBe('claude-haiku-5-5');
   });
 
   it('reports the picked model, and null for the default', async () => {

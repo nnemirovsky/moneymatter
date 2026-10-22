@@ -154,12 +154,19 @@ if (argv[0] !== 'exec') {
 const here = path.dirname(fileURLToPath(import.meta.url));
 const disabledFeatures = JSON.parse(fs.readFileSync(path.join(here, 'codex-disabled-features.json'), 'utf8'));
 const disabled = flagValues({ argv, name: '--disable' });
+const configOverrides = flagValues({ argv, name: '-c' });
+const isChatRun = configOverrides.some((override) => override.startsWith('mcp_servers.moneymatter.'));
+
+// A chat run keeps the code-mode host on: with it off, Codex shows the model none of the MCP tools.
+const chatEnabledFeatures = ['code_mode_host'];
 
 for (const name of disabledFeatures) {
+  if (isChatRun && chatEnabledFeatures.includes(name)) {
+    if (disabled.includes(name)) fail({ code: 2, message: `a chat run must not disable ${name}` });
+    continue;
+  }
   if (!disabled.includes(name)) fail({ code: 2, message: `missing hardening flag ${name}` });
 }
-
-const configOverrides = flagValues({ argv, name: '-c' });
 
 for (const override of [
   'web_search="disabled"',
@@ -301,7 +308,9 @@ async function runChatMcp() {
     override.startsWith('mcp_servers.moneymatter.tool_timeout_sec='),
   );
 
-  if (!url || !tokenEnvVar || !toolTimeout)
+  const approvalMode = tomlString({ key: 'default_tools_approval_mode' });
+
+  if (!url || !tokenEnvVar || !toolTimeout || approvalMode !== 'approve')
     fail({ code: 2, message: 'fake-codex: the moneymatter MCP overrides are incomplete' });
 
   const token = process.env[tokenEnvVar];

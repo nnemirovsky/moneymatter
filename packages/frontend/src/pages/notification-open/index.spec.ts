@@ -15,6 +15,8 @@ vi.mock('@/api/notifications', () => ({
   markAsRead: vi.fn().mockResolvedValue(true),
 }));
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
+// The bell's live updates come over the app's SSE channel, which this page does not open.
+vi.mock('@/composable/use-sse', () => ({ SSE_EVENT_TYPES: {}, useSSE: () => ({ on: () => () => undefined }) }));
 vi.mock('@/components/notification-center', () => ({
   useNotificationCenter: () => ({ addErrorNotification }),
 }));

@@ -10,7 +10,7 @@ import { notifyThreadUpdated } from './thread-events';
 const deleteThreadTransactional = withTransaction(
   async ({ userId, threadId }: { userId: number; threadId: string }) => {
     const thread = await findThreadOrThrow({ userId, threadId });
-    // The automation inbox owns its live and open threads; only a closed one is an ordinary thread.
+    // The automation inbox is owned by MoneyMatter for good.
     assertInboxThreadDetachable({ thread });
     const runIds = await findStreamingRunIds({ threadId });
     await thread.destroy();

@@ -11,6 +11,8 @@ let accountId: string;
 
 const COMPOSER_PLACEHOLDER = 'Ask or describe a change';
 const MOBILE_VIEWPORT = { width: 390, height: 844 };
+/** The connection's own model in the model list: its name and a "Default" tag. */
+const DEFAULT_MODEL_OPTION = /^llama3\.2\s*Default$/;
 
 const thread = ({ page, title }: { page: Page; title: string }) =>
   page.getByTestId('thread-item').filter({ hasText: title });
@@ -237,7 +239,8 @@ test.describe('Chat page', () => {
         await page.goto('/chat/thread-1');
 
         const models = page.getByTestId('chat-connection-picker').getByRole('combobox').nth(1);
-        await expect(models).toContainText('Default (llama3.2)');
+        // The connection's own model is named plainly; the list tags it as the default.
+        await expect(models).toHaveText('llama3.2');
         // The model select names the model, so the connection is named alone.
         await expect(page.getByTestId('chat-connection-picker').getByRole('combobox').first()).toHaveText(
           'Home Ollama',
@@ -260,7 +263,7 @@ test.describe('Chat page', () => {
         expect(picked?.body).toEqual({ modelId: 'llama3.2:70b' });
 
         await models.click();
-        await page.getByRole('option', { name: 'Default (llama3.2)' }).click();
+        await page.getByRole('option', { name: DEFAULT_MODEL_OPTION }).click();
 
         await expect
           .poll(() => stub.calls.findLast((call) => call.method === 'PATCH' && call.path === '/threads/thread-1')?.body)
@@ -291,7 +294,7 @@ test.describe('Chat page', () => {
         const models = page.getByTestId('chat-connection-picker').getByRole('combobox').nth(1);
         await expect(models).toContainText('llama3.2:70b');
         await models.click();
-        await page.getByRole('option', { name: 'Default (llama3.2)' }).click();
+        await page.getByRole('option', { name: DEFAULT_MODEL_OPTION }).click();
 
         await page.getByPlaceholder(COMPOSER_PLACEHOLDER).fill('Hi');
         await page.getByTestId('send').click();

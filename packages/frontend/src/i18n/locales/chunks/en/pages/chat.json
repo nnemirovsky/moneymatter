@@ -350,6 +350,9 @@
         "stale": "Your data changed after this was proposed. Refresh the card to see the current version.",
         "resolvedElsewhere": "Settled somewhere else, so this item is closed."
       },
+      "statusBadge": {
+        "resolvedElsewhere": "Closed"
+      },
       "actions": {
         "approve": "Approve",
         "approving": "Approving…",
@@ -587,6 +590,8 @@
         "note": "Why it waits",
         "account": "Log to",
         "accountPlaceholder": "Choose an account",
+        "noteLabel": "Note",
+        "notePlaceholder": "Add a note",
         "accountHint": "Pick the account first. Nothing is logged without it.",
         "learnCard": "Future {source} payments ending {digits} will go to {account}.",
         "learnCardNamed": "Future payments on {card} will go to {account}.",
@@ -658,6 +663,7 @@
       "stepLimit": "Stopped after {limit} steps. Ask again to continue.",
       "cancelled": "Stopped at your request.",
       "waitingForCli": "Waiting for a free Claude Code or Codex slot on this server. Your message will start as soon as one is free.",
+      "noAnswer": "The assistant finished without an answer or a proposal. Ask again, or say what you want done.",
       "interrupted": "The server restarted, so this answer was cut short.",
       "toolCallLimit": "This message reached its limit of {limit} tool calls.",
       "proposalLimit": "This message reached its limit of {limit} proposed changes.",
@@ -718,7 +724,8 @@
         "rename": "Rename",
         "pin": "Pin",
         "unpin": "Unpin",
-        "delete": "Delete"
+        "delete": "Delete",
+        "more": "More actions"
       },
       "toasts": {
         "renamed": "Conversation renamed",
@@ -732,7 +739,8 @@
         "confirm": "Delete"
       },
       "expiresOn": "Deleted automatically on {date}",
-      "neverExpires": "Kept until you delete it"
+      "neverExpires": "Kept until you delete it",
+      "badge": "{count} new or waiting item | {count} new or waiting items"
     },
     "usage": {
       "chip": "{count} tokens",
@@ -886,24 +894,8 @@
     "inbox": {
       "emptyTitle": "Nothing is waiting",
       "emptyDescription": "Payments from your iOS automations and anything that needs your OK show up here.",
-      "pinnedNote": "MoneyMatter keeps this pinned while it has items",
-      "lockedHint": "MoneyMatter keeps the automation inbox pinned until it closes",
-      "state": {
-        "live": "Collecting",
-        "open": "Full",
-        "closed": "Closed"
-      },
-      "clearResolved": {
-        "label": "Clear resolved",
-        "done": "Cleared {count} resolved item | Cleared {count} resolved items"
-      },
-      "archive": {
-        "label": "Archive",
-        "hint": "Archiving closes this inbox, and the next item starts a new one.",
-        "closed": "This inbox is closed. The next item starts a new one.",
-        "cardsPending": "Resolve the {count} waiting item to archive. | Resolve the {count} waiting items to archive.",
-        "done": "Inbox archived"
-      }
+      "pinnedNote": "Always pinned. Resolved items are cleared out on their own.",
+      "lockedHint": "MoneyMatter keeps the automation inbox pinned for good"
     }
   }
 }

@@ -72,9 +72,7 @@
     "cardApplyFailed": "The change could not be applied.",
     "inbox": {
       "title": "Automation inbox",
-      "threadProtected": "The automation inbox is kept pinned while it holds open items. Resolve them, or archive it once nothing is waiting.",
-      "notInboxThread": "This is not the automation inbox.",
-      "cardsPending": "Some items in the automation inbox are still waiting for you, so it cannot be archived yet.",
+      "threadProtected": "The automation inbox stays pinned for good, so it cannot be unpinned or deleted. Resolved items are removed on their own, as set in Settings → AI → Chat.",
       "noAssistant": "The assistant does not answer in the automation inbox. Open a regular conversation to ask it something."
     }
   },

@@ -4,14 +4,10 @@ import { cn } from '@/lib/utils';
 import type { ChatCardDependency, ChatCardField, ChatUncertaintyReason } from '@bt/shared/types';
 import { TriangleAlertIcon } from '@lucide/vue';
 import { computed } from 'vue';
-import { useI18n } from 'vue-i18n';
 
 import { useChatText } from '../chat-text';
-import { chatEntityRoute } from '../entity-route';
-import { formatVisualDate, formatVisualValue } from '../visuals/format-visual-value';
-import { fieldEntityKind, proposalRefId, summarizeValue } from './card-values';
-import { describeMatchingRules } from './matching-rules';
 import type { CardLookups } from './use-card-lookups';
+import { useCardFieldText } from './use-card-field-text';
 
 const props = defineProps<{
   field: ChatCardField;
@@ -26,91 +22,21 @@ const props = defineProps<{
 
 const emit = defineEmits<{ choose: [value: unknown] }>();
 
-const { t } = useI18n();
-const { keyText, entityLabel, titleText, enumValueText } = useChatText();
+const { keyText } = useChatText();
+const { valueParts: partsOfValue } = useCardFieldText();
 
-const LOOKS_LIKE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-interface ValuePart {
-  text: string;
-  to?: ReturnType<typeof chatEntityRoute>;
-}
-
-const entityKind = computed(() => fieldEntityKind({ field: props.field }));
-const displayKind = computed(() => props.field.display?.kind ?? 'text');
-
-/** A list of records longer than this shows its first ones and the count of the rest. */
-const NAMED_RECORDS_LIMIT = 5;
-
-const entityParts = ({ value }: { value: unknown }): ValuePart[] => {
-  const kind = entityKind.value;
-  const ids = Array.isArray(value) ? value : [value];
-  const hidden = Math.max(0, ids.length - NAMED_RECORDS_LIMIT);
-
-  const parts = ids.slice(0, NAMED_RECORDS_LIMIT).map((id) => {
-    const ref = proposalRefId({ value: id });
-    if (ref) {
-      const parent = props.dependsOn.find((dependency) => dependency.id === ref);
-      return { text: t('chat.cards.fromCard', { title: parent ? titleText({ title: parent.title }) : '…' }) };
-    }
-    if (!kind) return { text: summarizeValue({ value: id }) };
-
-    const name = props.lookups.entityName({ kind, id: String(id) });
-    // A model may offer an alternative by its name; that name reads better than the kind of record.
-    const written = typeof id === 'string' && !LOOKS_LIKE_ID.test(id) ? id : null;
-    const to = chatEntityRoute({ entity: { kind, id: String(id) } });
-    return { text: name ?? written ?? entityLabel({ kind }), ...(to && !(written && !name) ? { to } : {}) };
+const partsOf = ({ value, current = false }: { value: unknown; current?: boolean }) =>
+  partsOfValue({
+    field: props.field,
+    value,
+    current,
+    lookups: props.lookups,
+    currencyCode: props.currencyCode,
+    dependsOn: props.dependsOn,
   });
 
-  return hidden > 0 ? [...parts, { text: t('chat.cards.affected.more', { count: hidden }) }] : parts;
-};
-
-const partsOf = ({ value }: { value: unknown }): ValuePart[] => {
-  if (value === null || value === undefined || value === '') return [{ text: t('chat.cards.noValue') }];
-
-  if (displayKind.value === 'entity') return entityParts({ value });
-  if (displayKind.value === 'boolean' && typeof value === 'boolean') {
-    return [{ text: t(value ? 'chat.cards.yes' : 'chat.cards.no') }];
-  }
-  if (displayKind.value === 'money' && typeof value === 'number') {
-    const currencyCode = props.field.display?.currencyCode ?? props.currencyCode;
-    return [
-      {
-        text: formatVisualValue({
-          value,
-          kind: currencyCode ? 'money' : 'number',
-          currencyCode: currencyCode ?? undefined,
-        }),
-      },
-    ];
-  }
-  if (displayKind.value === 'enum' && typeof value === 'string') {
-    return [{ text: enumValueText({ path: props.field.path, value }) }];
-  }
-  if (displayKind.value === 'enum' && Array.isArray(value)) {
-    return [{ text: value.map((item) => enumValueText({ path: props.field.path, value: String(item) })).join(', ') }];
-  }
-  if (displayKind.value === 'matchingRules') {
-    return [
-      {
-        text: describeMatchingRules({
-          value,
-          t,
-          entityName: props.lookups.entityName,
-          enumValue: enumValueText,
-        }),
-      },
-    ];
-  }
-  if ((displayKind.value === 'date' || displayKind.value === 'datetime') && typeof value === 'string') {
-    return [{ text: formatVisualDate({ value }) }];
-  }
-
-  return [{ text: summarizeValue({ value }) }];
-};
-
 const label = computed(() => keyText({ key: props.field.labelKey }) ?? props.field.path);
-const valueParts = computed(() => partsOf({ value: props.field.value }));
+const valueParts = computed(() => partsOf({ value: props.field.value, current: true }));
 const beforeText = computed(() =>
   props.field.before === undefined
     ? null

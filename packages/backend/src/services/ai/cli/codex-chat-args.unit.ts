@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { buildCodexChatArgs, guardCodexChatItem } from './codex-chat-args';
-import { CODEX_HARDENING_ARGS } from './codex-language-model';
+import { CODEX_CHAT_HARDENING_ARGS, CODEX_HARDENING_ARGS } from './codex-language-model';
 
 const URL = 'http://127.0.0.1:4321/mcp';
 
@@ -14,12 +14,24 @@ describe('buildCodexChatArgs', () => {
     developerInstructions: 'the system prompt',
   });
 
-  it('starts with the shared hardening list, unchanged', () => {
-    expect(args.slice(0, CODEX_HARDENING_ARGS.length)).toEqual([...CODEX_HARDENING_ARGS]);
+  it('starts with the chat hardening list', () => {
+    expect(args.slice(0, CODEX_CHAT_HARDENING_ARGS.length)).toEqual([...CODEX_CHAT_HARDENING_ARGS]);
+  });
+
+  it('keeps code_mode_host on, or Codex shows the model none of the bridge tools', () => {
+    expect(CODEX_HARDENING_ARGS.join(' ')).toContain('--disable code_mode_host');
+    expect(args.join(' ')).not.toContain('code_mode_host');
+  });
+
+  it('keeps every other hardening flag', () => {
+    const index = CODEX_HARDENING_ARGS.indexOf('code_mode_host');
+    const withoutHost = CODEX_HARDENING_ARGS.filter((_, i) => i !== index && i !== index - 1);
+
+    expect(CODEX_CHAT_HARDENING_ARGS).toEqual(withoutHost);
   });
 
   it('adds exactly the model, the work dir, the MCP server, the instructions and the images', () => {
-    expect(args.slice(CODEX_HARDENING_ARGS.length)).toEqual([
+    expect(args.slice(CODEX_CHAT_HARDENING_ARGS.length)).toEqual([
       '-m',
       'gpt-6-astra',
       '-C',
@@ -30,6 +42,8 @@ describe('buildCodexChatArgs', () => {
       'mcp_servers.moneymatter.bearer_token_env_var="MM_CHAT_TOKEN"',
       '-c',
       'mcp_servers.moneymatter.tool_timeout_sec=60',
+      '-c',
+      'mcp_servers.moneymatter.default_tools_approval_mode="approve"',
       '-c',
       'developer_instructions="the system prompt"',
       '-i',

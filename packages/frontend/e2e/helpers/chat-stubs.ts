@@ -20,6 +20,10 @@ export interface StubThread {
   modelId: string | null;
   /** The page the conversation is about, as the API stores it; null is none. */
   pageContext: Json | null;
+  /** `chat` or `automationInbox`. */
+  kind: string;
+  /** What the thread's badge counts: unread replies and, in the inbox, waiting cards. */
+  badgeCount: number;
   messages: Json[];
 }
 
@@ -34,6 +38,8 @@ export interface ChatStub {
   cards: Map<string, Json>;
   appliedChanges: Json[];
   retentionDays: number | null;
+  /** Resolved inbox items kept; null leaves the setting unset (the server's default). */
+  inboxKeepResolved: number | null;
   /** The user's AI connections, as the settings API lists them; null leaves the real list in place. */
   connections: Json[] | null;
   /** The model ids the providers list for a connection; null leaves the real listing in place. */
@@ -122,6 +128,8 @@ const asListItem = ({ thread, query }: { thread: StubThread; query: string }) =>
   usage: ZERO_USAGE,
   connectionId: thread.connectionId,
   modelId: thread.modelId,
+  kind: thread.kind,
+  badgeCount: thread.badgeCount,
   pageContext: thread.pageContext,
   pageContextNames: {},
   createdAt: NOW,
@@ -141,6 +149,7 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
     cards: new Map(),
     appliedChanges: [],
     retentionDays: 30,
+    inboxKeepResolved: null,
     connections: null,
     connectionModels: null,
     defaultConnectionId: null,
@@ -155,6 +164,8 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
         connectionId: null,
         modelId: null,
         pageContext: null,
+        kind: 'chat',
+        badgeCount: 0,
         messages: [],
         ...thread,
       };
@@ -246,7 +257,11 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
       route,
       rewrite: (body) => {
         const response = (body.response ?? {}) as Json & { ai?: Json };
-        body.response = { ...response, ai: { ...response.ai, chat: { retentionDays: stub.retentionDays } } };
+        const chat = {
+          retentionDays: stub.retentionDays,
+          ...(stub.inboxKeepResolved === null ? {} : { inboxKeepResolved: stub.inboxKeepResolved }),
+        };
+        body.response = { ...response, ai: { ...response.ai, chat } };
       },
     });
   });
@@ -267,6 +282,10 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
         route,
         response: { threads: ordered.map((thread) => asListItem({ thread, query })), nextCursor: null },
       });
+    }
+
+    if (method === 'GET' && path === '/badge') {
+      return ok({ route, response: { total: stub.threads.reduce((sum, thread) => sum + thread.badgeCount, 0) } });
     }
 
     if (method === 'GET' && path === '/default-connection') {
@@ -380,8 +399,12 @@ export async function stubChatApi({ page }: { page: Page }): Promise<ChatStub> {
     }
 
     if (method === 'PUT' && path === '/settings') {
-      stub.retentionDays = (body?.retentionDays ?? null) as number | null;
-      return ok({ route, response: { retentionDays: stub.retentionDays } });
+      if (body && 'retentionDays' in body) stub.retentionDays = (body.retentionDays ?? null) as number | null;
+      if (typeof body?.inboxKeepResolved === 'number') stub.inboxKeepResolved = body.inboxKeepResolved;
+      return ok({
+        route,
+        response: { retentionDays: stub.retentionDays, inboxKeepResolved: stub.inboxKeepResolved ?? 100 },
+      });
     }
 
     const imageMatch = path.match(/^\/attachments\/([^/]+)\/image$/);

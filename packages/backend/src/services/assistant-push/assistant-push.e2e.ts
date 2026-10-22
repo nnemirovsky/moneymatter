@@ -1,11 +1,12 @@
-import { NOTIFICATION_STATUSES, NOTIFICATION_TYPES, type NotificationType } from '@bt/shared/types';
+import { NOTIFICATION_STATUSES, NOTIFICATION_TYPES, SSE_EVENT_TYPES, type NotificationType } from '@bt/shared/types';
 import { until } from '@common/helpers';
-import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
 import ChatMessages from '@models/chat-messages.model';
 import Notifications from '@models/notifications.model';
 import { REDIS_KEY_PREFIX, redisClient } from '@root/redis-client';
 import { RateLimitService } from '@services/common/rate-limit.service';
+import { sseManager } from '@services/common/sse';
 import * as helpers from '@tests/helpers';
 import { enableServerModel, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
 import * as ingestHelpers from '@tests/helpers/ingest-tokens';
@@ -507,6 +508,51 @@ describe('Assistant push', () => {
 
       expect(byThread[first.threadId]).toBe(NOTIFICATION_STATUSES.read);
       expect(byThread[second.threadId]).toBe(NOTIFICATION_STATUSES.unread);
+    });
+
+    it('marks them read on a presence heartbeat too, and tells the open tabs that the bell changed', async () => {
+      const sseSpy = jest.spyOn(sseManager, 'sendToUser');
+      try {
+        const { threadId } = await runChat({ turns: REPLY });
+        await until(async () => (await notificationsOfType({ type: NOTIFICATION_TYPES.chatReplyReady })).length === 1, {
+          timeout: 10_000,
+          interval: 25,
+        });
+        const bellChanges = () =>
+          sseSpy.mock.calls.filter(([arg]) => arg.event === SSE_EVENT_TYPES.NOTIFICATIONS_CHANGED).length;
+        // The new entry was announced.
+        expect(bellChanges()).toBe(1);
+
+        await helpers.putChatPresence({ threadId });
+
+        const [entry] = await notificationsOfType({ type: NOTIFICATION_TYPES.chatReplyReady });
+        expect(entry!.status).toBe(NOTIFICATION_STATUSES.read);
+        expect(bellChanges()).toBe(2);
+
+        // A heartbeat on a thread already read changes nothing and says nothing.
+        await helpers.putChatPresence({ threadId });
+        expect(bellChanges()).toBe(2);
+      } finally {
+        sseSpy.mockRestore();
+      }
+    });
+
+    it('counts the reply on the thread badge and the chat total until the thread is viewed', async () => {
+      const { threadId } = await runChat({ turns: REPLY });
+      await until(async () => (await notificationsOfType({ type: NOTIFICATION_TYPES.chatReplyReady })).length === 1, {
+        timeout: 10_000,
+        interval: 25,
+      });
+      const badgeOf = async () =>
+        (await helpers.listChatThreads({ raw: true })).threads.find((thread) => thread.id === threadId)!.badgeCount;
+
+      expect(await badgeOf()).toBe(1);
+      expect((await helpers.getChatBadgeTotal({ raw: true })).total).toBe(1);
+
+      await helpers.putChatPresence({ threadId });
+
+      expect(await badgeOf()).toBe(0);
+      expect((await helpers.getChatBadgeTotal({ raw: true })).total).toBe(0);
     });
 
     it('does not touch the entries of other types', async () => {

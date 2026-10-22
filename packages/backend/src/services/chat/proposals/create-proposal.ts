@@ -103,6 +103,14 @@ export async function createProposal({
     parents: parents.map((parent) => ({ id: parent.id as string, status: parent.status })),
   });
 
+  // A card that stands in for another must be one the user can approve, or the user is left with
+  // neither: the pending card is kept and the model learns why the replacement was refused.
+  if (meta.replaces && (error || (policy.previewResolver !== null && preview === null))) {
+    throw new ToolInputError(
+      `The replacement cannot be approved${error ? `: ${error.message}` : ''}. Proposal ${meta.replaces} is still pending; fix the arguments and propose again.`,
+    );
+  }
+
   const uncertainFields = await markAccountHistoryMismatch({
     userId: run.user.id,
     toolName: policy.name,

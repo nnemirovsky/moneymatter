@@ -3,7 +3,7 @@ import ChatProposals from '@models/chat-proposals.model';
 import ChatThreads from '@models/chat-threads.model';
 import { Op, literal } from 'sequelize';
 
-import { reevaluateAllInboxThreads } from '../inbox/inbox-thread';
+import { pruneAllInboxes } from '../inbox/inbox-thread';
 import { expireAllDueCards } from '../proposals/card-expiry';
 
 const DEFAULT_BATCH_SIZE = 200;
@@ -14,6 +14,7 @@ const APPLYING_MAX_AGE_MS = 10 * 60 * 1000;
 
 interface ChatRetentionResult {
   expiredCards: number;
+  prunedInboxItems: number;
   unknownCards: number;
   deletedAttachments: number;
   deletedThreads: number;
@@ -90,19 +91,19 @@ async function deleteExpiredThreads({ batchSize }: { batchSize: number }): Promi
 }
 
 /**
- * The hourly chat housekeeping: expire stale cards, flag approvals a crash left half-done, drop
- * attachments nobody sent and delete threads past their retention. Cards are handled first so the
+ * The hourly chat housekeeping: expire stale cards, prune the inbox, flag approvals a crash left
+ * half-done, drop attachments nobody sent and delete threads past their retention. Cards are handled first so the
  * counts describe cards that still exist, and threads last because deleting one removes its rows.
  */
 export async function sweepChatRetention({
   batchSize = DEFAULT_BATCH_SIZE,
 }: { batchSize?: number } = {}): Promise<ChatRetentionResult> {
   const { count: expiredCards } = await expireAllDueCards({ batchSize });
-  // The backstop for an inbox thread whose last waiting card was decided by a path that did not re-evaluate it.
-  await reevaluateAllInboxThreads();
+  // Resolved inbox items age out with the chat history setting even when nothing new arrives.
+  const prunedInboxItems = await pruneAllInboxes();
   const unknownCards = await markStuckApplyingUnknown({ batchSize });
   const deletedAttachments = await deleteUnsentAttachments({ batchSize });
   const deletedThreads = await deleteExpiredThreads({ batchSize });
 
-  return { expiredCards, unknownCards, deletedAttachments, deletedThreads };
+  return { expiredCards, prunedInboxItems, unknownCards, deletedAttachments, deletedThreads };
 }

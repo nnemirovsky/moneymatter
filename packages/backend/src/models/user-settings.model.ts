@@ -4,6 +4,7 @@ import {
   AI_CUSTOM_INSTRUCTIONS_MAX_LENGTH,
   AI_FEATURE,
   AI_PROVIDER,
+  CHAT_INBOX_KEEP_RESOLVED,
   CHAT_RETENTION_OPTIONS,
   CURRENCY_DISPLAY_PREFERENCES,
   type ChatRetentionDays,
@@ -106,6 +107,13 @@ const ZodAiSettingsSchema = z.object({
         .number()
         .refine((days): days is ChatRetentionDays => CHAT_RETENTION_OPTIONS.some((option) => option === days))
         .nullable()
+        .optional(),
+      /** Resolved inbox items kept, newest first; a missing value reads as `CHAT_INBOX_KEEP_RESOLVED.default`. */
+      inboxKeepResolved: z
+        .number()
+        .int()
+        .min(CHAT_INBOX_KEEP_RESOLVED.min)
+        .max(CHAT_INBOX_KEEP_RESOLVED.max)
         .optional(),
     })
     .optional(),

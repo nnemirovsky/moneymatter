@@ -1,4 +1,4 @@
-import { AI_PROVIDER, API_ERROR_CODES } from '@bt/shared/types';
+import { AI_PROVIDER, API_ERROR_CODES, CHAT_INBOX_KEEP_RESOLVED } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
 import { PNG_1X1_BASE64 } from '@tests/fixtures/statement-parser-fixtures';
@@ -145,7 +145,7 @@ describe('Chat for a read-only user (lapsed plan)', () => {
     const response = await helpers.setChatRetention({ retentionDays: 90 });
 
     expect(response.statusCode).toBe(200);
-    expect(response.body.response).toEqual({ retentionDays: 90 });
+    expect(response.body.response).toEqual({ retentionDays: 90, inboxKeepResolved: CHAT_INBOX_KEEP_RESOLVED.default });
   });
 
   it('still lets a read-only user read their threads', async () => {

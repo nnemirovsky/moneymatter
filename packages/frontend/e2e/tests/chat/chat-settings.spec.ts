@@ -74,6 +74,31 @@ test.describe('Settings → AI → Chat', () => {
     await expect.poll(() => stub.calls.find((call) => call.method === 'PUT')?.body).toEqual({ retentionDays: null });
   });
 
+  test('sets how many resolved inbox items are kept, from 10 to 1000', async ({ page }) => {
+    await openChatFeature({ page });
+
+    const section = retentionSection({ page });
+    await expect(section.getByRole('heading', { name: 'Automation inbox' })).toBeVisible();
+    const field = section.getByLabel('Resolved items to keep');
+    // 100 is what someone who never chose keeps.
+    await expect(field).toHaveValue('100');
+
+    await field.fill('5');
+    await expect(section.getByText('Enter a whole number from 10 to 1000')).toBeVisible();
+    await expect(section.getByRole('button', { name: 'Save' })).toBeDisabled();
+
+    await field.fill('250');
+    await section.getByRole('button', { name: 'Save' }).click();
+
+    await expect(page.getByText('Inbox limit updated')).toBeVisible();
+    const saved = stub.calls.find((call) => call.method === 'PUT' && call.path === '/settings');
+    expect(saved?.body).toEqual({ inboxKeepResolved: 250 });
+    await expect(field).toHaveValue('250');
+
+    const screenshots = process.env.CHAT_CARD_SCREENSHOT_DIR;
+    if (screenshots) await section.screenshot({ path: `${screenshots}/chat-settings-inbox.png` });
+  });
+
   test('lists the applied changes with a link to their conversation', async ({ page }) => {
     stub.addThread({ id: 'thread-9', title: 'Tidy tags' });
     stub.appliedChanges.push({

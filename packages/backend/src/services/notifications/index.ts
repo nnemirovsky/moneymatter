@@ -1,4 +1,5 @@
 import {
+  SSE_EVENT_TYPES,
   NOTIFICATION_PRIORITIES,
   NOTIFICATION_TYPES,
   NOTIFICATION_STATUSES,
@@ -9,9 +10,17 @@ import {
   NotificationType,
 } from '@bt/shared/types';
 import Notifications from '@models/notifications.model';
+import { runAfterCommit } from '@services/common/run-after-commit';
+import { sseManager } from '@services/common/sse';
 import { enqueueWebPushAfterCommit } from '@services/web-push/enqueue-web-push';
 
 import { withTransaction } from '../common/with-transaction';
+
+/** Tells the user's open tabs that the bell changed, once the surrounding transaction commits. */
+const notifyNotificationsChanged = ({ userId }: { userId: number }): Promise<void> =>
+  runAfterCommit({
+    fn: () => sseManager.sendToUser({ userId, event: SSE_EVENT_TYPES.NOTIFICATIONS_CHANGED, data: {} }),
+  });
 
 interface CreateNotificationParams {
   userId: number;
@@ -44,6 +53,7 @@ export const createNotification = withTransaction(
     });
 
     enqueueWebPushAfterCommit({ notificationIds: [notification.id] });
+    await notifyNotificationsChanged({ userId });
 
     return notification.toJSON();
   },
@@ -152,6 +162,7 @@ export const markThreadNotificationsRead = withTransaction(
         },
       },
     );
+    if (updated > 0) await notifyNotificationsChanged({ userId });
 
     return updated;
   },
