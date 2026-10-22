@@ -66,6 +66,22 @@ describe('Reports cut days in the viewing zone', () => {
       expect(onThePreviousDay[category.id]).toBeUndefined();
     });
 
+    it('keys the cumulative report months in the zone, so a row just after local midnight is not dropped', async () => {
+      await setZone({ timeZone: 'Asia/Tbilisi' });
+      // 2026-09-30T21:00Z is 01:00 on 1 October in Tbilisi.
+      await expenseAt({ time: '2026-09-30T21:00:00.000Z' });
+
+      const result = await helpers.getCumulativeData({
+        from: '2026-10-01',
+        to: '2026-10-31',
+        metric: 'expenses',
+        raw: true,
+      });
+
+      expect(result.currentPeriod.total).toBe(50);
+      expect(result.currentPeriod.data.map((month) => month.periodValue)).toEqual([50]);
+    });
+
     it('puts the row in the October column of a monthly pivot although UTC still says September', async () => {
       await setZone({ timeZone: 'Asia/Tbilisi' });
       await expenseAt({ time: '2026-09-30T21:30:00.000Z' });
@@ -122,6 +138,29 @@ describe('Reports cut days in the viewing zone', () => {
         ['2026-10-31', 50],
         ['2026-11-01', 0],
       ]);
+    });
+
+    it('keys the cumulative report months in the zone, so a row on the last evening is not dropped', async () => {
+      await setZone({ timeZone: 'America/New_York' });
+      // 2026-11-01T03:30Z is 23:30 on 31 October in New York.
+      await expenseAt({ time: '2026-11-01T03:30:00.000Z' });
+
+      const result = await helpers.getCumulativeData({
+        from: '2026-10-01',
+        to: '2026-10-31',
+        metric: 'expenses',
+        raw: true,
+      });
+
+      expect(result.currentPeriod.total).toBe(50);
+      expect(result.currentPeriod.data.map((month) => month.periodValue)).toEqual([50]);
+    });
+
+    it('reports the earliest transaction day in the zone', async () => {
+      await setZone({ timeZone: 'America/New_York' });
+      await expenseAt({ time: '2026-11-01T03:30:00.000Z' });
+
+      expect(await helpers.getEarliestTransactionDate({ raw: true })).toBe('2026-10-31');
     });
 
     it('keeps net-worth history on UTC days, whatever the zone', async () => {

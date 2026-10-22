@@ -5,24 +5,14 @@ import {
   type GetCumulativeResponse,
   TRANSACTION_TYPES,
 } from '@bt/shared/types';
+import { formatDayInZone } from '@common/lib/time-zones/tz-options';
+import { TZDate } from '@date-fns/tz';
 import { expandCategoryIdsWithDescendants } from '@services/categories/category-hierarchy';
 import { getAccessibleCategoryMap } from '@services/categories/get-accessible-category-map.service';
 import { type StatsScopeFilters, buildStatsScopeWhere } from '@services/stats/stats-scope-filters';
 import { statsTransactions } from '@services/stats/stats-transactions';
 import { getUserTimeZone } from '@services/user-settings/get-user-time-zone';
-import {
-  addMonths,
-  differenceInMonths,
-  endOfMonth,
-  format,
-  getMonth,
-  getYear,
-  isBefore,
-  isEqual,
-  parseISO,
-  startOfMonth,
-  subMonths,
-} from 'date-fns';
+import { differenceInMonths, endOfMonth, format, parseISO, startOfMonth, subMonths } from 'date-fns';
 import { Op } from 'sequelize';
 
 interface GetCumulativeDataParams extends StatsScopeFilters {
@@ -42,6 +32,12 @@ interface PeriodDataParams extends Omit<GetCumulativeDataParams, 'categoryIds' |
   includeCategoryIds?: string[];
   excludeCategoryIds?: string[];
 }
+
+/** `year-monthIndex` (0-11) of the calendar month `time` falls in, in `zone`. */
+const zoneMonthKey = ({ time, zone }: { time: Date | string; zone: string }) => {
+  const inZone = new TZDate(new Date(time), zone);
+  return `${inZone.getFullYear()}-${inZone.getMonth()}`;
+};
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -142,15 +138,22 @@ async function getPeriodData({
   excludeCategoryIds,
   decimals,
 }: PeriodDataParams): Promise<CumulativePeriodData> {
-  // Use parseISO for consistent date parsing (treats dates as local time, not UTC)
+  // The report's months are calendar months in the user's zone: `from`/`to` name zone days, and each
+  // transaction is keyed by the month its instant falls in there. Month arithmetic runs on a
+  // month index (year * 12 + month) so it does not depend on the server's zone.
   const zone = await getUserTimeZone({ userId });
-  const fromDate = parseISO(from);
-  const toDate = parseISO(to);
-  const now = new Date();
+  const monthIndexOf = ({ day }: { day: string }) => {
+    const [year, month] = day.split('-').map(Number);
+    return year! * 12 + (month! - 1);
+  };
+  const fromIndex = monthIndexOf({ day: from });
+  const nowInZone = new TZDate(Date.now(), zone);
+  const nowIndex = nowInZone.getFullYear() * 12 + nowInZone.getMonth();
 
   // Limit 'to' date to current month if it's in the future
-  const effectiveToDate = toDate > now ? endOfMonth(now) : toDate;
-  const effectiveTo = format(effectiveToDate, 'yyyy-MM-dd');
+  const toIsFuture = to > formatDayInZone({ date: nowInZone, zone });
+  const effectiveToIndex = toIsFuture ? nowIndex : monthIndexOf({ day: to });
+  const effectiveTo = toIsFuture ? format(endOfMonth(nowInZone), 'yyyy-MM-dd') : to;
 
   // Both directions are always loaded, whatever the metric: a refund pairs an expense with an
   // income, and netting one side needs the other side in scope.
@@ -182,8 +185,7 @@ async function getPeriodData({
     // A row with no base-currency amount (custom currency, no rate yet) is left out of the totals.
     if (tx.refAmount === null) continue;
 
-    const txTime = new Date(tx.time);
-    const monthKey = `${getYear(txTime)}-${getMonth(txTime)}`; // year-monthIndex (0-11)
+    const monthKey = zoneMonthKey({ time: tx.time, zone });
 
     if (!monthlyDataMap.has(monthKey)) {
       monthlyDataMap.set(monthKey, { income: 0, expenses: 0 });
@@ -204,8 +206,7 @@ async function getPeriodData({
   for (const pair of refundPairs) {
     if (!pair.expenseInScope || !pair.incomeInScope) continue;
 
-    const refundTime = new Date(pair.time);
-    const monthEntry = monthlyDataMap.get(`${getYear(refundTime)}-${getMonth(refundTime)}`);
+    const monthEntry = monthlyDataMap.get(zoneMonthKey({ time: pair.time, zone }));
     if (!monthEntry) continue;
 
     monthEntry.income -= pair.minor;
@@ -216,22 +217,16 @@ async function getPeriodData({
   const data: CumulativeMonthData[] = [];
   let cumulativeValue = 0;
 
-  // Iterate through each month in the range using date-fns for safe date iteration
-  let currentMonth = startOfMonth(fromDate);
-  const lastMonth = startOfMonth(effectiveToDate);
-  const nowMonth = startOfMonth(now);
   let monthCounter = 1;
 
-  while (isBefore(currentMonth, lastMonth) || isEqual(currentMonth, lastMonth)) {
+  for (let monthIndex = fromIndex; monthIndex <= effectiveToIndex; monthIndex++) {
     // Don't include months in the future
-    if (isBefore(nowMonth, currentMonth)) {
-      break;
-    }
+    if (monthIndex > nowIndex) break;
 
-    const monthKey = `${getYear(currentMonth)}-${getMonth(currentMonth)}`;
-    const monthData = monthlyDataMap.get(monthKey) || { income: 0, expenses: 0 };
-    // getMonth() returns 0-11, which always maps to a valid MONTH_LABELS index
-    const monthLabel = MONTH_LABELS[getMonth(currentMonth)]!;
+    const month = monthIndex % 12;
+    const monthData = monthlyDataMap.get(`${Math.floor(monthIndex / 12)}-${month}`) || { income: 0, expenses: 0 };
+    // `month` is 0-11, which always maps to a valid MONTH_LABELS index
+    const monthLabel = MONTH_LABELS[month]!;
 
     let periodValue = 0;
 
@@ -256,14 +251,12 @@ async function getPeriodData({
       periodValue,
     });
 
-    // Move to next month using date-fns (safe, no mutation)
-    currentMonth = addMonths(currentMonth, 1);
     monthCounter++;
   }
 
   // Use the year from the 'from' date as the period identifier
   return {
-    year: getYear(fromDate),
+    year: Math.floor(fromIndex / 12),
     data,
     total: cumulativeValue,
   };
