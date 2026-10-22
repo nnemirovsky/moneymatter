@@ -1,7 +1,7 @@
 import type { RecordId } from '@bt/shared/types';
 import { connection } from '@models/connection';
 import type IngestRequests from '@models/ingest-requests.model';
-import Transactions from '@models/transactions.model';
+import { findOneTransaction } from '@models/transactions-query';
 import { withTransaction } from '@services/common/with-transaction';
 import { QueryTypes } from 'sequelize';
 
@@ -15,7 +15,13 @@ const holdJoinedSlotsImpl = async ({
   request: IngestRequests;
   transactionId: RecordId;
 }): Promise<string[]> => {
-  const row = await Transactions.findOne({ where: { id: transactionId }, attributes: ['id', 'externalData'] });
+  const row = await findOneTransaction({
+    where: { id: transactionId },
+    planned: 'include',
+    access: { accountOwner: request.userId },
+    balanceAdjustments: 'exclude',
+    attributes: ['id', 'externalData'],
+  });
   if (!row) return [];
 
   const taken = readTakenSlots({ externalData: row.externalData });
