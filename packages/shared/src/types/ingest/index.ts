@@ -3,6 +3,7 @@ import type { GateStrictness } from './amount-gate';
 
 export * from './amount-gate';
 export * from './card-payment-setup-code';
+export * from './context-apps';
 export * from './ingest-event';
 export * from './normalize-card-label';
 export * from './notification-sources';
@@ -46,9 +47,10 @@ export interface CreateIngestTokenResponse {
 
 /**
  * Lifecycle of a logged ingest request. `ignored` is a notification that was read and is not a payment
- * (declined, a code, a promo, information); its text is wiped.
+ * (declined, a code, a promo, information); its text is wiped. `held` is a context notification waiting
+ * for its payment and `enriched` one that was applied to a payment's row.
  */
-export const INGEST_REQUEST_STATUSES = ['received', 'logged', 'parked', 'rejected', 'dismissed', 'ignored'] as const;
+export const INGEST_REQUEST_STATUSES = ['received', 'logged', 'parked', 'rejected', 'dismissed', 'ignored', 'held', 'enriched'] as const;
 
 export type IngestRequestStatus = (typeof INGEST_REQUEST_STATUSES)[number];
 
@@ -239,6 +241,17 @@ export type NotificationParkReason = (typeof NOTIFICATION_PARK_REASONS)[number];
 /** Why a notification that was read is not a payment. It is stored as the reason of an `ignored` request. */
 export const NOTIFICATION_IGNORE_REASONS = ['declined', 'security', 'promo', 'info', 'other'] as const;
 
+/** Why a context notification changed nothing. It is stored as the reason of an `ignored` request. */
+export const CONTEXT_IGNORE_REASONS = [
+  'contextRepeat',
+  'contextNoteKept',
+  'contextUnreadable',
+  'contextExpired',
+  'contextConfirmed',
+] as const;
+
+export type ContextIgnoreReason = (typeof CONTEXT_IGNORE_REASONS)[number];
+
 export type NotificationIgnoreReason = (typeof NOTIFICATION_IGNORE_REASONS)[number];
 
 /**
@@ -251,6 +264,7 @@ export type IngestRequestReason =
   | CardPaymentRejectionReason
   | NotificationParkReason
   | NotificationIgnoreReason
+  | ContextIgnoreReason
   | 'holdReleased'
   | 'interrupted';
 

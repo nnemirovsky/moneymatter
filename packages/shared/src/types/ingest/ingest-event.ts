@@ -45,7 +45,7 @@ export const NOTIFICATION_RAW_MAX_BYTES = 8 * 1024;
 /**
  * What became of a notification: `logged` (a transaction exists), `attached` (it joined one that
  * exists), `parked` (it waits for the user), `queued` (still being processed when the answer was due),
- * `ignored` (read, not a payment), `dropped` (never stored) and `duplicate` (the same key again).
+ * `ignored` (read, not a payment), `dropped` (never stored), `duplicate` (the same key again), `enriched` (a context notification added to a payment) and `held` (a context notification waiting for its payment).
  */
 export const NOTIFICATION_OUTCOMES = [
   'logged',
@@ -55,6 +55,8 @@ export const NOTIFICATION_OUTCOMES = [
   'ignored',
   'dropped',
   'duplicate',
+  'enriched',
+  'held',
 ] as const;
 
 export type NotificationOutcome = (typeof NOTIFICATION_OUTCOMES)[number];
@@ -92,7 +94,7 @@ export interface NotificationSourceDto {
 }
 
 /** The modes a user may set; `auto` is only ever the starting mode of Wallet and the known banks. */
-export const NOTIFICATION_SOURCE_USER_MODES = ['pending', 'approved', 'muted'] as const;
+export const NOTIFICATION_SOURCE_USER_MODES = ['pending', 'approved', 'muted', 'context'] as const;
 
 /** Request body of `PATCH /user/settings/notification-sources/:id`; at least one field. */
 export interface UpdateNotificationSourcePayload {

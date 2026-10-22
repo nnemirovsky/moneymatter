@@ -5,11 +5,15 @@
  * sender is part of the key, so approving "Messages · TBC" does not approve every chat.
  */
 
+import { isContextApp } from './context-apps';
+
 /**
  * `auto`: trusted from the start (Wallet and the seeded bank apps); `pending`: waits for the user and
- * reaches the AI only after approval; `approved`: the user said yes; `muted`: the user said no.
+ * reaches the AI only after approval; `approved`: the user said yes; `muted`: the user said no;
+ * `context`: a merchant app whose amount-less notifications describe a purchase; they enrich the
+ * payment they belong to and never create one.
  */
-export const NOTIFICATION_SOURCE_MODES = ['auto', 'pending', 'approved', 'muted'] as const;
+export const NOTIFICATION_SOURCE_MODES = ['auto', 'pending', 'approved', 'muted', 'context'] as const;
 
 export type NotificationSourceMode = (typeof NOTIFICATION_SOURCE_MODES)[number];
 
@@ -79,7 +83,7 @@ const CONVERSATIONAL_BUNDLE_IDS: ReadonlySet<string> = new Set([
 ]);
 
 /** The same apps by normalized name, for a notification that carries no bundle id. */
-const CONVERSATIONAL_APP_NAMES: ReadonlySet<string> = new Set([
+export const CONVERSATIONAL_APP_NAMES: ReadonlySet<string> = new Set([
   'messages',
   'sms',
   'mail',
@@ -192,12 +196,22 @@ export const buildSourceKey = ({ bundleId, appName, sender }: AppIdentity & { se
 };
 
 /**
- * The mode a source starts in. Wallet and the seeded bank apps start `auto`; everything else, every
- * messaging and mail sender included, starts `pending`.
+ * The mode a source starts in. Wallet and the seeded bank apps start `auto`, the seeded merchant apps
+ * start `context`; everything else, every messaging and mail sender included, starts `pending`.
  */
 export const getDefaultSourceMode = ({ bundleId, appName }: AppIdentity): NotificationSourceMode => {
   if (isConversationalApp({ bundleId, appName })) return 'pending';
   if (isWalletApp({ bundleId, appName })) return 'auto';
+  if (isContextApp({ bundleId, appName })) return 'context';
 
   return isKnownBankApp({ bundleId, appName }) ? 'auto' : 'pending';
 };
+
+/**
+ * The messaging and mail apps as one ICU pattern the shortcut matches against a notification's App
+ * name: a match stops the shortcut when the amount gate missed, so a chat or a mail never leaves the
+ * phone without an amount. Case-insensitive through `(?i:...)`, the syntax ICU and JavaScript read alike.
+ */
+export const CONVERSATIONAL_APP_GATE_PATTERN = `^(?i:${[...CONVERSATIONAL_APP_NAMES]
+  .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  .join('|')})$`;
