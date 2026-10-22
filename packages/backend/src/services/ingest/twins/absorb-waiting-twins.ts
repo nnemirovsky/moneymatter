@@ -3,7 +3,7 @@ import { withTransaction } from '@services/common/with-transaction';
 
 import { readStoredParse, type StoredPayment } from '../event/stored-parse';
 import { absorbParkedTwin } from './absorb-parked-twin';
-import { findParkedTwins, probeOf } from './find-parked-twins';
+import { findJoinedTwins, findParkedTwins, joinedSlots, probeOf } from './find-parked-twins';
 import { lockTwins } from './lock-twins';
 
 /**
@@ -24,10 +24,17 @@ const absorbWaitingTwinsImpl = async ({
   const probe = await probeOf({ request, payment: payment ?? readStoredParse({ value: request.parsed })?.payment });
   if (!probe) return [];
 
-  const twins = await findParkedTwins({ userId: request.userId, requestId: request.id, probe });
-  for (const twin of twins) await absorbParkedTwin({ twin, intoRequestId: request.id });
+  const joined = await findJoinedTwins({ userId: request.userId, requestId: request.id });
+  const twins = await findParkedTwins({
+    userId: request.userId,
+    requestId: request.id,
+    probe,
+    takenSlots: await joinedSlots({ twins: joined }),
+    lock: true,
+  });
+  for (const { request: twin } of twins) await absorbParkedTwin({ twin, intoRequestId: request.id });
 
-  return twins;
+  return twins.map(({ request: twin }) => twin);
 };
 
 export const absorbWaitingTwins = withTransaction(absorbWaitingTwinsImpl);

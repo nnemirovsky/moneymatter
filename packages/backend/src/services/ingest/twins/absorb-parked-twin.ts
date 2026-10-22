@@ -25,10 +25,3 @@ export const absorbParkedTwin = async ({
   });
   await resolveCardsElsewhere({ proposalIds: [proposalId] });
 };
-
-/** The requests that joined this one as its twin, oldest first. */
-export const findJoinedTwins = ({ userId, requestId }: { userId: number; requestId: RecordId }) =>
-  IngestRequests.findAll({
-    where: { userId, pipeline: 'notification', status: 'dismissed', reason: 'parkedTwin', duplicateOfId: requestId },
-    order: [['createdAt', 'ASC']],
-  });

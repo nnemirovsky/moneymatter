@@ -8,7 +8,7 @@ import { slotOfNotification } from '../dedup/source-slots';
 import { readStoredParse, type StoredPayment } from '../event/stored-parse';
 import { isParkedTwin, type TwinProbe } from './parked-twin-rule';
 
-/** The park reasons whose payment the owner can log from a card; only these wait as a card. */
+/** The park reasons whose payment the owner can log from a card; only these wait as a card, join a twin or are approved. */
 export const TWIN_PARK_REASONS = ['unknownAccount', 'ownTransfer', 'lowConfidence', 'unverifiedParse'];
 
 /** The request's payment as the twin rule reads it, or `null` when it holds none. */
@@ -34,20 +34,53 @@ export const probeOf = async ({
   };
 };
 
+/** The requests that joined this one as its twin, oldest first. */
+export const findJoinedTwins = ({ userId, requestId }: { userId: number; requestId: RecordId }) =>
+  IngestRequests.findAll({
+    where: { userId, pipeline: 'notification', status: 'dismissed', reason: 'parkedTwin', duplicateOfId: requestId },
+    order: [['createdAt', 'ASC']],
+  });
+
+/** The slots the requests that joined this one hold, so a second request of a slot never joins. */
+export const joinedSlots = async ({ twins }: { twins: IngestRequests[] }): Promise<string[]> => {
+  const slots: string[] = [];
+  for (const twin of twins) {
+    const probe = await probeOf({ request: twin });
+    if (probe) slots.push(probe.slot);
+  }
+
+  return slots;
+};
+
+/** A waiting request that is the twin of another, with the reading the rule used. */
+export interface ParkedTwin {
+  request: IngestRequests;
+  probe: TwinProbe;
+}
+
 /**
  * The payments waiting on a card of the owner that are the same payment as this one told by another
- * source: parked requests of the user, other than this one, that the twin rule reads as its twin.
- * Newest first.
+ * source: parked requests of the user, other than this one, that the twin rule reads as its twin. Oldest
+ * first, and at most one per source slot (a payment holds one request per slot, so a second request of a
+ * slot is another payment: two coffees). `takenSlots` are the slots the payment already holds, its own
+ * and those of the twins that joined it.
+ *
+ * With `lock`, the rows are locked and a row another transaction holds is skipped, never waited for: two
+ * paths that settle twins at once cannot wait on each other's rows.
  */
 export const findParkedTwins = async ({
   userId,
   requestId,
   probe,
+  takenSlots = [],
+  lock = false,
 }: {
   userId: number;
   requestId: RecordId;
   probe: TwinProbe;
-}): Promise<IngestRequests[]> => {
+  takenSlots?: readonly string[];
+  lock?: boolean;
+}): Promise<ParkedTwin[]> => {
   const candidates = await IngestRequests.findAll({
     where: {
       userId,
@@ -57,14 +90,23 @@ export const findParkedTwins = async ({
       id: { [Op.ne]: requestId },
       createdAt: { [Op.gte]: new Date(probe.time.getTime() - dedupConfig.twinWindowMs * 2) },
     },
-    order: [['createdAt', 'DESC']],
+    order: [['createdAt', 'ASC']],
     limit: 50,
+    ...(lock && { lock: true, skipLocked: true }),
   });
 
-  const twins: IngestRequests[] = [];
+  const taken = new Set([probe.slot, ...takenSlots]);
+  const twins: ParkedTwin[] = [];
   for (const candidate of candidates) {
     const other = await probeOf({ request: candidate });
-    if (other && isParkedTwin({ left: probe, right: other, windowMs: dedupConfig.twinWindowMs })) twins.push(candidate);
+    if (!other || taken.has(other.slot)) continue;
+    // A request of a slot the candidate already holds through a twin is another payment.
+    const candidateHeld = await joinedSlots({ twins: await findJoinedTwins({ userId, requestId: candidate.id }) });
+    if (candidateHeld.includes(probe.slot)) continue;
+    if (!isParkedTwin({ left: probe, right: other, windowMs: dedupConfig.twinWindowMs })) continue;
+
+    twins.push({ request: candidate, probe: other });
+    taken.add(other.slot);
   }
 
   return twins;

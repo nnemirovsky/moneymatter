@@ -215,4 +215,79 @@ describe('the same payment parked by two sources', () => {
     await until(async () => (await inboxCards({ status: 'pending' })).length === 0, { timeout: 20_000, interval: 150 });
     expect(await helpers.getTransactions({ raw: true })).toHaveLength(1);
   });
+  it('does not absorb a second payment of a source whose slot the waiting payment already holds', async () => {
+    const { secret } = { secret: (await ingestHelpers.createTestIngestToken()).secret };
+    answerBank();
+
+    await send({ secret, body: walletTemu() });
+    await send({ secret, body: bankTemu() });
+    // A second coffee paid with the physical card: only the bank tells of it.
+    const again = await send({
+      secret,
+      body: { ...bankTemu(), body: `Purchase ${BASE} 143.97, TEMU.COM, card *1234 (2)` },
+    });
+
+    expect(again.body.response).toMatchObject({ outcome: 'parked', reason: 'unknownAccount' });
+    expect(await waitForCards({ count: 2 })).toHaveLength(2);
+  });
+
+  it('absorbs only one of two waiting payments when the other source logs: the other is another payment', async () => {
+    const { secret } = { secret: (await ingestHelpers.createTestIngestToken()).secret };
+    answerBank();
+    const tbc = await account();
+    await send({ secret, body: walletTemu({ time: new Date(Date.now() - 600_000).toISOString() }) });
+    await send({ secret, body: walletTemu({ time: new Date().toISOString() }) });
+    await waitForCards({ count: 2 });
+    await helpers.createCardMapping({
+      payload: { cardLabel: 'TBC Concept VISA Platinum', accountId: tbc.id, lastDigits: '1234' },
+      raw: true,
+    });
+
+    const bank = await send({ secret, body: bankTemu() });
+
+    expect(bank.body.response.outcome).toBe('logged');
+    expect((await requests()).filter((request) => request.reason === 'parkedTwin')).toHaveLength(1);
+    await until(async () => (await inboxCards({ status: 'pending' })).length === 1, { timeout: 20_000, interval: 150 });
+  });
+
+  it('puts what waits on a twin’s card through too when the owner approves', async () => {
+    const { secret } = { secret: (await ingestHelpers.createTestIngestToken()).secret };
+    mockNotificationParsing({
+      answer: ({ prompt }) =>
+        prompt.includes('143.97')
+          ? {
+              kind: 'debit',
+              amount: '143.97',
+              currency: BASE,
+              merchant: 'TEMU.COM',
+              cardName: 'TBC Concept VISA Platinum',
+              cardLastDigits: '1234',
+            }
+          : {
+              kind: 'debit',
+              amount: '50.00',
+              currency: BASE,
+              merchant: 'Corner Cafe',
+              cardName: 'TBC Concept VISA Platinum',
+              cardLastDigits: '1234',
+            },
+    });
+    const tbc = await account();
+    // An earlier payment of the same bank card already waits.
+    await send({
+      secret,
+      body: { ...bankTemu(), body: `Purchase ${BASE} 50.00, CORNER CAFE, card *1234` },
+    });
+    await send({ secret, body: walletTemu() });
+    await send({ secret, body: bankTemu() });
+    const cards = await waitForCards({ count: 2 });
+    const temuCard = cards.find((card) => card.ingestRequest?.counterparty === 'Temu')!;
+
+    await approve({ card: temuCard, accountId: tbc.id });
+
+    await until(async () => (await helpers.getTransactions({ raw: true })).length === 2, {
+      timeout: 20_000,
+      interval: 150,
+    });
+  });
 });

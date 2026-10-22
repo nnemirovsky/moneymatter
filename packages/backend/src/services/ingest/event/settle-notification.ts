@@ -50,7 +50,8 @@ const parkNotificationImpl = async ({
   if (parsed?.payment && TWIN_PARK_REASONS.includes(reason)) {
     await lockTwins({ userId: row.userId });
     const probe = await probeOf({ request: row, payment: parsed.payment });
-    const [twin] = probe ? await findParkedTwins({ userId: row.userId, requestId: row.id, probe }) : [];
+    const [found] = probe ? await findParkedTwins({ userId: row.userId, requestId: row.id, probe, lock: true }) : [];
+    const twin = found?.request;
     if (twin) {
       await row.update({
         parsed: parsed as unknown as Record<string, unknown>,

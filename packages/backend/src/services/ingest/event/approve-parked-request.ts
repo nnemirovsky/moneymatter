@@ -10,9 +10,8 @@ import { withTransaction } from '@services/common/with-transaction';
 
 import { isWaitingRequest } from '../card-payment/process-ingest-request';
 import { readUserLocale } from '../card-payment/read-user-locale';
-import { absorbParkedTwin, findJoinedTwins } from '../twins/absorb-parked-twin';
-import { findParkedTwins, probeOf } from '../twins/find-parked-twins';
-import { lockTwins } from '../twins/lock-twins';
+import { absorbParkedTwin } from '../twins/absorb-parked-twin';
+import { findJoinedTwins, findParkedTwins, joinedSlots, probeOf, TWIN_PARK_REASONS } from '../twins/find-parked-twins';
 import { assertUsableAccount } from '../usable-account';
 import { learnAccountChoice, type AccountLesson } from './learn-account-choice';
 import { enqueueNotificationProcessing } from './notification-queue';
@@ -21,7 +20,7 @@ import { readStoredParse } from './stored-parse';
 import { rerunWaitingSiblings, siblingMatchOf } from './waiting-siblings';
 
 /** The park reasons whose payment the owner can log from the inbox card. */
-const APPROVABLE_REASONS = ['unknownAccount', 'ownTransfer', 'lowConfidence', 'unverifiedParse'];
+const APPROVABLE_REASONS = TWIN_PARK_REASONS;
 
 /**
  * The owner's yes on a parked payment: the account (and direction) they chose are stored with the
@@ -83,25 +82,40 @@ export const approveParkedRequest = withTransaction(
     // the twins that joined this request, and the ones still waiting on a card of their own, are settled
     // with it and their cards are learned on the same account. Logging the payment twice is what this
     // prevents.
-    await lockTwins({ userId });
+    const joined = await findJoinedTwins({ userId, requestId });
     const probe = await probeOf({ request: row, payment: stored.payment });
-    const waitingTwins = probe ? await findParkedTwins({ userId, requestId, probe }) : [];
-    for (const twin of waitingTwins) await absorbParkedTwin({ twin, intoRequestId: requestId });
-    if (row.reason === 'unknownAccount' && accountId) {
-      for (const twin of await findJoinedTwins({ userId, requestId })) {
+    const waitingTwins = probe
+      ? await findParkedTwins({
+          userId,
+          requestId,
+          probe,
+          takenSlots: await joinedSlots({ twins: joined }),
+          lock: true,
+        })
+      : [];
+    for (const { request: twin } of waitingTwins) await absorbParkedTwin({ twin, intoRequestId: requestId });
+
+    // The cards the twins named are learned on the same account, and what waits on them goes through too.
+    let alsoQueuedByTwins = 0;
+    if (accountId) {
+      for (const twin of [...joined, ...waitingTwins.map(({ request }) => request)]) {
         const twinPayment = readStoredParse({ value: twin.parsed })?.payment;
         if (!twinPayment) continue;
 
         const twinSource = twin.sourceId
           ? await NotificationSources.findOne({ where: { id: twin.sourceId, userId } })
           : null;
-        await learnAccountChoice({
+        const lesson = await learnAccountChoice({
           userId,
           accountId,
           payment: twinPayment,
           source: twinSource,
           payload: twin.payload,
         });
+        const twinMatch = lesson ? siblingMatchOf({ payment: twinPayment, sourceId: twin.sourceId }) : null;
+        if (twinMatch) {
+          alsoQueuedByTwins += await rerunWaitingSiblings({ userId, match: twinMatch, excludeRequestId: requestId });
+        }
       }
     }
 
@@ -136,6 +150,6 @@ export const approveParkedRequest = withTransaction(
       },
     });
 
-    return { requestId, queued: true, learned, alsoQueued };
+    return { requestId, queued: true, learned, alsoQueued: alsoQueued + alsoQueuedByTwins };
   },
 );

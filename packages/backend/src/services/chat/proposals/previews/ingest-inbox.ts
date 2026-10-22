@@ -9,7 +9,7 @@ import { describeSource, sourceAppName } from '@services/ingest/event/source-lab
 import { readStoredParse } from '@services/ingest/event/stored-parse';
 import { findWaitingSiblings, siblingMatchOf } from '@services/ingest/event/waiting-siblings';
 import { ingestMarkersOf, isUnconfirmedIngest } from '@services/ingest/ingest-markers';
-import { findJoinedTwins } from '@services/ingest/twins/absorb-parked-twin';
+import { findJoinedTwins } from '@services/ingest/twins/find-parked-twins';
 
 import { hashTargetIds } from '../snapshot';
 import { forUpdate, PreviewError, serializeRow, targetNotFound } from './preview-helpers';
