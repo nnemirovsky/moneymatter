@@ -1,3 +1,4 @@
+import { viewingTimeZone } from '@/js/helpers/time-zone';
 import type { CurrencyModel, TransactionOptionalField } from '@bt/shared/types';
 import { nextTick, ref } from 'vue';
 
@@ -50,6 +51,7 @@ describe('useFieldReveal', () => {
       'externalReference',
       'location',
       'originalAmount',
+      'timeZone',
       'refund',
     ]);
   });
@@ -79,6 +81,36 @@ describe('useFieldReveal', () => {
     form.value.longitude = null;
     await nextTick();
     expect(shown.value.location).toBe(true);
+  });
+
+  describe('time zone field', () => {
+    const TIME = new Date('2026-10-21T12:00:00.000Z');
+
+    afterEach(() => {
+      viewingTimeZone.value = 'UTC';
+    });
+
+    it('shows on its own when the recorded zone differs from the viewing zone', () => {
+      viewingTimeZone.value = 'Asia/Tbilisi';
+      const { shown, chipKeys } = setup({ form: { time: TIME, timeZone: 'America/New_York' } });
+      expect(shown.value.timeZone).toBe(true);
+      expect(chipKeys()).not.toContain('timeZone');
+    });
+
+    it.each<[string, Partial<UI_FORM_STRUCT>]>([
+      ['an unknown zone', { time: TIME, timeZone: null }],
+      ['the viewing zone', { time: TIME, timeZone: 'Asia/Tbilisi' }],
+      ['a zone with the same offset', { time: TIME, timeZone: 'Asia/Dubai' }],
+    ])('stays behind its chip for %s', (_, form) => {
+      viewingTimeZone.value = 'Asia/Tbilisi';
+      const { shown, chipKeys } = setup({ form });
+      expect(shown.value.timeZone).toBe(false);
+      expect(chipKeys()).toContain('timeZone');
+    });
+
+    it('offers no chip when the setting is off', () => {
+      expect(setup({ disabledFields: ['timeZone'] }).chipKeys()).not.toContain('timeZone');
+    });
   });
 
   it('offers no originalAmount chip on transfers', () => {

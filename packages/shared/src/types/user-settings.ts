@@ -3,7 +3,13 @@ import type { PivotGranularity, PivotMeasure, PivotRowDimension } from './stats/
 import type { TRANSACTION_SORT_FIELD } from './transactions/transactions';
 
 // Transaction form fields the user can opt into showing, persisted in the user-settings JSONB.
-export const TRANSACTION_OPTIONAL_FIELDS = ['externalUrl', 'externalReference', 'location', 'originalAmount'] as const;
+export const TRANSACTION_OPTIONAL_FIELDS = [
+  'externalUrl',
+  'externalReference',
+  'location',
+  'originalAmount',
+  'timeZone',
+] as const;
 export type TransactionOptionalField = (typeof TRANSACTION_OPTIONAL_FIELDS)[number];
 
 // Where the user's time zone comes from: the device (kept in sync) or a manual pick.

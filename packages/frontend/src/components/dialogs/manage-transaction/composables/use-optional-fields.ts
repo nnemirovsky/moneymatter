@@ -3,7 +3,11 @@ import { TRANSACTION_OPTIONAL_FIELDS, type TransactionOptionalField } from '@bt/
 import { computed } from 'vue';
 
 // Applies only until the user saves the setting once; an explicit empty list stays empty.
-const DEFAULT_OPTIONAL_FIELDS: TransactionOptionalField[] = [...TRANSACTION_OPTIONAL_FIELDS];
+// The zone picker is opt-in: most payments happen in the viewing zone, and the field still
+// appears on its own for a transaction recorded in another zone.
+const DEFAULT_OPTIONAL_FIELDS: TransactionOptionalField[] = TRANSACTION_OPTIONAL_FIELDS.filter(
+  (field) => field !== 'timeZone',
+);
 
 /**
  * Read/write access to the per-user "optional transaction fields" preference. The transaction form

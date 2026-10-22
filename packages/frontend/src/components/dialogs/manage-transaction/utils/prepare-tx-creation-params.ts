@@ -1,5 +1,6 @@
 import { createTransaction } from '@/api';
 import { OUT_OF_WALLET_ACCOUNT_MOCK } from '@/common/const';
+import { viewingTimeZone } from '@/js/helpers/time-zone';
 import {
   ACCOUNT_CATEGORIES,
   TRANSACTION_TRANSFER_NATURE,
@@ -52,6 +53,8 @@ export const prepareTxCreationParams = ({
     externalReference: form.externalReference?.trim() || undefined,
     location: resolveFormLocation(form),
     time: time.toUTCString(),
+    // The picked zone, else the zone the time is shown and typed in.
+    timeZone: form.timeZone ?? viewingTimeZone.value,
     transactionType: getTxTypeFromFormType(formTxType),
     paymentType: paymentType!.value,
     accountId,

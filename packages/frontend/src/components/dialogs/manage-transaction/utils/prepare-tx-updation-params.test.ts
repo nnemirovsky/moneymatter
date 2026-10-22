@@ -42,6 +42,42 @@ describe('prepareTxUpdationParams', () => {
   let destinationAccount: ReturnType<typeof getUahAccount>;
   let transactionMock: ReturnType<typeof buildOutOfWalletTransaction>;
 
+  describe('recorded time zone', () => {
+    const args = {
+      linkedTransaction: null,
+      isTransferTx: false,
+      isRecordExternal: false,
+      isCurrenciesDifferent: false,
+      isOriginalRefundsOverriden: false,
+    };
+    const buildForm = (tx: TransactionModel, timeZone?: string | null): UI_FORM_STRUCT =>
+      ({
+        ...buildBaseFormMock(tx),
+        type: FORM_TYPES.expense,
+        account: getUahAccount() as AccountModel,
+        amount: 10,
+        timeZone,
+      }) as UI_FORM_STRUCT;
+
+    it('leaves the zone out when the row has none and the user picked none', () => {
+      const tx = buildSystemExpenseTransaction();
+      const params = prepareTxUpdationParams({ form: buildForm(tx, null), transaction: tx, ...args });
+      expect(params).not.toHaveProperty('timeZone');
+    });
+
+    it('leaves the zone out when it is unchanged', () => {
+      const tx = { ...buildSystemExpenseTransaction(), timeZone: 'Asia/Tbilisi', utcOffsetMinutes: 240 };
+      const params = prepareTxUpdationParams({ form: buildForm(tx, 'Asia/Tbilisi'), transaction: tx, ...args });
+      expect(params).not.toHaveProperty('timeZone');
+    });
+
+    it('sends the zone the user picked', () => {
+      const tx = { ...buildSystemExpenseTransaction(), timeZone: null, utcOffsetMinutes: null };
+      const params = prepareTxUpdationParams({ form: buildForm(tx, 'America/New_York'), transaction: tx, ...args });
+      expect(params.timeZone).toBe('America/New_York');
+    });
+  });
+
   describe('out_of_wallet details edition', () => {
     beforeEach(() => {
       destinationAccount = getUahAccount();
