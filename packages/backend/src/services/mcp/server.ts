@@ -234,6 +234,7 @@ import { registerUpdateBudgetPlan } from './tools/update-budget-plan';
 import { registerUpdateBudgetPlanGroup } from './tools/update-budget-plan-group';
 import { registerUpdateBudgetPlanLine } from './tools/update-budget-plan-line';
 import { registerUpdateCategory } from './tools/update-category';
+import { registerUpdateChatSettings } from './tools/update-chat-settings';
 import { registerUpdateCustomCurrency } from './tools/update-custom-currency';
 import { registerUpdateInvestmentTransaction } from './tools/update-investment-transaction';
 import { registerUpdateLoan } from './tools/update-loan';
@@ -365,6 +366,7 @@ export function registerAllTools(server: McpServer): void {
   registerDismissNotification(server);
   registerGetUserSettings(server);
   registerUpdateUserSettings(server);
+  registerUpdateChatSettings(server);
 
   // Payees
   registerGetPayees(server);

@@ -42,7 +42,10 @@ export const LOCK_EXEMPT_TOOLS = [
   // POST /notifications/read-all and POST /notifications/:id/read have no lock.
   'mark_notifications_read',
   // PUT and PATCH /user/settings have no lock: settings touch no amounts.
-  'update_user_settings', // PATCH /subscriptions/:id/periods/:periodId has no lock: a period's note touches no amounts.
+  'update_user_settings',
+  // PUT /chat/settings has no lock: chat retention and the inbox cap touch no amounts.
+  'update_chat_settings',
+  // PATCH /subscriptions/:id/periods/:periodId has no lock: a period's note touches no amounts.
   'update_subscription_period',
   // PATCH /user/settings/notification-sources/:id has no lock: a source's mode and default account touch no
   // amounts, and approving one only enqueues its held requests, whose job applies the lock.
@@ -66,6 +69,8 @@ export const READ_ONLY_ROUTE_TOOLS = [
   'mark_notifications_read',
   // PUT and PATCH /user/settings
   'update_user_settings',
+  // PUT /chat/settings
+  'update_chat_settings',
   // POST /user/currencies/base, the first base currency only
   'change_base_currency',
 ];
