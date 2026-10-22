@@ -31,6 +31,8 @@ const UNREADABLE_CODE_ERROR =
   'The MoneyMatter setup code could not be read. Generate a new one on the iOS Automation page and add the shortcut again.';
 // To the second: two identical taps inside one minute are two payments, not a retry.
 export const KEY_TIME_FORMAT = "yyyy-MM-dd'T'HH:mm:ssZZZZZ";
+// Apple's date formatter prints the IANA zone ID (`Asia/Tbilisi`) for `VV`.
+export const TIME_ZONE_FORMAT = 'VV';
 const SOURCE = 'apple-pay';
 
 /** Property names of the Wallet transaction input, as the device shows them. */
@@ -63,6 +65,10 @@ export const buildCardPaymentShortcut = (): Dict => {
     date: from({ output: now }),
     parameters: { [SHORTCUT_PARAMS.dateFormatStyle]: 'ISO 8601', [SHORTCUT_PARAMS.isoIncludeTime]: true },
   });
+  const zoneName = kit.formatDate({
+    date: from({ output: now }),
+    parameters: { [SHORTCUT_PARAMS.dateFormatStyle]: 'Custom', [SHORTCUT_PARAMS.dateFormat]: TIME_ZONE_FORMAT },
+  });
   const keyTime = kit.formatDate({
     date: from({ output: now }),
     parameters: { [SHORTCUT_PARAMS.dateFormatStyle]: 'Custom', [SHORTCUT_PARAMS.dateFormat]: KEY_TIME_FORMAT },
@@ -85,6 +91,7 @@ export const buildCardPaymentShortcut = (): Dict => {
       { key: 'card', value: [shortcutInput({ property: INPUT_PROPERTY.card })] },
       { key: 'name', value: [shortcutInput({ property: INPUT_PROPERTY.name, userInfo: 'WFItemName' })] },
       { key: 'time', value: [from({ output: isoTime })] },
+      { key: 'timeZone', value: [from({ output: zoneName })] },
       { key: 'idempotencyKey', value: [from({ output: idempotencyKey })] },
       { key: 'source', value: [SOURCE] },
     ],

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { viewingNow } from '@/js/helpers/time-zone';
 import { getCashFlow } from '@/api/stats';
 import { loadTransactions } from '@/api/transactions';
 import type { DashboardWidgetConfig } from '@/api/user-settings';
@@ -86,7 +87,7 @@ const { isAppInitialized } = storeToRefs(useRootStore());
 const { categoriesMap } = storeToRefs(useCategoriesStore());
 const { byId: payeesById } = usePayeeLookup();
 
-const now = new Date();
+const now = viewingNow();
 const monthStart = startOfMonth(now);
 const daysInMonth = getDaysInMonth(now);
 const todayIndex = getDate(now) - 1;

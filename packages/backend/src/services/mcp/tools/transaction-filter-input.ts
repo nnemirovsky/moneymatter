@@ -6,6 +6,7 @@ import {
   TRANSACTION_TRANSFER_NATURE,
   TRANSACTION_TYPES,
 } from '@bt/shared/types';
+import { normalizeRangeBounds, rangeBoundInputSchema } from '@common/lib/time-zones/resolve-time-input';
 import { recordId } from '@common/lib/zod/custom-types';
 import {
   bulkTargetFields,
@@ -27,8 +28,8 @@ const idOrBlank = z.union([recordId(), z.literal(BLANK_FILTER_VALUE)]);
  * the two key sets equal.
  */
 export const transactionFilterInput = {
-  from: z.string().optional().describe('Start of the date range (ISO 8601 datetime in UTC, e.g. 2026-10-01T00:00:00Z)'),
-  to: z.string().optional().describe('End of the date range (ISO 8601 datetime in UTC). Must not precede from'),
+  from: rangeBoundInputSchema().optional().describe('Range start: date, wall time or ISO time'),
+  to: rangeBoundInputSchema().optional().describe('Range end: same; a date runs through its end'),
   transactionType: z.nativeEnum(TRANSACTION_TYPES).optional().describe('Only income, expense or transfer rows'),
   transferNatures: z
     .array(z.nativeEnum(TRANSACTION_TRANSFER_NATURE))
@@ -77,9 +78,19 @@ export const transactionFilterInput = {
   batchId: recordId().optional().describe('Only rows from this import batch'),
 };
 
+/**
+ * The `from` and `to` bounds as `Z` strings, which is all the REST schema reads. A handler passes
+ * the user's zone (`resolveUserRangeBounds`) before validating; the validators run on `UTC` so the
+ * chat can check a call without the user's settings, and the handler's own pass makes that a no-op.
+ */
+const withZBounds = ({ filters, zone }: { filters: unknown; zone: string }): unknown =>
+  filters !== null && typeof filters === 'object'
+    ? normalizeRangeBounds({ args: filters as { from?: unknown; to?: unknown }, startKey: 'from', endKey: 'to', zone })
+    : filters;
+
 /** The filters, validated by the schema the REST list and summary use and mapped for the service. */
 export function parseTransactionFilters({ filters }: { filters: unknown }) {
-  return toServiceFilters(transactionFiltersSchema.parse(filters));
+  return toServiceFilters(transactionFiltersSchema.parse(withZBounds({ filters, zone: 'UTC' })));
 }
 
 /**
@@ -161,7 +172,7 @@ export function parseBulkTarget({
   return toBulkTarget(
     bulkTargetSchema.parse({
       transactionIds,
-      selection: filters === undefined ? undefined : { filters, excludedIds },
+      selection: filters === undefined ? undefined : { filters: withZBounds({ filters, zone: 'UTC' }), excludedIds },
     }),
   );
 }

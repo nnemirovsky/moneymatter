@@ -1,3 +1,4 @@
+import { resolveUserRangeBounds } from '@common/lib/time-zones/resolve-user-time';
 import { recordId } from '@common/lib/zod/custom-types';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -61,7 +62,9 @@ export function registerBulkDeleteTransactions(server: McpServer) {
       await assertBaseCurrencyUnlocked({ userId });
       trackMcpToolUsed({ userId, tool: 'bulk_delete_transactions', clientId: extra.authInfo?.clientId });
 
-      const target = validateBulkDeleteTransactionsArgs({ args });
+      const filters =
+        args.filters && (await resolveUserRangeBounds({ userId, args: args.filters, startKey: 'from', endKey: 'to' }));
+      const target = validateBulkDeleteTransactionsArgs({ args: { ...args, filters } });
 
       const transactionIds = await resolveBulkTargetIds({ userId, ...target });
       const result = await bulkDelete({ userId, transactionIds });

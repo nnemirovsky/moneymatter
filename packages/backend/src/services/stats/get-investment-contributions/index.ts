@@ -57,7 +57,8 @@ export const getInvestmentContributions = async ({
   portfolioIds,
   decimals,
 }: GetInvestmentContributionsParams): Promise<InvestmentContributionsResultMinor> => {
-  const buckets = generatePeriodBuckets({ from, to, granularity });
+  // `Balances` hold UTC days, so these buckets are cut in UTC whatever the viewing zone.
+  const buckets = generatePeriodBuckets({ from, to, granularity, zone: 'UTC' });
 
   if (buckets.length === 0) {
     return { buckets: [], portfolios: [] };
@@ -89,7 +90,7 @@ export const getInvestmentContributions = async ({
           })
         : Promise.resolve([] as PortfolioTransfers[]),
       // Savings intake — real income and expense only, transfers dropped, user-wide.
-      fetchSavingsTransactions({ userId, from, to, decimals }),
+      fetchSavingsTransactions({ userId, from, to, decimals, zone: 'UTC' }),
     ]);
 
     // Only the net of the intake is read here, and refund netting subtracts the same

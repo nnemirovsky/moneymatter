@@ -13,6 +13,7 @@ import { useImportJobProgress } from '@/composable/use-import-job-progress';
 import { useWizardSteps } from '@/composable/use-wizard-steps';
 import { i18n } from '@/i18n';
 import { extractApiErrorMessage, isApiErrorWithCode } from '@/js/errors';
+import { viewingTimeZone } from '@/js/helpers/time-zone';
 import { trackAnalyticsEvent } from '@/lib/posthog';
 import { importJobFailureMessage } from '@/pages/import-export/utils/import-error-message';
 import {
@@ -467,7 +468,7 @@ export const useStatementParserStore = defineStore('statementParser', () => {
           entry.extraction = await extractStatementTransactions({
             fileBase64: entry.fileBase64,
             password: entry.password ?? undefined,
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            timezone: viewingTimeZone.value,
           });
           entry.extractionError = null;
           extractedSomething = true;
@@ -638,7 +639,7 @@ export const useStatementParserStore = defineStore('statementParser', () => {
         accountId: selectedAccount.value.id,
         transactions: mergedTransactions.value,
         skipIndices: skipIndices.value,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        timezone: viewingTimeZone.value,
       });
 
       jobProgress.start({

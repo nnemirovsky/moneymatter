@@ -1,5 +1,6 @@
 import { getModelNameFromModelId } from '@bt/shared/types';
 import ChatAttachments from '@models/chat-attachments.model';
+import ChatProposals from '@models/chat-proposals.model';
 import ChatThreads from '@models/chat-threads.model';
 import Users from '@models/users.model';
 import { getModelProfile } from '@services/ai/model-catalog';
@@ -7,6 +8,7 @@ import { getUserSettings } from '@services/user-settings/get-user-settings';
 import { getUserBaseCurrency } from '@services/user.service';
 import type { ModelMessage } from 'ai';
 
+import { shouldPreloadWrites } from '../policies/core-tools';
 import { historyBudgetTokens, loadHistoryMessages } from '../prompt/history';
 import { renderPageContext, sanitizePageContext } from '../prompt/page-context';
 import { buildSystemPrompt } from '../prompt/system-prompt';
@@ -31,7 +33,7 @@ export async function prepareChatTurn({
 }): Promise<{ toolkit: ChatToolkit; system: string; messages: ModelMessage[] }> {
   const { runId, userId, threadId, messageId, userMessageId, aiClient, emit, textPolicy } = input;
 
-  const [user, attachments, settings, baseCurrency, profile, thread] = await Promise.all([
+  const [user, attachments, settings, baseCurrency, profile, thread, proposalCount] = await Promise.all([
     Users.findByPk(userId, { attributes: ['id', 'username', 'authUserId', 'role'], rejectOnEmpty: true }),
     ChatAttachments.findAll({ where: { messageId: userMessageId, userId }, attributes: ['id', 'fileName'] }),
     getUserSettings({ userId }),
@@ -41,6 +43,7 @@ export async function prepareChatTurn({
       model: getModelNameFromModelId({ modelId: aiClient.modelId }),
     }),
     ChatThreads.findOne({ where: { id: threadId, userId }, attributes: ['titleSource', 'pageContext'] }),
+    ChatProposals.count({ where: { threadId, userId } }),
   ]);
 
   const untrusted = createUntrustedWrapper();
@@ -52,6 +55,8 @@ export async function prepareChatTurn({
       messageId,
       runId,
       pageContext,
+      // A picture of a receipt or a thread that already makes cards is a change coming: skip the extra step.
+      preloadWrites: shouldPreloadWrites({ attachmentCount: attachments.length, proposalCount }),
       attachments: attachments.map(({ id, fileName }) => ({ id, fileName })),
       emit,
       textPolicy,
@@ -62,7 +67,8 @@ export async function prepareChatTurn({
 
   const system = buildSystemPrompt({
     now: new Date(),
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    // The user's zone, not the server's: a time the user names is theirs to read, and the tools take it as a wall clock.
+    timeZone: settings.timeZone ?? 'UTC',
     locale: settings.locale,
     baseCurrency: baseCurrency?.currencyCode ?? null,
     pageContext: pageContext ? renderPageContext({ context: pageContext, wrap: untrusted.wrap }) : null,

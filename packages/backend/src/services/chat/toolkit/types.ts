@@ -49,6 +49,11 @@ export interface ChatToolkitRun {
   messageId: string;
   runId: string;
   pageContext: ChatPageContext | null;
+  /**
+   * The turn is likely to change data (the message has an attachment, or the thread already has
+   * cards), so the common write tools are offered from the first step instead of being found first.
+   */
+  preloadWrites?: boolean;
   /** The attachments of the user message this run answers. */
   attachments: Array<{ id: string; fileName: string }>;
   /** Writes one event to the run's stream. */
@@ -102,7 +107,9 @@ export interface ChatToolContext {
 export interface ChatToolkit {
   tools: readonly ChatToolDefinition[];
   getTool: (params: { name: string }) => ChatToolDefinition | undefined;
-  /** The tools every step offers: the core set, the chat-native tools and what the model discovered. */
+  /** The catalog tools fixed for the whole run: the core, and the preloaded writes when the run asked for them. */
+  baseToolNames: () => string[];
+  /** What a step offers: the base tools, the chat-native tools and what the model discovered. */
   activeToolNames: () => string[];
   isAwaitingClarification: () => boolean;
   /** The full result of an earlier read of this run, for analyses. */

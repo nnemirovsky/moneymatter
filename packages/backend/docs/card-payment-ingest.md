@@ -30,18 +30,19 @@ If the instance sits behind a gateway that asks for its own credentials (Cloudfl
 
 `Content-Type: application/json`. Unknown keys are ignored, so a newer client keeps working against an older server.
 
-| Field            | Type             | Required | Notes                                                                                                                                                      |
-| ---------------- | ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `idempotencyKey` | string           | yes      | 8 to 128 printable ASCII characters, no spaces. See [Idempotency](#idempotency).                                                                           |
-| `amount`         | string or number | yes      | A positive expense amount. Text may carry a currency code or symbol and locale separators: `47.00`, `47,00 GEL`, `₾47`, `1.234,56 €`.                      |
-| `merchant`       | string           | yes      | Up to 200 characters. A blank merchant is refused.                                                                                                         |
-| `card`           | string           | yes      | The card's name as the client knows it, up to 100 characters. Case and a trailing masked number (`•••• 1234`) are ignored.                                 |
-| `currency`       | string           | no       | A 3-letter code. Wins over the amount text. See [Currency](#currency).                                                                                     |
-| `time`           | string           | no       | ISO 8601 date and time **with an offset**: `2026-10-17T14:05:00+04:00`. Defaults to the time the request was received.                                     |
-| `timeSource`     | string           | no       | `run` (default) or `transaction`: whether `time` is the time the client ran or a time the transaction itself carries. See [Repeat window](#repeat-window). |
-| `name`           | string           | no       | The payment's own name, up to 200 characters. Kept with the transaction's data.                                                                            |
-| `source`         | string           | no       | Which client sent it, 1 to 32 characters of `a-z`, `0-9` and `-`. Defaults to `card-payment`.                                                              |
-| `dryRun`         | boolean          | no       | `true` only checks the connection and a card link. Nothing is validated beyond `card` or written.                                                          |
+| Field            | Type             | Required | Notes                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------- | ---------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `idempotencyKey` | string           | yes      | 8 to 128 printable ASCII characters, no spaces. See [Idempotency](#idempotency).                                                                                                                                                                                                                                                                                                             |
+| `amount`         | string or number | yes      | A positive expense amount. Text may carry a currency code or symbol and locale separators: `47.00`, `47,00 GEL`, `₾47`, `1.234,56 €`.                                                                                                                                                                                                                                                        |
+| `merchant`       | string           | yes      | Up to 200 characters. A blank merchant is refused.                                                                                                                                                                                                                                                                                                                                           |
+| `card`           | string           | yes      | The card's name as the client knows it, up to 100 characters. Case and a trailing masked number (`•••• 1234`) are ignored.                                                                                                                                                                                                                                                                   |
+| `currency`       | string           | no       | A 3-letter code. Wins over the amount text. See [Currency](#currency).                                                                                                                                                                                                                                                                                                                       |
+| `time`           | string           | no       | ISO 8601 date and time **with an offset**: `2026-10-17T14:05:00+04:00`. Defaults to the time the request was received.                                                                                                                                                                                                                                                                       |
+| `timeZone`       | string           | no       | The IANA zone the payment happened in, `Asia/Tbilisi` (the shipped shortcut sends Format Date `VV`). Recorded on the transaction. Without it, the offset of `time` is stored, and the zone too when the user's time zone setting has that offset at that time. A blank `time` records the request zone, else the setting. Anything that is not an IANA name is refused as `invalidTimeZone`. |
+| `timeSource`     | string           | no       | `run` (default) or `transaction`: whether `time` is the time the client ran or a time the transaction itself carries. See [Repeat window](#repeat-window).                                                                                                                                                                                                                                   |
+| `name`           | string           | no       | The payment's own name, up to 200 characters. Kept with the transaction's data.                                                                                                                                                                                                                                                                                                              |
+| `source`         | string           | no       | Which client sent it, 1 to 32 characters of `a-z`, `0-9` and `-`. Defaults to `card-payment`.                                                                                                                                                                                                                                                                                                |
+| `dryRun`         | boolean          | no       | `true` only checks the connection and a card link. Nothing is validated beyond `card` or written.                                                                                                                                                                                                                                                                                            |
 
 Text fields lose control and invisible characters, and their whitespace is collapsed. A `time` more than 5 minutes in the future or more than 30 days in the past is refused.
 
@@ -106,7 +107,7 @@ A parked request is re-evaluated when the same `idempotencyKey` arrives again, s
 
 The payload is unusable. The request is recorded as `rejected` so the owner can see what the client sent, and a replay of the same key gets the same answer. `details.reason` is one of:
 
-`invalidBody`, `invalidIdempotencyKey`, `invalidSource`, `invalidAmount`, `zeroAmount`, `negativeAmount`, `invalidCurrency`, `currencyConflict`, `blankMerchant`, `merchantTooLong`, `blankCard`, `cardTooLong`, `nameTooLong`, `invalidTime`, `timeInFuture`, `timeTooOld`.
+`invalidBody`, `invalidIdempotencyKey`, `invalidSource`, `invalidAmount`, `zeroAmount`, `negativeAmount`, `invalidCurrency`, `currencyConflict`, `blankMerchant`, `merchantTooLong`, `blankCard`, `cardTooLong`, `nameTooLong`, `invalidTime`, `invalidTimeZone`, `timeInFuture`, `timeTooOld`.
 
 A body that is not a JSON object, or has no usable `idempotencyKey`, has nothing to key a record on and is refused without one.
 
@@ -214,18 +215,19 @@ A `dryRun: true` body with a valid `kind` answers the connection check of the ca
 
 `Content-Type: application/json`. Unknown keys are ignored.
 
-| Field            | Type   | Required | Notes                                                                                                   |
-| ---------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------- |
-| `kind`           | string | yes      | `"notification"`.                                                                                       |
-| `idempotencyKey` | string | yes      | As for a card payment. The shortcut keys to the second.                                                 |
-| `title`          | string | no       | Up to 500 characters; a longer one is cut.                                                              |
-| `subtitle`       | string | no       | Up to 500 characters.                                                                                   |
-| `body`           | string | no       | Up to 4000 characters. `message` and `text` are accepted for it.                                        |
-| `app`            | string | no       | The app's display name, up to 255 characters. `appName` and `sourceApp` are accepted.                   |
-| `bundleId`       | string | no       | The app's bundle id. Wallet is `com.apple.Passbook`; a display name such as "Wallet" is recognized too. |
-| `time`           | string | no       | The notification's own date, ISO 8601 with an offset. Defaults to the time of receipt.                  |
-| `raw`            | string | no       | The notification as the device rendered it, line breaks kept. Over 8 KB is refused as `rawTooLong`.     |
-| `source`         | string | no       | The client label, as for a card payment; defaults to `ios-notification`.                                |
+| Field            | Type   | Required | Notes                                                                                                                       |
+| ---------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `kind`           | string | yes      | `"notification"`.                                                                                                           |
+| `idempotencyKey` | string | yes      | As for a card payment. The shortcut keys to the second.                                                                     |
+| `title`          | string | no       | Up to 500 characters; a longer one is cut.                                                                                  |
+| `subtitle`       | string | no       | Up to 500 characters.                                                                                                       |
+| `body`           | string | no       | Up to 4000 characters. `message` and `text` are accepted for it.                                                            |
+| `app`            | string | no       | The app's display name, up to 255 characters. `appName` and `sourceApp` are accepted.                                       |
+| `bundleId`       | string | no       | The app's bundle id. Wallet is `com.apple.Passbook`; a display name such as "Wallet" is recognized too.                     |
+| `time`           | string | no       | The notification's own date, ISO 8601 with an offset. Defaults to the time of receipt.                                      |
+| `timeZone`       | string | no       | The device's IANA zone, as for a card payment. A bank's wall-clock time is read in it first, before the offset is inferred. |
+| `raw`            | string | no       | The notification as the device rendered it, line breaks kept. Over 8 KB is refused as `rawTooLong`.                         |
+| `source`         | string | no       | The client label, as for a card payment; defaults to `ios-notification`.                                                    |
 
 Text fields lose control and invisible characters and have their whitespace collapsed.
 
@@ -295,7 +297,7 @@ A **source** is `NotificationSources`: the app (bundle id, else the normalized a
 
 | Mode       | Meaning                                                                                                                          |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `auto`     | Trusted from the start: Wallet and a seed list of known bank apps.                                                               |
+| `auto`     | Known: trusted from the start. Wallet and a seed list of known apps.                                                             |
 | `pending`  | Every other new source. Its notifications park as `sourceNotApproved` without an AI call, and its first one posts an inbox card. |
 | `approved` | The user said yes. Approving enqueues the requests it holds.                                                                     |
 | `muted`    | The user said no. Muting deletes the held requests and drops new ones.                                                           |

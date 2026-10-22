@@ -34,10 +34,13 @@ import {
   type SavedTransactionView,
   type SidebarSectionsConfig,
   TRANSACTION_DATE_PRESETS,
+  HOUR_CYCLES,
+  type HourCycle,
+  TIME_ZONE_SOURCES,
   TRANSACTION_OPTIONAL_FIELDS,
   TRANSACTION_SORT_FIELD,
 } from '@bt/shared/types';
-import { dateRange, withDateOrder } from '@common/lib/zod/custom-types';
+import { dateRange, ianaTimeZone, withDateOrder } from '@common/lib/zod/custom-types';
 import { IdColumn } from '@common/types/id-column';
 import {
   baseUrlField,
@@ -417,6 +420,12 @@ export const ZodSettingsSchema = z.object({
   incomeCategoryIds: z.array(z.uuid()).optional(),
   currencyDisplay: z.enum(CURRENCY_DISPLAY_PREFERENCES).optional(),
   fire: ZodFireSettingsSchema.optional(),
+  // IANA zone the user views and saves times in. In `device` mode the app keeps it equal to the device zone.
+  timeZone: ianaTimeZone().optional(),
+  // Unset means `device`.
+  timeZoneSource: z.enum(TIME_ZONE_SOURCES).optional(),
+  // 24-hour or 12-hour clock; unset follows the UI language.
+  hourCycle: z.enum(HOUR_CYCLES).optional(),
 });
 
 export type SettingsSchema = z.infer<typeof ZodSettingsSchema>;
@@ -526,6 +535,10 @@ export const ZodSettingsPatchSchema = z.object({
   incomeCategoryIds: z.array(z.uuid()).optional(),
   currencyDisplay: z.enum(CURRENCY_DISPLAY_PREFERENCES).optional(),
   fire: ZodFireSettingsSchema.optional(),
+  timeZone: ianaTimeZone().optional(),
+  timeZoneSource: z.enum(TIME_ZONE_SOURCES).optional(),
+  /** `null` removes the key, which returns the clock to the language's convention. */
+  hourCycle: z.enum(HOUR_CYCLES).nullable().optional(),
 });
 
 export type SettingsPatchSchema = z.infer<typeof ZodSettingsPatchSchema>;
@@ -539,7 +552,8 @@ type DeepPartial<T> = {
       : T[K];
 };
 
-type PatchableSettings = Omit<SettingsSchema, 'onboarding' | 'ai'> & {
+type PatchableSettings = Omit<SettingsSchema, 'onboarding' | 'ai' | 'hourCycle'> & {
+  hourCycle?: HourCycle | null;
   ai?: Omit<NonNullable<SettingsSchema['ai']>, 'connections' | 'featureConfigs' | 'chat'>;
 };
 

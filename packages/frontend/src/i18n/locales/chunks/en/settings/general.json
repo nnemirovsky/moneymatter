@@ -94,6 +94,10 @@
             "label": "Original amount",
             "description": "The amount actually charged in another currency, when it differs from the account's currency."
           },
+          "timeZone": {
+            "label": "Time zone",
+            "description": "Record the time zone a payment happened in. Shown on its own when it differs from your time zone."
+          },
           "location": {
             "label": "Location",
             "description": "GPS coordinates of where the purchase happened. Fill from your device's location or type them in"

@@ -9,6 +9,8 @@ import type {
   SavedPivotView,
   SavedTransactionView,
   CurrencyDisplayPreference,
+  HourCycle,
+  TimeZoneSource,
   PushGroup,
   ChatRetentionDays,
 } from '@bt/shared/types';
@@ -90,6 +92,12 @@ export interface SubscriptionsSettings {
 
 export interface UserSettingsSchema {
   locale?: SupportedLocale;
+  /** IANA zone the user views and saves times in; unset reads as UTC on the server. */
+  timeZone?: string;
+  /** Unset means `device`. */
+  timeZoneSource?: TimeZoneSource;
+  /** Unset follows the UI language. */
+  hourCycle?: HourCycle;
   dashboard?: {
     widgets: DashboardWidgetConfig[];
   };
@@ -202,7 +210,8 @@ type DeepPartial<T> = {
       : T[K];
 };
 
-type UserSettingsPatch = DeepPartial<UserSettingsSchema>;
+/** `hourCycle: null` removes the key, which returns the clock to the language's convention. */
+type UserSettingsPatch = Omit<DeepPartial<UserSettingsSchema>, 'hourCycle'> & { hourCycle?: HourCycle | null };
 
 /**
  * Partial settings update: only the keys present in `patch` change, the server

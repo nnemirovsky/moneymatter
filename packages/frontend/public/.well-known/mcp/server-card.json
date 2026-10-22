@@ -663,6 +663,10 @@
       "description": "Read the user's app settings (language, notification preferences, dashboard, layout, saved views, import and bank sync options, FIRE planner inputs). The AI configuration is not included."
     },
     {
+      "name": "update_chat_settings",
+      "description": "Change the AI chat settings: how many days chat threads are kept (7, 30, 90, 365 or null for forever) and how many resolved Automation inbox cards are kept (10 to 1000). Requires finance:write scope."
+    },
+    {
       "name": "update_user_settings",
       "description": "Change app settings with a partial patch merged into the stored ones; arrays replace the stored array whole; a fire key needs the FIRE planner plan. The AI configuration cannot be changed. Requires finance:write scope."
     },

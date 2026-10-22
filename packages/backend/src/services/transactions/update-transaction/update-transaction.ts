@@ -50,6 +50,7 @@ import {
   assertPlannedStandalone,
   assertPlannedWriteAllowed,
 } from '../planned-matching/assert-planned-invariants';
+import { deriveZoneUpdate } from '../recorded-zone';
 import { manageSplits } from '../splits';
 import { linkTransactions } from '../transactions-linking';
 import { type UpdateTransactionParams } from '../types';
@@ -210,6 +211,7 @@ const makeBasicBaseTxUpdation = async (
     externalReference: newData.externalReference,
     location: newData.location,
     time: newData.time ?? prevData.time,
+    ...deriveZoneUpdate({ time: newData.time, timeZone: newData.timeZone, stored: prevData }),
     // The where-clause filter on Transactions.update needs the *creator's* userId
     // (the row's actual `userId`), not the caller. They differ when a recipient
     // edits an owner-created transaction with `transactionsWriteScope: 'all'`.
@@ -476,6 +478,13 @@ const updateTransferTransaction = async (params: HelperFunctionsArgs) => {
     externalReference,
     location,
     time,
+    // A zone change moves to the opposite leg only when the same user owns both legs; each owner
+    // annotates their own row. A new time recomputes the offset in the leg's own stored zone.
+    ...deriveZoneUpdate({
+      time,
+      timeZone: oppositeTx.userId === prevData.userId ? newData.timeZone : undefined,
+      stored: oppositeTx,
+    }),
     paymentType,
     categoryId,
     currencyCode: oppositeTx.currencyCode,

@@ -1,5 +1,5 @@
 import { PAYMENT_TYPES, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES, isTwoLegTransfer } from '@bt/shared/types';
-import { currencyCode, recordId } from '@common/lib/zod/custom-types';
+import { currencyCode, ianaTimeZone, recordId } from '@common/lib/zod/custom-types';
 import { Money } from '@common/types/money';
 import { createController } from '@controllers/helpers/controller-factory';
 import { removeUndefinedKeys } from '@js/helpers';
@@ -24,6 +24,7 @@ const bodyZodSchema = z
     note: z.string().max(1000, 'The string must not exceed 1000 characters.').nullish(),
     ...transactionDetailFieldsSchema,
     time: transactionTimeSchema().optional(),
+    timeZone: ianaTimeZone().nullish(),
     transactionType: z.nativeEnum(TRANSACTION_TYPES).optional(),
     paymentType: z.nativeEnum(PAYMENT_TYPES).optional(),
     accountId: recordId().optional(),
@@ -141,6 +142,7 @@ export default createController(schema, async ({ user, params, body }) => {
     externalReference,
     location,
     time,
+    timeZone,
     transactionType,
     paymentType,
     accountId,
@@ -193,6 +195,8 @@ export default createController(schema, async ({ user, params, body }) => {
       payeeLocked,
       isPlanned,
     }),
+    // `null` clears the recorded zone, so it stays out of removeUndefinedKeys.
+    ...(timeZone !== undefined ? { timeZone } : {}),
     // payeeId can be null to clear the link, so don't strip undefined here.
     ...(payeeId !== undefined ? { payeeId } : {}),
     // Both original-currency fields can be null to clear the metadata, so keep them out of

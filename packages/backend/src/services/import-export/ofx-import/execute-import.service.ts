@@ -21,6 +21,7 @@ import { addUserCurrencies } from '@services/currencies/add-user-currency';
 import { type OpenImportBatch, withImportBatchRecord } from '@services/import-export/core/import-batch-record';
 import { partitionReconcileAccounts } from '@services/import-export/core/partition-reconcile-accounts';
 import { startBalanceReconciliation } from '@services/import-export/core/reconcile-account-balances';
+import { recordedZoneOfImportedRow, resolveImportZones } from '@services/import-export/core/resolve-import-zones';
 import { createAccountsIfNeeded } from '@services/import-export/core/resolve/create-accounts-if-needed';
 import { createPayeesIfNeeded } from '@services/import-export/core/resolve/create-payees-if-needed';
 import { excludeSkippedAccounts } from '@services/import-export/core/resolve/exclude-skipped-accounts';
@@ -108,6 +109,7 @@ async function executeOfxImportImpl({
   accountMapping,
   skipDuplicateIndices,
   recalculateBalance = false,
+  timezone,
   onProgress,
   openImportBatch,
 }: {
@@ -116,10 +118,12 @@ async function executeOfxImportImpl({
   accountMapping: OfxAccountMapping;
   skipDuplicateIndices: number[];
   recalculateBalance?: boolean;
+  timezone?: string;
   onProgress?: (processedCount: number, totalCount: number) => void | Promise<void>;
   openImportBatch: OpenImportBatch;
 }): Promise<OfxImportSummary> {
   const parsed = await readValidatedOfxUpload({ userId, uploadId, accountMapping });
+  const { candidateZone } = await resolveImportZones({ userId, timezone });
 
   const skippedKeys = new Set(
     parsed.accounts
@@ -221,13 +225,15 @@ async function executeOfxImportImpl({
 
     try {
       const amount = Money.fromDecimal(tx.amount).abs();
+      const rowTime = new Date(tx.date);
       const result = await createTransaction({
         userId,
         accountId,
         amount,
         commissionRate: Money.zero(),
         note: tx.note,
-        time: new Date(tx.date),
+        time: rowTime,
+        ...recordedZoneOfImportedRow({ instant: rowTime, offsetMinutes: tx.utcOffsetMinutes, candidateZone }),
         transactionType: tx.type,
         paymentType: resolvePaymentType({ transactionType: tx.transactionType }),
         accountType: ACCOUNT_TYPES.system,

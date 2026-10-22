@@ -383,6 +383,42 @@ describe('Statement Parser - Execute Import endpoint', () => {
     });
   });
 
+  describe('recorded time zone', () => {
+    const importWithZone = async ({ timezone }: { timezone?: string }) => {
+      const account = await helpers.createAccount({ raw: true });
+      const result = await helpers.statementExecuteImportAndWait({
+        payload: {
+          accountId: account.id,
+          transactions: [{ date: '2024-01-15 23:11:19', description: 'Late evening', amount: 10, type: 'expense' }],
+          skipIndices: [],
+          timezone,
+        },
+      });
+
+      return (await helpers.getTransactions({ raw: true })).find((tx) => result.newTransactionIds.includes(tx.id))!;
+    };
+
+    it('stamps the request zone it read the wall clock in', async () => {
+      expect(await importWithZone({ timezone: 'Europe/Kyiv' })).toMatchObject({
+        timeZone: 'Europe/Kyiv',
+        utcOffsetMinutes: 120,
+      });
+    });
+
+    it('reads and stamps the zone setting when the request has none', async () => {
+      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Europe/Kyiv' } });
+
+      const tx = await importWithZone({});
+
+      expect(tx).toMatchObject({ timeZone: 'Europe/Kyiv', utcOffsetMinutes: 120 });
+      expect(new Date(tx.time).toISOString()).toBe('2024-01-15T21:11:19.000Z');
+    });
+
+    it('records nothing without a request zone or a setting', async () => {
+      expect(await importWithZone({})).toMatchObject({ timeZone: null, utcOffsetMinutes: null });
+    });
+  });
+
   describe('error handling', () => {
     it('rejects an unknown account, an invalid type and a negative amount', async () => {
       const account = await helpers.createAccount({ raw: true });

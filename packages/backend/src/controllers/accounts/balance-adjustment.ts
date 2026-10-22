@@ -1,4 +1,4 @@
-import { decimalMoney, recordId } from '@common/lib/zod/custom-types';
+import { decimalMoney, ianaTimeZone, recordId } from '@common/lib/zod/custom-types';
 import { createController } from '@controllers/helpers/controller-factory';
 import { serializeTransaction } from '@root/serializers';
 import { serializeAccount } from '@root/serializers/accounts.serializer';
@@ -18,12 +18,13 @@ export default createController(
       // ISO date string ("2025-04-12" or full ISO). Effective date the user
       // wants the adjustment recorded against — defaults to "now" server-side.
       time: z.coerce.date().optional(),
+      timeZone: ianaTimeZone().nullish(),
     }),
   }),
   async ({ user, params, body }) => {
     const { id: accountId } = params;
     const { id: userId } = user;
-    const { targetBalance, note, time } = body;
+    const { targetBalance, note, time, timeZone } = body;
 
     const result = await adjustAccountBalance({
       userId,
@@ -31,6 +32,7 @@ export default createController(
       targetBalance,
       note,
       time,
+      timeZone,
     });
 
     const account = await getAccountById({ id: accountId, userId });

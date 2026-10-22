@@ -174,6 +174,8 @@ export function slimTransactionsForMcp({
     return {
       id: tx.id,
       time: tx.time,
+      timeZone: tx.timeZone,
+      utcOffsetMinutes: tx.utcOffsetMinutes,
       amount: tx.amount,
       refAmount: tx.refAmount,
       currencyCode: tx.currencyCode,

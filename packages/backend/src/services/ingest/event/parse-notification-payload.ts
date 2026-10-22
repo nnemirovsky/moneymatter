@@ -7,7 +7,7 @@ import {
 } from '@bt/shared/types';
 
 import { cleanText } from '../card-payment/clean-text';
-import { CARD_PAYMENT_SOURCE_PATTERN, resolvePayloadTime } from '../card-payment/parse-payload';
+import { CARD_PAYMENT_SOURCE_PATTERN, resolvePayloadTime, resolvePayloadTimeZone } from '../card-payment/parse-payload';
 
 /** Keys of the body that name the notification's app, in the order they are tried. */
 const APP_KEYS = ['app', 'appName', 'sourceApp'] as const;
@@ -36,6 +36,10 @@ export interface ParsedNotification {
   /** The notification's own time when the request carried one, else the receive time. */
   time: Date;
   timeProvided: boolean;
+  /** The request's `timeZone` (IANA), when it sent a valid one. */
+  timeZone: string | null;
+  /** The UTC offset the request's time wrote about local time (`+04:00` is 240); `null` for `Z` or no time. */
+  timeOffsetMinutes: number | null;
 }
 
 type ParseResult =
@@ -104,6 +108,9 @@ export const parseNotificationPayload = ({ body, receivedAt }: { body: unknown; 
   const resolvedTime = resolvePayloadTime({ value: fields.time, receivedAt });
   if (!resolvedTime.ok) return { ok: false, reason: resolvedTime.reason };
 
+  const resolvedZone = resolvePayloadTimeZone({ value: fields.timeZone });
+  if (!resolvedZone.ok) return { ok: false, reason: resolvedZone.reason };
+
   return {
     ok: true,
     notification: {
@@ -117,6 +124,8 @@ export const parseNotificationPayload = ({ body, receivedAt }: { body: unknown; 
       raw,
       time: resolvedTime.time,
       timeProvided: resolvedTime.provided,
+      timeZone: resolvedZone.timeZone,
+      timeOffsetMinutes: resolvedTime.offsetStated ? resolvedTime.offsetMinutes : null,
     },
   };
 };

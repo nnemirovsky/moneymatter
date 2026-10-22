@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { viewingDayBoundIso } from '@/js/helpers/time-zone';
 import { bulkScanTransferRecommendations, dismissTransferSuggestion, linkTransactions } from '@/api/transactions';
 import * as Dialog from '@/components/lib/ui/dialog';
 import * as Drawer from '@/components/lib/ui/drawer';
@@ -140,8 +141,8 @@ async function loadNextPage() {
 
   try {
     const data = await bulkScanTransferRecommendations({
-      from: period.value.from.toISOString(),
-      to: period.value.to.toISOString(),
+      from: viewingDayBoundIso({ date: period.value.from, edge: 'start' }),
+      to: viewingDayBoundIso({ date: period.value.to, edge: 'end' }),
       includeOutOfWallet: includeOutOfWallet.value,
       offset: currentOffset.value,
       limit: PAGE_SIZE,
@@ -187,8 +188,8 @@ async function freshScan() {
 
   try {
     const data = await bulkScanTransferRecommendations({
-      from: period.value.from.toISOString(),
-      to: period.value.to.toISOString(),
+      from: viewingDayBoundIso({ date: period.value.from, edge: 'start' }),
+      to: viewingDayBoundIso({ date: period.value.to, edge: 'end' }),
       includeOutOfWallet: includeOutOfWallet.value,
       aiReview: usedAi,
       offset: 0,

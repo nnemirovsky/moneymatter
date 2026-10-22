@@ -47,6 +47,8 @@ const UNREADABLE_CODE_ERROR =
   'The MoneyMatter setup code could not be read. Generate a new one on the iOS Automation page and add the shortcut again.';
 const SOURCE = 'ios-automation';
 // To the second: two identical payments inside one minute are two payments, not a retry.
+// Apple's date formatter prints the IANA zone ID (`Asia/Tbilisi`) for `VV`.
+export const TIME_ZONE_FORMAT = 'VV';
 export const KEY_TIME_FORMAT = "yyyy-MM-dd'T'HH:mm:ssZZZZZ";
 
 /** The setup code's url ends in the card-payment route; the event route replaces its last segment. */
@@ -166,6 +168,10 @@ export const buildPaymentsShortcut = (): Dict => {
     date: from({ output: now }),
     parameters: { [SHORTCUT_PARAMS.dateFormatStyle]: 'ISO 8601', [SHORTCUT_PARAMS.isoIncludeTime]: true },
   });
+  const tapZone = kit.formatDate({
+    date: from({ output: now }),
+    parameters: { [SHORTCUT_PARAMS.dateFormatStyle]: 'Custom', [SHORTCUT_PARAMS.dateFormat]: TIME_ZONE_FORMAT },
+  });
   const tapKeyTime = kit.formatDate({
     date: from({ output: now }),
     parameters: { [SHORTCUT_PARAMS.dateFormatStyle]: 'Custom', [SHORTCUT_PARAMS.dateFormat]: KEY_TIME_FORMAT },
@@ -190,6 +196,7 @@ export const buildPaymentsShortcut = (): Dict => {
       { key: 'card', value: [transaction({ property: TRANSACTION_PROPERTY.card })] },
       { key: 'name', value: [transaction({ property: TRANSACTION_PROPERTY.name })] },
       { key: 'time', value: [from({ output: tapTime })] },
+      { key: 'timeZone', value: [from({ output: tapZone })] },
       { key: 'timeSource', value: ['run'] },
       { key: 'idempotencyKey', value: [from({ output: tapKey })] },
       { key: 'source', value: [SOURCE] },
@@ -325,6 +332,10 @@ export const buildPaymentsShortcut = (): Dict => {
     date: notification({ property: NOTIFICATION_PROPERTY.date }),
     parameters: { [SHORTCUT_PARAMS.dateFormatStyle]: 'ISO 8601', [SHORTCUT_PARAMS.isoIncludeTime]: true },
   });
+  const notificationZone = kit.formatDate({
+    date: notification({ property: NOTIFICATION_PROPERTY.date }),
+    parameters: { [SHORTCUT_PARAMS.dateFormatStyle]: 'Custom', [SHORTCUT_PARAMS.dateFormat]: TIME_ZONE_FORMAT },
+  });
   const notificationKey = kit.hashOf({
     parts: [
       'notification|',
@@ -347,6 +358,7 @@ export const buildPaymentsShortcut = (): Dict => {
       { key: 'subtitle', value: [notification({ property: NOTIFICATION_PROPERTY.subtitle })] },
       { key: 'body', value: [notification({ property: NOTIFICATION_PROPERTY.body })] },
       { key: 'time', value: [from({ output: notificationTime })] },
+      { key: 'timeZone', value: [from({ output: notificationZone })] },
       { key: 'raw', value: [notification()] },
       { key: 'idempotencyKey', value: [from({ output: notificationKey })] },
       { key: 'source', value: [SOURCE] },

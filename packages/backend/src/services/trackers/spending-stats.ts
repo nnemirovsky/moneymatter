@@ -1,6 +1,7 @@
 import type { TrackerSpendingGranularity, EntityLogoFields, RecordId } from '@bt/shared/types';
 import { TRACKER_TYPES, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES } from '@bt/shared/types';
 import { getBaseCurrencyDecimals } from '@common/lib/currency-precision';
+import { formatDayInZone, toInstant, tzOptions } from '@common/lib/time-zones/tz-options';
 import { Money } from '@common/types/money';
 import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
 import { t } from '@i18n/index';
@@ -13,6 +14,7 @@ import { PlannedPolicy, transactionsInclude } from '@models/transactions-query';
 import * as Transactions from '@models/transactions.model';
 import { EMPTY_LOGO_FIELDS, serializeLogoFields } from '@root/serializers/logo-fields.serializer';
 import { statsTransactions } from '@services/stats/stats-transactions';
+import { getUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import {
   addDays,
   addMonths,
@@ -92,21 +94,24 @@ type Granularity = TrackerSpendingGranularity;
 
 const TOP_PAYEES_LIMIT = 5;
 
+// Day, week and month edges are the ones of the viewing zone.
 const PERIOD_CONFIG = {
   daily: {
-    getStart: (date: Date) => startOfDay(date),
-    getEnd: (date: Date) => endOfDay(date),
-    advance: (date: Date) => addDays(date, 1),
+    getStart: (date: Date, zone: string) => toInstant({ date: startOfDay(date, tzOptions({ zone })) }),
+    getEnd: (date: Date, zone: string) => toInstant({ date: endOfDay(date, tzOptions({ zone })) }),
+    advance: (date: Date, zone: string) => toInstant({ date: addDays(date, 1, tzOptions({ zone })) }),
   },
   monthly: {
-    getStart: (date: Date) => startOfMonth(date),
-    getEnd: (date: Date) => endOfMonth(date),
-    advance: (date: Date) => addMonths(date, 1),
+    getStart: (date: Date, zone: string) => toInstant({ date: startOfMonth(date, tzOptions({ zone })) }),
+    getEnd: (date: Date, zone: string) => toInstant({ date: endOfMonth(date, tzOptions({ zone })) }),
+    advance: (date: Date, zone: string) => toInstant({ date: addMonths(date, 1, tzOptions({ zone })) }),
   },
   weekly: {
-    getStart: (date: Date) => startOfWeek(date, { weekStartsOn: 1 }),
-    getEnd: (date: Date) => endOfWeek(date, { weekStartsOn: 1 }),
-    advance: (date: Date) => addWeeks(date, 1),
+    getStart: (date: Date, zone: string) =>
+      toInstant({ date: startOfWeek(date, { weekStartsOn: 1, ...tzOptions({ zone }) }) }),
+    getEnd: (date: Date, zone: string) =>
+      toInstant({ date: endOfWeek(date, { weekStartsOn: 1, ...tzOptions({ zone }) }) }),
+    advance: (date: Date, zone: string) => toInstant({ date: addWeeks(date, 1, tzOptions({ zone })) }),
   },
 } as const;
 
@@ -114,22 +119,24 @@ const generatePeriodBuckets = ({
   from,
   to,
   granularity,
+  zone,
 }: {
   from: Date;
   to: Date;
   granularity: Granularity;
+  zone: string;
 }): { periodStart: Date; periodEnd: Date }[] => {
   const buckets: { periodStart: Date; periodEnd: Date }[] = [];
-  const endDate = endOfDay(to);
+  const endDate = toInstant({ date: endOfDay(to, tzOptions({ zone })) });
   const { getStart, getEnd, advance } = PERIOD_CONFIG[granularity];
 
-  let currentStart = getStart(from);
+  let currentStart = getStart(from, zone);
   while (isBefore(currentStart, endDate) || currentStart.getTime() === endDate.getTime()) {
     buckets.push({
       periodStart: max([currentStart, from]),
-      periodEnd: min([getEnd(currentStart), endDate]),
+      periodEnd: min([getEnd(currentStart, zone), endDate]),
     });
-    currentStart = advance(currentStart);
+    currentStart = advance(currentStart, zone);
   }
 
   return buckets;
@@ -195,8 +202,8 @@ const getTopLevelTargetCategoryId = ({
 };
 
 // 184 is the longest six calendar months (e.g. Jul–Dec), so every half-year tracker stays weekly.
-const determineGranularity = ({ from, to }: { from: Date; to: Date }): Granularity => {
-  const days = differenceInCalendarDays(to, from) + 1;
+const determineGranularity = ({ from, to, zone }: { from: Date; to: Date; zone: string }): Granularity => {
+  const days = differenceInCalendarDays(to, from, tzOptions({ zone })) + 1;
   if (days <= 62) return 'daily';
   return days <= 184 ? 'weekly' : 'monthly';
 };
@@ -233,17 +240,19 @@ const buildSpendingOverTime = ({
   buckets,
   granularity,
   periodData,
+  zone,
 }: {
   buckets: { periodStart: Date; periodEnd: Date }[];
   granularity: Granularity;
+  zone: string;
   periodData: Map<number, { expense: number; income: number }>;
 }): SpendingStatsResponse['spendingOverTime'] => ({
   granularity,
   periods: buckets.map((bucket, index) => {
     const data = periodData.get(index) || { expense: 0, income: 0 };
     return {
-      periodStart: format(bucket.periodStart, 'yyyy-MM-dd'),
-      periodEnd: format(bucket.periodEnd, 'yyyy-MM-dd'),
+      periodStart: formatDayInZone({ date: bucket.periodStart, zone }),
+      periodEnd: formatDayInZone({ date: bucket.periodEnd, zone }),
       // Magnitudes: a bucket refunded past its own spend reports 0 rather than an inverted bar.
       expense: Math.max(0, data.expense),
       income: Math.max(0, data.income),
@@ -375,11 +384,17 @@ const buildTopPayees = async ({ txDataList }: { txDataList: NormalizedTxData[] }
   });
 };
 
-const findBiggestDay = ({ txDataList }: { txDataList: NormalizedTxData[] }): SpendingStatsResponse['biggestDay'] => {
+const findBiggestDay = ({
+  txDataList,
+  zone,
+}: {
+  txDataList: NormalizedTxData[];
+  zone: string;
+}): SpendingStatsResponse['biggestDay'] => {
   const expenseByDay = new Map<string, number>();
   for (const txData of txDataList) {
     if (!txData.isExpense) continue;
-    const day = format(txData.time, 'yyyy-MM-dd');
+    const day = formatDayInZone({ date: new Date(txData.time), zone });
     expenseByDay.set(day, (expenseByDay.get(day) ?? 0) + (txData.negative ? -txData.amount : txData.amount));
   }
 
@@ -395,11 +410,13 @@ const aggregateTransactionData = async ({
   trackerStartDate,
   trackerEndDate,
   categoryMap,
+  zone,
 }: {
   txDataList: NormalizedTxData[];
   trackerStartDate: Date | null;
   trackerEndDate: Date | null;
   categoryMap: Map<string, CategoryInfo>;
+  zone: string;
 }): Promise<SpendingStatsResponse> => {
   const { from: rangeFrom, to: rangeTo } = determineDateRange({
     trackerStartDate,
@@ -407,8 +424,8 @@ const aggregateTransactionData = async ({
     transactionTimes: txDataList.map((d) => new Date(d.time)),
   });
 
-  const granularity = determineGranularity({ from: rangeFrom, to: rangeTo });
-  const buckets = generatePeriodBuckets({ from: rangeFrom, to: rangeTo, granularity });
+  const granularity = determineGranularity({ from: rangeFrom, to: rangeTo, zone });
+  const buckets = generatePeriodBuckets({ from: rangeFrom, to: rangeTo, granularity, zone });
 
   const periodData = new Map<number, { expense: number; income: number }>();
   buckets.forEach((_, index) => periodData.set(index, { expense: 0, income: 0 }));
@@ -453,11 +470,11 @@ const aggregateTransactionData = async ({
 
   return {
     spendingsByCategory: buildSpendingsByCategory({ categoryAmounts, categoryMap }),
-    spendingOverTime: buildSpendingOverTime({ buckets, granularity, periodData }),
+    spendingOverTime: buildSpendingOverTime({ buckets, granularity, periodData, zone }),
     // ponytail: refund pairs carry no currency/payee, so these two report gross spend; thread them through refund-pairs to net.
     spendingsByCurrency: buildSpendingsByCurrency({ txDataList }),
     topPayees: await buildTopPayees({ txDataList }),
-    biggestDay: findBiggestDay({ txDataList }),
+    biggestDay: findBiggestDay({ txDataList, zone }),
   };
 };
 
@@ -525,11 +542,13 @@ const getManualTrackerSpendingStats = async ({
   trackerId,
   callerUserId,
   decimals,
+  zone,
 }: {
   userId: number;
   trackerId: string;
   callerUserId: number;
   decimals: number;
+  zone: string;
 }): Promise<SpendingStatsResponse> => {
   const trackerDetails = await findOrThrowNotFound({
     query: Trackers.findOne({ where: { id: trackerId, userId: ownerUserId } }),
@@ -635,6 +654,7 @@ const getManualTrackerSpendingStats = async ({
     trackerStartDate: trackerDetails.startDate,
     trackerEndDate: trackerDetails.endDate,
     categoryMap,
+    zone,
   });
 };
 
@@ -646,11 +666,13 @@ const getCategoryTrackerSpendingStats = async ({
   trackerId,
   isOwner,
   decimals,
+  zone,
 }: {
   userId: number;
   trackerId: string;
   isOwner: boolean;
   decimals: number;
+  zone: string;
 }): Promise<SpendingStatsResponse> => {
   const trackerDetails = await findOrThrowNotFound({
     query: Trackers.findOne({
@@ -701,7 +723,8 @@ const getCategoryTrackerSpendingStats = async ({
     access: { creator: userId },
     planned,
     refunds: 'ignore',
-    window: { from: trackerDetails.startDate ?? undefined, to: trackerDetails.endDate ?? undefined },
+    // Exact instants: the zone only reads day strings.
+    window: { from: trackerDetails.startDate ?? undefined, to: trackerDetails.endDate ?? undefined, zone },
     where: { categoryId: { [Op.in]: Array.from(expandedCategoryIds) } },
     include: [{ model: TransactionSplits, as: 'splits', required: false }],
   });
@@ -795,6 +818,7 @@ const getCategoryTrackerSpendingStats = async ({
     trackerStartDate: trackerDetails.startDate,
     trackerEndDate: trackerDetails.endDate,
     categoryMap,
+    zone,
   });
 };
 
@@ -823,11 +847,13 @@ export const getTrackerSpendingStats = async ({
 
   // The tracker's amounts are in its owner's base currency, whoever reads them.
   const decimals = await getBaseCurrencyDecimals({ userId: ownerUserId });
+  // Days, weeks and months follow the reader's zone, the one the lists show.
+  const zone = await getUserTimeZone({ userId });
 
   const stats =
     trackerDetails.type === TRACKER_TYPES.category
-      ? await getCategoryTrackerSpendingStats({ userId: ownerUserId, trackerId, isOwner, decimals })
-      : await getManualTrackerSpendingStats({ userId: ownerUserId, trackerId, callerUserId: userId, decimals });
+      ? await getCategoryTrackerSpendingStats({ userId: ownerUserId, trackerId, isOwner, decimals, zone })
+      : await getManualTrackerSpendingStats({ userId: ownerUserId, trackerId, callerUserId: userId, decimals, zone });
 
   return { stats, decimals };
 };

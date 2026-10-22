@@ -8,7 +8,7 @@ import { accumulateContributions, accumulateSavingsNet, orderLegend } from './de
 // Three monthly buckets in the past: Jan, Feb, Mar. The unit runner pins TZ=UTC,
 // so `new Date('2026-01-01')` and the transfer DATEONLY strings share the exact
 // midnight-UTC basis the bucket edges are built on.
-const buckets = generatePeriodBuckets({ from: '2026-01-01', to: '2026-03-31', granularity: 'monthly' });
+const buckets = generatePeriodBuckets({ from: '2026-01-01', to: '2026-03-31', granularity: 'monthly', zone: 'UTC' });
 
 describe('accumulateContributions', () => {
   it('counts an inbound deposit as a positive delta', () => {

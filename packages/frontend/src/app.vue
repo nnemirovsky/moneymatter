@@ -20,7 +20,9 @@ import { useExchangeRates } from '@/composable/data-queries/currencies';
 import { useUserSettings } from '@/composable/data-queries/user-settings';
 import { useAiCategorizationEvents } from '@/composable/use-ai-categorization-events';
 import { useSSE } from '@/composable/use-sse';
+import { useDeviceTimeZoneSync } from '@/composable/use-device-time-zone-sync';
 import { currencyDisplayPreference } from '@/js/helpers';
+import { deviceTimeZone, hourCyclePreference, resolveViewingTimeZone, viewingTimeZone } from '@/js/helpers/time-zone';
 import { ROUTES_NAMES } from '@/routes';
 import { useAuthStore, useCurrenciesStore, useRootStore } from '@/stores';
 import { storeToRefs } from 'pinia';
@@ -39,7 +41,7 @@ const { isBaseCurrencyExists } = storeToRefs(userCurrenciesStore);
 // Prefetch exchange rates for components that need them
 useExchangeRates({ enabled: isLoggedIn });
 
-const { data: userSettings } = useUserSettings({ enabled: isLoggedIn });
+const { data: userSettings, patchAsync: patchUserSettings } = useUserSettings({ enabled: isLoggedIn });
 watch(
   () => userSettings.value?.currencyDisplay,
   (value) => {
@@ -47,6 +49,22 @@ watch(
   },
   { immediate: true },
 );
+
+watch(
+  () => [userSettings.value?.timeZone, userSettings.value?.timeZoneSource] as const,
+  () => {
+    viewingTimeZone.value = resolveViewingTimeZone({ settings: userSettings.value, deviceZone: deviceTimeZone() });
+  },
+  { immediate: true },
+);
+watch(
+  () => userSettings.value?.hourCycle,
+  (value) => {
+    hourCyclePreference.value = value ?? null;
+  },
+  { immediate: true },
+);
+useDeviceTimeZoneSync({ settings: userSettings, patch: patchUserSettings });
 
 // SSE for real-time updates
 const { disconnect: disconnectSSE } = useSSE();

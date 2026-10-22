@@ -309,4 +309,53 @@ describe('OFX import HTTP endpoints', () => {
       }),
     );
   });
+
+  describe('recorded time zone', () => {
+    /** bank-v1 with the first row's offset removed, so one row states an offset and one does not. */
+    const uploadMixedOffsets = async () => {
+      const source = helpers.loadOfxFixture({ filename: 'bank-v1.ofx' }).toString('latin1');
+      const result = await helpers.uploadOfx({
+        file: Buffer.from(source.replace('<DTPOSTED>20260801120000.000[-4:EDT]', '<DTPOSTED>20260801120000.000')),
+      });
+      return result.response!;
+    };
+
+    it('stamps the request zone on an offset-free row and keeps the offset a row wrote', async () => {
+      const upload = await uploadMixedOffsets();
+      const progress = await runImport({
+        uploadId: upload.uploadId,
+        accountMapping: createNewMapping({ upload, name: `OFX zone ${Date.now()}`, currentBalance: 250 }),
+        skipDuplicateIndices: [],
+        timezone: 'America/Montevideo',
+      });
+      helpers.expectOfxCompleted(progress);
+
+      const transactions = await helpers.getTransactions({ raw: true });
+      expect(transactions.find((tx) => tx.note === 'Sanitized purchase')).toMatchObject({
+        timeZone: 'America/Montevideo',
+        utcOffsetMinutes: -180,
+      });
+      // The deposit wrote [-4:EDT]; Montevideo is UTC-3, so only the offset is kept.
+      expect(transactions.find((tx) => tx.note === 'Example Employer')).toMatchObject({
+        timeZone: null,
+        utcOffsetMinutes: -240,
+      });
+    });
+
+    it('records nothing for a user with no setting and no request zone', async () => {
+      const upload = await uploadMixedOffsets();
+      const progress = await runImport({
+        uploadId: upload.uploadId,
+        accountMapping: createNewMapping({ upload, name: `OFX no zone ${Date.now()}`, currentBalance: 250 }),
+        skipDuplicateIndices: [],
+      });
+      helpers.expectOfxCompleted(progress);
+
+      const transactions = await helpers.getTransactions({ raw: true });
+      expect(transactions.find((tx) => tx.note === 'Sanitized purchase')).toMatchObject({
+        timeZone: null,
+        utcOffsetMinutes: null,
+      });
+    });
+  });
 });

@@ -5,6 +5,7 @@ import type { ToolCatalogEntry } from '../../mcp/tool-catalog';
 import { resolveToolPolicy } from '../policies';
 import { createProposal } from '../proposals/create-proposal';
 import { assertKnownRecords } from '../proposals/known-records';
+import { normalizeUserTimeArgs } from '../proposals/normalize-time-args';
 import { proposalRef, ToolInputError } from '../proposals/placeholders';
 import { parseWriteInput } from './model-schema';
 import { errorMessage, toolFailure, toolSuccess } from './result-text';
@@ -53,7 +54,10 @@ export async function proposeToolCall({
       input: calledInput,
     });
     const entry = revised?.entry ?? called;
-    const { args, meta, refs } = parseWriteInput({ entry, input: revised?.input ?? calledInput });
+    const parsed = parseWriteInput({ entry, input: revised?.input ?? calledInput });
+    const { meta, refs } = parsed;
+    // A card holds instants: the times the model wrote as a wall clock are resolved now, in the user's zone.
+    const args = await normalizeUserTimeArgs({ userId: ctx.run.user.id, toolName: entry.name, args: parsed.args });
 
     const policy = resolveToolPolicy({ name: entry.name, args });
     if (!policy) throw new ToolInputError(`${entry.name} is not available in the chat`);

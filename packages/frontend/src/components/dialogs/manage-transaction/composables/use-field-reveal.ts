@@ -1,5 +1,6 @@
+import { hasDistinctRecordedZone, viewingTimeZone } from '@/js/helpers/time-zone';
 import type { TransactionOptionalField } from '@bt/shared/types';
-import { GlobeIcon, HashIcon, LinkIcon, MapPinIcon, PaperclipIcon, TagIcon, Undo2Icon } from '@lucide/vue';
+import { ClockIcon, GlobeIcon, HashIcon, LinkIcon, MapPinIcon, PaperclipIcon, TagIcon, Undo2Icon } from '@lucide/vue';
 import { type Component, type MaybeRefOrGetter, computed, ref, toValue, watchEffect } from 'vue';
 
 import type { UI_FORM_STRUCT } from '../types';
@@ -13,6 +14,7 @@ const FIELD_CHIPS = {
   externalReference: { icon: HashIcon, labelKey: 'dialogs.manageTransaction.form.externalReferenceLabel' },
   location: { icon: MapPinIcon, labelKey: 'dialogs.manageTransaction.form.location.label' },
   originalAmount: { icon: GlobeIcon, labelKey: 'dialogs.manageTransaction.form.originalAmountLabel' },
+  timeZone: { icon: ClockIcon, labelKey: 'dialogs.manageTransaction.form.timeZoneLabel' },
 } satisfies Record<MountableField, { icon: Component; labelKey: string }>;
 
 const MOUNTABLE_FIELDS = Object.keys(FIELD_CHIPS) as MountableField[];
@@ -59,6 +61,13 @@ export const useFieldReveal = ({
       externalReference: !!values.externalReference,
       location: values.latitude != null || values.longitude != null,
       originalAmount: values.originalAmount != null || !!values.originalCurrency,
+      // Shown on its own only when the row was recorded somewhere else than where it is viewed.
+      timeZone: hasDistinctRecordedZone({
+        timeZone: values.timeZone,
+        utcOffsetMinutes: values.utcOffsetMinutes,
+        viewingZone: viewingTimeZone.value,
+        instant: values.time ?? new Date(),
+      }),
     };
     for (const field of MOUNTABLE_FIELDS) if (hasValue[field]) mounted.value.add(field);
   });
@@ -73,6 +82,7 @@ export const useFieldReveal = ({
       externalReference: isMounted('externalReference'),
       location: isMounted('location'),
       originalAmount: isMounted('originalAmount'),
+      timeZone: isMounted('timeZone'),
     };
   });
 
@@ -89,6 +99,7 @@ export const useFieldReveal = ({
       externalReference: isOptionalFieldEnabled('externalReference'),
       location: isOptionalFieldEnabled('location'),
       originalAmount: isOptionalFieldEnabled('originalAmount') && !toValue(isTransferTx),
+      timeZone: isOptionalFieldEnabled('timeZone'),
     };
     const result: AddFieldChip[] = MOUNTABLE_FIELDS.filter((field) => isOffered[field] && !shown.value[field]).map(
       (field) => ({ key: field, ...FIELD_CHIPS[field], onClick: () => mount({ field }) }),

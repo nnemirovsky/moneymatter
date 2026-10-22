@@ -1,4 +1,5 @@
 import { api } from '@/api/_api';
+import { viewingTimeZone } from '@/js/helpers/time-zone';
 import type {
   DetectOfxDuplicatesRequest,
   DetectOfxDuplicatesResponse,
@@ -21,7 +22,7 @@ export const uploadOfxFile = async ({
     body: file,
     headers: {
       'Content-Type': 'application/octet-stream',
-      'X-Timezone': Intl.DateTimeFormat().resolvedOptions().timeZone,
+      'X-Timezone': viewingTimeZone.value,
     },
     options: { signal },
   });

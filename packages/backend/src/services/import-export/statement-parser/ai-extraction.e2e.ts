@@ -209,6 +209,25 @@ describe('Statement parser extraction of an image', () => {
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Kiritimati' }).format(new Date());
     expect(requestBody).toContain(`Today is ${today}.`);
   });
+
+  it('dates the prompt with today in the zone setting when the request has no timezone', async () => {
+    await createFirstConnection();
+    await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Pacific/Kiritimati' } });
+    let requestBody = '';
+    global.mswMockServer.use(
+      getCustomEndpointVllmMock({
+        content: AI_CSV_REPLY,
+        onBody: (body) => {
+          requestBody = body;
+        },
+      }),
+    );
+
+    await helpers.statementExtract({ payload: { fileBase64: PNG_1X1_BASE64 }, raw: true });
+
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Kiritimati' }).format(new Date());
+    expect(requestBody).toContain(`Today is ${today}.`);
+  });
 });
 
 function encryptedPdfBase64(): string {

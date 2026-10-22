@@ -82,6 +82,8 @@
           </Button>
         </div>
       </div>
+
+      <TimeZoneSection />
     </CardContent>
   </Card>
 </template>
@@ -89,6 +91,7 @@
 <script setup lang="ts">
 import Button from '@/components/lib/ui/button/Button.vue';
 import { Card, CardContent, CardHeader } from '@/components/lib/ui/card';
+import TimeZoneSection from './time-zone-section.vue';
 import { useUserSettings } from '@/composable/data-queries/user-settings';
 import { getCurrentLocale, setLocale } from '@/i18n';
 import { trackAnalyticsEvent } from '@/lib/posthog';

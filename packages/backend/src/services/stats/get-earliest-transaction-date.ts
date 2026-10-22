@@ -1,13 +1,14 @@
+import { formatDayInZone } from '@common/lib/time-zones/tz-options';
 import Accounts from '@models/accounts.model';
 import { findTransactions } from '@models/transactions-query';
-import { format } from 'date-fns';
+import { getUserTimeZone } from '@services/user-settings/get-user-time-zone';
 
 interface GetEarliestTransactionDateParams {
   userId: number;
 }
 
 /**
- * Returns the date of the user's earliest (oldest) transaction.
+ * Returns the date of the user's earliest (oldest) transaction, in the user's zone.
  * Only considers transactions from enabled accounts.
  * Returns null if the user has no transactions.
  *
@@ -35,5 +36,6 @@ export const getEarliestTransactionDate = async ({
 
   if (!oldest) return null;
 
-  return format(new Date(oldest.time), 'yyyy-MM-dd');
+  // The day in the viewing zone, so a report window that starts here still holds the row.
+  return formatDayInZone({ date: new Date(oldest.time), zone: await getUserTimeZone({ userId }) });
 };

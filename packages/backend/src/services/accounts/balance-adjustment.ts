@@ -25,6 +25,9 @@ interface AdjustAccountBalanceParams {
   note?: string;
   /** Effective date of the adjustment. Defaults to now when omitted — pass a past date to backdate. */
   time?: Date;
+  /** IANA zone to record on the adjustment row; absent records none. */
+  timeZone?: string | null;
+  utcOffsetMinutes?: number | null;
 }
 
 interface AdjustAccountBalanceResult {
@@ -39,12 +42,16 @@ export const createBalanceAdjustmentTransaction = async ({
   accountId,
   amountDelta,
   time,
+  timeZone,
+  utcOffsetMinutes,
   note,
 }: {
   userId: number;
   accountId: string;
   amountDelta: Money;
   time: Date;
+  timeZone?: string | null;
+  utcOffsetMinutes?: number | null;
   note?: string;
 }): Promise<Transactions> => {
   const defaultCategoryId = await getUserDefaultCategory({ id: userId });
@@ -60,6 +67,8 @@ export const createBalanceAdjustmentTransaction = async ({
     note: note ?? t({ key: 'balanceAdjustment.defaultNote' }),
     categoryId: defaultCategoryId,
     time,
+    timeZone,
+    utcOffsetMinutes,
     // `transfer_out_wallet` alone can't identify adjustments — imports and
     // cross-user transfer conversions produce it too, so mark explicitly.
     externalData: { balanceAdjustment: true },
@@ -75,6 +84,8 @@ export const adjustAccountBalance = withTransaction(
     targetBalance: requestedTargetBalance,
     note,
     time,
+    timeZone,
+    utcOffsetMinutes,
   }: AdjustAccountBalanceParams): Promise<AdjustAccountBalanceResult> => {
     const account = await getAccountById({ id: accountId, userId });
 
@@ -121,6 +132,8 @@ export const adjustAccountBalance = withTransaction(
       accountId,
       amountDelta: diff,
       time: effectiveTime,
+      timeZone,
+      utcOffsetMinutes,
       note,
     });
 

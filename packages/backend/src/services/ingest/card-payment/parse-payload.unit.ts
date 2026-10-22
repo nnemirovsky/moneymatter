@@ -1,6 +1,12 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { parsePayload, readPayloadTime } from './parse-payload';
+import {
+  parsePayload,
+  readPayloadTime,
+  readPayloadTimeOffset,
+  readPayloadTimeZone,
+  resolvePayloadTime,
+} from './parse-payload';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const receivedAt = new Date('2026-10-17T17:05:00.000Z');
@@ -37,6 +43,7 @@ describe('parsePayload', () => {
         name: null,
         time: receivedAt,
         timeProvided: false,
+        timeZone: null,
         timeSource: 'run',
       });
     });
@@ -354,5 +361,50 @@ describe('readPayloadTime', () => {
 
   it('returns a valid time normalized to UTC', () => {
     expect(readPayloadTime({ value: '2026-10-17T21:00:00+04:00', fallback })).toBe('2026-10-17T17:00:00.000Z');
+  });
+});
+
+describe('resolvePayloadTime offsets', () => {
+  const resolve = ({ value }: { value: unknown }) => resolvePayloadTime({ value, receivedAt });
+
+  it.each([
+    ['+04:00', '2026-10-17T21:04:11+04:00', 240, true],
+    ['-0530', '2026-10-17T11:04:11-0530', -330, true],
+    ['Z', '2026-10-17T17:04:11Z', 0, false],
+    ['+00:00', '2026-10-17T17:04:11+00:00', 0, true],
+  ])('reads the offset of %s', (_name, value, offsetMinutes, offsetStated) => {
+    expect(resolve({ value })).toMatchObject({ ok: true, offsetMinutes, offsetStated });
+  });
+
+  it('has no offset for a blank time', () => {
+    expect(resolve({ value: '' })).toMatchObject({ ok: true, offsetMinutes: null, offsetStated: false });
+  });
+
+  it('reads a stored payload offset only when the time wrote one', () => {
+    expect(readPayloadTimeOffset({ value: '2026-10-17T21:04:11+04:00' })).toBe(240);
+    expect(readPayloadTimeOffset({ value: '2026-10-17T17:04:11Z' })).toBeNull();
+    expect(readPayloadTimeOffset({ value: undefined })).toBeNull();
+  });
+});
+
+describe('the timeZone key', () => {
+  it('keeps a valid IANA zone', () => {
+    expect(parse({ body: { ...validBody, timeZone: ' Asia/Tbilisi ' } })).toMatchObject({
+      ok: true,
+      timeZone: 'Asia/Tbilisi',
+    });
+  });
+
+  it('treats a blank zone as none', () => {
+    expect(parse({ body: { ...validBody, timeZone: '' } })).toMatchObject({ ok: true, timeZone: null });
+  });
+
+  it.each(['+04:00', 'Mars/Base', 12])('refuses %s as invalidTimeZone', (timeZone) => {
+    expectRejected({ body: { ...validBody, timeZone }, reason: 'invalidTimeZone', field: 'timeZone' });
+  });
+
+  it('reads a stored zone and ignores an invalid one', () => {
+    expect(readPayloadTimeZone({ value: 'Asia/Tbilisi' })).toBe('Asia/Tbilisi');
+    expect(readPayloadTimeZone({ value: 'nope' })).toBeNull();
   });
 });

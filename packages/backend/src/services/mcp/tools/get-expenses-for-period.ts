@@ -1,7 +1,9 @@
+import { localDay } from '@common/lib/time-zones/tz-options';
 import { recordId } from '@common/lib/zod/custom-types';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getExpensesAmountForPeriodReport } from '@services/stats/reports/expenses-amount-for-period.report';
+import { getUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { z } from 'zod';
 
 import { getUserId, jsonContent } from './helpers';
@@ -25,13 +27,15 @@ export function registerGetExpensesForPeriod(server: McpServer) {
       const userId = getUserId({ extra });
       trackMcpToolUsed({ userId, tool: 'get_expenses_for_period', clientId: extra.authInfo?.clientId });
 
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      // The default range is the current month in the user's zone, as calendar days.
+      const zone = await getUserTimeZone({ userId });
+      const today = localDay({ zone });
+      const monthStart = `${today.slice(0, 7)}-01`;
 
       const totalExpenses = await getExpensesAmountForPeriodReport({
         userId,
-        from: args.startDate ?? startOfMonth.toISOString(),
-        to: args.endDate ?? now.toISOString(),
+        from: args.startDate ?? monthStart,
+        to: args.endDate ?? today,
         accountId: args.accountId,
         excludedCategoryIds: args.excludedCategoryIds,
       });
@@ -40,8 +44,8 @@ export function registerGetExpensesForPeriod(server: McpServer) {
         data: {
           totalExpenses,
           period: {
-            startDate: args.startDate ?? startOfMonth.toISOString().split('T')[0],
-            endDate: args.endDate ?? now.toISOString().split('T')[0],
+            startDate: args.startDate ?? monthStart,
+            endDate: args.endDate ?? today,
           },
         },
       });

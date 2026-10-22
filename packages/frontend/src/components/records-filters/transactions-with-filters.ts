@@ -1,6 +1,7 @@
 import { type TransactionFilterParams, loadTransactions, loadTransactionsSummary } from '@/api/transactions';
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const';
 import { DEFAULT_FILTERS, FiltersStruct, SELECTABLE_TRANSFER_NATURES } from '@/components/records-filters/const';
+import { viewingDayBoundIso } from '@/js/helpers/time-zone';
 import {
   FILTER_OPERATION,
   SORT_DIRECTIONS,
@@ -68,8 +69,8 @@ export const buildFilterParams = ({ filter }: { filter: FiltersStruct }): Transa
   omitBy(
     {
       transactionType: filter.transactionType ?? undefined,
-      to: isDate(filter.end) ? filter.end!.toISOString() : undefined,
-      from: isDate(filter.start) ? filter.start!.toISOString() : undefined,
+      to: isDate(filter.end) ? viewingDayBoundIso({ date: filter.end!, edge: 'end' }) : undefined,
+      from: isDate(filter.start) ? viewingDayBoundIso({ date: filter.start!, edge: 'start' }) : undefined,
       // A zero bound filters nothing, and the API rejects it in a request body.
       amountGte: filter.amountGte || undefined,
       amountLte: filter.amountLte || undefined,

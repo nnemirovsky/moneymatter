@@ -533,7 +533,8 @@ export const getNetWorthDrivers = async ({
   portfolioIds,
   decimals,
 }: GetNetWorthDriversParams): Promise<NetWorthDriversResultMinor> => {
-  const buckets = generatePeriodBuckets({ from, to, granularity });
+  // `Balances` hold UTC days, so these buckets are cut in UTC whatever the viewing zone.
+  const buckets = generatePeriodBuckets({ from, to, granularity, zone: 'UTC' });
 
   if (buckets.length === 0) {
     return { buckets: [], portfolios: [] };
@@ -554,7 +555,7 @@ export const getNetWorthDrivers = async ({
 
     return Promise.all([
       // Savings intake — real income and expense only, transfers dropped, user-wide.
-      fetchSavingsTransactions({ userId, from, to, decimals }),
+      fetchSavingsTransactions({ userId, from, to, decimals, zone: 'UTC' }),
       calculateInvestmentSlice({
         userId,
         boundaryDates,

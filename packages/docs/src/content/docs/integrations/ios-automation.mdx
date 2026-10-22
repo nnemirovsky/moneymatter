@@ -209,15 +209,15 @@ Every automatic payment, tap or notification, is **logged at once**, so your bal
 
 A **source** is the app a notification came from. For messaging and mail apps it is the app and the sender, so approving "Messages · TBC" doesn't approve every chat.
 
-- **Wallet and well-known banks** are trusted from the start.
+- **Wallet and the apps on MoneyMatter's list of well-known sources** are trusted from the start and show as **Known**.
 - **Everything else starts as waiting.** Its first notification puts a card in the inbox, "Treat this app as a payment source?", and the source shows under **Sources waiting for your OK** on the iOS Automation page. Its notifications are kept, encrypted, and are not sent to AI until you decide.
 - **Approve** reads what the source is holding. **Mute** deletes it and drops future notifications from that source. A source nobody decides on for 30 days is deleted with what it holds.
 - On the inbox card you can also pick a **Default account** for the source. It takes the payments whose text names no card.
-- **Notification sources** lists every source with its mode: **Trusted**, **Waiting**, **Approved**, **Context** or **Muted**, and a **Log to** picker for its default account. Clear the picker to be asked each time. **Forget** makes a source new again the next time it sends something.
+- **Notification sources** lists every source with its mode: **Known**, **Waiting**, **Approved**, **Context** or **Muted**, and a **Log to** picker for its default account. Clear the picker to be asked each time. **Forget** makes a source new again the next time it sends something.
 
 <Screenshot
   src="/screenshots/integrations/ios-automation-sources.png"
-  alt="The Notification sources section of the iOS Automation page listing Wallet as trusted, TBC Bank as approved and Messages from a sender as waiting, with Approve and Mute buttons on the waiting one."
+  alt="The Notification sources section of the iOS Automation page listing Wallet as known, TBC Bank as approved and Messages from a sender as waiting, with Approve and Mute buttons on the waiting one."
   hint="Open /accounts/integrations/ios-automation as the docs test user after sending notification events for Wallet, TBC Bank (bundle ge.tbconline.TBC-ipad) and a Messages sender. Crop to the Notification sources section."
 />
 
@@ -342,6 +342,8 @@ This is the manual guide for **iOS 26 or earlier**, and for anyone whose instanc
 
 3. **Format Date** again on the current date, with **Date Format** set to **Custom** and the format `yyyy-MM-dd'T'HH:mmZZZZZ`. This is the time to the minute, used in the next step.
 
+   Optionally add one more **Format Date** on the current date with **Date Format** set to **Custom** and the format `VV`. It prints the time zone's name, such as `Asia/Tbilisi`. Send it as `timeZone` in step 6. Without it MoneyMatter stores the offset of the payment time, and your time zone too when it has that offset.
+
 4. **Text.** Join four values with `|` between them: the card, the merchant, the amount and the time to the minute from step 3.
 
    ```
@@ -365,6 +367,7 @@ This is the manual guide for **iOS 26 or earlier**, and for anyone whose instanc
      | `card`           | Text   | `card` from the dictionary             |
      | `name`           | Text   | `name` from the dictionary             |
      | `time`           | Text   | the ISO 8601 date from step 2          |
+     | `timeZone`       | Text   | the `VV` result (optional)             |
 
 7. **Get Dictionary Value.** Set it to **Value** for the key `response`, on the result of **Get Contents of URL**.
 

@@ -1,4 +1,5 @@
-import { RESOURCE_TYPES, SHARE_PERMISSIONS, TRANSACTION_TRANSFER_NATURE } from '@bt/shared/types';
+import { zoneOffsetMinutes } from '@bt/shared/time-zone';
+import { RESOURCE_TYPES, SHARE_PERMISSIONS, TRANSACTION_TRANSFER_NATURE, type RecordId } from '@bt/shared/types';
 import { generateRandomRecordId } from '@common/lib/record-id-helpers';
 import { describe, expect, it } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
@@ -530,6 +531,229 @@ describe('Bulk update transactions controller', () => {
       expect(updatedOwn?.payeeLocked).toBe(true);
       expect(skippedShared?.payeeId).toBeNull();
       expect(skippedShared?.payeeLocked).toBe(false);
+    });
+  });
+
+  describe('time zone updates', () => {
+    const SUMMER = '2026-07-15T12:00:00.000Z';
+    const WINTER = '2026-12-15T12:00:00.000Z';
+
+    const createRow = async ({ accountId, time }: { accountId: RecordId; time: string }) => {
+      const [tx] = await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({ accountId, time }),
+        raw: true,
+      });
+      return tx!;
+    };
+
+    const readTx = async ({ id }: { id: string }) => {
+      const list = (await helpers.getTransactions({ raw: true }))!;
+      return list.find((t) => t.id === id)!;
+    };
+
+    it('sets the zone and each row offset by transaction ids', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const tx1 = await createRow({ accountId: account.id, time: SUMMER });
+      const tx2 = await createRow({ accountId: account.id, time: WINTER });
+
+      const result = await helpers.bulkUpdateTransactions({
+        payload: { transactionIds: [tx1.id, tx2.id], timeZone: 'Asia/Makassar' },
+        raw: true,
+      });
+
+      expect(result.updatedCount).toBe(2);
+      for (const id of [tx1.id, tx2.id]) {
+        const row = await readTx({ id });
+        expect(row.timeZone).toBe('Asia/Makassar');
+        expect(row.utcOffsetMinutes).toBe(480);
+      }
+    });
+
+    it('sets the zone by a filter selection and leaves excluded rows alone', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const other = await helpers.createAccount({ raw: true });
+      const inside = await createRow({ accountId: account.id, time: SUMMER });
+      const excluded = await createRow({ accountId: account.id, time: SUMMER });
+      const elsewhere = await createRow({ accountId: other.id, time: SUMMER });
+
+      const result = await helpers.bulkUpdateTransactions({
+        payload: {
+          selection: { filters: { accountIds: [account.id] }, excludedIds: [excluded.id] },
+          timeZone: 'Asia/Makassar',
+        },
+        raw: true,
+      });
+
+      expect(result.updatedIds).toEqual([inside.id]);
+      expect((await readTx({ id: inside.id })).timeZone).toBe('Asia/Makassar');
+      expect((await readTx({ id: excluded.id })).timeZone).toBeNull();
+      expect((await readTx({ id: elsewhere.id })).timeZone).toBeNull();
+    });
+
+    it('puts the zone on both legs of an own-accounts transfer, by ids and by selection', async () => {
+      const from = await helpers.createAccount({ raw: true });
+      const to = await helpers.createAccount({ raw: true });
+      const makeTransfer = async () => {
+        const [base, opposite] = await helpers.createTransaction({
+          payload: helpers.buildTransactionPayload({
+            accountId: from.id,
+            transferNature: TRANSACTION_TRANSFER_NATURE.common_transfer,
+            destinationAccountId: to.id,
+            destinationAmount: 1000,
+            time: SUMMER,
+          }),
+          raw: true,
+        });
+        return { base: base!, opposite: opposite! };
+      };
+
+      const byIds = await makeTransfer();
+      await helpers.bulkUpdateTransactions({
+        payload: { transactionIds: [byIds.base.id], timeZone: 'Asia/Makassar' },
+        raw: true,
+      });
+      for (const id of [byIds.base.id, byIds.opposite.id]) {
+        const row = await readTx({ id });
+        expect(row.timeZone).toBe('Asia/Makassar');
+        expect(row.utcOffsetMinutes).toBe(480);
+      }
+
+      const bySelection = await makeTransfer();
+      await helpers.bulkUpdateTransactions({
+        payload: {
+          selection: { filters: { accountIds: [from.id] }, excludedIds: [byIds.base.id] },
+          timeZone: 'Asia/Tokyo',
+        },
+        raw: true,
+      });
+      for (const id of [bySelection.base.id, bySelection.opposite.id]) {
+        const row = await readTx({ id });
+        expect(row.timeZone).toBe('Asia/Tokyo');
+        expect(row.utcOffsetMinutes).toBe(540);
+      }
+    });
+
+    it("updates the caller's leg of a transfer into another user's shared account and not the other leg", async () => {
+      const ownerAccount = await helpers.createAccount({ raw: true });
+      const recipient = await helpers.provisionSecondUserWithBaseCurrency();
+      const invitation = await helpers.createShareInvitation({
+        inviteeEmail: recipient.email,
+        resourceType: RESOURCE_TYPES.account,
+        resourceId: ownerAccount.id,
+        permission: SHARE_PERMISSIONS.write,
+        raw: true,
+      });
+      await helpers.asUser({
+        cookies: recipient.cookies,
+        fn: () => helpers.acceptShareInvitation({ token: invitation.token, raw: true }),
+      });
+
+      const { baseId, oppositeId } = await helpers.asUser({
+        cookies: recipient.cookies,
+        fn: async () => {
+          const ownAccount = await helpers.createAccount({ raw: true });
+          const ownCategory = await helpers.addCustomCategory({ name: 'recipient-cat', color: '#ABCDEF', raw: true });
+          const created = await helpers.createTransaction({
+            payload: helpers.buildTransactionPayload({
+              accountId: ownAccount.id,
+              categoryId: ownCategory.id,
+              transferNature: TRANSACTION_TRANSFER_NATURE.common_transfer,
+              destinationAccountId: ownerAccount.id,
+              destinationAmount: 1000,
+              time: SUMMER,
+            }),
+          });
+          if (created.statusCode !== 200)
+            throw new Error(JSON.stringify((created as unknown as { body: unknown }).body));
+          const [base, opposite] = helpers.extractResponse(created as never) as unknown as [
+            { id: RecordId },
+            { id: RecordId },
+          ];
+          await helpers.bulkUpdateTransactions({
+            payload: { transactionIds: [base!.id], timeZone: 'Asia/Makassar' },
+            raw: true,
+          });
+          const mine = (await helpers.getTransactions({ raw: true }))!.find((t) => t.id === base!.id)!;
+          expect(mine.timeZone).toBe('Asia/Makassar');
+          return { baseId: base!.id, oppositeId: opposite!.id };
+        },
+      });
+
+      const ownerRows = (await helpers.getTransactions({ raw: true }))!;
+      const ownerLeg = ownerRows.find((t) => t.id === oppositeId);
+      expect(ownerLeg).toBeDefined();
+      expect(ownerLeg!.timeZone).toBeNull();
+      expect(ownerRows.find((t) => t.id === baseId)).toBeUndefined();
+    });
+
+    it('computes New York offsets on both sides of the 2026 DST switch like zoneOffsetMinutes', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const instants = ['2026-03-07T12:00:00.000Z', '2026-03-09T12:00:00.000Z', '2026-11-01T04:30:00.000Z', WINTER];
+      const rows: Awaited<ReturnType<typeof createRow>>[] = [];
+      for (const time of instants) rows.push(await createRow({ accountId: account.id, time }));
+
+      await helpers.bulkUpdateTransactions({
+        payload: { transactionIds: rows.map((r) => r.id), timeZone: 'America/New_York' },
+        raw: true,
+      });
+
+      for (const [index, time] of instants.entries()) {
+        const row = await readTx({ id: rows[index]!.id });
+        expect(row.utcOffsetMinutes).toBe(zoneOffsetMinutes({ zone: 'America/New_York', instant: new Date(time) }));
+      }
+      expect((await readTx({ id: rows[1]!.id })).utcOffsetMinutes).toBe(-240);
+      expect((await readTx({ id: rows[0]!.id })).utcOffsetMinutes).toBe(-300);
+    });
+
+    it('clears both columns with null', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const tx = await createRow({ accountId: account.id, time: SUMMER });
+      await helpers.bulkUpdateTransactions({ payload: { transactionIds: [tx.id], timeZone: 'Asia/Tokyo' }, raw: true });
+
+      await helpers.bulkUpdateTransactions({ payload: { transactionIds: [tx.id], timeZone: null }, raw: true });
+
+      const row = await readTx({ id: tx.id });
+      expect(row.timeZone).toBeNull();
+      expect(row.utcOffsetMinutes).toBeNull();
+    });
+
+    it('updates a bank-synced row and keeps its time', async () => {
+      await helpers.monobank.pair();
+      const { transactions } = await helpers.monobank.mockTransactions();
+      const external = transactions[0]!;
+
+      await helpers.bulkUpdateTransactions({
+        payload: { transactionIds: [external.id], timeZone: 'Asia/Tbilisi' },
+        raw: true,
+      });
+
+      const row = await readTx({ id: external.id });
+      expect(row.timeZone).toBe('Asia/Tbilisi');
+      expect(new Date(row.time).toISOString()).toBe(new Date(external.time).toISOString());
+    });
+
+    it('rejects an invalid zone', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const tx = await createRow({ accountId: account.id, time: SUMMER });
+
+      for (const timeZone of ['+04:00', 'Mars/Base']) {
+        const res = await helpers.bulkUpdateTransactions({ payload: { transactionIds: [tx.id], timeZone } });
+        expect(res.statusCode).toBe(ERROR_CODES.ValidationError);
+      }
+    });
+
+    it("does not touch another user's rows", async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const tx = await createRow({ accountId: account.id, time: SUMMER });
+      const intruder = await helpers.provisionSecondUserWithBaseCurrency();
+
+      const res = await helpers.asUser({
+        cookies: intruder.cookies,
+        fn: () => helpers.bulkUpdateTransactions({ payload: { transactionIds: [tx.id], timeZone: 'Asia/Tokyo' } }),
+      });
+
+      expect(res.statusCode).toBe(ERROR_CODES.NotFoundError);
+      expect((await readTx({ id: tx.id })).timeZone).toBeNull();
     });
   });
 });

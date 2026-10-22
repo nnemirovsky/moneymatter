@@ -207,14 +207,18 @@
       </div>
     </div>
     <div v-if="shouldShowGroupedTransfer || isLoadingGroupedTransfer" class="flex items-start pt-0.5">
-      <div class="text-muted-foreground text-right text-xs whitespace-nowrap tabular-nums">
-        {{ formateDate(transaction.time) }}
-      </div>
+      <TransactionDateTooltip v-bind="dateTooltipProps">
+        <div class="text-muted-foreground text-right text-xs whitespace-nowrap tabular-nums">
+          {{ formateDate(transaction.time) }}
+        </div>
+      </TransactionDateTooltip>
     </div>
     <div v-else-if="compact" class="flex items-baseline justify-end gap-2">
-      <div class="text-muted-foreground text-xs whitespace-nowrap">
-        {{ formateDate(transaction.time) }}
-      </div>
+      <TransactionDateTooltip v-bind="dateTooltipProps">
+        <div class="text-muted-foreground text-xs whitespace-nowrap">
+          {{ formateDate(transaction.time) }}
+        </div>
+      </TransactionDateTooltip>
       <div
         :class="[
           'text-amount text-right text-sm whitespace-nowrap',
@@ -235,9 +239,11 @@
       >
         {{ formattedAmount }}
       </div>
-      <div class="text-muted-foreground text-right text-xs">
-        {{ formateDate(transaction.time) }}
-      </div>
+      <TransactionDateTooltip v-bind="dateTooltipProps">
+        <div class="text-muted-foreground text-right text-xs">
+          {{ formateDate(transaction.time) }}
+        </div>
+      </TransactionDateTooltip>
     </div>
   </div>
 </template>
@@ -247,6 +253,7 @@ import AccountLogo from '@/components/common/account-logo.vue';
 import CategoryCircle from '@/components/common/category-circle.vue';
 import DeletedBadge from '@/components/common/deleted-badge.vue';
 import ResponsiveTooltip from '@/components/common/responsive-tooltip.vue';
+import TransactionDateTooltip from '@/components/transactions-list/transaction-date-tooltip.vue';
 import { Checkbox } from '@/components/lib/ui/checkbox';
 import { isHttpUrl } from '@/common/utils/external-url';
 import { buildMapUrl } from '@/common/utils/map-url';
@@ -263,7 +270,7 @@ import {
   TRANSACTION_TYPES,
   TransactionModel,
 } from '@bt/shared/types';
-import { format } from 'date-fns';
+import { formatInViewingZone } from '@/js/helpers/time-zone';
 import {
   ArrowRight,
   BriefcaseIcon,
@@ -451,7 +458,13 @@ const transferToLabel = computed(() => {
   return accountTo.value?.name ?? t('common.transactions.record.hiddenAccount');
 });
 
-const formateDate = (date: string | number | Date) => format(new Date(date), 'd MMM y');
+const dateTooltipProps = computed(() => ({
+  time: props.tx.time,
+  timeZone: props.tx.timeZone,
+  utcOffsetMinutes: props.tx.utcOffsetMinutes,
+}));
+
+const formateDate = (date: string | number | Date) => formatInViewingZone({ date: new Date(date), pattern: 'd MMM y' });
 
 const transactionEmit = () => {
   emit('record-click', [transaction.value, oppositeTransferTransaction.value ?? undefined]);

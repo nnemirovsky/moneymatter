@@ -153,6 +153,7 @@ export const CARD_PAYMENT_REJECTION_REASONS = [
   'cardTooLong',
   'nameTooLong',
   'invalidTime',
+  'invalidTimeZone',
   'timeInFuture',
   'timeTooOld',
 ] as const;
@@ -176,6 +177,7 @@ export const CARD_PAYMENT_REQUEST_KEYS = [
   'name',
   'time',
   'timeSource',
+  'timeZone',
   'idempotencyKey',
   'source',
   'dryRun',

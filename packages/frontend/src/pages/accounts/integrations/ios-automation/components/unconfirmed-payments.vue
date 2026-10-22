@@ -26,7 +26,7 @@
             </span>
           </div>
           <div class="text-muted-foreground mt-1 text-xs" data-testid="unconfirmed-payment-date">
-            {{ format(plan.time, 'PP') }}
+            {{ formatInViewingZone({ date: new Date(plan.time), pattern: 'PP', locale: getDateFnsLocale() }) }}
           </div>
         </div>
 
@@ -68,7 +68,8 @@ import ResponsiveAlertDialog from '@/components/common/responsive-alert-dialog.v
 import { Button } from '@/components/lib/ui/button';
 import { Callout } from '@/components/lib/ui/callout';
 import { useInvalidatingMutation } from '@/composable/data-queries/use-invalidating-mutation';
-import { useDateLocale } from '@/composable/use-date-locale';
+import { getDateFnsLocale } from '@/composable/use-date-locale';
+import { formatInViewingZone } from '@/js/helpers/time-zone';
 import { formatUIAmount } from '@/js/helpers';
 import type { UnconfirmedCardPaymentDto } from '@bt/shared/types';
 import { useQuery } from '@tanstack/vue-query';
@@ -82,7 +83,6 @@ defineOptions({
 const LABEL_ROOT = 'settings.integrations.iosAutomation.unconfirmed';
 
 const { t } = useI18n({ useScope: 'global' });
-const { format } = useDateLocale();
 
 const isDeleteOpen = ref(false);
 const deleteTarget = ref<UnconfirmedCardPaymentDto | null>(null);

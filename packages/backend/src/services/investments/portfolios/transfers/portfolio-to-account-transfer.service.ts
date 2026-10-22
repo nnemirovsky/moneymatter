@@ -9,6 +9,7 @@ import Portfolios from '@models/investments/portfolios.model';
 import * as Transactions from '@models/transactions.model';
 import { withTransaction } from '@services/common/with-transaction';
 import { updatePortfolioBalance } from '@services/investments/portfolios/balances';
+import { deriveStoredZone } from '@services/transactions/recorded-zone';
 
 import {
   assertAccountNotBankLinked,
@@ -30,6 +31,8 @@ interface PortfolioToAccountTransferParams {
   currencyCode: string;
   date: string;
   description?: string | null;
+  /** IANA zone to record on the created transaction. */
+  timeZone?: string | null;
   existingTransactionId?: string;
 }
 
@@ -41,6 +44,7 @@ const portfolioToAccountTransferImpl = async ({
   currencyCode,
   date,
   description,
+  timeZone,
   existingTransactionId,
 }: PortfolioToAccountTransferParams) => {
   validatePositiveAmount({ amount });
@@ -116,6 +120,7 @@ const portfolioToAccountTransferImpl = async ({
       refCurrencyCode,
       transferNature: TRANSACTION_TRANSFER_NATURE.transfer_to_portfolio,
       time: new Date(date),
+      ...deriveStoredZone({ time: new Date(date), timeZone }),
       note: description || undefined,
     });
 

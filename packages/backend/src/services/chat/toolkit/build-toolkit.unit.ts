@@ -39,7 +39,7 @@ jest.mock('../../mcp/auth', () => ({ buildMcpAuthInfo: jest.fn() }));
 jest.mock('../visuals/resolve-entity-labels', () => ({ resolveEntityLabels: jest.fn() }));
 
 import { buildMcpAuthInfo } from '../../mcp/auth';
-import { CHAT_CORE_TOOLS } from '../policies/core-tools';
+import { CHAT_CORE_TOOLS, CHAT_WRITE_PRELOAD_TOOLS, shouldPreloadWrites } from '../policies/core-tools';
 import { isSafeForApproveAll } from '../policies/safe-cards';
 import { PREVIEW_RESOLVERS } from '../proposals/previews';
 import { resolveEntityLabels } from '../visuals/resolve-entity-labels';
@@ -229,6 +229,25 @@ describe('buildChatToolkit', () => {
       expect(active.has('find_capabilities')).toBe(true);
       expect(active.has('ask_clarification')).toBe(true);
       expect(active.has('delete_account')).toBe(false);
+    });
+
+    it('offers no write tool to an answer turn, and every preloaded write to a turn that starts with them', () => {
+      const answer = setup().toolkit;
+      const change = setup({ runOverrides: { preloadWrites: true } }).toolkit;
+
+      for (const name of CHAT_WRITE_PRELOAD_TOOLS) {
+        expect([name, answer.activeToolNames().includes(name)]).toEqual([name, false]);
+        expect([name, answer.baseToolNames().includes(name)]).toEqual([name, false]);
+        expect([name, change.activeToolNames().includes(name)]).toEqual([name, true]);
+        expect([name, change.baseToolNames().includes(name)]).toEqual([name, true]);
+      }
+      for (const name of CHAT_CORE_TOOLS) expect([name, change.baseToolNames().includes(name)]).toEqual([name, true]);
+    });
+
+    it('decides to preload writes for an attachment or earlier cards, and for nothing else', () => {
+      expect(shouldPreloadWrites({ attachmentCount: 0, proposalCount: 0 })).toBe(false);
+      expect(shouldPreloadWrites({ attachmentCount: 1, proposalCount: 0 })).toBe(true);
+      expect(shouldPreloadWrites({ attachmentCount: 0, proposalCount: 3 })).toBe(true);
     });
   });
 
@@ -951,6 +970,28 @@ describe('buildChatToolkit', () => {
         ),
       );
       expect(matches.length).toBeLessThanOrEqual(8);
+    });
+
+    it.each([
+      ['log 12 GEL coffee', 'create_transaction'],
+      ['log an expense', 'create_transaction'],
+      ['add a payment I made yesterday', 'create_transaction'],
+      ['recategorize these transactions', 'bulk_update_transactions'],
+      ['change the category of a transaction', 'update_transaction'],
+      ['fix the amount of a transaction', 'update_transaction'],
+      ['delete duplicates', 'bulk_delete_transactions'],
+      ['delete this transaction', 'delete_transaction'],
+      ['tag transactions', 'assign_tags_to_transaction'],
+      ['create a new category', 'create_category'],
+    ])('finds the write tool for "%s" among the first two matches', async (query, expected) => {
+      const { toolkit } = setup();
+
+      const result = await call({ toolkit, name: 'find_capabilities', input: { query } });
+
+      const names = (JSON.parse(result.text) as { matches: Array<{ name: string }> }).matches.map(
+        (match) => match.name,
+      );
+      expect(names.slice(0, 2)).toContain(expected);
     });
 
     it('adds every returned tool to the active set', async () => {

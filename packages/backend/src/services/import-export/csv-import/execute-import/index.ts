@@ -25,6 +25,7 @@ import { type OpenImportBatch, withImportBatchRecord } from '@services/import-ex
 import { partitionReconcileAccounts } from '@services/import-export/core/partition-reconcile-accounts';
 import { ImportJobError } from '@services/import-export/core/queue/import-job-error';
 import { startBalanceReconciliation } from '@services/import-export/core/reconcile-account-balances';
+import { recordedZoneOfImportedRow, resolveImportZones } from '@services/import-export/core/resolve-import-zones';
 import { createAccountsIfNeeded } from '@services/import-export/core/resolve/create-accounts-if-needed';
 import { createCategoriesIfNeeded } from '@services/import-export/core/resolve/create-categories-if-needed';
 import { createPayeesIfNeeded } from '@services/import-export/core/resolve/create-payees-if-needed';
@@ -64,6 +65,8 @@ interface ExecuteImportParams {
    * `currentBalance` target / imported rows.
    */
   recalculateBalance?: boolean;
+  /** IANA timezone of the importing user's browser: the zone imported rows record when their cell states none. */
+  timezone?: string;
   /**
    * Called with the cumulative `processedCount` after each successfully created
    * transaction so the BullMQ worker can fan progress out over SSE. `totalCount`
@@ -98,9 +101,11 @@ async function executeImportImpl({
   defaultAccountId,
   defaultCategoryId,
   recalculateBalance = false,
+  timezone,
   onProgress,
   openImportBatch,
 }: ExecuteImportParams): Promise<CsvImportSummary> {
+  const { candidateZone } = await resolveImportZones({ userId, timezone });
   const batchId = uuidv4();
   const importDetails: TransactionImportDetails = {
     batchId,
@@ -338,12 +343,14 @@ async function executeImportImpl({
       // UNION, this path re-applies the payee defaults additively below. When
       // the row has no imported tags, `tagIds` stays undefined so
       // createTransaction's built-in payee-default application runs unchanged.
+      const rowTime = new Date(row.date);
       const createResult = await createTransaction({
         userId,
         amount: rowAmount,
         commissionRate: Money.zero(),
         note: row.description,
-        time: new Date(row.date),
+        time: rowTime,
+        ...recordedZoneOfImportedRow({ instant: rowTime, offsetMinutes: row.utcOffsetMinutes, candidateZone }),
         transactionType: row.transactionType === 'income' ? TRANSACTION_TYPES.income : TRANSACTION_TYPES.expense,
         paymentType: PAYMENT_TYPES.creditCard,
         accountId,

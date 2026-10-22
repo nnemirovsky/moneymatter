@@ -22,6 +22,7 @@ import { runWithBalanceRevalueBatch } from '@services/balances/revalue-balance-h
 import { isBaseCurrencyChangeLocked } from '@services/currencies/base-currency-lock';
 import * as transactionsService from '@services/transactions';
 import { accountHasPlannedRows } from '@services/transactions/planned-matching';
+import { getStoredUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { Job, Queue, UnrecoverableError, Worker } from 'bullmq';
 import crypto from 'crypto';
 import IORedis from 'ioredis';
@@ -29,6 +30,7 @@ import IORedis from 'ioredis';
 import { SyncStatus, setAccountSyncStatus } from '../sync/sync-status-tracker';
 import { linkAndEmitSyncedTransactions } from '../utils/link-and-emit-synced-transactions';
 import { notifyPlannedConfirmations } from '../utils/notify-planned-confirmations';
+import { bankSyncRecordedZone } from '../utils/recorded-zone';
 import { writeBankBalanceWithHistory } from '../utils/write-bank-balance-with-history';
 import { MonobankAccountNotFoundError, MonobankApiClient, MonobankGeoBlockedError } from './api-client';
 
@@ -183,12 +185,18 @@ function buildJobProcessor(queueName: string) {
           // balance from the last-processed transaction for each date.
           transactions.sort((a, b) => a.time - b.time);
 
+          // The batch's start is "now" for the whole batch, so every row is judged against one moment.
+          const syncedAt = new Date();
+          const userZone = await getStoredUserTimeZone({ userId });
+
           for (let i = 0; i < transactions.length; i++) {
             const result = await createMonobankTransaction({
               data: transactions[i]!,
               accountId,
               userId,
               matchPlanned,
+              syncedAt,
+              userZone,
             });
             if (result.mergedIntoPlanned) {
               mergedIntoPlannedCount += 1;
@@ -487,11 +495,15 @@ async function createMonobankTransaction({
   accountId,
   userId,
   matchPlanned,
+  syncedAt,
+  userZone,
 }: {
   data: ExternalMonobankTransactionResponse;
   accountId: string;
   userId: number;
   matchPlanned: boolean;
+  syncedAt: Date;
+  userZone: string | null;
 }): Promise<{ createdId?: string; mergedIntoPlanned: boolean }> {
   // Check if transaction already exists (duplicate prevention)
   const isTransactionExists = await findOneTransaction({
@@ -552,6 +564,7 @@ async function createMonobankTransaction({
   // may override them; the user-default fallback path leaves meta null on
   // purpose so any later source can still win.
   const counterName = data.counterName?.trim() ?? '';
+  const time = new Date(data.time * 1000);
   const mccDerivedMeta = mccFromUserMapping
     ? {
         source: CATEGORIZATION_SOURCE.mccRule,
@@ -563,7 +576,8 @@ async function createMonobankTransaction({
     note: data.description,
     externalReference: (data.receiptId?.trim() || data.invoiceId?.trim())?.slice(0, 255) || null,
     amount: Money.fromCents(Math.abs(data.amount)),
-    time: new Date(data.time * 1000),
+    time,
+    ...bankSyncRecordedZone({ time, syncedAt, userZone }),
     externalData: {
       operationAmount: data.operationAmount,
       receiptId: data.receiptId,

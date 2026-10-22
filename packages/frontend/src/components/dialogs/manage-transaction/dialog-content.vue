@@ -19,6 +19,7 @@ import DateField from '@/components/fields/date-field.vue';
 import InputField from '@/components/fields/input-field.vue';
 import SelectField from '@/components/fields/select-field.vue';
 import TagSelectField from '@/components/fields/tag-select-field.vue';
+import TimeZoneSelectField from '@/components/fields/time-zone-select-field.vue';
 import TextareaField from '@/components/fields/textarea-field.vue';
 import { Button } from '@/components/lib/ui/button';
 import HintIcon from '@/components/common/hint-icon.vue';
@@ -51,6 +52,7 @@ import {
 import { useQuery } from '@tanstack/vue-query';
 import { between, helpers, maxLength, minValue, required } from '@vuelidate/validators';
 import { createReusableTemplate, useEventListener, watchOnce } from '@vueuse/core';
+import { getTransactionTimeTooltip } from '@/js/helpers/time-zone';
 import { endOfDay, format } from 'date-fns';
 import {
   CommandIcon,
@@ -223,6 +225,8 @@ const form = ref<UI_FORM_STRUCT>({
   targetAmount: null,
   category: formattedCategories.value[0] ?? null,
   time: new Date(),
+  timeZone: null,
+  utcOffsetMinutes: null,
   paymentType: defaultPaymentType.value,
   note: undefined,
   externalUrl: undefined,
@@ -1159,6 +1163,23 @@ const { shown: shownFields, chips: addFieldChips } = useFieldReveal({
   },
 });
 
+const recordedTimeZone = computed<string | null>({
+  get: () => form.value.timeZone ?? null,
+  set: (value) => {
+    form.value.timeZone = value;
+  },
+});
+
+// Shown only when the transaction's own zone reads differently from the viewing zone the time input uses.
+const recordedZoneCaption = computed(() => {
+  const { recordedLine } = getTransactionTimeTooltip({
+    time: form.value.time,
+    timeZone: form.value.timeZone,
+    utcOffsetMinutes: form.value.utcOffsetMinutes,
+  });
+  return recordedLine ? t('dialogs.manageTransaction.form.timeZoneRecorded', { zone: recordedLine }) : null;
+});
+
 const externalUrlHref = computed(() => {
   const value = form.value.externalUrl?.trim();
   return value && isHttpUrl(value) ? value : null;
@@ -1401,6 +1422,14 @@ onUnmounted(() => {
         </PlannedUnlockHint>
       </form-row>
 
+      <p
+        v-if="recordedZoneCaption"
+        class="text-muted-foreground -mt-1 px-1 text-xs"
+        data-testid="recorded-zone-caption"
+      >
+        {{ recordedZoneCaption }}
+      </p>
+
       <p v-if="isPreAnchorLoanPayment" class="text-muted-foreground -mt-1 px-1 text-xs">
         {{ $t('dialogs.loanPayment.preAnchorHint') }}
       </p>
@@ -1592,6 +1621,15 @@ onUnmounted(() => {
           :suggested-date="form.time"
           @apply-suggestion="applySuggestedOriginalAmount"
         />
+      </FormRow>
+      <FormRow v-if="shownFields.timeZone" data-optional-field="timeZone">
+        <FieldLabel :label="$t('dialogs.manageTransaction.form.timeZoneLabel')" only-template>
+          <TimeZoneSelectField
+            v-model="recordedTimeZone"
+            :placeholder="$t('dialogs.manageTransaction.form.timeZonePlaceholder')"
+            :disabled="isFormFieldsDisabled"
+          />
+        </FieldLabel>
       </FormRow>
       <!-- Refund linking on accounts shared *with* the caller isn't supported by the
            backend yet — hide the field rather than offering a button that errors on

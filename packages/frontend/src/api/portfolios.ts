@@ -1,4 +1,5 @@
 import { api } from '@/api/_api';
+import { viewingTimeZone } from '@/js/helpers/time-zone';
 import {
   PORTFOLIO_TYPE,
   PortfolioBalanceModel,
@@ -91,7 +92,10 @@ export const accountToPortfolioTransfer = async ({
   portfolioId,
   ...params
 }: AccountToPortfolioTransferParams): Promise<PortfolioTransferModel> => {
-  const result = await api.post(`/investments/portfolios/${portfolioId}/transfer/from-account`, params);
+  const result = await api.post(`/investments/portfolios/${portfolioId}/transfer/from-account`, {
+    ...params,
+    timeZone: viewingTimeZone.value,
+  });
   return result;
 };
 
@@ -109,7 +113,10 @@ export const portfolioToAccountTransfer = async ({
   portfolioId,
   ...params
 }: PortfolioToAccountTransferParams): Promise<PortfolioTransferModel> => {
-  const result = await api.post(`/investments/portfolios/${portfolioId}/transfer/to-account`, params);
+  const result = await api.post(`/investments/portfolios/${portfolioId}/transfer/to-account`, {
+    ...params,
+    timeZone: viewingTimeZone.value,
+  });
   return result;
 };
 

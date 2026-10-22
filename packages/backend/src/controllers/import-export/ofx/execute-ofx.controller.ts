@@ -12,6 +12,7 @@ export const executeOfxController = createController(
       uploadId: ofxUploadIdSchema,
       accountMapping: ofxAccountMappingSchema,
       skipDuplicateIndices: z.array(z.number().int().nonnegative()),
+      timezone: z.string().optional(),
       ...importExecuteRequestBaseSchema.shape,
     }),
   }),

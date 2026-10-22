@@ -1,4 +1,4 @@
-import { parseOfxDate } from './date';
+import { parseOfxDate, parseOfxDateWithOffset } from './date';
 
 describe('parseOfxDate', () => {
   it.each([
@@ -24,4 +24,22 @@ describe('parseOfxDate', () => {
       expect(() => parseOfxDate({ value })).toThrow('ofxImport.errors.invalidDate');
     },
   );
+});
+
+describe('parseOfxDateWithOffset', () => {
+  it.each([
+    ['20260801120000[+2:EET]', '2026-08-01T10:00:00.000Z', 120],
+    ['20260801120000[-5:EST]', '2026-08-01T17:00:00.000Z', -300],
+    ['20260801120000[5.5:IST]', '2026-08-01T06:30:00.000Z', 330],
+    ['20260801120000[0:GMT]', '2026-08-01T12:00:00.000Z', 0],
+  ])('returns the offset of %s', (value, iso, offsetMinutes) => {
+    expect(parseOfxDateWithOffset({ value })).toEqual({ iso, offsetMinutes });
+  });
+
+  it('has no offset for a cell without one', () => {
+    expect(parseOfxDateWithOffset({ value: '20260801120000', timezone: 'Asia/Tbilisi' })).toEqual({
+      iso: '2026-08-01T08:00:00.000Z',
+      offsetMinutes: null,
+    });
+  });
 });

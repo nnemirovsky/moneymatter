@@ -1,4 +1,5 @@
 import { type Period } from '@/composable/use-period-navigation';
+import { viewingNow } from '@/js/helpers/time-zone';
 import { endOfDay, endOfMonth, startOfDay } from 'date-fns';
 import { type Ref, computed, ref } from 'vue';
 
@@ -129,7 +130,7 @@ export function useDateSelector({
           return { from: earliest, to: endOfDay(start) };
         }
         case 'after':
-          return { from: startOfDay(start), to: endOfMonth(new Date()) };
+          return { from: startOfDay(start), to: endOfMonth(viewingNow()) };
         case 'between':
           if (!end) return null;
           return { from: startOfDay(start), to: endOfDay(end) };
@@ -155,7 +156,7 @@ export function useDateSelector({
       }
       case 'after': {
         const bounds = getPeriodBoundaries({ periodType: pt, ...start });
-        return { from: bounds.start, to: endOfMonth(new Date()) };
+        return { from: bounds.start, to: endOfMonth(viewingNow()) };
       }
       case 'between': {
         if (!end) return null;

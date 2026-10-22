@@ -1,3 +1,4 @@
+import { isValidTimeZone } from '@bt/shared/time-zone';
 import type { RecordId } from '@bt/shared/types';
 import {
   type BudgetSuggestionAnswers,
@@ -109,6 +110,13 @@ export const currencyCode = () =>
   z.string().trim().toUpperCase().refine(isCurrencyCodeFormat, {
     message: 'Invalid currency code. Use 2 to 16 letters or digits, e.g. "USD".',
   });
+
+/**
+ * An IANA time zone name such as `Asia/Tbilisi` (at most 64 characters). Aliases that browsers
+ * still report (`Europe/Kiev`) pass; offsets such as `+04:00` do not, since an offset is not a zone.
+ */
+export const ianaTimeZone = () =>
+  z.string().refine((value) => isValidTimeZone({ zone: value }), { message: 'Invalid IANA time zone.' });
 
 /**
  * Logo of a custom currency: an absolute `https:` URL of at most `CUSTOM_CURRENCY_LOGO_URL_MAX_LENGTH`

@@ -26,6 +26,7 @@ describe('a card that names a record the user does not have', () => {
 
     const { threadId, script } = await proposeCards({
       turns: [
+        { toolCalls: [{ id: 'call_find', name: 'find_capabilities', arguments: { query: 'create transaction' } }] },
         {
           toolCalls: [
             { name: 'create_transaction', arguments: expenseArgs({ accountId: account.id, categoryId: INVENTED_ID }) },
@@ -36,7 +37,7 @@ describe('a card that names a record the user does not have', () => {
     });
 
     expect(await ChatProposals.count({ where: { threadId } })).toBe(0);
-    const toolResults = (script.requests[1]!.messages ?? []).filter((message) => message.role === 'tool');
+    const toolResults = (script.requests[2]!.messages ?? []).filter((message) => message.role === 'tool');
     expect(String(toolResults.at(-1)!.content)).toMatch(/categoryId: .*get_categories/);
   });
 

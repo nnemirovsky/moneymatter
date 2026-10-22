@@ -66,7 +66,14 @@
         </div>
         <FieldError :error-message="errorMessage" />
         <Popover.PopoverContent class="w-87.5">
-          <Calendar v-model="localValue" v-bind="calendarOptions" :mode="mode" is24hr type="single" />
+          <Calendar
+            v-model="localValue"
+            v-bind="calendarOptions"
+            :mode="mode"
+            :is24hr="hourCyclePreference !== 'h12'"
+            :timezone="isZoned ? zone : undefined"
+            type="single"
+          />
         </Popover.PopoverContent>
       </FieldLabel>
     </Popover.Popover>
@@ -80,7 +87,10 @@ import { Button } from '@/components/lib/ui/button';
 import { Calendar } from '@/components/lib/ui/calendar';
 import * as Popover from '@/components/lib/ui/popover';
 import { useSafariDetection } from '@/composable/detect-safari';
+import { hourCyclePreference, viewingTimeZone } from '@/js/helpers/time-zone';
 import { cn } from '@/lib/utils';
+import { wallClockToInstant } from '@bt/shared/time-zone';
+import { TZDate } from '@date-fns/tz';
 import { format, getDate, getMonth, getYear, isSameDay, parse, set } from 'date-fns';
 import { CalendarClockIcon, XIcon } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
@@ -104,6 +114,8 @@ const props = withDefaults(
     clearable?: boolean;
     /** The input shows only the date; the time stays editable in the calendar popover. */
     hideInputTime?: boolean;
+    /** Zone a date-time is shown and typed in; defaults to the viewing zone. Date-only mode stays on browser days. */
+    timeZone?: string;
   }>(),
   {
     label: undefined,
@@ -117,6 +129,7 @@ const props = withDefaults(
     mode: 'dateTime',
     clearable: false,
     hideInputTime: false,
+    timeZone: undefined,
   },
 );
 
@@ -135,24 +148,75 @@ const isDateOnlyInput = computed(() => props.mode === 'date' || props.hideInputT
 // Safari mobile relies on its native picker, except when the input hides the time the popover still sets.
 const isPopoverAvailable = computed(() => !isSafariMobile || (props.hideInputTime && props.mode !== 'date'));
 
-const formatToInput = (value: Date) => format(value, isDateOnlyInput.value ? DATE_PATTERN : 'yyyy-MM-dd HH:mm');
+const zone = computed(() => props.timeZone ?? viewingTimeZone.value);
+const isZoned = computed(() => props.mode === 'dateTime');
+
+// Date-time values are instants; their fields are read and written in `zone`, not in the browser's zone.
+const inZone = ({ value }: { value: Date }) => (isZoned.value ? new TZDate(value, zone.value) : value);
+
+const formatToInput = (value: Date) =>
+  format(inZone({ value }), isDateOnlyInput.value ? DATE_PATTERN : 'yyyy-MM-dd HH:mm');
+
+const DATE_TIME_INPUT = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/;
+
+const wallToInstant = ({
+  year,
+  month,
+  day,
+  hour,
+  minute,
+  second,
+  ms,
+}: {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+  ms: number;
+}) => wallClockToInstant({ wall: { year, month, day, hour, minute, second, ms }, zone: zone.value });
 
 // `new Date('yyyy-MM-dd')` is UTC midnight, the previous day in negative-offset timezones.
 const parseInput = ({ value }: { value: string }) => {
-  if (!isDateOnlyInput.value) return new Date(value);
+  if (!isDateOnlyInput.value) {
+    if (!isZoned.value) return new Date(value);
+    const match = DATE_TIME_INPUT.exec(value);
+    if (!match) return new Date(NaN);
+    const [year, month, day, hour, minute, second] = match.slice(1).map((part) => Number(part ?? 0)) as number[];
+    return wallToInstant({
+      year: year!,
+      month: month!,
+      day: day!,
+      hour: hour!,
+      minute: minute!,
+      second: second!,
+      ms: 0,
+    });
+  }
   const date = parse(value, DATE_PATTERN, new Date());
   if (props.mode === 'date' || !props.modelValue) return date;
-  return set(props.modelValue, { year: getYear(date), month: getMonth(date), date: getDate(date) });
+  if (!isZoned.value) return set(props.modelValue, { year: getYear(date), month: getMonth(date), date: getDate(date) });
+  const current = new TZDate(props.modelValue, zone.value);
+  return wallToInstant({
+    year: getYear(date),
+    month: getMonth(date) + 1,
+    day: getDate(date),
+    hour: current.getHours(),
+    minute: current.getMinutes(),
+    second: current.getSeconds(),
+    ms: current.getMilliseconds(),
+  });
 };
 
 const nativeMax = computed(() => {
   if (!isDateOnlyInput.value) return '9999-12-31T23:59';
   const maxDate = props.calendarOptions?.maxDate;
-  return maxDate ? format(maxDate, DATE_PATTERN) : '9999-12-31';
+  return maxDate ? format(inZone({ value: maxDate }), DATE_PATTERN) : '9999-12-31';
 });
 const nativeMin = computed(() => {
   const minDate = isDateOnlyInput.value ? props.calendarOptions?.minDate : undefined;
-  return minDate ? format(minDate, DATE_PATTERN) : undefined;
+  return minDate ? format(inZone({ value: minDate }), DATE_PATTERN) : undefined;
 });
 
 const inputValue = ref(props.modelValue ? formatToInput(props.modelValue) : '');

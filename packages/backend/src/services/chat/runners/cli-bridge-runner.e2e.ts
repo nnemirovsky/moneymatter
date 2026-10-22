@@ -49,6 +49,12 @@ const DONUT = {
   ],
 };
 
+/** A write is not in a CLI's tool list unless the run starts with the writes: it calls it through `use_capability`. */
+const viaCapability = ({ name, args }: { name: string; args: Record<string, unknown> }) => ({
+  call: 'use_capability',
+  args: { name, args },
+});
+
 const transactionArgs = ({ accountId, ...rest }: { accountId: string } & Record<string, unknown>) => ({
   accountId,
   amount: 4.5,
@@ -239,8 +245,11 @@ describe('CLI bridge chat runner', () => {
         const account = await helpers.createAccount({ raw: true });
         const threadId = await arrange({
           script: [
-            { call: 'create_category', args: { name: 'Coffee beans' } },
-            { call: 'create_transaction', args: transactionArgs({ accountId: account.id, categoryId: '@ref:0' }) },
+            viaCapability({ name: 'create_category', args: { name: 'Coffee beans' } }),
+            viaCapability({
+              name: 'create_transaction',
+              args: transactionArgs({ accountId: account.id, categoryId: '@ref:0' }),
+            }),
           ],
         });
 
@@ -271,8 +280,10 @@ describe('CLI bridge chat runner', () => {
         const account = await helpers.createAccount({ raw: true });
         const threadId = await arrange({
           script: Array.from({ length: 40 }, (_, index) => ({
-            call: 'create_transaction',
-            args: transactionArgs({ accountId: account.id, amount: index + 1, note: `Row ${index + 1}` }),
+            ...viaCapability({
+              name: 'create_transaction',
+              args: transactionArgs({ accountId: account.id, amount: index + 1, note: `Row ${index + 1}` }),
+            }),
           })),
         });
 
@@ -291,7 +302,10 @@ describe('CLI bridge chat runner', () => {
       'retracts the prose an acting turn wrote before its first card and stores no text',
       async () => {
         const threadId = await arrange({
-          script: [{ text: 'Let me log that for you.' }, { call: 'create_category', args: { name: 'Coffee beans' } }],
+          script: [
+            { text: 'Let me log that for you.' },
+            viaCapability({ name: 'create_category', args: { name: 'Coffee beans' } }),
+          ],
         });
 
         const { events, message } = await send({ threadId, text: 'Add a category' });
@@ -339,7 +353,7 @@ describe('CLI bridge chat runner', () => {
             {
               parallel: [
                 { call: 'ask_clarification', args: question },
-                { call: 'create_transaction', args: transactionArgs({ accountId: account.id }) },
+                viaCapability({ name: 'create_transaction', args: transactionArgs({ accountId: account.id }) }),
                 { call: 'ask_clarification', args: question },
               ],
               staggerMs: 150,
@@ -359,7 +373,7 @@ describe('CLI bridge chat runner', () => {
         const calls = fakes.readBridgeCalls().filter((call) => call.step === 'call');
         expect(calls.map((call) => [call.tool, call.isError])).toEqual([
           ['ask_clarification', false],
-          ['create_transaction', true],
+          ['use_capability', true],
           ['ask_clarification', true],
         ]);
         expect(calls[1]!.text).toMatch(/waiting for the user's answer/i);
@@ -498,7 +512,9 @@ describe('CLI bridge chat runner', () => {
         await createSignedInConnection({ provider, model });
         useFakeCliResponses({
           responses: [
-            chatScript({ script: [{ rendezvous: 2 }, { call: 'create_category', args: { name: 'Coffee' } }] }),
+            chatScript({
+              script: [{ rendezvous: 2 }, viaCapability({ name: 'create_category', args: { name: 'Coffee' } })],
+            }),
           ],
         });
         const first = (await helpers.createChatThread({ raw: true })).id;

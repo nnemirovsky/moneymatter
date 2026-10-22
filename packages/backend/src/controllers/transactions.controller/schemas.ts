@@ -1,3 +1,4 @@
+import { MIN_TRANSACTION_TIME } from '@common/lib/time-zones/resolve-time-input';
 import { recordId } from '@common/lib/zod/custom-types';
 import { z } from 'zod';
 
@@ -10,10 +11,6 @@ export const nonNegativeAmountSchema = () => z.number().nonnegative('Amount must
 // For amounts that carry no meaning at zero: a transfer leg that moves nothing,
 // a fee that costs nothing, a split that holds no share of its parent.
 export const positiveAmountSchema = () => z.number().positive('Amount must be greater than 0').finite();
-
-// A year below 2000 is always a fat-fingered date ("26" for 2026): no ledger
-// predates 2000, and such dates poison exchange-rate lookups.
-const MIN_TRANSACTION_TIME = new Date('2000-01-01T00:00:00.000Z');
 
 export const transactionTimeSchema = () =>
   z

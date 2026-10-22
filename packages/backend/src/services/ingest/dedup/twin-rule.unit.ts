@@ -5,6 +5,7 @@ import { describe, expect, it } from '@jest/globals';
 import { TAP_SLOT, WALLET_NOTIFICATION_SLOT } from './source-slots';
 import {
   inferBankTime,
+  placeBankTime,
   pickSettlementTarget,
   pickTwin,
   sharesFigure,
@@ -180,5 +181,28 @@ describe('inferBankTime', () => {
 
   it('rejects an offset beyond fourteen hours', () => {
     expect(inferBankTime({ wallClock: at('2026-10-21T05:40:00Z'), reference })).toBeNull();
+  });
+});
+
+describe('placeBankTime', () => {
+  const reference = at('2026-10-20T14:38:00Z');
+
+  it('reads the wall clock in the request zone when it fits the reference', () => {
+    expect(
+      placeBankTime({ wallClock: at('2026-10-20T18:40:00Z'), reference, zone: 'Asia/Tbilisi' })?.toISOString(),
+    ).toBe('2026-10-20T14:40:00.000Z');
+  });
+
+  it('falls back to the inferred offset when the zone does not explain the clock', () => {
+    // 18:40 in New York is 22:40Z, eight hours from the reference; inference finds +4 instead.
+    expect(
+      placeBankTime({ wallClock: at('2026-10-20T18:40:00Z'), reference, zone: 'America/New_York' })?.toISOString(),
+    ).toBe('2026-10-20T14:40:00.000Z');
+  });
+
+  it('infers the offset without a zone', () => {
+    expect(placeBankTime({ wallClock: at('2026-10-20T18:40:00Z'), reference, zone: null })).toEqual(
+      inferBankTime({ wallClock: at('2026-10-20T18:40:00Z'), reference }),
+    );
   });
 });

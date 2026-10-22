@@ -1,5 +1,5 @@
 import { PAYMENT_TYPES, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES, isTwoLegTransfer } from '@bt/shared/types';
-import { currencyCode, recordId } from '@common/lib/zod/custom-types';
+import { currencyCode, ianaTimeZone, recordId } from '@common/lib/zod/custom-types';
 import { createController } from '@controllers/helpers/controller-factory';
 import { deserializeCreateTransaction, serializeTransactionTuple } from '@root/serializers';
 import { attachTransactionCurrencyMeta } from '@services/currencies/effective-currency';
@@ -23,6 +23,7 @@ const schema = z.object({
       note: z.string().max(1000, 'The string must not exceed 1000 characters.').nullish(),
       ...transactionDetailFieldsSchema,
       time: transactionTimeSchema().optional(),
+      timeZone: ianaTimeZone().nullish(),
       transactionType: z.nativeEnum(TRANSACTION_TYPES),
       paymentType: z.nativeEnum(PAYMENT_TYPES),
       accountId: recordId(),

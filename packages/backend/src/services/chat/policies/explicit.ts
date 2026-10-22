@@ -127,6 +127,7 @@ export const EXPLICIT_POLICIES: Readonly<Record<string, ExplicitPolicy>> = {
   mark_notifications_read: { entity: 'notification' },
   dismiss_notification: { entity: 'notification' },
   update_user_settings: { kind: 'settings' },
+  update_chat_settings: { kind: 'settings', entity: 'userSettings', previewResolver: 'chatSettings' },
 
   // Payees
   update_payee: { targetFields: ['id'] },

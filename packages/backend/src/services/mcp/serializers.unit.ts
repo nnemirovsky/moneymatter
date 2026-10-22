@@ -55,6 +55,8 @@ const fullTransaction: TransactionApiResponse = {
   externalReference: null,
   location: null,
   time: new Date('2026-01-01T10:00:00.000Z'),
+  timeZone: 'Asia/Tbilisi',
+  utcOffsetMinutes: 240,
   userId: 42,
   transactionType: TRANSACTION_TYPES.expense,
   paymentType: 'creditCard',
@@ -268,10 +270,12 @@ describe('MCP serializers', () => {
           'splits',
           'tags',
           'time',
+          'timeZone',
           'transactionGroups',
           'transactionType',
           'transferId',
           'transferNature',
+          'utcOffsetMinutes',
         ].toSorted(),
       );
     });

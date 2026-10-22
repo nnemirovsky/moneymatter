@@ -1,5 +1,6 @@
-import { recordId } from '@common/lib/zod/custom-types';
-import { transactionTimeSchema } from '@controllers/transactions.controller/schemas';
+import { timeInputSchema } from '@common/lib/time-zones/resolve-time-input';
+import { resolveUserTimeInput } from '@common/lib/time-zones/resolve-user-time';
+import { ianaTimeZone, recordId } from '@common/lib/zod/custom-types';
 import { t } from '@i18n/index';
 import { NotFoundError, ValidationError } from '@js/errors';
 import { trackMcpToolUsed } from '@js/utils/posthog';
@@ -13,11 +14,14 @@ import { presentTransactions } from './transaction-output';
 
 const inputSchema = {
   transactionId: recordId().describe('ID of the planned transaction to confirm'),
-  time: transactionTimeSchema()
+  time: timeInputSchema()
     .optional()
     .describe(
-      "When the money actually moved (ISO 8601). Default: the plan's own date, or now when the plan is still in the future",
+      "When the money actually moved. Default: the plan's own date, or now when the plan is still in the future. Prefer the user's local wall time without an offset (e.g. 2026-10-21T16:00); never convert to UTC yourself",
     ),
+  timeZone: ianaTimeZone()
+    .optional()
+    .describe('IANA zone the wall time is read in and the transaction records. Default: the zone the plan already has'),
 };
 
 export function registerConfirmPlannedTransaction(server: McpServer) {
@@ -43,7 +47,8 @@ export function registerConfirmPlannedTransaction(server: McpServer) {
       // A confirmed plan is money that already moved, so a still-future date comes back to now,
       // as the web app does.
       const now = new Date();
-      const time = args.time ? new Date(args.time) : fetched.tx.time > now ? now : undefined;
+      const when = await resolveUserTimeInput({ userId, mode: 'update', value: args.time, timeZone: args.timeZone });
+      const time = when.time ?? (fetched.tx.time > now ? now : undefined);
 
       // The same update `PUT /transactions/:id` runs for `{ isPlanned: false }`, so the service's
       // bank-account refusal and the subscription-period settlement apply here too.
@@ -52,6 +57,7 @@ export function registerConfirmPlannedTransaction(server: McpServer) {
         userId,
         isPlanned: false,
         ...(time && { time }),
+        ...(when.timeZone !== undefined && { timeZone: when.timeZone }),
       });
 
       // [base, opposite?]: the opposite leg exists for a transfer.

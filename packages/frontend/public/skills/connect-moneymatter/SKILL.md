@@ -115,6 +115,8 @@ Reading, planned transactions, create and edit, splits, refunds, transfer linkin
 | `list_transfer_suggestions`    | Scan a period for likely transfer pairs with a confidence score; reads only                                    |
 | `dismiss_transfer_suggestion`  | Dismiss a suggested pair as not a transfer (`finance:write`)                                                   |
 
+**Times and time zones.** Each transaction records an instant plus, when known, the time zone it happened in. Tools that take a transaction time (`create_transaction`, `update_transaction`, `adjust_account_balance`, `confirm_planned_transaction`, `pay_subscription_period`) accept the user's local wall time without an offset (`2026-10-21T16:00`), read in the user's time zone or in `timeZone` (an IANA name such as `Asia/Tbilisi`) when the payment happened elsewhere. An ISO time with `Z` or an offset is an exact instant, and a date alone means local noon. Do not convert to UTC yourself. Date ranges (`search_transactions`, filters, trackers) take a date, a local wall time or an ISO time: a date covers that whole day in the user's time zone. `update_transaction` keeps a row's recorded zone unless `timeZone` is passed (`null` clears it). `bulk_update_transactions` also takes `timeZone` to set or clear the zone of many rows at once; each row's offset is computed at its own time.
+
 ### Reconciliation
 
 Duplicate cleanup and bank rows stuck in pending.
@@ -171,6 +173,7 @@ Includes tag reminders.
 | `dismiss_notification`    | Dismiss a notification from the list and the unread count (`finance:write`)                    |
 | `get_user_settings`       | App settings: language, notifications, dashboard, layout, saved views, FIRE inputs; no AI part |
 | `update_user_settings`    | Patch app settings; arrays replaced whole; `fire` needs the FIRE planner (`finance:write`)     |
+| `update_chat_settings`    | Chat retention (7/30/90/365 days or null), resolved inbox cards kept (`finance:write`)         |
 
 ### Payees
 
@@ -595,7 +598,7 @@ multi-currency data.
   `preview_transaction_automation` and `list_transfer_suggestions`, which are
   refused too. A few writes that touch no amounts (attachments, rate-source
   tests) are exempt. Wait for the status to finish, then retry. A read-only account (expired plan) can read
-  and use only a few writes (`mark_notifications_read`, `update_user_settings`,
+  and use only a few writes (`mark_notifications_read`, `update_user_settings`, `update_chat_settings`,
   the first `change_base_currency`); every other write is refused whatever
   scopes were granted.
 - Destructive calls are deliberately narrow. `bulk_delete_transactions` needs

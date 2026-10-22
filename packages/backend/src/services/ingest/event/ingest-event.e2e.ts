@@ -39,6 +39,17 @@ const walletPayment = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+/** An ISO 8601 time an hour ago, written with a numeric offset (`+04:00`), as the shortcut writes it. */
+const hourAgoWithOffset = ({ offsetMinutes }: { offsetMinutes: number }) => {
+  const instant = new Date(Date.now() - 60 * 60_000);
+  const wall = new Date(instant.getTime() + offsetMinutes * 60_000).toISOString().slice(0, 19);
+  const sign = offsetMinutes < 0 ? '-' : '+';
+  const abs = Math.abs(offsetMinutes);
+  const offset = `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+
+  return `${wall}${offset}`;
+};
+
 const send = ({ secret, body }: { secret: string; body: object }) => ingestHelpers.postIngestEvent({ secret, body });
 
 const setUp = async () => (await ingestHelpers.createTestIngestToken()).secret;
@@ -308,6 +319,50 @@ describe('POST /ingest/event', () => {
       });
 
       expect(await storedRequests()).toHaveLength(3);
+    });
+  });
+
+  describe('the recorded time zone of a notification', () => {
+    it('records the request zone and the offset of its time', async () => {
+      const { secret } = await setUpWithCard();
+
+      const res = await send({
+        secret,
+        body: notification({ time: hourAgoWithOffset({ offsetMinutes: 240 }), timeZone: 'Asia/Tbilisi' }),
+      });
+
+      expect(res.body.response.outcome).toBe('logged');
+      const [tx] = await helpers.getTransactions({ raw: true });
+      expect(tx).toMatchObject({ timeZone: 'Asia/Tbilisi', utcOffsetMinutes: 240 });
+    });
+
+    it('keeps the offset alone when the setting zone differs', async () => {
+      const { secret } = await setUpWithCard();
+      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Europe/Kiev' } });
+
+      await send({ secret, body: notification({ time: hourAgoWithOffset({ offsetMinutes: 240 }) }) });
+
+      const [tx] = await helpers.getTransactions({ raw: true });
+      expect(tx).toMatchObject({ timeZone: null, utcOffsetMinutes: 240 });
+    });
+
+    it('logs a notification whose time states an impossible offset without one', async () => {
+      const { secret } = await setUpWithCard();
+
+      await send({ secret, body: notification({ time: hourAgoWithOffset({ offsetMinutes: 1439 }) }) });
+
+      const [tx] = await helpers.getTransactions({ raw: true });
+      expect(tx).toMatchObject({ timeZone: null, utcOffsetMinutes: null });
+    });
+
+    it('records the setting zone for a blank time', async () => {
+      const { secret } = await setUpWithCard();
+      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Tbilisi' } });
+
+      await send({ secret, body: notification() });
+
+      const [tx] = await helpers.getTransactions({ raw: true });
+      expect(tx).toMatchObject({ timeZone: 'Asia/Tbilisi', utcOffsetMinutes: 240 });
     });
   });
 

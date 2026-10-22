@@ -62,6 +62,8 @@ interface UpdateParams {
   externalReference?: string | null;
   location?: TransactionLocation | null;
   time?: Date;
+  /** `null` clears the recorded zone and offset; the offset is derived from a zone at the row's time. */
+  timeZone?: string | null;
   transactionType?: TRANSACTION_TYPES;
   paymentType?: PAYMENT_TYPES;
   accountId?: string;

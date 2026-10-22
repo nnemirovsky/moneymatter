@@ -25,6 +25,7 @@ import { validateUpdateAccountGroupArgs } from './tools/update-account-group';
 import { validateUpdateBudgetPlanArgs } from './tools/update-budget-plan';
 import { validateUpdateBudgetPlanGroupArgs } from './tools/update-budget-plan-group';
 import { validateUpdateBudgetPlanLineArgs } from './tools/update-budget-plan-line';
+import { validateUpdateChatSettingsArgs } from './tools/update-chat-settings';
 import { validateUpdateCustomCurrencyArgs } from './tools/update-custom-currency';
 import { validateUpdateLoanArgs } from './tools/update-loan';
 import { validateUpdatePayeeArgs } from './tools/update-payee';
@@ -74,6 +75,7 @@ export const TOOL_ARG_VALIDATORS: Readonly<Record<string, ToolArgValidator>> = {
   update_budget_plan: validateUpdateBudgetPlanArgs,
   update_budget_plan_group: validateUpdateBudgetPlanGroupArgs,
   update_budget_plan_line: validateUpdateBudgetPlanLineArgs,
+  update_chat_settings: validateUpdateChatSettingsArgs,
   update_custom_currency: validateUpdateCustomCurrencyArgs,
   update_loan: validateUpdateLoanArgs,
   update_payee: validateUpdatePayeeArgs,

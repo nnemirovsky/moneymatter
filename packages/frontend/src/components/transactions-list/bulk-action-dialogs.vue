@@ -4,6 +4,7 @@ import type { BulkTransactionActions } from '@/composable/use-bulk-transaction-a
 
 import AddToGroupDialog from './add-to-group-dialog.vue';
 import BulkEditDialog from './bulk-edit-dialog.vue';
+import BulkTimeZoneDialog from './bulk-time-zone-dialog.vue';
 import CreateGroupDialog from './create-group-dialog.vue';
 
 const props = defineProps<{
@@ -19,9 +20,11 @@ const {
   isCreateGroupDialogOpen,
   isAddToGroupDialogOpen,
   isBulkDeleteDialogOpen,
+  isBulkTimeZoneDialogOpen,
   bulkUpdateMutation,
   bulkDeleteMutation,
   handleBulkApply,
+  handleBulkTimeZone,
   handleBulkDelete,
 } = props.actions;
 </script>
@@ -32,6 +35,13 @@ const {
     :selected-count="selectedCount"
     :is-loading="bulkUpdateMutation.isPending.value"
     @apply="handleBulkApply"
+  />
+
+  <BulkTimeZoneDialog
+    v-model:open="isBulkTimeZoneDialogOpen"
+    :selected-count="selectedCount"
+    :is-loading="bulkUpdateMutation.isPending.value"
+    @apply="handleBulkTimeZone"
   />
 
   <CreateGroupDialog

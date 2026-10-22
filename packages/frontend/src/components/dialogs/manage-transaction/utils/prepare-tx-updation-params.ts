@@ -165,6 +165,12 @@ export const prepareTxUpdationParams = ({
     };
   }
 
+  // The zone is an annotation, so it is sent only when the user picked another one; an untouched
+  // (or unknown) zone stays as stored and the server recomputes its offset for a new time.
+  if (form.timeZone && form.timeZone !== (transaction.timeZone ?? null)) {
+    editionParams.timeZone = form.timeZone;
+  }
+
   if (isTransferTx) {
     const destinationAccount = getDestinationAccount({
       isRecordExternal,

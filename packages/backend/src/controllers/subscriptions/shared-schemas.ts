@@ -1,4 +1,4 @@
-import { currencyCode, recordId } from '@common/lib/zod/custom-types';
+import { currencyCode, ianaTimeZone, recordId } from '@common/lib/zod/custom-types';
 import { z } from 'zod';
 
 const matchingRuleSchema = z.discriminatedUnion('field', [
@@ -59,6 +59,8 @@ export const markPeriodPaidBodySchema = z
     amount: z.number().positive().optional(),
     // Actual payment date for the created transaction. Falls back to now when omitted.
     time: z.coerce.date().optional(),
+    // IANA zone to record on the created transaction.
+    timeZone: ianaTimeZone().nullish(),
     // Account to book the created transaction against. When supplied it is also
     // linked to the subscription so future payments reuse it. Used by the
     // pay-time "create a transaction" flow for account-less subscriptions.

@@ -8,10 +8,18 @@ import Tags from '@models/tags.model';
 import * as Transactions from '@models/transactions.model';
 import { getUserDefaultCategory } from '@models/users.model';
 import { DOMAIN_EVENTS, eventBus } from '@services/common/event-bus';
-import { Op } from 'sequelize';
+import { Op, literal } from 'sequelize';
 
 import { withTransaction } from '../common/with-transaction';
 import { buildManualCategorizationMeta } from './manual-categorization-meta';
+
+// Postgres computes each row's offset at the row's own instant, so one UPDATE covers a range that
+// crosses a DST switch. The zone is validated by `ianaTimeZone()` before it gets here; `escape`
+// is the second line of defence.
+const offsetAtOwnTimeLiteral = ({ zone }: { zone: string }) =>
+  literal(
+    `ROUND(EXTRACT(EPOCH FROM (("time" AT TIME ZONE ${Transactions.default.sequelize!.escape(zone)}) - ("time" AT TIME ZONE 'UTC'))) / 60)::smallint`,
+  ) as unknown as number;
 
 interface BulkUpdateParams {
   userId: number;
@@ -25,6 +33,9 @@ interface BulkUpdateParams {
   // accounts owned by the caller — shared-account rows are silently skipped to
   // match the per-owner Payee namespace.
   payeeId?: string | null;
+  // Nullable: a zone is recorded on each affected row with its offset at the row's own time,
+  // `null` clears zone and offset. `time` is never touched, so bank-synced rows qualify.
+  timeZone?: string | null;
 }
 
 interface BulkUpdateResult {
@@ -41,14 +52,16 @@ export const bulkUpdate = withTransaction(
     tagMode = 'add',
     note,
     payeeId,
+    timeZone,
   }: BulkUpdateParams): Promise<BulkUpdateResult> => {
     // Validate at least one field is being updated
     const hasCategory = categoryId !== undefined;
     const hasTags = tagIds !== undefined;
     const hasNote = note !== undefined;
     const hasPayee = payeeId !== undefined;
+    const hasTimeZone = timeZone !== undefined;
 
-    if (!hasCategory && !hasTags && !hasNote && !hasPayee) {
+    if (!hasCategory && !hasTags && !hasNote && !hasPayee && !hasTimeZone) {
       throw new ValidationError({
         message: 'At least one field must be provided for bulk update',
       });
@@ -93,7 +106,7 @@ export const bulkUpdate = withTransaction(
         id: { [Op.in]: transactionIds },
         userId,
       },
-      attributes: ['id', 'transferNature', 'accountId', 'categoryId'],
+      attributes: ['id', 'transferNature', 'accountId', 'categoryId', 'transferId'],
     });
 
     if (transactions.length === 0) {
@@ -128,6 +141,7 @@ export const bulkUpdate = withTransaction(
     // namespace (the account owner's), so we cannot stamp the caller's Payee
     // onto it. Same goes for clearing: silently skip those rows.
     let ownedAccountTxIds: string[] = [];
+    let zoneTargetIds: string[] = [];
     if (hasPayee) {
       const candidateAccountIds = Array.from(new Set(transactions.map((tx) => tx.accountId)));
       const ownedAccounts = await Accounts.findAll({
@@ -204,6 +218,27 @@ export const bulkUpdate = withTransaction(
       );
     }
 
+    // The zone is an annotation, so it follows the caller's rows only. An own-accounts transfer
+    // carries one zone on both legs; a leg owned by another user is left to its owner.
+    if (hasTimeZone) {
+      const transferIds = transactions.map((tx) => tx.transferId as string | null).filter(Boolean) as string[];
+      const oppositeLegs = transferIds.length
+        ? await Transactions.default.findAll({
+            where: { transferId: { [Op.in]: transferIds }, userId, id: { [Op.notIn]: allTransactionIds } },
+            attributes: ['id'],
+          })
+        : [];
+      zoneTargetIds = [...allTransactionIds, ...oppositeLegs.map((tx) => tx.id)];
+
+      await Transactions.updateTransactions(
+        timeZone === null
+          ? { timeZone: null, utcOffsetMinutes: null }
+          : { timeZone, utcOffsetMinutes: offsetAtOwnTimeLiteral({ zone: timeZone }) },
+        { userId, id: { [Op.in]: zoneTargetIds } },
+        { individualHooks: false },
+      );
+    }
+
     // Handle tags update separately (many-to-many relationship)
     if (hasTags) {
       const fullTransactions = await Transactions.default.findAll({
@@ -250,7 +285,7 @@ export const bulkUpdate = withTransaction(
     let updatedIds: string[];
     if (hasCategory) {
       updatedIds = nonTransferIds;
-    } else if (hasPayee && !hasTags && !hasNote) {
+    } else if (hasPayee && !hasTags && !hasNote && !hasTimeZone) {
       updatedIds = ownedAccountTxIds;
     } else {
       updatedIds = allTransactionIds;

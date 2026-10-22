@@ -149,6 +149,8 @@ const recordNotificationImpl = async ({
       bundleId: notification.bundleId,
       time: notification.time.toISOString(),
       timeProvided: notification.timeProvided,
+      ...(notification.timeZone && { timeZone: notification.timeZone }),
+      ...(notification.timeOffsetMinutes !== null && { timeOffsetMinutes: notification.timeOffsetMinutes }),
     },
   }) as Record<string, unknown>;
 

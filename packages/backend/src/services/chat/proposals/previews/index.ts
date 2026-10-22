@@ -4,6 +4,7 @@ import { resolveBudgetPlanAssignment } from './budget-plan-assignment';
 import { resolveBulkDeletePayees } from './bulk-delete-payees';
 import { resolveBulkDeleteTransactions, resolveBulkUpdateTransactions } from './bulk-transactions';
 import { resolveChangeBaseCurrency } from './change-base-currency';
+import { resolveChatSettings } from './chat-settings';
 import { resolveEntityPreview } from './entity';
 import { resolveDeleteExchangeRates } from './exchange-rates';
 import { resolveIgnorePayeeName } from './ignore-payee-name';
@@ -44,4 +45,5 @@ export const PREVIEW_RESOLVERS: Record<PreviewResolverName, PreviewResolver> = {
   confirmIngestPayment: resolveConfirmIngestPayment,
   ingestRequest: resolveIngestRequest,
   notificationSource: resolveNotificationSource,
+  chatSettings: resolveChatSettings,
 };

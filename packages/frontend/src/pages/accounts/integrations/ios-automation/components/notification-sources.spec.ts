@@ -130,7 +130,7 @@ describe('NotificationSources', () => {
       'Telegram',
     ]);
     expect(rows.map((row) => row.get('[data-testid="notification-source-mode"]').text())).toEqual([
-      'Trusted',
+      'Known',
       'Approved',
       'Muted',
     ]);

@@ -20,6 +20,7 @@ import {
   EVENT_URL_FIND,
   EVENT_URL_REPLACE,
   KEY_TIME_FORMAT,
+  TIME_ZONE_FORMAT,
   NOTIFICATION_PROPERTY,
   OWN_APP_NAMES,
   PRESELECTED_APPS,
@@ -486,7 +487,18 @@ describe('payments shortcut generator', () => {
       const body = bodyOf(tapRequest!);
 
       expect(Object.keys(body).sort()).toEqual(
-        ['amount', 'card', 'idempotencyKey', 'kind', 'merchant', 'name', 'source', 'time', 'timeSource'].sort(),
+        [
+          'amount',
+          'card',
+          'idempotencyKey',
+          'kind',
+          'merchant',
+          'name',
+          'source',
+          'time',
+          'timeSource',
+          'timeZone',
+        ].sort(),
       );
       expect(body.kind!.WFValue.Value.string).toBe('walletTransaction');
       // The Transaction has no date, so the run time goes with `timeSource: run`.
@@ -505,7 +517,7 @@ describe('payments shortcut generator', () => {
       const body = bodyOf(notificationRequest!);
 
       expect(Object.keys(body).sort()).toEqual(
-        ['app', 'body', 'idempotencyKey', 'kind', 'raw', 'source', 'subtitle', 'time', 'title'].sort(),
+        ['app', 'body', 'idempotencyKey', 'kind', 'raw', 'source', 'subtitle', 'time', 'timeZone', 'title'].sort(),
       );
       expect(body.kind!.WFValue.Value.string).toBe('notification');
       // The notification carries its own date; there is no `timeSource` for it, so the server reads the time as its own.
@@ -518,6 +530,17 @@ describe('payments shortcut generator', () => {
       expect(date.TriggerIdentifier).toBe(TRIGGER_IDENTIFIERS.notification);
       expect(date.Aggrandizements[0].PropertyName).toBe('Date');
       expect(params(timeAction)[SHORTCUT_PARAMS.dateFormatStyle]).toBe('ISO 8601');
+    });
+
+    it('send the IANA zone formatted with VV on both paths', () => {
+      for (const request of [tapRequest!, notificationRequest!]) {
+        const zone = Object.values<Dict>(bodyOf(request).timeZone!.WFValue.Value.attachmentsByRange)[0]!;
+        const zoneAction = actions.find((action) => params(action).UUID === zone.OutputUUID)!;
+
+        expect(id(zoneAction)).toBe(SHORTCUT_ACTIONS.formatDate);
+        expect(params(zoneAction)[SHORTCUT_PARAMS.dateFormatStyle]).toBe('Custom');
+        expect(params(zoneAction)[SHORTCUT_PARAMS.dateFormat]).toBe(TIME_ZONE_FORMAT);
+      }
     });
 
     it('use only keys the server schema knows', () => {

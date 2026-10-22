@@ -9,8 +9,8 @@ import { isContextApp } from './context-apps';
 import { CONVERSATIONAL_APP_NAMES } from './conversational-apps';
 
 /**
- * `auto`: trusted from the start (Wallet and the seeded bank apps); `pending`: waits for the user and
- * reaches the AI only after approval; `approved`: the user said yes; `muted`: the user said no;
+ * `auto`: trusted from the start (shown as "Known": Wallet and the seeded known apps); `pending`: waits for the
+ * user and reaches the AI only after approval; `approved`: the user said yes; `muted`: the user said no;
  * `context`: a merchant app whose amount-less notifications describe a purchase; they enrich the
  * payment they belong to and never create one.
  */

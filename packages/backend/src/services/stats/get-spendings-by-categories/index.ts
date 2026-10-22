@@ -5,6 +5,7 @@ import {
   type RecordId,
   TRANSACTION_TYPES,
 } from '@bt/shared/types';
+import { formatDayInZone } from '@common/lib/time-zones/tz-options';
 import {
   expandCategoryIdsWithDescendants,
   getRootCategoryId as resolveRootCategoryId,
@@ -15,7 +16,7 @@ import {
 } from '@services/categories/get-accessible-category-map.service';
 import { withTransaction } from '@services/common/with-transaction';
 import type { StatsScopeFilters } from '@services/stats/stats-scope-filters';
-import { format } from 'date-fns';
+import { getUserTimeZone } from '@services/user-settings/get-user-time-zone';
 
 import { CategoryAllocations, computeCategoryAllocations } from '../category-allocation';
 import { getExpensesHistory } from '../get-expenses-history';
@@ -91,7 +92,8 @@ const getMonthlySpendingsByCategories = withTransaction(
   async (params: MonthlyParams): Promise<{ month: string; spendings: GetSpendingsByCategoriesReturnType }[]> => {
     const { allocations, categories, excludedCategoryIds } = await loadCategoryAllocations(params);
 
-    const buckets = generatePeriodBuckets({ from: params.from, to: params.to, granularity: 'monthly' });
+    const zone = await getUserTimeZone({ userId: params.userId });
+    const buckets = generatePeriodBuckets({ from: params.from, to: params.to, granularity: 'monthly', zone });
     const byBucket = buckets.map((): CategoryAllocations => ({ base: [], refunds: [] }));
     // A refund dated outside the range has no month here, so it is left out.
     for (const side of ['base', 'refunds'] as const) {
@@ -101,7 +103,7 @@ const getMonthlySpendingsByCategories = withTransaction(
     }
 
     return buckets.map(({ periodStart }, index) => ({
-      month: format(periodStart, 'yyyy-MM'),
+      month: formatDayInZone({ date: periodStart, zone }).slice(0, 7),
       spendings: groupAllocations({
         categories,
         allocations: byBucket[index]!,

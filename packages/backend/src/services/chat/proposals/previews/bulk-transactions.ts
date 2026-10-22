@@ -1,3 +1,4 @@
+import { resolveUserRangeBounds } from '@common/lib/time-zones/resolve-user-time';
 import { resolveBulkTargetIds } from '@services/transactions/matching-transactions';
 
 import { validateBulkDeleteTransactionsArgs } from '../../../mcp/tools/bulk-delete-transactions';
@@ -56,7 +57,17 @@ export const resolveBulkUpdateTransactions: PreviewResolver = async ({ userId, a
  */
 export const resolveBulkDeleteTransactions: PreviewResolver = async ({ userId, args, lock }) => {
   assertConcreteTargets({ value: args, what: 'transactions' });
-  const target = validateBulkDeleteTransactionsArgs({ args: args as never });
+  // The filter's date bounds are cut in the user's zone, as the MCP handler cuts them, because the
+  // ids resolved here are frozen and are what the approval deletes.
+  const filters = args.filters
+    ? await resolveUserRangeBounds({
+        userId,
+        args: args.filters as object,
+        startKey: 'from' as never,
+        endKey: 'to' as never,
+      })
+    : args.filters;
+  const target = validateBulkDeleteTransactionsArgs({ args: { ...args, filters } as never });
 
   const ids = [...new Set(await resolveBulkTargetIds({ userId, ...target }))];
   if (ids.length === 0) throw noTargets();

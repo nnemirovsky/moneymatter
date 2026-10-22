@@ -1,0 +1,59 @@
+---
+title: Time zone and clock
+description: How MoneyMatter shows and records the time of a transaction. The Time zone and Clock settings, the zone saved on each transaction, how each source records it, how reports cut days, and setting zones in bulk.
+sidebar:
+  order: 21
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+Every transaction has an exact time. MoneyMatter shows that time in **your time zone** and can also remember **where the payment happened**. Both are set under **Settings → Language → Time zone and clock**.
+
+## Your time zone and clock
+
+**Time zone** has two modes:
+
+- **Automatic (device)** is the default. MoneyMatter follows the device you are using and saves its zone to your account whenever it changes, so imports, bank syncs, the AI assistant and reports use it too. If two devices are in different zones, the one you opened last wins.
+- **A zone you pick** from the list. Use it when you want times and days to stay in one zone wherever you are.
+
+**Clock** is **Automatic (from language)**, **24-hour** or **12-hour**. It applies to every time in the app.
+
+## The zone saved on a transaction
+
+A transaction can store the zone it happened in, for example `America/New_York`, next to its time. Existing transactions have none: they show as they always did, in your time zone, with no extra label.
+
+- Hover a date in the list or the table to see the full time in your zone. When the transaction was recorded in a different zone, a second line reads **Recorded in** with that zone and its local time.
+- In the transaction dialog, a caption under the time shows the same when the zone differs.
+- To record a zone by hand, turn on **Time zone** under **Settings → General → Transactions** (advanced fields). It stays off by default but shows up by itself for a transaction recorded in another zone. Picking a zone changes only the recorded zone. The time you see and edit stays in your own zone.
+
+<Aside type="note">
+The recorded zone never moves a transaction to another day in reports. Days follow **your** time zone.
+</Aside>
+
+## How each source records the zone
+
+| Source                              | Recorded zone                                                                                                                                                                  |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Transactions you add                | The zone you picked in the form, else your time zone.                                                                                                                         |
+| AI assistant and MCP                | The zone named in the request, else your time zone. Times are read as local time in that zone, never as UTC.                                                                   |
+| iOS Automation                      | The zone the shortcut sends. Without one, the time's offset is stored, plus your zone when it has that offset at that time.                                                    |
+| CSV, OFX and statement imports      | The zone the file was read in: the one sent with the import, else your time zone. An offset inside the file is kept.                                                           |
+| Microsoft Money, Budget Bakers, YNAB | None.                                                                                                                                                                          |
+| Bank syncs                          | Your time zone for transactions dated within 3 days of the sync. Older ones (such as the first 90-day history) stay without a zone, because you may have been somewhere else. |
+| Subscription auto-record            | Your time zone.                                                                                                                                                                |
+
+A user who has never had a time zone saved (no device opened the app yet) gets no zone on these.
+
+## Set zones on many transactions
+
+To fill in zones for past transactions, select them in the list (or select a filter result, such as one account and a date range for a trip) and choose **Set time zone**. Pick a zone, or **Clear (Unknown)** to remove it. Each transaction's offset is worked out at its own time, so a trip across a daylight-saving change stays correct. Both sides of a transfer between your own accounts get the same zone, and bank-synced transactions can be updated too. Their time is not changed.
+
+The AI assistant can do the same with **bulk_update_transactions**.
+
+## Reports and budgets
+
+Reports, trackers and budgets cut days, weeks and months in your time zone, so they agree with the list. A purchase at 23:30 local time lands on that day. Before this setting existed they used UTC days.
+
+<Aside type="caution" title="Balance history uses UTC days">
+Account balance history and net worth history are stored per UTC day. They do not follow your time zone, so a point near midnight can sit one day off from the list.
+</Aside>

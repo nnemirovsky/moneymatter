@@ -1,7 +1,9 @@
+import { localDay } from '@common/lib/time-zones/tz-options';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getBalanceHistoryReport } from '@services/stats/reports/balance-history.report';
 import { getCombinedBalanceHistoryReport } from '@services/stats/reports/combined-balance-history.report';
+import { getUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { z } from 'zod';
 
 import { getUserId, jsonContent } from './helpers';
@@ -28,10 +30,10 @@ export function registerGetBalanceHistory(server: McpServer) {
       const userId = getUserId({ extra });
       trackMcpToolUsed({ userId, tool: 'get_balance_history', clientId: extra.authInfo?.clientId });
 
-      const now = new Date();
-      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      const from = args.startDate ?? thirtyDaysAgo.toISOString();
-      const to = args.endDate ?? now.toISOString();
+      // Defaults are calendar days in the user's zone.
+      const zone = await getUserTimeZone({ userId });
+      const from = args.startDate ?? localDay({ zone, daysAgo: 30 });
+      const to = args.endDate ?? localDay({ zone });
 
       if (args.accountId) {
         return jsonContent({ data: await getBalanceHistoryReport({ userId, accountId: args.accountId, from, to }) });

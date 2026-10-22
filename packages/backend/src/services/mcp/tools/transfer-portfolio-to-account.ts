@@ -1,7 +1,14 @@
-import { dateString, isoCurrencyCode, positiveAmountString, recordId } from '@common/lib/zod/custom-types';
+import {
+  dateString,
+  ianaTimeZone,
+  isoCurrencyCode,
+  positiveAmountString,
+  recordId,
+} from '@common/lib/zod/custom-types';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { portfolioToAccountTransfer } from '@services/investments/portfolios/transfers';
+import { getStoredUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { z } from 'zod';
 
 import { slimPortfolioTransferForMcp } from '../serializers';
@@ -14,6 +21,9 @@ const inputSchema = {
   currencyCode: isoCurrencyCode().describe('Currency of the cash withdrawn from the portfolio (ISO 4217, e.g. "USD")'),
   date: dateString().describe('Transfer date in YYYY-MM-DD format'),
   description: z.string().optional().describe('Optional note for the transfer'),
+  timeZone: ianaTimeZone()
+    .optional()
+    .describe("IANA zone to record on the transfer's transaction. Default: the user's own zone"),
   existingTransactionId: recordId()
     .optional()
     .describe(
@@ -43,6 +53,7 @@ export function registerTransferPortfolioToAccount(server: McpServer) {
         currencyCode: args.currencyCode,
         date: args.date,
         description: args.description ?? null,
+        timeZone: args.timeZone ?? (await getStoredUserTimeZone({ userId })),
         existingTransactionId: args.existingTransactionId,
       });
 

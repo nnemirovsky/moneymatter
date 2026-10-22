@@ -29,6 +29,7 @@ export const NOTIFICATION_REQUEST_KEYS = [
   'subtitle',
   'body',
   'time',
+  'timeZone',
   'raw',
   'idempotencyKey',
   'source',
