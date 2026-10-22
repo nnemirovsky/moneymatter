@@ -53,6 +53,8 @@ interface BackfillReport {
   displayZone: string;
   groups: GroupReport[];
   totalRows: number;
+  /** True when no group selects a row: the rows were already moved, so a rerun has nothing to do. */
+  nothingToDo: boolean;
   /** Everything that stops an apply: count mismatches and rows the plan cannot place safely. */
   problems: string[];
   /** Accounts whose Balances history is rebuilt (foreign currency) or shifted day by day (base currency). */
@@ -69,7 +71,7 @@ interface BackfillOptions {
   displayZone?: string;
 }
 
-const selectRows = async ({ createdFrom, createdTo }: { createdFrom: Date; createdTo: Date }) =>
+const selectRows = async ({ createdFrom, createdTo, lock }: { createdFrom: Date; createdTo: Date; lock: boolean }) =>
   (await connection.sequelize.query(
     `SELECT t."id", t."accountId", t."userId", t."time", t."transferId", t."transferNature", t."transactionType",
             t."refAmount"::text AS "refAmount", t."accountType", t."currencyCode", t."refCurrencyCode"
@@ -77,9 +79,19 @@ const selectRows = async ({ createdFrom, createdTo }: { createdFrom: Date; creat
       WHERE t."timeZone" IS NULL
         AND t."utcOffsetMinutes" IS NULL
         AND t."createdAt" >= :createdFrom AND t."createdAt" < :createdTo
-      ORDER BY t."time", t."id"`,
+      ORDER BY t."time", t."id"${lock ? ' FOR UPDATE' : ''}`,
     { type: QueryTypes.SELECT, replacements: { createdFrom, createdTo } },
   )) as SelectedRow[];
+
+const countZonedInWindow = async ({ createdFrom, createdTo }: { createdFrom: Date; createdTo: Date }) => {
+  const [row] = (await connection.sequelize.query(
+    `SELECT COUNT(*)::int AS "count" FROM real_transactions t
+      WHERE t."timeZone" IS NOT NULL AND t."createdAt" >= :createdFrom AND t."createdAt" < :createdTo`,
+    { type: QueryTypes.SELECT, replacements: { createdFrom, createdTo } },
+  )) as { count: number }[];
+
+  return row?.count ?? 0;
+};
 
 const findTransferProblems = async ({ rows }: { rows: MovedRow[] }): Promise<string[]> => {
   const transferIds = [...new Set(rows.map((row) => row.transferId).filter((id): id is string => id !== null))];
@@ -164,13 +176,19 @@ const writeMoves = async ({ rows }: { rows: MovedRow[] }) => {
 
     // Raw SQL on purpose: the model's update hooks would re-value the reference amounts at the new
     // day's rate, while this backfill leaves every amount exactly as it is.
-    await connection.sequelize.query(
+    const [updated] = await connection.sequelize.query(
       `UPDATE "Transactions" AS t
           SET "time" = v."time", "timeZone" = v."zone", "utcOffsetMinutes" = v."offset", "updatedAt" = NOW()
          FROM (VALUES ${values.join(', ')}) AS v("id", "time", "zone", "offset")
-        WHERE t."id" = v."id" AND t."timeZone" IS NULL AND t."utcOffsetMinutes" IS NULL`,
+        WHERE t."id" = v."id" AND t."timeZone" IS NULL AND t."utcOffsetMinutes" IS NULL
+        RETURNING t."id"`,
       { replacements },
     );
+
+    // A row the guard skipped was changed by someone else after it was selected.
+    if ((updated as unknown[]).length !== chunk.length) {
+      throw new Error(`Expected to update ${chunk.length} rows, updated ${(updated as unknown[]).length}`);
+    }
   }
 };
 
@@ -215,7 +233,7 @@ export async function runTimeZoneBackfill({
   }
 
   const work = async (): Promise<BackfillReport> => {
-    const selected = await selectRows({ createdFrom: importCreatedFrom, createdTo: importCreatedTo });
+    const selected = await selectRows({ createdFrom: importCreatedFrom, createdTo: importCreatedTo, lock: apply });
     const problems: string[] = [];
 
     const moved: MovedRow[] = [];
@@ -239,8 +257,15 @@ export async function runTimeZoneBackfill({
     }
 
     const groupReports = buildGroupReports({ groups, moved });
+    // An empty selection is a finished backfill only when the import window holds at least as many
+    // already-zoned rows as the groups expect; otherwise it is a miss (wrong window or database).
+    const nothingToDo =
+      moved.length === 0 &&
+      problems.length === 0 &&
+      (await countZonedInWindow({ createdFrom: importCreatedFrom, createdTo: importCreatedTo })) >=
+        groups.reduce((sum, g) => sum + g.expectedRows, 0);
     for (const report of groupReports) {
-      if (report.rows !== report.expectedRows) {
+      if (!nothingToDo && report.rows !== report.expectedRows) {
         problems.push(`Group ${report.key}: found ${report.rows} rows, expected ${report.expectedRows}`);
       }
     }
@@ -284,7 +309,8 @@ export async function runTimeZoneBackfill({
     // A loan's balance history is owned by `recomputeLoanBalance`. A `transfer_out_wallet` row (a balance
     // adjustment or an import's wallet leg) moves its account balance like any other row.
     const loanRows = moved.filter((row) => row.transferNature === TRANSACTION_TRANSFER_NATURE.transfer_to_loan);
-    if (loanRows.length) problems.push(`${loanRows.length} rows are loan transfer legs, which this run does not handle`);
+    if (loanRows.length)
+      problems.push(`${loanRows.length} rows are loan transfer legs, which this run does not handle`);
 
     const before = await latestBalances({ accountIds });
     const report: BackfillReport = {
@@ -294,6 +320,7 @@ export async function runTimeZoneBackfill({
       displayZone,
       groups: groupReports,
       totalRows: moved.length,
+      nothingToDo,
       problems,
       rebuiltAccounts: { revalued, incremental },
       balanceCheck: accountIds.map((accountId) => ({
@@ -304,12 +331,16 @@ export async function runTimeZoneBackfill({
       })),
     };
 
-    if (!apply) return report;
+    if (!apply || nothingToDo) return report;
     if (problems.length) throw new Error(`Refusing to apply:\n${problems.join('\n')}`);
 
     await writeMoves({ rows: moved });
     await shiftBalanceDays({ rows: moved.filter((row) => row.utcDayChanges && incremental.includes(row.accountId)) });
-    for (const accountId of revalued) await revalueBalanceHistory({ accountId });
+    for (const accountId of revalued) {
+      const result = await revalueBalanceHistory({ accountId });
+      // 'skipped' leaves the old rows (or none) in place, so the account is not rebuilt.
+      if (result === 'skipped') throw new Error(`Account ${accountId}: balance history was not rebuilt (skipped)`);
+    }
 
     const after = await latestBalances({ accountIds });
     for (const check of report.balanceCheck) {
@@ -356,9 +387,11 @@ export const formatReport = ({ report }: { report: BackfillReport }): string => 
   if (report.mode === 'apply') lines.push(`Latest balance rows that changed: ${moves.length}`);
 
   lines.push(
-    report.problems.length
-      ? `PROBLEMS (apply refuses):\n${report.problems.map((p) => `  ${p}`).join('\n')}`
-      : 'No problems found.',
+    report.nothingToDo
+      ? 'Nothing to do: no imported row is left to move.'
+      : report.problems.length
+        ? `PROBLEMS (apply refuses):\n${report.problems.map((p) => `  ${p}`).join('\n')}`
+        : 'No problems found.',
   );
 
   return lines.join('\n');

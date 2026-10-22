@@ -5,7 +5,7 @@ import Transactions from '@models/transactions.model';
 import * as helpers from '@tests/helpers';
 
 import { type BackfillGroup } from './groups';
-import { runTimeZoneBackfill } from './run';
+import { formatReport, runTimeZoneBackfill } from './run';
 
 /**
  * The backfill is a one-off script with no HTTP surface, so this e2e runs it directly on rows
@@ -13,6 +13,7 @@ import { runTimeZoneBackfill } from './run';
  */
 
 const CUT = new Date('2026-06-01T00:00:00.000Z');
+const GHOST_FROM = new Date('2030-01-01T00:00:00.000Z');
 
 const groups = (expected: { early: number; late: number }): BackfillGroup[] => [
   { key: 'early', zone: 'Asia/Bangkok', windows: [{ from: null, to: CUT }], expectedRows: expected.early },
@@ -199,12 +200,46 @@ describe('time zone backfill', () => {
     await runTimeZoneBackfill({ apply: true, groups: groups({ early: 5, late: 1 }), ...importWindow() });
 
     const report = await runTimeZoneBackfill({
-      apply: false,
-      groups: groups({ early: 0, late: 0 }),
+      apply: true,
+      groups: groups({ early: 5, late: 1 }),
       ...importWindow(),
     });
 
     expect(report.totalRows).toBe(0);
+    expect(report.nothingToDo).toBe(true);
     expect(report.problems).toEqual([]);
+    expect(formatReport({ report })).toContain('Nothing to do');
+  });
+
+  it('still reports a mismatch when one group selects nothing and another does not', async () => {
+    await seed();
+
+    const report = await runTimeZoneBackfill({
+      apply: false,
+      groups: [
+        { key: 'early', zone: 'Asia/Bangkok', windows: [{ from: null, to: CUT }], expectedRows: 5 },
+        { key: 'late', zone: 'Asia/Tbilisi', windows: [{ from: CUT, to: GHOST_FROM }], expectedRows: 1 },
+        { key: 'ghost', zone: 'Asia/Tbilisi', windows: [{ from: GHOST_FROM, to: null }], expectedRows: 1 },
+      ],
+      ...importWindow(),
+    });
+
+    expect(report.nothingToDo).toBe(false);
+    expect(report.problems).toEqual(['Group ghost: found 0 rows, expected 1']);
+  });
+
+  it('treats an empty selection as a miss, not as done, when nothing was moved before', async () => {
+    await seed();
+
+    const report = await runTimeZoneBackfill({
+      apply: false,
+      groups: groups({ early: 5, late: 1 }),
+      importCreatedFrom: new Date('2020-01-01'),
+      importCreatedTo: new Date('2020-01-02'),
+    });
+
+    expect(report.nothingToDo).toBe(false);
+    expect(report.problems.length).toBe(2);
+    expect(formatReport({ report })).not.toContain('Nothing to do');
   });
 });
