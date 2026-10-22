@@ -151,6 +151,15 @@ describe('adjust_account_balance, confirm_planned_transaction and pay_subscripti
     await tool.handler({ subscriptionId: ID, periodId: PERIOD_ID, createTransaction: true, time: WALL }, WRITE);
     expect(pay).toHaveBeenCalledWith(expect.objectContaining({ time: NOON_Z, timeZone: 'Asia/Tbilisi' }));
   });
+
+  it('pay_subscription_period keeps an offset-only stated offset', async () => {
+    const tool = captureTools({ register: registerPaySubscriptionPeriod })[0]!;
+    await tool.handler(
+      { subscriptionId: ID, periodId: PERIOD_ID, createTransaction: true, time: '2026-10-21T16:00:00+02:00' },
+      WRITE,
+    );
+    expect(pay).toHaveBeenCalledWith(expect.objectContaining({ timeZone: null, utcOffsetMinutes: 120 }));
+  });
 });
 
 describe('range bounds', () => {

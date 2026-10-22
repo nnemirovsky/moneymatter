@@ -41,6 +41,7 @@ export async function buildTransactionFromSubscription({
   amount,
   time,
   timeZone,
+  utcOffsetMinutes,
 }: {
   subscription: Subscriptions;
   /** Decimal override for the booked amount, expressed in the ACCOUNT's currency. */
@@ -49,6 +50,8 @@ export async function buildTransactionFromSubscription({
   time?: Date;
   /** IANA zone to record on the booked transaction; absent records none. */
   timeZone?: string | null;
+  /** Offset stated by the caller when no zone is known; recorded as is. */
+  utcOffsetMinutes?: number | null;
 }): Promise<CreateTransactionParams> {
   if (subscription.accountId == null) {
     throw new ValidationError({
@@ -126,6 +129,7 @@ export async function buildTransactionFromSubscription({
     tagIds: tagIds.length > 0 ? tagIds : undefined,
     time: effectiveTime,
     timeZone,
+    utcOffsetMinutes,
     note: subscription.name,
   };
 }

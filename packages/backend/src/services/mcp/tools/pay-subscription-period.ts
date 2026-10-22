@@ -76,6 +76,7 @@ export function registerPaySubscriptionPeriod(server: McpServer) {
         amount: body.amount,
         time: when?.time,
         timeZone: when?.timeZone,
+        utcOffsetMinutes: when?.utcOffsetMinutes,
         accountId: body.accountId,
       });
 
