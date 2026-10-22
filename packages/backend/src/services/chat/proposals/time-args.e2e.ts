@@ -50,6 +50,40 @@ describe('time arguments of chat cards and tools', () => {
     expect(created!.utcOffsetMinutes).toBe(240);
   });
 
+  it('logs 16:00 for a Tbilisi user and keeps the recorded zone after the user moves to Kyiv', async () => {
+    await setZone({ timeZone: 'Asia/Tbilisi' });
+    const account = await helpers.createAccount({ raw: true });
+
+    const { cards } = await proposeCards({
+      turns: [
+        {
+          toolCalls: [
+            { name: 'create_transaction', arguments: createArgs({ accountId: account.id, time: '2026-07-15T16:00' }) },
+          ],
+        },
+        { text: 'Done.' },
+      ],
+    });
+    const card = cardFor({ cards, toolName: 'create_transaction' });
+    expect(fieldValue({ card, path: 'time' })).toBe('2026-07-15T12:00:00.000Z');
+
+    await helpers.approveChatProposal({ proposalId: card.id, payload: { revision: card.revision } });
+    const [created] = await helpers.getTransactions({ raw: true });
+    expect(created).toMatchObject({
+      time: '2026-07-15T12:00:00.000Z',
+      timeZone: 'Asia/Tbilisi',
+      utcOffsetMinutes: 240,
+    });
+
+    await setZone({ timeZone: 'Europe/Kyiv' });
+    const [afterMove] = await helpers.getTransactions({ raw: true });
+    expect(afterMove).toMatchObject({
+      time: '2026-07-15T12:00:00.000Z',
+      timeZone: 'Asia/Tbilisi',
+      utcOffsetMinutes: 240,
+    });
+  });
+
   it('reads the wall clock in the zone the model names', async () => {
     await setZone({ timeZone: 'Asia/Tbilisi' });
     const account = await helpers.createAccount({ raw: true });
