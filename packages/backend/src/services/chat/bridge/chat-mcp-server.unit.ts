@@ -27,7 +27,7 @@ jest.mock('@services/common/with-transaction', () => ({
 jest.mock('../../mcp/auth', () => ({ buildMcpAuthInfo: jest.fn() }));
 jest.mock('../visuals/resolve-entity-labels', () => ({ resolveEntityLabels: jest.fn() }));
 
-import { CHAT_CORE_TOOLS } from '../policies/core-tools';
+import { CHAT_CORE_TOOLS, CHAT_WRITE_PRELOAD_TOOLS } from '../policies/core-tools';
 import { PREVIEW_RESOLVERS } from '../proposals/previews';
 import { createChatMcpServer } from './chat-mcp-server';
 
@@ -72,7 +72,10 @@ const parentRow = ({ id }: { id: string }) => ({
   appliedAt: null,
 });
 
-const connect = async (setupOptions: Parameters<typeof buildStubbedToolkit>[0] = {}) => {
+// Most cases propose writes, so the run starts with them offered, as a turn with an attachment does.
+const connect = async (
+  setupOptions: Parameters<typeof buildStubbedToolkit>[0] = { runOverrides: { preloadWrites: true } },
+) => {
   const setup = buildStubbedToolkit(setupOptions);
   const server = createChatMcpServer({ toolkit: setup.toolkit });
   const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
@@ -104,8 +107,8 @@ describe('chat-mode MCP server', () => {
   });
 
   describe('tools/list', () => {
-    it('lists the core tools, find_capabilities, use_capability and the chat-native tools, and no other write tool', async () => {
-      const { client, toolkit, close } = await connect();
+    it('lists the core tools, find_capabilities, use_capability and the chat-native tools, and no write tool', async () => {
+      const { client, toolkit, close } = await connect({ runOverrides: { preloadWrites: false } });
 
       const { tools } = await client.listTools();
       const names = tools.map((tool) => tool.name);
@@ -129,6 +132,19 @@ describe('chat-mode MCP server', () => {
       const strayWrites = names.filter((name) => !offered.has(name) && toolkit.getTool({ name })?.kind === 'write');
       expect(strayWrites).toEqual([]);
       expect(names).not.toContain('create_loan');
+    });
+
+    it('also lists the preloaded writes when the run starts with them, and still no other write tool', async () => {
+      const { client, toolkit, close } = await connect();
+
+      const { tools } = await client.listTools();
+      const names = tools.map((tool) => tool.name);
+      await close();
+
+      for (const name of CHAT_WRITE_PRELOAD_TOOLS) expect([name, names.includes(name)]).toEqual([name, true]);
+      const offered = new Set([...CHAT_CORE_TOOLS, ...CHAT_WRITE_PRELOAD_TOOLS]);
+      const strayWrites = names.filter((name) => !offered.has(name) && toolkit.getTool({ name })?.kind === 'write');
+      expect(strayWrites).toEqual([]);
     });
 
     it("advertises the toolkit's model schema as each tool's inputSchema", async () => {

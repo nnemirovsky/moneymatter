@@ -46,8 +46,12 @@ export function installToolkitSpies(): void {
 /** A toolkit over the stubbed catalog: every handler is a spy, so a test sees whether one ran. */
 export function buildStubbedToolkit({
   implementations,
-}: { implementations?: Record<string, (args: unknown) => unknown> } = {}) {
-  const { run, events } = makeChatRun();
+  runOverrides,
+}: {
+  implementations?: Record<string, (args: unknown) => unknown>;
+  runOverrides?: Parameters<typeof makeChatRun>[0];
+} = {}) {
+  const { run, events } = makeChatRun(runOverrides);
   const catalog = stubCatalog({ implementations });
   const toolkit = buildChatToolkit({ run, catalog });
   const handler = ({ name }: { name: string }) =>
