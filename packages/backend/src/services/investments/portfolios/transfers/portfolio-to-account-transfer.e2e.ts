@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
 import Accounts from '@models/accounts.model';
 import Portfolios from '@models/investments/portfolios.model';
+import Transactions from '@models/transactions.model';
 import * as helpers from '@tests/helpers';
 
 describe('Portfolio to Account Transfer (POST /investments/portfolios/:id/transfer/to-account)', () => {
@@ -31,6 +32,19 @@ describe('Portfolio to Account Transfer (POST /investments/portfolios/:id/transf
       setAvailableCash: '1000',
       setTotalCash: '1000',
     });
+  });
+
+  it('records the stored zone of the user on the income transaction when the request names none', async () => {
+    await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Tbilisi' } });
+
+    await helpers.portfolioToAccountTransfer({
+      portfolioId: portfolio.id,
+      payload: { accountId: account.id, amount: '300', currencyCode, date: '2026-07-15' },
+      raw: true,
+    });
+
+    const row = await Transactions.findOne({ where: { accountId: account.id } });
+    expect(row).toMatchObject({ timeZone: 'Asia/Tbilisi', utcOffsetMinutes: 240 });
   });
 
   it('should transfer funds from portfolio to account, create the income transaction and list the transfer', async () => {
