@@ -1,5 +1,7 @@
 import { PAYMENT_TYPES, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES } from '@bt/shared/types';
-import { currencyCode, recordId } from '@common/lib/zod/custom-types';
+import { timeInputSchema } from '@common/lib/time-zones/resolve-time-input';
+import { resolveUserTimeInput } from '@common/lib/time-zones/resolve-user-time';
+import { currencyCode, ianaTimeZone, recordId } from '@common/lib/zod/custom-types';
 import { Money } from '@common/types/money';
 import {
   nonNegativeAmountSchema,
@@ -53,7 +55,13 @@ const inputSchema = {
     .optional()
     .describe('Transfer type'),
   categoryId: recordId().optional().describe('New category ID'),
-  time: z.string().optional().describe('New date/time as ISO 8601 string'),
+  time: timeInputSchema()
+    .optional()
+    .describe("User's local wall time, no offset (2026-10-21T16:00); Z/offset = exact instant. Not UTC"),
+  timeZone: ianaTimeZone()
+    .nullable()
+    .optional()
+    .describe('IANA zone to record; null clears. Default: keep the row zone'),
   note: z.string().optional().nullable().describe('New note. Pass null to clear'),
   destinationAccountId: recordId().optional().describe('For transfers: new destination account ID'),
   destinationAmount: positiveAmountSchema()
@@ -131,6 +139,8 @@ export function registerUpdateTransaction(server: McpServer) {
 
       validateUpdateTransactionArgs({ args });
 
+      const when = await resolveUserTimeInput({ userId, mode: 'update', value: args.time, timeZone: args.timeZone });
+
       const result = await updateTransaction({
         id: args.id,
         userId,
@@ -140,7 +150,8 @@ export function registerUpdateTransaction(server: McpServer) {
         paymentType: args.paymentType,
         transferNature: args.transferNature,
         categoryId: args.categoryId,
-        time: args.time ? new Date(args.time) : undefined,
+        time: when.time,
+        ...('timeZone' in when ? { timeZone: when.timeZone } : {}),
         // An emptied note (a card's Edit leaves "") clears it.
         note: args.note?.trim() === '' ? null : args.note,
         destinationAccountId: args.destinationAccountId,

@@ -95,6 +95,7 @@ export async function accountToPortfolioTransfer<R extends boolean | undefined =
     amount: string;
     date: string;
     description?: string | null;
+    timeZone?: string | null;
   };
   raw?: R;
 }) {

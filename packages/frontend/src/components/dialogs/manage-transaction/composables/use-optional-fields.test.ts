@@ -20,9 +20,12 @@ const mount = (optionalFields?: string[]) => {
 };
 
 describe('useOptionalFields', () => {
-  it('enables every field by default until the setting is saved once', () => {
+  it('enables every field but the time zone by default until the setting is saved once', () => {
     const { isEnabled } = mount();
-    for (const field of TRANSACTION_OPTIONAL_FIELDS) expect(isEnabled(field)).toBe(true);
+    for (const field of TRANSACTION_OPTIONAL_FIELDS.filter((item) => item !== 'timeZone')) {
+      expect(isEnabled(field)).toBe(true);
+    }
+    expect(isEnabled('timeZone')).toBe(false);
     expect(mount([]).isEnabled('originalAmount')).toBe(false);
   });
 
@@ -32,7 +35,9 @@ describe('useOptionalFields', () => {
     await setEnabled({ field: 'location', value: false });
     expect(patchAsync).toHaveBeenLastCalledWith({
       ui: {
-        transactionForm: { optionalFields: TRANSACTION_OPTIONAL_FIELDS.filter((field) => field !== 'location') },
+        transactionForm: {
+          optionalFields: TRANSACTION_OPTIONAL_FIELDS.filter((field) => field !== 'location' && field !== 'timeZone'),
+        },
       },
     });
   });

@@ -22,6 +22,7 @@ describe('parseImportDate', () => {
     expect(result).toEqual({
       kind: 'instant',
       instant: new Date('2026-06-16T16:17:19.587Z'),
+      offsetMinutes: 120,
     });
   });
 

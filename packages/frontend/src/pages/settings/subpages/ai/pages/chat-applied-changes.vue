@@ -2,7 +2,8 @@
 import { Button } from '@/components/lib/ui/button';
 import { useChatText } from '@/components/chat/chat-text';
 import { useChatAppliedCards } from '@/composable/data-queries/chat';
-import { useDateLocale } from '@/composable/use-date-locale';
+import { getDateFnsLocale } from '@/composable/use-date-locale';
+import { formatDateWithTime } from '@/js/helpers/time-zone';
 import { ROUTES_NAMES } from '@/routes/constants';
 import { ChevronLeftIcon, CircleCheckIcon, Loader2Icon, RotateCwIcon } from '@lucide/vue';
 import { computed } from 'vue';
@@ -12,12 +13,12 @@ defineOptions({ name: 'settings-ai-chat-applied' });
 const SKELETON_COUNT = 4;
 
 const { titleText } = useChatText();
-const { format } = useDateLocale();
 const { data, isLoading, isError, hasNextPage, isFetchingNextPage, fetchNextPage, refetch } = useChatAppliedCards();
 
 const items = computed(() => data.value?.pages.flatMap((page) => page.items) ?? []);
 
-const appliedAt = ({ iso }: { iso: string | undefined }) => (iso ? format(new Date(iso), 'PPp') : '');
+const appliedAt = ({ iso }: { iso: string | undefined }) =>
+  iso ? formatDateWithTime({ date: new Date(iso), locale: getDateFnsLocale() }) : '';
 </script>
 
 <template>

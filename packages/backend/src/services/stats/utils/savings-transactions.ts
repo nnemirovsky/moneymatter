@@ -18,12 +18,15 @@ export const fetchSavingsTransactions = ({
   from,
   to,
   decimals,
+  zone,
 }: {
   userId: number;
   from: string;
   to: string;
   /** Decimals of the base currency: the scale refund pairs are resolved in. */
   decimals: number;
+  /** Zone the `from`/`to` days are read in. The savings reports pass `'UTC'`, the zone of `Balances` days. */
+  zone: string;
 }): Promise<StatsTransactionsResult> =>
   statsTransactions({
     // `{ creator }`, not `{ accessibleTo }`: both consumers are personal surfaces — the
@@ -34,7 +37,7 @@ export const fetchSavingsTransactions = ({
     planned: 'exclude',
     refunds: 'net',
     decimals,
-    window: { from, to },
+    window: { from, to, zone },
     // A loan payment moves cash into an equal liability drop, so it is not savings intake even
     // though spending reports count its cash leg as an expense.
     where: {

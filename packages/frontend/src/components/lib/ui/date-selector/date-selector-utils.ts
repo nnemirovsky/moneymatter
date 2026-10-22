@@ -1,4 +1,5 @@
 import { type Period } from '@/composable/use-period-navigation';
+import { viewingNow } from '@/js/helpers/time-zone';
 import {
   endOfMonth,
   endOfQuarter,
@@ -83,7 +84,7 @@ export function isFutureCell({
   year: number;
   index: number;
 }): boolean {
-  const now = new Date();
+  const now = viewingNow();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth();
 
@@ -327,7 +328,7 @@ export function parseDateInput({ input }: { input: string }): ParsedDateInput | 
   const trimmed = input.trim();
   if (!trimmed) return null;
 
-  const currentYear = new Date().getFullYear();
+  const currentYear = viewingNow().getFullYear();
 
   // "2025" — year
   if (/^\d{4}$/.test(trimmed)) {

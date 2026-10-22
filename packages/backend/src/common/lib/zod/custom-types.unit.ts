@@ -1,7 +1,15 @@
 import { describe, expect, it } from '@jest/globals';
 import { z } from 'zod';
 
-import { currencyCode, currencyLogoUrl, dateBound, dateRange, isoCurrencyCode, withDateOrder } from './custom-types';
+import {
+  currencyCode,
+  currencyLogoUrl,
+  dateBound,
+  dateRange,
+  ianaTimeZone,
+  isoCurrencyCode,
+  withDateOrder,
+} from './custom-types';
 
 describe('dateBound', () => {
   describe("precision 'date' (default)", () => {
@@ -284,5 +292,21 @@ describe('currencyLogoUrl', () => {
     ['a URL of 2049 characters', `https://example.com/${'a'.repeat(2049 - 'https://example.com/'.length)}`],
   ])('rejects %s', (_label, input) => {
     expect(schema.safeParse(input).success).toBe(false);
+  });
+});
+
+describe('ianaTimeZone', () => {
+  const schema = ianaTimeZone();
+
+  it('accepts a zone, UTC and an alias Chrome still reports', () => {
+    expect(schema.safeParse('Asia/Tbilisi').success).toBe(true);
+    expect(schema.safeParse('UTC').success).toBe(true);
+    expect(schema.safeParse('Europe/Kiev').success).toBe(true);
+  });
+
+  it('refuses an offset, an unknown zone and an empty string', () => {
+    expect(schema.safeParse('+04:00').success).toBe(false);
+    expect(schema.safeParse('Mars/Base').success).toBe(false);
+    expect(schema.safeParse('').success).toBe(false);
   });
 });

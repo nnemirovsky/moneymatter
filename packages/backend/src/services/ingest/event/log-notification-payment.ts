@@ -10,6 +10,7 @@ import { resolveVisibleCurrencies } from '@services/currencies/assert-currency-c
 import { buildExternalReference } from '../card-payment/constants';
 import { convertToAccountCurrency } from '../card-payment/convert-to-account-currency';
 import { formatSummary } from '../card-payment/format-summary';
+import { readPayloadTimeZone } from '../card-payment/parse-payload';
 import { pickHistoryCategory } from '../card-payment/pick-history-category';
 import { formatRateDate } from '../card-payment/rate-unavailable-error';
 import { resolveCurrency, resolveStatedCurrency } from '../card-payment/resolve-currency';
@@ -258,6 +259,7 @@ const logNotificationPaymentImpl = async ({
       cardLastDigits: payment.cardLastDigits,
       balanceAfter,
       bankWallClock: payment.occurredAt ? wallClockOf({ date: payment.occurredAt }) : null,
+      requestTimeZone: readPayloadTimeZone({ value: row.payload.timeZone }),
     },
   });
   if (attached) {

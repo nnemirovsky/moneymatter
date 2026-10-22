@@ -26,6 +26,7 @@ export const FINANCIAL_DATA_GUIDE_CONTENT = `You are connected to MoneyMatter, a
 **Best Practices:**
 - Always check the user's base currency first via get_user_profile
 - Use search_transactions with date filters rather than requesting all data
+- Times: send a transaction's time as the user's local wall time without an offset (2026-10-21T16:00), plus timeZone (an IANA name) only when it happened in another zone, and never convert it to UTC yourself. Date ranges take dates (a date covers that whole day in the user's time zone)
 - For spending analysis, prefer get_spending_by_categories or get_cash_flow over manually summing transactions
 - Tracker limits and spending are always in the user's base currency
 - While a base currency change is running (get_base_currency_change_status), writes fail until it finishes; reads still work, so wait and retry`;

@@ -50,7 +50,7 @@ describe('editing a card that is still pending', () => {
       ['create_transaction', 'pending'],
     ]);
     expect(stored[1]!.supersedesId).toBe(stored[0]!.id);
-    expect(stored[1]!.args).toMatchObject({ amount: 18, note: 'taxi', time: '2026-10-21T12:25:00Z' });
+    expect(stored[1]!.args).toMatchObject({ amount: 18, note: 'taxi', time: '2026-10-21T12:25:00.000Z' });
     expect(stored[1]!.error).toBeNull();
     expect(cards.some((card) => card.toolName === 'update_transaction')).toBe(false);
     expect(script.remaining()).toBe(0);

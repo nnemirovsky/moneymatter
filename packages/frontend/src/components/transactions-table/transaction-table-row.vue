@@ -56,7 +56,9 @@
     >
       <!-- Date -->
       <template v-if="column.id === TABLE_COLUMN.date">
-        <span class="text-muted-foreground tabular-nums">{{ formattedDate }}</span>
+        <TransactionDateTooltip :time="tx.time" :time-zone="tx.timeZone" :utc-offset-minutes="tx.utcOffsetMinutes">
+          <span class="text-muted-foreground tabular-nums">{{ formattedDate }}</span>
+        </TransactionDateTooltip>
       </template>
 
       <!-- Account -->
@@ -239,6 +241,7 @@ import { Button } from '@/components/lib/ui/button';
 import { Checkbox } from '@/components/lib/ui/checkbox';
 import { ScrollArea } from '@/components/lib/ui/scroll-area';
 import { DesktopOnlyTooltip } from '@/components/lib/ui/tooltip';
+import TransactionDateTooltip from '@/components/transactions-list/transaction-date-tooltip.vue';
 import AttachmentIndicator from '@/components/transactions-list/indicators/attachment-indicator.vue';
 import MissingRateIndicator from '@/components/transactions-list/indicators/missing-rate-indicator.vue';
 import PlannedIndicator from '@/components/transactions-list/indicators/planned-indicator.vue';
@@ -273,7 +276,7 @@ import {
   RocketIcon,
   SquareArrowOutUpRightIcon,
 } from '@lucide/vue';
-import { format } from 'date-fns';
+import { formatInViewingZone } from '@/js/helpers/time-zone';
 import { storeToRefs } from 'pinia';
 import { type Component, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -378,7 +381,7 @@ const transferDestinationName = computed(
   () => transferDestinationAccount.value?.name ?? t('common.transactions.record.hiddenAccount'),
 );
 
-const formattedDate = computed(() => format(new Date(props.tx.time), 'd MMM y'));
+const formattedDate = computed(() => formatInViewingZone({ date: new Date(props.tx.time), pattern: 'd MMM y' }));
 
 const amountColorClass = computed(() => {
   if (isTwoLegTransferRow.value) return 'text-app-transfer-color';

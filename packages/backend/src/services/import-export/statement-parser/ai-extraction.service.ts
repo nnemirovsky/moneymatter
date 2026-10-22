@@ -21,6 +21,7 @@ import {
 import { trackAiUsage } from '@services/ai/track-ai-usage';
 import { getOwnCustomCurrencyCodes } from '@services/currencies/assert-currency-codes-visible';
 import { type AIExtractionError, resolveAiExtractionFailure } from '@services/import-export/core/ai-extraction-failure';
+import { resolveImportZones } from '@services/import-export/core/resolve-import-zones';
 import { type ModelMessage, generateText } from 'ai';
 import { format } from 'date-fns';
 
@@ -37,7 +38,7 @@ interface AIExtractionParams {
   content: StatementContent;
   pageCount: number;
   fileType: StatementFileType;
-  /** IANA timezone the user's "today" is read in; the server's own zone when absent or unknown. */
+  /** IANA timezone the user's "today" is read in; the user's time zone setting when absent or unknown. */
   timezone?: string;
 }
 
@@ -112,7 +113,12 @@ export async function extractTransactionsWithAI({
     } = await generateText({
       model: aiClient.model,
       system: buildStatementExtractionSystemPrompt({ customCurrencyCodes }),
-      messages: [buildUserMessage({ content, today: todayIn({ timezone }) })],
+      messages: [
+        buildUserMessage({
+          content,
+          today: todayIn({ timezone: (await resolveImportZones({ userId, timezone })).anchorZone }),
+        }),
+      ],
       abortSignal,
       maxRetries,
       maxOutputTokens: AI_MAX_OUTPUT_TOKENS,

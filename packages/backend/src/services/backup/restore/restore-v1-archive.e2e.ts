@@ -115,6 +115,14 @@ describe('Restoring a format version 1 backup (cents to decimals)', () => {
     const archive = await exportParsed();
     expect(archive.manifest.formatVersion).toBe(BACKUP_FORMAT_VERSION);
 
+    // An archive written before transactions carried a zone restores them as Unknown.
+    const restoredTransactions = rowsOf({ archive, name: 'transactions' });
+    expect(restoredTransactions).toHaveLength(3);
+    for (const transaction of restoredTransactions) {
+      expect(transaction.timeZone ?? null).toBeNull();
+      expect(transaction.utcOffsetMinutes ?? null).toBeNull();
+    }
+
     const accounts = rowsOf({ archive, name: 'accounts' });
     const checking = findRow({ rows: accounts, key: 'name', value: 'Checking' });
     expectDecimal({ actual: checking.initialBalance, expected: '1500.75' });

@@ -1,9 +1,11 @@
 import { TRANSACTION_TYPES } from '@bt/shared/types';
+import { localDay } from '@common/lib/time-zones/tz-options';
 import { recordId } from '@common/lib/zod/custom-types';
 import { Money } from '@common/types/money';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getSpendingsByCategoriesReport } from '@services/stats/reports/spendings-by-categories.report';
+import { getUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { z } from 'zod';
 
 import { getUserId, jsonContent } from './helpers';
@@ -32,13 +34,15 @@ export function registerGetSpendingByCategories(server: McpServer) {
       const userId = getUserId({ extra });
       trackMcpToolUsed({ userId, tool: 'get_spending_by_categories', clientId: extra.authInfo?.clientId });
 
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      // The default range is the current month in the user's zone, as calendar days.
+      const zone = await getUserTimeZone({ userId });
+      const today = localDay({ zone });
+      const monthStart = `${today.slice(0, 7)}-01`;
 
       const serialized = await getSpendingsByCategoriesReport({
         userId,
-        from: args.startDate ?? startOfMonth.toISOString(),
-        to: args.endDate ?? now.toISOString(),
+        from: args.startDate ?? monthStart,
+        to: args.endDate ?? today,
         accountId: args.accountId,
         transactionType: args.transactionType,
         categoryIds: args.categoryIds,
@@ -56,8 +60,8 @@ export function registerGetSpendingByCategories(server: McpServer) {
       return jsonContent({
         data: {
           period: {
-            startDate: args.startDate ?? startOfMonth.toISOString().split('T')[0],
-            endDate: args.endDate ?? now.toISOString().split('T')[0],
+            startDate: args.startDate ?? monthStart,
+            endDate: args.endDate ?? today,
           },
           categories,
           total,

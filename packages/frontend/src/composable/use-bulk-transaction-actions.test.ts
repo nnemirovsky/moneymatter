@@ -1,7 +1,7 @@
 import { ACCOUNT_TYPES, type AccountModel, type RecordId, type TransactionModel } from '@bt/shared/types';
 import { describe, expect, it } from 'vitest';
 
-import { buildBulkTarget, isExternalTransaction } from './use-bulk-transaction-actions';
+import { buildBulkTarget, buildBulkTimeZoneBody, isExternalTransaction } from './use-bulk-transaction-actions';
 
 const buildTx = (overrides: Partial<TransactionModel>): TransactionModel =>
   ({
@@ -50,5 +50,24 @@ describe('buildBulkTarget', () => {
     expect(buildBulkTarget({ matching: undefined, excludedIds: ['tx-2'], selectedIds: ['tx-1'] })).toEqual({
       transactionIds: ['tx-1'],
     });
+  });
+});
+
+describe('buildBulkTimeZoneBody', () => {
+  it('records the zone on the ticked ids', () => {
+    expect(buildBulkTimeZoneBody({ target: { transactionIds: ['tx-1'] }, timeZone: 'Asia/Makassar' })).toEqual({
+      transactionIds: ['tx-1'],
+      timeZone: 'Asia/Makassar',
+    });
+  });
+
+  it('records the zone on a filter selection and sends null to clear it', () => {
+    const target = { selection: { filters: { accountIds: ['account-1'] }, excludedIds: ['tx-2'] } };
+
+    expect(buildBulkTimeZoneBody({ target, timeZone: 'Asia/Makassar' })).toEqual({
+      ...target,
+      timeZone: 'Asia/Makassar',
+    });
+    expect(buildBulkTimeZoneBody({ target, timeZone: null })).toEqual({ ...target, timeZone: null });
   });
 });

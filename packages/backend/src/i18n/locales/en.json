@@ -748,6 +748,7 @@
       "cardTooLong": "The card name is longer than 100 characters.",
       "nameTooLong": "The payment name is longer than 200 characters.",
       "invalidTime": "The time must be an ISO 8601 date and time with an offset.",
+      "invalidTimeZone": "The time zone must be an IANA name such as Asia/Tbilisi.",
       "timeInFuture": "The payment time is in the future.",
       "timeTooOld": "The payment time is more than 30 days in the past.",
       "invalidKind": "The kind must be \"walletTransaction\" or \"notification\".",

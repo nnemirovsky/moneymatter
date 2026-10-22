@@ -26,6 +26,15 @@ describe('buildSystemPrompt', () => {
     expect(buildSystemPrompt(params)).toContain('Now: 2026-10-18 14:30 (UTC); today is 2026-10-18.');
   });
 
+  it('tells the model which zone the user times are in and to send wall clocks, never UTC', () => {
+    const prompt = buildSystemPrompt({ ...params, timeZone: 'Asia/Tbilisi' });
+
+    expect(prompt).toContain('Times the user mentions are in Asia/Tbilisi unless they name another place or zone.');
+    expect(prompt).toContain('local wall time (2026-10-21T16:00)');
+    expect(prompt).toContain('Never convert them to UTC.');
+    expect(prompt).toContain('security prices');
+  });
+
   it('has the role and the two modes, and never lets the model claim a change is done', () => {
     const prompt = buildSystemPrompt(params);
 

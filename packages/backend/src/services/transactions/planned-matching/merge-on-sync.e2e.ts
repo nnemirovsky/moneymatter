@@ -692,3 +692,58 @@ describe('Planned transactions – merge on sync', () => {
     });
   });
 });
+
+describe('Bank sync – recorded time zone', () => {
+  const setZone = ({ timeZone }: { timeZone: string }) =>
+    helpers.patchUserSettings({ raw: true, patch: { timeZone, timeZoneSource: 'manual' } });
+
+  it('stamps the user zone on a row dated within 3 days of the sync and leaves an old row unknown', async () => {
+    await setZone({ timeZone: 'Asia/Tbilisi' });
+    const now = new Date();
+    const { connectionId, accountId } = await anchoredAccount({ anchorTime: subDays(startOfDay(now), 100) });
+
+    const recent = helpers.monobank.buildTransaction({ amount: -1500, time: subDays(now, 1), description: 'RECENT' });
+    const old = helpers.monobank.buildTransaction({ amount: -2500, time: subDays(now, 90), description: 'OLD' });
+    await syncAccount({ connectionId, accountId, transactions: [recent, old] });
+
+    const rows = await listAccountTransactions({ accountId });
+    expect(rows.find((row) => row.originalId === recent.id)).toMatchObject({
+      timeZone: 'Asia/Tbilisi',
+      utcOffsetMinutes: 240,
+    });
+    expect(rows.find((row) => row.originalId === old.id)).toMatchObject({ timeZone: null, utcOffsetMinutes: null });
+  }, 30000);
+
+  it('records nothing on a recent row for a user with no zone setting', async () => {
+    const now = new Date();
+    const { connectionId, accountId } = await anchoredAccount({ anchorTime: subDays(startOfDay(now), 10) });
+
+    const recent = helpers.monobank.buildTransaction({ amount: -1500, time: subDays(now, 1), description: 'RECENT' });
+    await syncAccount({ connectionId, accountId, transactions: [recent] });
+
+    const rows = await listAccountTransactions({ accountId });
+    expect(rows.find((row) => row.originalId === recent.id)).toMatchObject({ timeZone: null, utcOffsetMinutes: null });
+  }, 30000);
+
+  it('gives a plan without a zone the zone of the synced row that confirms it', async () => {
+    await setZone({ timeZone: 'Asia/Tbilisi' });
+    const now = new Date();
+    const { connectionId, accountId } = await anchoredAccount({ anchorTime: subDays(startOfDay(now), 10) });
+
+    const [plan] = await helpers.createPlannedTransaction({
+      payload: { accountId, amount: 250, time: addDays(startOfDay(now), 2).toISOString(), note: 'Rent' },
+      raw: true,
+    });
+    expect(plan).toMatchObject({ timeZone: null });
+
+    const incoming = helpers.monobank.buildTransaction({
+      amount: -25000,
+      time: subDays(startOfDay(now), 1),
+      description: 'RENT LANDLORD',
+    });
+    await syncAccount({ connectionId, accountId, transactions: [incoming] });
+
+    const merged = (await listAccountTransactions({ accountId })).find((row) => row.id === plan!.id)!;
+    expect(merged).toMatchObject({ isPlanned: false, timeZone: 'Asia/Tbilisi', utcOffsetMinutes: 240 });
+  }, 30000);
+});

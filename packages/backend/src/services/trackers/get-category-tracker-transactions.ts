@@ -60,7 +60,8 @@ export const getCategoryTrackerTransactions = async ({
     access: { creator: ownerUserId },
     planned,
     refunds: 'ignore',
-    window: { from: tracker.startDate ?? undefined, to: tracker.endDate ?? undefined },
+    // Exact instants: the zone only reads day strings.
+    window: { from: tracker.startDate ?? undefined, to: tracker.endDate ?? undefined, zone: 'UTC' },
     where: { categoryId: { [Op.in]: categoryIds } },
     include: [
       { model: TransactionSplits, as: 'splits', required: false },

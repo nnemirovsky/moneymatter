@@ -41,6 +41,21 @@
             </Button>
           </DesktopOnlyTooltip>
 
+          <DesktopOnlyTooltip :content="$t('transactions.bulkTimeZone.button')" :disabled="!isMobileMode">
+            <Button
+              variant="outline"
+              :size="isMobileMode ? 'icon-sm' : 'sm'"
+              :disabled="isBulkLoading"
+              :aria-label="isMobileMode ? $t('transactions.bulkTimeZone.button') : undefined"
+              @click="isBulkTimeZoneDialogOpen = true"
+            >
+              <GlobeIcon class="size-4" />
+              <template v-if="!isMobileMode">
+                {{ $t('transactions.bulkTimeZone.button') }}
+              </template>
+            </Button>
+          </DesktopOnlyTooltip>
+
           <DropdownMenu>
             <!-- Tooltip wraps the trigger (not nested inside) – reka-ui's as-child
                  can't merge a click handler through the tooltip's fragment root. -->
@@ -335,6 +350,7 @@ import { useElementSize, useEventListener } from '@vueuse/core';
 import {
   ArrowDownIcon,
   ArrowUpIcon,
+  GlobeIcon,
   GroupIcon,
   ListPlusIcon,
   PencilIcon,
@@ -452,6 +468,7 @@ const {
   selectAllState,
   handleSelectAllToggle,
   isBulkEditDialogOpen,
+  isBulkTimeZoneDialogOpen,
   isCreateGroupDialogOpen,
   isAddToGroupDialogOpen,
   isBulkDeleteDialogOpen,

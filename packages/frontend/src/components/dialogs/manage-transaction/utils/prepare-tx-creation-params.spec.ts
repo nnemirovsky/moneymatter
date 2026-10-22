@@ -1,5 +1,6 @@
 import { OUT_OF_WALLET_ACCOUNT_MOCK } from '@/common/const';
 import type { FormattedCategory } from '@/common/types';
+import { viewingTimeZone } from '@/js/helpers/time-zone';
 import {
   ACCOUNT_CATEGORIES,
   type AccountModel,
@@ -78,6 +79,7 @@ describe('prepareTxCreationParams', () => {
         amount: 100,
         note: 'Test note',
         time: form.time.toUTCString(),
+        timeZone: viewingTimeZone.value,
         transactionType: TRANSACTION_TYPES.expense,
         paymentType: PAYMENT_TYPES.creditCard,
         accountId: '00000000-0000-0000-0000-000000000001' as RecordId,
@@ -87,6 +89,18 @@ describe('prepareTxCreationParams', () => {
         // auto-applying the payee's default tags.
         tagIds: [],
       });
+    });
+
+    it('sends the viewing zone, or the zone picked in the form', () => {
+      viewingTimeZone.value = 'Asia/Tbilisi';
+      const args = { isTransferTx: false, isCurrenciesDifferent: false };
+
+      expect(prepareTxCreationParams({ form: createBaseForm(), ...args }).timeZone).toBe('Asia/Tbilisi');
+      expect(
+        prepareTxCreationParams({ form: createBaseForm({ timeZone: 'America/New_York' }), ...args }).timeZone,
+      ).toBe('America/New_York');
+
+      viewingTimeZone.value = 'UTC';
     });
 
     it('creates income transaction params', () => {

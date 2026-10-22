@@ -9,11 +9,14 @@ import { normalizePayeeName } from '@services/payees/normalize-name';
 import { ensureAliasExists, isPayeeNameIgnored, resolveNormalizedName } from '@services/payees/payee-namespace';
 import { resolvePayeeForIncomingRow } from '@services/payees/resolve-payee-for-incoming-row';
 
+import { deriveStoredZone } from '../recorded-zone';
 import { hasMerchantAffinity } from './card-payment-tolerance';
 import { loadPlanNames } from './find-planned-match';
 
 export interface IncomingTransactionData {
   time: Date;
+  timeZone?: string | null;
+  utcOffsetMinutes?: number | null;
   note?: string | null;
   originalId?: string | null;
   externalData?: Record<string, unknown> | null;
@@ -142,6 +145,16 @@ export const mergeIntoPlanned = async ({
           logContext: { plannedTransactionId: planned.id, accountId: planned.accountId },
         }));
 
+  // The incoming zone wins when it has one. Otherwise the plan keeps its own zone, with the offset
+  // recomputed at the new time; a plan without a zone takes the offset the incoming row stated.
+  const recordedZone = incoming.timeZone
+    ? deriveStoredZone({ time: incoming.time, timeZone: incoming.timeZone })
+    : deriveStoredZone({
+        time: incoming.time,
+        timeZone: planned.timeZone,
+        utcOffsetMinutes: incoming.utcOffsetMinutes,
+      });
+
   await planned.update({
     amount,
     refAmount,
@@ -149,6 +162,8 @@ export const mergeIntoPlanned = async ({
     commissionRate,
     cashbackAmount,
     time: incoming.time,
+    timeZone: recordedZone.timeZone,
+    utcOffsetMinutes: recordedZone.utcOffsetMinutes,
     originalId: incoming.originalId ?? null,
     accountType: incoming.accountType,
     note: joinNotes({ plannedNote: planned.note, bankNote: incoming.note }),

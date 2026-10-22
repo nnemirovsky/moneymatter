@@ -4,7 +4,12 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { KEY_TIME_FORMAT, buildCardPaymentShortcut, renderCardPaymentShortcutXml } from './build-card-payment-shortcut';
+import {
+  KEY_TIME_FORMAT,
+  TIME_ZONE_FORMAT,
+  buildCardPaymentShortcut,
+  renderCardPaymentShortcutXml,
+} from './build-card-payment-shortcut';
 import {
   BUSY_ERROR_CODE,
   BUSY_RETRY_WAIT_SECONDS,
@@ -146,7 +151,16 @@ describe('card-payment shortcut generator', () => {
       const keys = dictionaryItems(params(paymentRequest!)[SHORTCUT_PARAMS.jsonValues]).map(keyOf);
 
       for (const key of keys) expect(CARD_PAYMENT_REQUEST_KEYS).toContain(key);
-      expect(keys.sort()).toEqual(['amount', 'card', 'idempotencyKey', 'merchant', 'name', 'source', 'time']);
+      expect(keys.sort()).toEqual([
+        'amount',
+        'card',
+        'idempotencyKey',
+        'merchant',
+        'name',
+        'source',
+        'time',
+        'timeZone',
+      ]);
     });
 
     it('sends the authorization and Cloudflare Access headers', () => {
@@ -176,11 +190,22 @@ describe('card-payment shortcut generator', () => {
       expect(tokenAttachments(time.WFValue)[0]!.OutputUUID).toBe(params(isoAction).UUID);
     });
 
-    it('binds the date of both Format Date actions as a text token on the current date', () => {
+    it('sends the IANA zone of the run as timeZone, formatted with VV', () => {
+      const zoneAction = actions.find((action) => params(action)[SHORTCUT_PARAMS.dateFormat] === TIME_ZONE_FORMAT)!;
+      const entry = dictionaryItems(params(paymentRequest!)[SHORTCUT_PARAMS.jsonValues]).find(
+        (item) => keyOf(item) === 'timeZone',
+      )!;
+
+      expect(TIME_ZONE_FORMAT).toBe('VV');
+      expect(params(zoneAction)[SHORTCUT_PARAMS.dateFormatStyle]).toBe('Custom');
+      expect(tokenAttachments(entry.WFValue)[0]!.OutputUUID).toBe(params(zoneAction).UUID);
+    });
+
+    it('binds the date of every Format Date action as a text token on the current date', () => {
       const formatActions = byId(SHORTCUT_ACTIONS.formatDate);
       const [now] = byId(SHORTCUT_ACTIONS.currentDate);
 
-      expect(formatActions).toHaveLength(2);
+      expect(formatActions).toHaveLength(3);
       for (const action of formatActions) {
         const date = params(action)[SHORTCUT_PARAMS.date];
 
@@ -265,10 +290,9 @@ describe('card-payment shortcut generator', () => {
 
       // Typed-into slots take a text token; variable-only slots take a bare attachment.
       expect(serialization(SHORTCUT_ACTIONS.replaceText, SHORTCUT_PARAMS.input)).toEqual(['WFTextTokenString']);
-      expect(serialization(SHORTCUT_ACTIONS.formatDate, SHORTCUT_PARAMS.date)).toEqual([
-        'WFTextTokenString',
-        'WFTextTokenString',
-      ]);
+      expect(serialization(SHORTCUT_ACTIONS.formatDate, SHORTCUT_PARAMS.date)).toEqual(
+        Array(3).fill('WFTextTokenString'),
+      );
       expect(serialization(SHORTCUT_ACTIONS.base64, SHORTCUT_PARAMS.input)).toEqual(['WFTextTokenAttachment']);
       expect(serialization(SHORTCUT_ACTIONS.detectText, SHORTCUT_PARAMS.input)).toEqual(['WFTextTokenAttachment']);
       expect(serialization(SHORTCUT_ACTIONS.detectDictionary, SHORTCUT_PARAMS.input)).toEqual([

@@ -432,6 +432,16 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
   describe('Round-trip', () => {
     it('restoring an export into the same user reproduces every table byte-for-byte, with no foreign-reference warnings', async () => {
       await seedRichData();
+      const zonedAccount = await helpers.createAccount({ raw: true });
+      await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({
+          accountId: zonedAccount.id,
+          time: '2026-07-15T12:00:00.000Z',
+          timeZone: 'Asia/Tbilisi',
+          note: 'Zoned backup row',
+        }),
+        raw: true,
+      });
 
       const first = await exportArchive();
       const firstArchive = helpers.parseBackupArchive({ buffer: first.buffer });
@@ -497,6 +507,9 @@ describe('Data backup restore (POST /user/backup/restore)', () => {
       // The non-default setting round-trips through the Zod re-parse.
       const settingsAfter = (secondArchive.readData({ name: 'user-settings' }) as Row[])[0]!;
       expect((settingsAfter.settings as { locale?: string }).locale).toBe('uk');
+
+      const zonedAfter = (await helpers.getTransactions({ raw: true })).find((tx) => tx.note === 'Zoned backup row');
+      expect(zonedAfter).toMatchObject({ timeZone: 'Asia/Tbilisi', utcOffsetMinutes: 240 });
 
       const restoredTag = (await helpers.getTags({ raw: true })).find((row) => row.name === 'reimbursable');
       const restoredCategory = (await helpers.getCategoriesList()).find((row) => row.name === 'Living');

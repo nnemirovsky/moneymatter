@@ -6,7 +6,7 @@ import { Label } from '@/components/lib/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/lib/ui/radio-group';
 import TransactionRecord from '@/components/transactions-list/transaction-record.vue';
 import { usePayeeLookup } from '@/composable/data-queries/payees';
-import { useDateLocale } from '@/composable/use-date-locale';
+import { formatTime } from '@/js/helpers/time-zone';
 import { extractApiErrorMessage } from '@/js/errors';
 import { cn } from '@/lib/utils';
 import type { RecordId, TransactionModel } from '@bt/shared/types';
@@ -24,7 +24,6 @@ const open = defineModel<boolean>('open', { required: true });
 const emit = defineEmits<{ merged: [] }>();
 
 const { t } = useI18n();
-const { format } = useDateLocale();
 const { byId: payeeById } = usePayeeLookup();
 const { merge } = useReconciliationActions();
 
@@ -53,7 +52,7 @@ const HIDDEN_FIELDS: {
   {
     key: 'time',
     labelKey: 'optimizations.reconciliation.merge.fields.time',
-    value: (tx) => format(tx.time, 'HH:mm'),
+    value: (tx) => formatTime({ date: new Date(tx.time) }),
   },
   {
     key: 'status',

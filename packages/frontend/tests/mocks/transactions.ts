@@ -26,6 +26,8 @@ const buildCommonTxBody = (overrides: Partial<TransactionModel> = {}): Transacti
     refAmount,
     note: '',
     time: new Date(),
+    timeZone: null,
+    utcOffsetMinutes: null,
     userId: USER.id,
     transactionType: TRANSACTION_TYPES.income,
     paymentType: PAYMENT_TYPES.creditCard,

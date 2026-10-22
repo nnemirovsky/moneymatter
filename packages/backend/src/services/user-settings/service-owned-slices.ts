@@ -18,8 +18,14 @@ export const stripServiceOwnedSlices = <T extends object>({ settings }: { settin
   omit(settings, [...SERVICE_OWNED_SETTING_PATHS]) as unknown as T;
 
 /**
- * Deep-merges into the stored settings: an absent key never erases one, and the customizer
- * replaces arrays wholesale so an incoming array is the full list. A shallow spread would be
+ * Top-level keys a patch clears by sending `null`. Other nullable settings (the FIRE overrides,
+ * `defaultAccountId`) keep a stored `null`, which readers tell apart from an absent key.
+ */
+const NULL_CLEARS_KEY = ['hourCycle'] as const;
+
+/**
+ * Deep-merges into the stored settings: an absent key never erases one, a `null` on a `NULL_CLEARS_KEY` key removes it,
+ * and the customizer replaces arrays wholesale so an incoming array is the full list. A shallow spread would be
  * wrong here, because a request carrying a partial `ai` object would drop the stored connections
  * alongside it.
  */
@@ -29,5 +35,10 @@ export const mergeIntoStoredSettings = ({
 }: {
   stored: SettingsSchema;
   incoming: object;
-}): SettingsSchema =>
-  mergeWith({}, stored, incoming, (_current, next) => (Array.isArray(next) ? next : undefined)) as SettingsSchema;
+}): SettingsSchema => {
+  const merged = mergeWith({}, stored, incoming, (_current, next) => (Array.isArray(next) ? next : undefined));
+  for (const key of NULL_CLEARS_KEY) {
+    if ((incoming as Record<string, unknown>)[key] === null) delete (merged as Record<string, unknown>)[key];
+  }
+  return merged as SettingsSchema;
+};

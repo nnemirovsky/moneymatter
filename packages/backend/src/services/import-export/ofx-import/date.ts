@@ -6,6 +6,14 @@ const OFX_DATE =
   /^(\d{4})(\d{2})(\d{2})(?:(\d{2})(\d{2})(\d{2})(?:\.(\d+))?)?(?:\[([+-]?\d+(?:\.\d+)?)(?::[^\]]*)?\])?$/;
 
 export function parseOfxDate({ value, timezone }: { value: string; timezone?: string }): string {
+  return parseOfxDateWithOffset({ value, timezone }).iso;
+}
+
+/** `parseOfxDate` plus the offset the cell wrote in minutes (`[+2:EET]` is 120); `null` for a cell with none. */
+export function parseOfxDateWithOffset({ value, timezone }: { value: string; timezone?: string }): {
+  iso: string;
+  offsetMinutes: number | null;
+} {
   const match = OFX_DATE.exec(value.trim());
   if (!match) throw new OfxParseError({ code: 'invalid-date', key: 'ofxImport.errors.invalidDate', params: { value } });
 
@@ -51,7 +59,7 @@ export function parseOfxDate({ value, timezone }: { value: string; timezone?: st
           ms: milliseconds,
         }
       : { kind: 'dateOnly' as const, year: Number(year), month: Number(month), day: Number(day) };
-    return anchorImportDate({ parsed, timezone }).toISOString();
+    return { iso: anchorImportDate({ parsed, timezone }).toISOString(), offsetMinutes: null };
   }
 
   // An OFX offset is a decimal number of hours east or west of UTC.
@@ -69,7 +77,7 @@ export function parseOfxDate({ value, timezone }: { value: string; timezone?: st
     throw new OfxParseError({ code: 'invalid-date', key: 'ofxImport.errors.invalidDate', params: { value } });
   }
   try {
-    return date.toISOString();
+    return { iso: date.toISOString(), offsetMinutes: Math.round(offsetNumber * 60) };
   } catch {
     throw new OfxParseError({ code: 'invalid-date', key: 'ofxImport.errors.invalidDate', params: { value } });
   }

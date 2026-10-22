@@ -51,6 +51,8 @@ export interface TransactionApiResponse {
   externalReference: string | null;
   location: TransactionLocation | null;
   time: Date;
+  timeZone: string | null;
+  utcOffsetMinutes: number | null;
   userId: number;
   transactionType: string;
   paymentType: string;
@@ -121,6 +123,7 @@ interface CreateTransactionRequest {
   externalReference?: string | null;
   location?: TransactionLocation | null;
   time?: string;
+  timeZone?: string | null;
   transactionType: TRANSACTION_TYPES;
   paymentType: PAYMENT_TYPES;
   accountId: RecordId;
@@ -158,6 +161,7 @@ interface CreateTransactionInternal {
   /** `null` is the caller's explicit "no location" and blocks the payee default; absent means "not mentioned". */
   location?: TransactionLocation | null;
   time?: Date;
+  timeZone?: string | null;
   transactionType: TRANSACTION_TYPES;
   paymentType: PAYMENT_TYPES;
   accountId: RecordId;
@@ -245,6 +249,8 @@ export function serializeTransaction(
     externalReference: tx.externalReference ?? null,
     location: tx.location ?? null,
     time: tx.time,
+    timeZone: tx.timeZone ?? null,
+    utcOffsetMinutes: tx.utcOffsetMinutes ?? null,
     userId: tx.userId,
     transactionType: tx.transactionType,
     paymentType: tx.paymentType,
@@ -352,6 +358,7 @@ export function deserializeCreateTransaction(req: CreateTransactionRequest, user
     externalReference: req.externalReference || undefined,
     location: req.location,
     time: req.time ? new Date(req.time) : undefined,
+    timeZone: req.timeZone,
     transactionType: req.transactionType,
     paymentType: req.paymentType,
     accountId: req.accountId,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import { connection } from '@models/index';
+import * as helpers from '@tests/helpers';
 
 import { REAL_TRANSACTIONS_VIEW } from '../../migrations/utils/real-transactions-view';
 
@@ -40,5 +41,27 @@ describe('real_transactions view', () => {
     )) as unknown as [[{ def: string }], unknown];
 
     expect(def).toContain('"deletedAt" IS NULL');
+  });
+
+  it('hides planned rows', async () => {
+    const account = await helpers.createAccount({ raw: true });
+    const [planned] = await helpers.createPlannedTransaction({
+      payload: { accountId: account.id, amount: 10 },
+      raw: true,
+    });
+    const real = (
+      await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({ accountId: account.id, amount: 20 }),
+        raw: true,
+      })
+    )[0];
+
+    const [rows] = (await connection.sequelize.query(
+      `SELECT id FROM ${REAL_TRANSACTIONS_VIEW} WHERE "accountId" = :accountId`,
+      { replacements: { accountId: account.id } },
+    )) as unknown as [{ id: string }[], unknown];
+
+    expect(rows.map((row) => row.id)).toEqual([real.id]);
+    expect(rows.map((row) => row.id)).not.toContain(planned.id);
   });
 });

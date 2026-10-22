@@ -381,6 +381,10 @@
       "createAffordance": "Створити отримувача «{name}»",
       "createNew": "Створити нового отримувача",
       "sharedOwnerPayeesLoadError": "Не вдалося завантажити отримувачів платежу спільного рахунку. Спробуйте ще раз."
+    },
+    "timeZoneSelect": {
+      "searchPlaceholder": "Шукати часовий пояс",
+      "noResults": "Часових поясів не знайдено"
     }
   }
 }

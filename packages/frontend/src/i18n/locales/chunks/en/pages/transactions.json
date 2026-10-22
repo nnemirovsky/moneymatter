@@ -127,6 +127,13 @@
         "transfers": "Transfers"
       }
     },
+    "bulkTimeZone": {
+      "button": "Set time zone",
+      "title": "Set time zone for {count} selected",
+      "description": "Records where these payments happened. The time itself does not change, and reports keep using your own time zone.",
+      "placeholder": "Select a time zone",
+      "clear": "Clear (Unknown)"
+    },
     "transactionGroups": {
       "bulkActions": {
         "createNewGroup": "Create new group",

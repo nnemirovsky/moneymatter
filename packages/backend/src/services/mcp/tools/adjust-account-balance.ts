@@ -1,6 +1,7 @@
-import { recordId } from '@common/lib/zod/custom-types';
+import { timeInputSchema } from '@common/lib/time-zones/resolve-time-input';
+import { resolveUserTimeInput } from '@common/lib/time-zones/resolve-user-time';
+import { ianaTimeZone, recordId } from '@common/lib/zod/custom-types';
 import { Money } from '@common/types/money';
-import { transactionTimeSchema } from '@controllers/transactions.controller/schemas';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { adjustAccountBalance } from '@services/accounts/balance-adjustment';
@@ -14,7 +15,14 @@ const inputSchema = {
     .number()
     .describe('Target balance as a decimal (e.g. 1500.00). An adjustment transaction is created for the diff.'),
   note: z.string().optional().describe('Optional note to attach to the adjustment transaction.'),
-  time: transactionTimeSchema().optional().describe('ISO 8601 date the adjustment is recorded against. Default: now'),
+  time: timeInputSchema()
+    .optional()
+    .describe(
+      "When the adjustment is recorded against. Default: now. Prefer the user's local wall time without an offset (e.g. 2026-10-21T16:00), plus timeZone when elsewhere. Never convert to UTC",
+    ),
+  timeZone: ianaTimeZone()
+    .optional()
+    .describe("IANA zone the wall time is read in and the adjustment records. Default: the user's own zone"),
 };
 
 export function registerAdjustAccountBalance(server: McpServer) {
@@ -31,12 +39,16 @@ export function registerAdjustAccountBalance(server: McpServer) {
       await assertBaseCurrencyUnlocked({ userId });
       trackMcpToolUsed({ userId, tool: 'adjust_account_balance', clientId: extra.authInfo?.clientId });
 
+      const when = await resolveUserTimeInput({ userId, mode: 'create', value: args.time, timeZone: args.timeZone });
+
       const result = await adjustAccountBalance({
         userId,
         accountId: args.accountId,
         targetBalance: Money.fromDecimal(args.newBalance),
         note: args.note,
-        time: args.time ? new Date(args.time) : undefined,
+        time: when.time,
+        timeZone: when.timeZone,
+        utcOffsetMinutes: when.utcOffsetMinutes,
       });
 
       return jsonContent({

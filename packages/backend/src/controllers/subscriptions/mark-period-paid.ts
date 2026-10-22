@@ -23,6 +23,7 @@ export default createController(schema, async ({ user, params, body }) => {
     createTransaction: body?.createTransaction,
     amount: body?.amount,
     time: body?.time,
+    timeZone: body?.timeZone,
     accountId: body?.accountId,
   });
 

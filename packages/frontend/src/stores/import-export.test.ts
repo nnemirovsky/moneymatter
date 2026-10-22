@@ -1,8 +1,9 @@
 import { VUE_QUERY_CACHE_KEYS, VUE_QUERY_GLOBAL_PREFIXES } from '@/common/const/vue-query';
+import { viewingTimeZone } from '@/js/helpers/time-zone';
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type Ref, defineComponent, ref } from 'vue';
 
 import { useImportExportStore } from './import-export';
@@ -202,23 +203,26 @@ const seedStore = (store: ReturnType<typeof useImportExportStore>) => {
 
 // ----- tests -----
 
+afterEach(() => {
+  viewingTimeZone.value = 'UTC';
+});
+
 describe('useImportExportStore – detectDuplicates', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mountWithPlugins();
   });
 
-  it('sends the browser timezone in the request payload', async () => {
+  it('sends the viewing zone in the request payload', async () => {
     mockDetectDuplicatesApi.mockResolvedValue(BASE_RESPONSE);
+    viewingTimeZone.value = 'Asia/Tbilisi';
 
     const store = useImportExportStore();
     seedStore(store);
 
     await store.detectDuplicates();
 
-    const resolvedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    expect(mockDetectDuplicatesApi).toHaveBeenCalledWith(expect.objectContaining({ timezone: resolvedTimezone }));
-    expect(resolvedTimezone.length).toBeGreaterThan(0);
+    expect(mockDetectDuplicatesApi).toHaveBeenCalledWith(expect.objectContaining({ timezone: 'Asia/Tbilisi' }));
   });
 
   it('sends the confirmed dateFieldOrder in the columnMapping payload', async () => {
@@ -421,6 +425,7 @@ describe('useImportExportStore – executeImport async payload', () => {
   it('sends the async payload (raw fileContent + mapping + timezone), never pre-parsed validRows', async () => {
     mockDetectDuplicatesApi.mockResolvedValue(BASE_RESPONSE);
     mockExecuteImportApi.mockResolvedValue(EXECUTE_RESPONSE);
+    viewingTimeZone.value = 'Asia/Tbilisi';
 
     const store = useImportExportStore();
     seedStore(store);
@@ -431,7 +436,7 @@ describe('useImportExportStore – executeImport async payload', () => {
     const payload = mockExecuteImportApi.mock.calls[0]![0];
     // The worker re-parses server-side, so the request carries the raw file + the
     // built columnMapping config, the per-entity mappings, the skip indices, and
-    // the browser timezone — but NOT pre-parsed validRows or the removed
+    // the viewing zone — but NOT pre-parsed validRows or the removed
     // defaultAccountId / defaultCategoryId (the backend derives those now).
     expect(payload).toEqual(
       expect.objectContaining({
@@ -441,7 +446,7 @@ describe('useImportExportStore – executeImport async payload', () => {
         accountMapping: store.accountMapping,
         categoryMapping: store.categoryMapping,
         skipDuplicateIndices: expect.any(Array),
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        timezone: 'Asia/Tbilisi',
       }),
     );
     expect(payload).not.toHaveProperty('validRows');

@@ -2,6 +2,7 @@ import { TRANSACTION_TYPES } from '@bt/shared/types';
 import * as Transactions from '@models/transactions.model';
 import { type StatsScopeFilters, buildStatsScopeWhere } from '@services/stats/stats-scope-filters';
 import { statsTransactions } from '@services/stats/stats-transactions';
+import { getUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { Op } from 'sequelize';
 
 type GetExpensesHistoryResponseSchema = Pick<
@@ -57,6 +58,7 @@ export const getExpensesHistory = async ({
   transactionType = TRANSACTION_TYPES.expense,
   excludePlanned,
 }: GetExpensesHistoryParams): Promise<GetExpensesHistoryResponseSchema[]> => {
+  const zone = await getUserTimeZone({ userId });
   const dataAttributes: (keyof Transactions.default)[] = [
     'id',
     'accountId',
@@ -77,7 +79,7 @@ export const getExpensesHistory = async ({
     // other members' plans into this caller's numbers.
     planned: excludePlanned ? 'exclude' : { visibleTo: userId },
     refunds: 'ignore',
-    window: { from, to },
+    window: { from, to, zone },
     where: {
       [Op.and]: [
         { transactionType },

@@ -1,3 +1,4 @@
+import { resolveRecordedZone } from '@bt/shared/time-zone';
 import {
   ACCOUNT_TYPES,
   PAYMENT_TYPES,
@@ -16,8 +17,10 @@ import { getBaseCurrency } from '@models/users-currencies.model';
 import { DOMAIN_EVENTS, eventBus, type IngestPaymentLoggedPayload } from '@services/common/event-bus';
 import { runAfterCommit } from '@services/common/run-after-commit';
 import { createTransaction } from '@services/transactions/create-transaction';
+import { getStoredUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { QueryTypes } from 'sequelize';
 
+import { readPayloadTimeOffset, readPayloadTimeZone } from './card-payment/parse-payload';
 import { CardPaymentRateUnavailableError } from './card-payment/rate-unavailable-error';
 import type { IngestSlot, IngestSourceEntry } from './dedup/source-slots';
 import type { StoredBalanceAfter } from './event/balance-authority';
@@ -66,6 +69,31 @@ interface LogIngestedPaymentParams {
    */
   noteOverride?: string | null;
 }
+
+/**
+ * The zone and offset a logged payment records, decided by `resolveRecordedZone`:
+ * the request's own `timeZone` wins; else the offset its time wrote, kept as a zone when the user's
+ * stored zone has that offset at the time; else the stored zone itself (a blank time, or a `Z` one).
+ * A user with no stored zone and no information records `null`.
+ */
+const readRecordedZone = async ({ userId, requestId, time }: { userId: number; requestId: RecordId; time: Date }) => {
+  const [request, candidateZone] = await Promise.all([
+    IngestRequests.findByPk(requestId, { attributes: ['payload'] }),
+    getStoredUserTimeZone({ userId }),
+  ]);
+  const payload = (request?.payload ?? {}) as { time?: unknown; timeZone?: unknown; timeOffsetMinutes?: unknown };
+  const offsetMinutes =
+    typeof payload.timeOffsetMinutes === 'number'
+      ? payload.timeOffsetMinutes
+      : readPayloadTimeOffset({ value: payload.time });
+
+  return resolveRecordedZone({
+    instant: time,
+    explicitZone: readPayloadTimeZone({ value: payload.timeZone }),
+    offsetMinutes,
+    candidateZone,
+  });
+};
 
 /**
  * What the payee brings to the row: the note the owner's past payments there suggest (see
@@ -169,6 +197,8 @@ export const logIngestedPayment = async ({
   // The owner's own note is theirs, not the pipeline's: it is not recorded as `systemNote`.
   const note = noteOverride === undefined ? context.note : noteOverride;
 
+  const recordedZone = await readRecordedZone({ userId, requestId, time });
+
   let transaction: Awaited<ReturnType<typeof createTransaction>>[0];
   try {
     [transaction] = await createTransaction({
@@ -178,6 +208,8 @@ export const logIngestedPayment = async ({
       originalAmount,
       originalCurrencyCode,
       time,
+      timeZone: recordedZone.timeZone,
+      utcOffsetMinutes: recordedZone.utcOffsetMinutes,
       transactionType: direction === 'debit' ? TRANSACTION_TYPES.expense : TRANSACTION_TYPES.income,
       paymentType: PAYMENT_TYPES.mobilePayment,
       transferNature: TRANSACTION_TRANSFER_NATURE.not_transfer,

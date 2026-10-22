@@ -754,6 +754,7 @@
       "cardTooLong": "Назва картки довша за 100 символів.",
       "nameTooLong": "Назва платежу довша за 200 символів.",
       "invalidTime": "Час має бути датою й часом у форматі ISO 8601 зі зсувом.",
+      "invalidTimeZone": "Часовий пояс має бути назвою IANA, наприклад Asia/Tbilisi.",
       "timeInFuture": "Час платежу в майбутньому.",
       "timeTooOld": "Час платежу більш ніж на 30 днів у минулому.",
       "invalidKind": "Тип має бути «walletTransaction» або «notification».",

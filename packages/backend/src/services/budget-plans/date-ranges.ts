@@ -1,3 +1,5 @@
+import { zonedDayStart } from '@bt/shared/time-zone';
+import { localDay } from '@common/lib/time-zones/tz-options';
 import { toUtcDateString } from '@common/utils/date';
 
 import { MS_PER_DAY } from './periods/period-enumerator';
@@ -5,8 +7,19 @@ import { MS_PER_DAY } from './periods/period-enumerator';
 export const utcInstant = ({ date }: { date: string | Date }): Date =>
   new Date(`${toUtcDateString(date)}T00:00:00.000Z`);
 
+/**
+ * Local midnight of a plan day in `zone` as an instant. Plan days are calendar dates, and the
+ * transactions that fall in one are the ones the viewer's zone puts on it.
+ */
+export const zonedInstant = ({ date, zone }: { date: string | Date; zone: string }): Date =>
+  zonedDayStart({ date: toUtcDateString(date), zone });
+
 export const addUtcDays = ({ date, days }: { date: string; days: number }): string =>
   toUtcDateString(new Date(utcInstant({ date }).getTime() + days * MS_PER_DAY));
+
+/** The plan day after today in `zone`: the first moment of it is later than every transaction up to now. */
+export const tomorrowIn = ({ zone, now = new Date() }: { zone: string; now?: Date }): string =>
+  addUtcDays({ date: localDay({ zone, now }), days: 1 });
 
 /** Half-open day ranges `[from, until)`, `until: null` = open end. */
 export interface DateRange {

@@ -46,6 +46,7 @@ import { withTransaction } from '../common/with-transaction';
 import { createSingleRefund } from '../tx-refunds/create-single-refund.service';
 import { tryMergeIntoPlanned } from './planned-matching';
 import { assertPlannedCreateAllowed } from './planned-matching/assert-planned-invariants';
+import { deriveStoredZone } from './recorded-zone';
 import { manageSplits } from './splits';
 import { linkTransactions } from './transactions-linking';
 import type { CreateTransactionParams, UpdateTransactionParams } from './types';
@@ -331,6 +332,8 @@ export const createOppositeTransaction = async (params: CreateOppositeTransactio
     externalReference: baseTransaction.externalReference,
     location: baseTransaction.location,
     time: new Date(baseTransaction.time),
+    timeZone: baseTransaction.timeZone,
+    utcOffsetMinutes: baseTransaction.utcOffsetMinutes,
     transactionType:
       transactionType === TRANSACTION_TYPES.income ? TRANSACTION_TYPES.expense : TRANSACTION_TYPES.income,
     paymentType: baseTransaction.paymentType,
@@ -380,6 +383,13 @@ export const createTransaction = withTransaction(
     ...payload
   }: CreateTransactionParams): Promise<CreateTxResult> => {
     if (applyAutomations) payload.externalData = { ...payload.externalData, applyAutomations: true };
+
+    // One `time` for the row, the planned-match, the opposite leg and the zone offset.
+    payload.time = payload.time ?? new Date();
+    Object.assign(
+      payload,
+      deriveStoredZone({ time: payload.time, timeZone: payload.timeZone, utcOffsetMinutes: payload.utcOffsetMinutes }),
+    );
 
     await assertCurrencyCodesVisible({ userId, codes: [payload.originalCurrencyCode] });
 
@@ -501,7 +511,9 @@ export const createTransaction = withTransaction(
           transactionType: payload.transactionType,
           currencyCode: generalTxCurrency.code,
           incoming: {
-            time: payload.time ?? new Date(),
+            time: payload.time,
+            timeZone: payload.timeZone,
+            utcOffsetMinutes: payload.utcOffsetMinutes,
             note: payload.note,
             originalId: payload.originalId,
             externalData: payload.externalData,

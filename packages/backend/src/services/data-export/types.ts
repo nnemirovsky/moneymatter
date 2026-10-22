@@ -64,6 +64,10 @@ export interface TransactionRow {
   linkedTransfer: string;
   subscription: string;
   isPlanned: boolean;
+  /** The IANA zone the transaction was recorded in; empty when unknown. */
+  timeZone: string;
+  /** The time as ISO 8601 with an offset: the row's own offset, else the user's zone at that instant. */
+  localTime: string;
 }
 
 export interface AccountRow {

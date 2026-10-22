@@ -5,6 +5,7 @@ import {
   type PivotRowDimension,
   TRANSACTION_TYPES,
 } from '@bt/shared/types';
+import { formatDayInZone } from '@common/lib/time-zones/tz-options';
 import { getBaseCurrency } from '@models/users-currencies.model';
 import { createRootCategoryResolver, expandCategoryIdsWithDescendants } from '@services/categories/category-hierarchy';
 import {
@@ -12,7 +13,7 @@ import {
   getAccessibleCategoryMap,
 } from '@services/categories/get-accessible-category-map.service';
 import { statsTransactions } from '@services/stats/stats-transactions';
-import { format } from 'date-fns';
+import { getUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { Op } from 'sequelize';
 
 import { findBucketIndex } from '../utils';
@@ -58,8 +59,9 @@ export const getPivotReport = async ({
   payeeIds,
   decimals,
 }: GetPivotReportParams): Promise<PivotReportResultMinor> => {
-  const buckets = generatePivotBuckets({ from, to, granularity });
-  const columnKeys = buckets.map((bucket) => getBucketKey({ periodStart: bucket.periodStart, granularity }));
+  const zone = await getUserTimeZone({ userId });
+  const buckets = generatePivotBuckets({ from, to, granularity, zone });
+  const columnKeys = buckets.map((bucket) => getBucketKey({ periodStart: bucket.periodStart, granularity, zone }));
 
   const { categories: allCategories, byId } = await getAccessibleCategoryMap({ userId });
   // Row keys are plain strings (category ids + synthetic buckets like 'uncategorized'), so look
@@ -86,7 +88,7 @@ export const getPivotReport = async ({
     access: { accessibleTo: userId },
     planned: 'exclude',
     refunds: 'ignore',
-    window: { from, to },
+    window: { from, to, zone },
     where: {
       transactionType: measure === 'income' ? TRANSACTION_TYPES.income : TRANSACTION_TYPES.expense,
       ...(accountIds && accountIds.length > 0 ? { accountId: { [Op.in]: accountIds } } : {}),
@@ -141,9 +143,9 @@ export const getPivotReport = async ({
 
   const columns: PivotColumn[] = buckets.map((bucket, index) => ({
     key: columnKeys[index]!,
-    periodStart: format(bucket.periodStart, 'yyyy-MM-dd'),
-    periodEnd: format(bucket.periodEnd, 'yyyy-MM-dd'),
-    label: getBucketLabel({ periodStart: bucket.periodStart, granularity }),
+    periodStart: formatDayInZone({ date: bucket.periodStart, zone }),
+    periodEnd: formatDayInZone({ date: bucket.periodEnd, zone }),
+    label: getBucketLabel({ periodStart: bucket.periodStart, granularity, zone }),
   }));
 
   // Every user has a base currency, so this normally resolves; the empty-string fallback is a

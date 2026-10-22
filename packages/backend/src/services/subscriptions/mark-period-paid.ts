@@ -26,6 +26,10 @@ interface MarkPeriodPaidParams {
   amount?: number;
   /** Actual payment date for the created transaction. Falls back to now. */
   time?: Date;
+  /** IANA zone to record on the created transaction. */
+  timeZone?: string | null;
+  /** Offset stated by the caller when no zone is known; recorded as is. */
+  utcOffsetMinutes?: number | null;
   /**
    * Account to book the created transaction against. When supplied for an
    * account-less subscription it is also persisted onto the subscription, so the
@@ -45,6 +49,8 @@ export const markPeriodPaid = withTransaction(
     createTransaction: shouldCreateTransaction = false,
     amount,
     time,
+    timeZone,
+    utcOffsetMinutes,
     accountId,
   }: MarkPeriodPaidParams) => {
     const subscription = await findSubscriptionOrThrow({ id: subscriptionId, userId });
@@ -82,7 +88,13 @@ export const markPeriodPaid = withTransaction(
     if (shouldCreateTransaction) {
       // Validation (account/amount presence) happens inside the builder so the
       // request fails before any transaction row is written.
-      const createParams = await buildTransactionFromSubscription({ subscription, amount, time });
+      const createParams = await buildTransactionFromSubscription({
+        subscription,
+        amount,
+        time,
+        timeZone,
+        utcOffsetMinutes,
+      });
       // createTransaction joins the active transaction via `withTransaction`, so
       // the created tx rolls back with the period update if anything below throws.
       const [createdBaseTx] = await withoutPeriodSettlement({ run: () => createTransaction(createParams) });

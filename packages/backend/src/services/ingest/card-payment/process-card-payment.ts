@@ -139,6 +139,7 @@ export const processCardPayment = async ({
       cardLastDigits: null,
       balanceAfter: null,
       bankWallClock: null,
+      requestTimeZone: payment.timeZone,
     },
   });
   if (attached) return { kind: 'attached', transactionId: attached.transactionId };

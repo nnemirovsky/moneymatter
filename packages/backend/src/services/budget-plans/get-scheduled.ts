@@ -14,9 +14,10 @@ import Subscriptions from '@models/subscriptions.model';
 import { findTransactions } from '@models/transactions-query';
 import { calculateRefAmount } from '@services/calculate-ref-amount.service';
 import { paymentDatesInRange, scheduleInclude } from '@services/subscriptions/get-upcoming-payments';
+import { getUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { Op } from 'sequelize';
 
-import { utcInstant } from './date-ranges';
+import { zonedInstant } from './date-ranges';
 import { findPlan } from './find-plan';
 import { lineOwnerResolver, periodMembership } from './fold/fold-plan';
 import { ensurePeriods, loadLines } from './periods/ensure-periods';
@@ -53,6 +54,7 @@ export const getScheduled = async ({
   periodId: RecordId;
 }): Promise<BudgetPlanScheduled> => {
   const plan = await findPlan({ planId, userId });
+  const zone = await getUserTimeZone({ userId });
 
   const today = toUtcDateString(new Date());
   const period = (await ensurePeriods({ plan, today })).find((entry) => entry.id === periodId);
@@ -101,7 +103,7 @@ export const getScheduled = async ({
       completeness: 'all',
       where: {
         accountId: { [Op.in]: accountIds },
-        time: { [Op.gte]: utcInstant({ date: from }), [Op.lt]: utcInstant({ date: until }) },
+        time: { [Op.gte]: zonedInstant({ date: from, zone }), [Op.lt]: zonedInstant({ date: until, zone }) },
       },
       include: [{ model: Payees, attributes: ['name'] }],
     }),

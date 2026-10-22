@@ -34,6 +34,7 @@ import {
 } from '@services/bank-data-providers';
 import { createTransaction } from '@services/transactions';
 import { accountHasPlannedRows } from '@services/transactions/planned-matching';
+import { getStoredUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { subDays } from 'date-fns';
 import { Op, Sequelize } from 'sequelize';
 
@@ -42,6 +43,7 @@ import { clampSyncStartToLink } from '../utils/clamp-sync-start-to-link';
 import { encryptCredentials } from '../utils/credential-encryption';
 import { linkAndEmitSyncedTransactions } from '../utils/link-and-emit-synced-transactions';
 import { notifyPlannedConfirmations } from '../utils/notify-planned-confirmations';
+import { bankSyncRecordedZone } from '../utils/recorded-zone';
 import { writeBankBalanceWithHistory } from '../utils/write-bank-balance-with-history';
 import { SimplefinApiClient } from './api-client';
 import {
@@ -840,6 +842,10 @@ export class SimplefinProvider extends BaseBankDataProvider {
     // One probe per account instead of one per row.
     const canMatchPlanned = matchPlanned && (await accountHasPlannedRows({ accountId: account.id }));
 
+    // Every row of this pass is judged against one moment and one stored zone.
+    const syncedAt = new Date();
+    const userZone = await getStoredUserTimeZone({ userId: connection.userId });
+
     for (const tx of transactions) {
       await checkpoint();
 
@@ -887,6 +893,7 @@ export class SimplefinProvider extends BaseBankDataProvider {
         // bank cleared it) for user-facing date. Falls back to `posted` for
         // bridges/banks that don't expose `transacted_at`.
         time,
+        ...bankSyncRecordedZone({ time, syncedAt, userZone }),
         externalData: {
           payee: tx.payee,
           memo: tx.memo,

@@ -5,6 +5,7 @@ import {
   type RecordId,
   TRANSACTION_TYPES,
 } from '@bt/shared/types';
+import { formatDayInZone } from '@common/lib/time-zones/tz-options';
 import { t } from '@i18n/index';
 import { ValidationError } from '@js/errors';
 import { expandCategoryIdsWithDescendants, getRootCategoryId } from '@services/categories/category-hierarchy';
@@ -16,7 +17,7 @@ import { withTransaction } from '@services/common/with-transaction';
 import { type StatsScopeFilters, buildStatsScopeWhere } from '@services/stats/stats-scope-filters';
 import { statsTransactions } from '@services/stats/stats-transactions';
 import { getUserSettings } from '@services/user-settings/get-user-settings';
-import { format } from 'date-fns';
+import { getUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { Op } from 'sequelize';
 
 import { computeCategoryAllocations } from './category-allocation';
@@ -125,7 +126,8 @@ export const getCashFlow = withTransaction(
     excludePlanned,
     decimals,
   }: GetCashFlowParams): Promise<GetCashFlowResponse> => {
-    const buckets = generatePeriodBuckets({ from, to, granularity });
+    const zone = await getUserTimeZone({ userId });
+    const buckets = generatePeriodBuckets({ from, to, granularity, zone });
 
     if (granularity === 'daily' && buckets.length > MAX_DAILY_BUCKETS) {
       throw new ValidationError({
@@ -175,7 +177,7 @@ export const getCashFlow = withTransaction(
       planned: excludePlanned ? 'exclude' : { visibleTo: userId },
       refunds: 'net',
       decimals,
-      window: { from, to },
+      window: { from, to, zone },
       where: {
         [Op.and]: [
           {
@@ -321,8 +323,8 @@ export const getCashFlow = withTransaction(
       const data = periodDataMap.get(index)!;
 
       const period: CashFlowPeriodData = {
-        periodStart: format(bucket.periodStart, 'yyyy-MM-dd'),
-        periodEnd: format(bucket.periodEnd, 'yyyy-MM-dd'),
+        periodStart: formatDayInZone({ date: bucket.periodStart, zone }),
+        periodEnd: formatDayInZone({ date: bucket.periodEnd, zone }),
         income: data.income,
         expenses: data.expenses,
         netFlow: data.income - data.expenses,

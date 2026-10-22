@@ -203,7 +203,8 @@ export const getNetWorthHistory = async ({
 }): Promise<NetWorthHistoryResultMinor> => {
   // Weekly buckets follow ISO weeks (Monday start) — the shared spec every stats
   // report uses, so week edges line up across the analytics pages.
-  const buckets = generatePeriodBuckets({ from, to, granularity });
+  // `Balances` hold UTC days, so these buckets are cut in UTC whatever the viewing zone.
+  const buckets = generatePeriodBuckets({ from, to, granularity, zone: 'UTC' });
 
   if (buckets.length === 0) {
     return { points: [] };

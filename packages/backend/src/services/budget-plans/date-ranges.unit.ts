@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { clipRange, rangesIntersect, subtractRanges } from './date-ranges';
+import { clipRange, rangesIntersect, subtractRanges, tomorrowIn, utcInstant, zonedInstant } from './date-ranges';
 
 describe('rangesIntersect', () => {
   it('treats the end as exclusive', () => {
@@ -108,5 +108,44 @@ describe('subtractRanges', () => {
         ],
       }),
     ).toEqual([range]);
+  });
+});
+
+describe('zonedInstant', () => {
+  it('is local midnight of the plan day in the zone', () => {
+    expect(zonedInstant({ date: '2026-10-01', zone: 'Asia/Tbilisi' }).toISOString()).toBe('2026-09-30T20:00:00.000Z');
+    expect(zonedInstant({ date: '2026-11-01', zone: 'America/New_York' }).toISOString()).toBe(
+      '2026-11-01T04:00:00.000Z',
+    );
+  });
+
+  it('equals utcInstant for UTC', () => {
+    expect(zonedInstant({ date: '2026-10-01', zone: 'UTC' }).getTime()).toBe(
+      utcInstant({ date: '2026-10-01' }).getTime(),
+    );
+  });
+});
+
+describe('tomorrowIn', () => {
+  it('is the day after the local date, not after the UTC date', () => {
+    // 23:00Z on the 22nd is 08:00 on the 23rd in Tokyo.
+    const now = new Date('2026-10-22T23:00:00Z');
+    expect(tomorrowIn({ zone: 'Asia/Tokyo', now })).toBe('2026-10-24');
+    expect(tomorrowIn({ zone: 'UTC', now })).toBe('2026-10-23');
+    expect(tomorrowIn({ zone: 'America/New_York', now })).toBe('2026-10-23');
+  });
+
+  it('starts after every transaction up to now', () => {
+    const now = new Date('2026-10-22T23:00:00Z');
+    for (const zone of ['Asia/Tokyo', 'Pacific/Kiritimati', 'Pacific/Pago_Pago', 'UTC']) {
+      expect(zonedInstant({ date: tomorrowIn({ zone, now }), zone }).getTime()).toBeGreaterThan(now.getTime());
+    }
+  });
+});
+
+describe('zonedInstant on an ambiguous local midnight', () => {
+  it('takes the earlier instant when a fall-back repeats the hour after midnight', () => {
+    // Havana turns its clocks back from 01:00 to 00:00 on 2026-11-01, so 00:00-00:59 happens twice.
+    expect(zonedInstant({ date: '2026-11-01', zone: 'America/Havana' }).toISOString()).toBe('2026-11-01T04:00:00.000Z');
   });
 });

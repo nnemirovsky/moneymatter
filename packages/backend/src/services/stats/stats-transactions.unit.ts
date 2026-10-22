@@ -24,7 +24,12 @@ const lastWhere = () =>
   findTransactionsMock.mock.calls.at(-1)![0]!.where as unknown as { [Op.and]: unknown[] } | undefined;
 
 const readWindow = async ({ from, to }: { from?: string | Date; to?: string | Date }): Promise<TimeBounds> => {
-  await statsTransactions({ access: { creator: 7 }, planned: 'exclude', refunds: 'ignore', window: { from, to } });
+  await statsTransactions({
+    access: { creator: 7 },
+    planned: 'exclude',
+    refunds: 'ignore',
+    window: { from, to, zone: 'UTC' },
+  });
 
   return (lastWhere()![Op.and][0] as { time: TimeBounds }).time;
 };
@@ -66,7 +71,7 @@ describe('statsTransactions window bounds', () => {
   });
 
   it('states only the money-movement clause for an unbounded window', async () => {
-    await statsTransactions({ access: { creator: 7 }, planned: 'exclude', refunds: 'ignore', window: {} });
+    await statsTransactions({ access: { creator: 7 }, planned: 'exclude', refunds: 'ignore', window: { zone: 'UTC' } });
 
     expect(lastWhere()![Op.and]).toHaveLength(1);
   });
@@ -83,7 +88,7 @@ describe('statsTransactions refund pairs', () => {
       planned: 'exclude',
       refunds: 'net',
       decimals: 3,
-      window: {},
+      window: { zone: 'UTC' },
     });
 
     expect(resolveRefundPairsMock).toHaveBeenCalledWith({ transactions: rows, decimals: 3 });
@@ -96,10 +101,35 @@ describe('statsTransactions refund pairs', () => {
       access: { creator: 7 },
       planned: 'exclude',
       refunds: 'ignore',
-      window: {},
+      window: { zone: 'UTC' },
     });
 
     expect(result.refundPairs).toEqual([]);
     expect(resolveRefundPairsMock).not.toHaveBeenCalled();
+  });
+
+  it('reads day strings in the window zone: Tbilisi covers 2026-10-21 as 20:00Z to 19:59:59.999Z', async () => {
+    await statsTransactions({
+      access: { creator: 7 },
+      planned: 'exclude',
+      refunds: 'ignore',
+      window: { from: '2026-10-21', to: '2026-10-21', zone: 'Asia/Tbilisi' },
+    });
+    const bounds = (lastWhere()![Op.and][0] as { time: TimeBounds }).time;
+
+    expect(bounds[Op.gte]?.toISOString()).toBe('2026-10-20T20:00:00.000Z');
+    expect(bounds[Op.lte]?.toISOString()).toBe('2026-10-21T19:59:59.999Z');
+  });
+
+  it('ends an open-start window at the zoned midnight of the closing day', async () => {
+    await statsTransactions({
+      access: { creator: 7 },
+      planned: 'exclude',
+      refunds: 'ignore',
+      window: { to: '2026-10-21', zone: 'Asia/Tbilisi' },
+    });
+    const bounds = (lastWhere()![Op.and][0] as { time: TimeBounds }).time;
+
+    expect(bounds[Op.lte]?.toISOString()).toBe('2026-10-20T20:00:00.000Z');
   });
 });

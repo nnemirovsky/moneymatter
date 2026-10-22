@@ -67,7 +67,8 @@ export async function prepareChatTurn({
 
   const system = buildSystemPrompt({
     now: new Date(),
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    // The user's zone, not the server's: a time the user names is theirs to read, and the tools take it as a wall clock.
+    timeZone: settings.timeZone ?? 'UTC',
     locale: settings.locale,
     baseCurrency: baseCurrency?.currencyCode ?? null,
     pageContext: pageContext ? renderPageContext({ context: pageContext, wrap: untrusted.wrap }) : null,

@@ -138,6 +138,7 @@ const {
   selectedTotals,
   handleSelectAllToggle,
   isBulkEditDialogOpen,
+  isBulkTimeZoneDialogOpen,
   isCreateGroupDialogOpen,
   isAddToGroupDialogOpen,
   isBulkDeleteDialogOpen,
@@ -200,6 +201,7 @@ watchEffect(() => {
       :is-grouping-blocked="isGroupingBlocked"
       @cancel="clearSelection"
       @edit="isBulkEditDialogOpen = true"
+      @set-time-zone="isBulkTimeZoneDialogOpen = true"
       @delete="isBulkDeleteDialogOpen = true"
       @create-group="isCreateGroupDialogOpen = true"
       @add-to-group="isAddToGroupDialogOpen = true"

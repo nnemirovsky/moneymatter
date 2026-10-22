@@ -1,4 +1,5 @@
 import { DEFAULT_SORTING, type TableSorting } from '@/components/transactions-table/columns';
+import { viewingNow } from '@/js/helpers/time-zone';
 import { type SavedTransactionView, TRANSACTION_DATE_PRESETS, type TransactionDatePreset } from '@bt/shared/types';
 import { StorageSerializers, useSessionStorage } from '@vueuse/core';
 import { endOfDay, isSameDay, startOfDay, startOfMonth, subMonths } from 'date-fns';
@@ -25,7 +26,7 @@ interface ActiveView {
 export const useActiveView = () =>
   useSessionStorage<ActiveView | null>('records:active-view', null, { serializer: StorageSerializers.object });
 
-export const resolveDatePreset = ({ preset, now = new Date() }: { preset: TransactionDatePreset; now?: Date }) => ({
+export const resolveDatePreset = ({ preset, now = viewingNow() }: { preset: TransactionDatePreset; now?: Date }) => ({
   from: PRESET_STARTS[preset]({ now }),
   to: endOfDay(now),
 });
@@ -33,7 +34,7 @@ export const resolveDatePreset = ({ preset, now = new Date() }: { preset: Transa
 export const detectDatePreset = ({
   start,
   end,
-  now = new Date(),
+  now = viewingNow(),
 }: {
   start: Date | undefined;
   end: Date | undefined;

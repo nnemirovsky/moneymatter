@@ -211,6 +211,8 @@ export const prepopulateForm = ({
       type: getFormTypeFromTransaction(transaction),
       category: resolvedCategory,
       time: new Date(transaction.time),
+      timeZone: transaction.timeZone ?? null,
+      utcOffsetMinutes: transaction.utcOffsetMinutes ?? null,
       paymentType: VERBOSE_PAYMENT_TYPES.find((item) => item.value === transaction.paymentType),
       note: transaction.note ?? undefined,
       externalUrl: transaction.externalUrl ?? undefined,

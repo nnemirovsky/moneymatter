@@ -40,3 +40,12 @@ jest.mock('@root/redis-client', () => ({
   redisReady: Promise.resolve(),
   REDIS_KEY_PREFIX: undefined,
 }));
+
+// The user's zone comes from a settings row; unit tests have no database, so these answer as a user
+// with no zone setting. They are plain functions, not `jest.fn`, so a suite's `resetAllMocks` leaves
+// them alone; a test that needs a zone mocks the module itself.
+jest.mock('@services/user-settings/get-user-time-zone', () => ({
+  getStoredUserTimeZone: async () => null,
+  getUserTimeZone: async () => 'UTC',
+  getUserTimeZones: async () => ({ viewingZone: 'UTC', storedZone: null }),
+}));

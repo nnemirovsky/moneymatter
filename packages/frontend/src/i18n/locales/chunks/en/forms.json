@@ -381,6 +381,10 @@
       "createAffordance": "Create payee \"{name}\"",
       "createNew": "Create new payee",
       "sharedOwnerPayeesLoadError": "Couldn't load payees for the shared account. Please try again."
+    },
+    "timeZoneSelect": {
+      "searchPlaceholder": "Search time zones",
+      "noResults": "No time zones found"
     }
   }
 }

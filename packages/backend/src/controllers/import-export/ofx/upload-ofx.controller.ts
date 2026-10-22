@@ -2,6 +2,7 @@ import type { OfxUploadResponse } from '@bt/shared/types';
 import { createController } from '@controllers/helpers/controller-factory';
 import { t } from '@i18n/index';
 import { ValidationError } from '@js/errors';
+import { resolveImportZones } from '@services/import-export/core/resolve-import-zones';
 import { OfxParseError, parseOfxFile, storeOfxUpload } from '@services/import-export/ofx-import';
 import { z } from 'zod';
 
@@ -11,9 +12,10 @@ export const uploadOfxController = createController(z.object({}), async ({ user,
     throw new ValidationError({ message: t({ key: 'ofxImport.noFileUploaded' }) });
   }
 
+  const { anchorZone } = await resolveImportZones({ userId: user.id, timezone: req.get('X-Timezone') });
   const result = (() => {
     try {
-      return parseOfxFile({ bytes: body, timezone: req.get('X-Timezone') });
+      return parseOfxFile({ bytes: body, timezone: anchorZone });
     } catch (error) {
       if (error instanceof OfxParseError) {
         throw new ValidationError({ message: t({ key: error.key, variables: error.params }) });

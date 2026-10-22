@@ -9,7 +9,7 @@ import { QueryTypes } from 'sequelize';
 
 import { ingestMarkersOf, type IngestMarkers } from '../ingest-markers';
 import { TAP_SLOT, type IngestSourceEntry } from './source-slots';
-import { inferBankTime } from './twin-rule';
+import { placeBankTime } from './twin-rule';
 
 /** What the arriving source adds to the row it joins. */
 interface TwinEnrichment {
@@ -27,6 +27,8 @@ interface TwinEnrichment {
   time: Date;
   /** The wall-clock time the bank's text prints, read as UTC, when it prints one. */
   bankWallClock: Date | null;
+  /** The zone the request named, in which the bank's wall clock is read first. */
+  requestTimeZone: string | null;
   cardLastDigits: string | null;
 }
 
@@ -112,7 +114,11 @@ export const enrichTwin = async ({
 
   const bankTime =
     fromBank && enrichment.bankWallClock && !hasBankTime
-      ? inferBankTime({ wallClock: enrichment.bankWallClock, reference: enrichment.time })
+      ? placeBankTime({
+          wallClock: enrichment.bankWallClock,
+          reference: enrichment.time,
+          zone: enrichment.requestTimeZone,
+        })
       : null;
   if (bankTime && bankTime.getTime() !== transaction.time.getTime()) {
     update.time = bankTime;

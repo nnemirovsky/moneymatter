@@ -30,6 +30,8 @@ export interface OfxParseTransaction {
   sourceTransactionKey?: string;
   sourceAccountKey: string;
   date: string;
+  /** The UTC offset the date cell wrote (`[+2:EET]` is 120); absent for a date with no offset. */
+  utcOffsetMinutes?: number;
   /** Exact signed decimal text. The backend converts it to Money only at use sites. */
   amount: string;
   type: TRANSACTION_TYPES;
@@ -80,6 +82,8 @@ export interface ExecuteOfxRequest extends ImportExecuteRequestBase {
   uploadId: string;
   accountMapping: OfxAccountMapping;
   skipDuplicateIndices: number[];
+  /** IANA timezone of the importing user's browser: the zone imported rows record when their date states none. */
+  timezone?: string;
 }
 
 export interface ExecuteOfxResponse {

@@ -42,6 +42,13 @@ export interface UI_FORM_STRUCT {
   portfolioCashAlreadyReflected?: boolean;
   category: FormattedCategory | null;
   time: Date;
+  /**
+   * Zone the payment is recorded in. `null` is unknown on a saved row and "the viewing zone" on a new one.
+   * The time input always shows the viewing zone; this field only changes the recorded zone.
+   */
+  timeZone?: string | null;
+  /** Offset a row stored without a zone name; read-only, used to show where it was recorded. */
+  utcOffsetMinutes?: number | null;
   paymentType: VerbosePaymentType | null;
   note?: string;
   externalUrl?: string;

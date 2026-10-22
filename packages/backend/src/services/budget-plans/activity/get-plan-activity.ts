@@ -5,7 +5,7 @@ import BudgetPlans from '@models/budget-plans.model';
 import { connection } from '@models/connection';
 import { QueryTypes } from 'sequelize';
 
-import { utcInstant } from '../date-ranges';
+import { zonedInstant } from '../date-ranges';
 import { FoldActivityRow } from '../fold/fold-plan';
 
 interface RawActivityRow {
@@ -29,11 +29,14 @@ export const getPlanActivity = async ({
   plan,
   periods,
   decimals,
+  zone,
 }: {
   plan: BudgetPlans;
   periods: BudgetPeriods[];
   /** The plan currency's decimals. */
   decimals: number;
+  /** The viewing zone: a period's days are the local days of this zone. */
+  zone: string;
 }): Promise<FoldActivityRow[]> => {
   const lastEnd = periods.at(-1)?.endDate;
   if (!lastEnd) return [];
@@ -89,10 +92,11 @@ export const getPlanActivity = async ({
     SELECT p.id AS "periodId", x."categoryId",
            SUM(CASE WHEN x."transactionType" = 'expense' THEN -x."refAmount" ELSE x."refAmount" END) AS "activity"
     FROM attributed x
-    JOIN "BudgetPeriods" p
-      ON p."planId" = :planId
-     AND x."time" >= (p."startDate"::timestamp AT TIME ZONE 'UTC')
-     AND x."time" <  (p."endDate"::timestamp   AT TIME ZONE 'UTC')
+    -- The bounds come from JS so a period's edges are the same instants every other report cuts,
+    -- including on a local midnight that a clock change makes ambiguous.
+    JOIN jsonb_to_recordset(CAST(:periodBounds AS jsonb)) AS p(id text, "startsAt" timestamptz, "endsAt" timestamptz)
+      ON x."time" >= p."startsAt"
+     AND x."time" <  p."endsAt"
     -- A NULL :poolFromUtc makes the comparison NULL, which keeps the row out.
     WHERE x."categoryId" IS NOT NULL OR x."time" >= :poolFromUtc
     GROUP BY p.id, x."categoryId"
@@ -102,9 +106,16 @@ export const getPlanActivity = async ({
       replacements: {
         planId: plan.id,
         ownerId: plan.userId,
-        fromUtc: utcInstant({ date: plan.epochDate }),
-        toUtc: utcInstant({ date: lastEnd }),
-        poolFromUtc: plan.poolFrom ? utcInstant({ date: plan.poolFrom }) : null,
+        periodBounds: JSON.stringify(
+          periods.map((period) => ({
+            id: period.id,
+            startsAt: zonedInstant({ date: period.startDate, zone }),
+            endsAt: zonedInstant({ date: period.endDate, zone }),
+          })),
+        ),
+        fromUtc: zonedInstant({ date: plan.epochDate, zone }),
+        toUtc: zonedInstant({ date: lastEnd, zone }),
+        poolFromUtc: plan.poolFrom ? zonedInstant({ date: plan.poolFrom, zone }) : null,
       },
     },
   );

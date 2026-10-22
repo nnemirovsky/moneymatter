@@ -1,4 +1,6 @@
 import type { CashFlowGranularity, NetWorthHistoryGranularity, PivotGranularity } from '@bt/shared/types';
+import { dayBoundEnd, dayBoundStart } from '@common/lib/time-zones/day-bounds';
+import { toInstant, tzOptions } from '@common/lib/time-zones/tz-options';
 import {
   addDays,
   addMonths,
@@ -66,61 +68,91 @@ export interface PeriodBucket {
 const WEEK_OPTS = { weekStartsOn: 1 } as const;
 
 interface GranularitySpec {
-  /** Snap a date back to the start of its period. */
-  startOf: (date: Date) => Date;
-  /** End of the period that begins at `periodStart`. */
-  endOf: (periodStart: Date) => Date;
-  /** Step to the next period's start. */
-  advance: (periodStart: Date) => Date;
+  /** Snap a date back to the start of its period, in `zone`. */
+  startOf: (date: Date, zone: string) => Date;
+  /** End of the period that begins at `periodStart`, in `zone`. */
+  endOf: (periodStart: Date, zone: string) => Date;
+  /** Step to the next period's start, in `zone`. */
+  advance: (periodStart: Date, zone: string) => Date;
 }
 
 type StatsGranularity = PivotGranularity | CashFlowGranularity | NetWorthHistoryGranularity;
 
+// date-fns runs every calendar step in the zone and hands back a zone-aware date; each spec
+// returns the plain instant so buckets compare and serialise like any other Date.
+const inZone = ({ zone }: { zone: string }) => tzOptions({ zone });
+
 // Every granularity used by any stats report. `biweekly` (cash-flow only) is a 2-week window, so
 // its period end is the day before the start of the week two ahead.
 const GRANULARITY_SPECS: Record<StatsGranularity, GranularitySpec> = {
-  yearly: { startOf: startOfYear, endOf: endOfYear, advance: (date) => addYears(date, 1) },
-  quarterly: { startOf: startOfQuarter, endOf: endOfQuarter, advance: (date) => addQuarters(date, 1) },
-  monthly: { startOf: startOfMonth, endOf: endOfMonth, advance: (date) => addMonths(date, 1) },
+  yearly: {
+    startOf: (date, zone) => toInstant({ date: startOfYear(date, inZone({ zone })) }),
+    endOf: (date, zone) => toInstant({ date: endOfYear(date, inZone({ zone })) }),
+    advance: (date, zone) => toInstant({ date: addYears(date, 1, inZone({ zone })) }),
+  },
+  quarterly: {
+    startOf: (date, zone) => toInstant({ date: startOfQuarter(date, inZone({ zone })) }),
+    endOf: (date, zone) => toInstant({ date: endOfQuarter(date, inZone({ zone })) }),
+    advance: (date, zone) => toInstant({ date: addQuarters(date, 1, inZone({ zone })) }),
+  },
+  monthly: {
+    startOf: (date, zone) => toInstant({ date: startOfMonth(date, inZone({ zone })) }),
+    endOf: (date, zone) => toInstant({ date: endOfMonth(date, inZone({ zone })) }),
+    advance: (date, zone) => toInstant({ date: addMonths(date, 1, inZone({ zone })) }),
+  },
   weekly: {
-    startOf: (date) => startOfWeek(date, WEEK_OPTS),
-    endOf: (date) => endOfWeek(date, WEEK_OPTS),
-    advance: (date) => addWeeks(date, 1),
+    startOf: (date, zone) => toInstant({ date: startOfWeek(date, { ...WEEK_OPTS, ...inZone({ zone }) }) }),
+    endOf: (date, zone) => toInstant({ date: endOfWeek(date, { ...WEEK_OPTS, ...inZone({ zone }) }) }),
+    advance: (date, zone) => toInstant({ date: addWeeks(date, 1, inZone({ zone })) }),
   },
   biweekly: {
-    startOf: (date) => startOfWeek(date, WEEK_OPTS),
-    endOf: (date) => endOfDay(addDays(addWeeks(date, 2), -1)),
-    advance: (date) => addWeeks(date, 2),
+    startOf: (date, zone) => toInstant({ date: startOfWeek(date, { ...WEEK_OPTS, ...inZone({ zone }) }) }),
+    endOf: (date, zone) =>
+      toInstant({
+        date: endOfDay(addDays(addWeeks(date, 2, inZone({ zone })), -1, inZone({ zone })), inZone({ zone })),
+      }),
+    advance: (date, zone) => toInstant({ date: addWeeks(date, 2, inZone({ zone })) }),
   },
-  daily: { startOf: startOfDay, endOf: endOfDay, advance: (date) => addDays(date, 1) },
+  daily: {
+    startOf: (date, zone) => toInstant({ date: startOfDay(date, inZone({ zone })) }),
+    endOf: (date, zone) => toInstant({ date: endOfDay(date, inZone({ zone })) }),
+    advance: (date, zone) => toInstant({ date: addDays(date, 1, inZone({ zone })) }),
+  },
 };
 
 /**
  * Generates the [from, to] time buckets (one per report column) for a granularity. Both edges are
- * clamped to the requested range exactly — the first bucket starts at `from`, the last ends at
- * `endOfDay(to)` — so a transaction on the boundary day is still counted. Shared by the cash-flow,
- * pivot and net-worth-history reports.
+ * clamped to the requested range exactly — the first bucket starts at the start of `from`, the
+ * last ends at the end of `to` — so a transaction on the boundary day is still counted. Days,
+ * weeks, months and years are the ones of `zone`, the viewing zone of the report's user (`'UTC'`
+ * for reports that must stay on UTC days). Shared by the cash-flow, pivot and net-worth-history
+ * reports.
  */
 export const generatePeriodBuckets = ({
   from,
   to,
   granularity,
+  zone,
 }: {
   from: string;
   to: string;
   granularity: StatsGranularity;
+  zone: string;
 }): PeriodBucket[] => {
   const spec = GRANULARITY_SPECS[granularity];
   const buckets: PeriodBucket[] = [];
-  const startDate = new Date(from);
-  const endDate = endOfDay(new Date(to));
+  const startDate = dayBoundStart({ value: from, zone });
+  const endDate = dayBoundEnd({ value: to, zone });
 
   const withinRange = (date: Date): boolean => isBefore(date, endDate) || date.getTime() === endDate.getTime();
 
-  let currentStart = spec.startOf(startDate);
+  let currentStart = spec.startOf(startDate, zone);
   while (withinRange(currentStart)) {
-    buckets.push({ periodStart: max([currentStart, startDate]), periodEnd: min([spec.endOf(currentStart), endDate]) });
-    currentStart = spec.advance(currentStart);
+    buckets.push({
+      periodStart: max([currentStart, startDate]),
+      periodEnd: min([spec.endOf(currentStart, zone), endDate]),
+    });
+    currentStart = spec.advance(currentStart, zone);
   }
 
   return buckets;
