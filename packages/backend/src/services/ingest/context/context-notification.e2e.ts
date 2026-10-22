@@ -660,6 +660,18 @@ describe('context notifications', () => {
       expect(sources[0]).toMatchObject({ appName: 'Mail', mode: 'pending', conversational: true, counters: {} });
     });
 
+    it('never offers a chat contact that only shares a word with a merchant, or a messaging sender at all', async () => {
+      const { secret } = await setUp();
+      await pay({ secret, merchant: 'John Lewis' });
+
+      const contact = await send({ secret, body: probe({ title: 'John' }) });
+      const sms = await send({ secret, body: { kind: 'notificationProbe', app: 'Messages', title: 'John Lewis' } });
+
+      expect(contact.body.response.send).toBeUndefined();
+      expect(sms.body.response.send).toBeUndefined();
+      expect(await helpers.listNotificationSources({ raw: true })).toEqual([]);
+    });
+
     it('never offers a sender the owner muted, or one that paid nothing recently', async () => {
       const { secret } = await setUp();
       await pay({ secret, merchant: 'Temu' });

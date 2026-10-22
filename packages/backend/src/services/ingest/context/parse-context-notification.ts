@@ -34,7 +34,7 @@ const CONTEXT_RULES: readonly ContextRule[] = [
   { pattern: /your order from (.+?) (?:has been|was) (?:cancelled|canceled)/iu, status: 'cancelled' },
   { pattern: /your (?:courier|order) is on (?:the|its) way/iu, status: 'onTheWay' },
   { pattern: /your order (?:has been|was) delivered/iu, status: 'delivered' },
-  { pattern: /your order (?:is|has been|was) (?:confirmed|placed|received)/iu, status: 'accepted' },
+  { pattern: /^your order (?:is|has been|was) (?:confirmed|placed|received)[\s!.]*$/iu, status: 'accepted' },
   { pattern: /your order (?:has been|was) (?:cancelled|canceled)/iu, status: 'cancelled' },
 ];
 

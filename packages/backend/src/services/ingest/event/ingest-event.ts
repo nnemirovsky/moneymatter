@@ -1,4 +1,5 @@
 import {
+  isMailApp,
   matchAmountGate,
   isContextApp,
   isConversationalApp,
@@ -154,6 +155,7 @@ const recordNotificationImpl = async ({
       bundleId: notification.bundleId,
       time: notification.time.toISOString(),
       timeProvided: notification.timeProvided,
+      ...(oneOffContext && { oneOffContext: true }),
       ...(notification.timeZone && { timeZone: notification.timeZone }),
       ...(notification.timeOffsetMinutes !== null && { timeOffsetMinutes: notification.timeOffsetMinutes }),
     },
@@ -246,6 +248,7 @@ const ingestNotification = async ({
     !showsAmount &&
     source?.mode === 'pending' &&
     source.conversational &&
+    isMailApp({ appName: notification.app }) &&
     (await senderMatchesRecentPayment({ userId, sender: notification.title }));
   const contextApp =
     oneOffContext || (source ? source.mode === 'context' : isContextApp({ appName: notification.app }));
@@ -311,8 +314,8 @@ const ingestNotification = async ({
 /**
  * The first step of the handshake for a messaging or mail notification without an amount. It reads the
  * app and the sender and answers `send: 'yes'` when that sender is a context source, or names a merchant
- * the owner paid in the last half hour (then the sender becomes a source waiting for the owner's choice). It stores
- * nothing, creates no source and counts nothing, so an unknown sender leaves no trace.
+ * the owner paid in the last half hour (a mail sender only; then the sender becomes a source waiting for the
+ * owner's choice). Any other sender leaves no trace: nothing is stored, no source is created, nothing is counted.
  */
 const probeSender = async ({ userId, body }: { userId: number; body: unknown }): Promise<IngestEventResult> => {
   const app = readProbeApp({ body });
@@ -325,6 +328,7 @@ const probeSender = async ({ userId, body }: { userId: number; body: unknown }):
   // (the sender and the app, no text) and this one notification is sent to be read for that payment.
   if (
     !send &&
+    isMailApp({ appName: app.app }) &&
     (!source || source.mode === 'pending') &&
     (await senderMatchesRecentPayment({ userId, sender: app.title }))
   ) {

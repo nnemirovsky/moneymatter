@@ -31,3 +31,10 @@ export const CONVERSATIONAL_APP_NAMES: ReadonlySet<string> = new Set([
 export const CONVERSATIONAL_APP_GATE_PATTERN = `^(?i:${[...CONVERSATIONAL_APP_NAMES]
   .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
   .join('|')})$`;
+
+/** The mail apps among them, by normalized display name: a sender there is a business, where a chat contact is a person. */
+export const MAIL_APP_NAMES: ReadonlySet<string> = new Set(['mail', 'gmail', 'outlook', 'почта', 'пошта', 'ფოსტა']);
+
+/** Whether the app is a mail app (by its display name, case-insensitively). */
+export const isMailApp = ({ appName }: { appName?: string | null }): boolean =>
+  MAIL_APP_NAMES.has((appName ?? '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase());

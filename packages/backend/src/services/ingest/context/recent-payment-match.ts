@@ -5,7 +5,33 @@ import { findTransactions } from '@models/transactions-query';
 import { Op, literal } from 'sequelize';
 
 import { readStoredParse } from '../event/stored-parse';
-import { isSameMerchant } from '../twins/parked-twin-rule';
+import { merchantCoreName } from '../payee/merchant-core';
+
+/** Domain and country words a bank prints around a brand ("TEMU.COM LU"). */
+const NOISE_WORDS = new Set(['com', 'net', 'org', 'www', 'shop', 'store', 'online']);
+
+/** The brand a merchant text names: its core words without domain words and a trailing country code. */
+const brandWords = ({ text }: { text: string }): string[] => {
+  const words = merchantCoreName({ raw: text })
+    .split(' ')
+    .filter((word) => word && !NOISE_WORDS.has(word));
+  if (words.length > 1 && words.at(-1)!.length === 2) words.pop();
+
+  return words;
+};
+
+/**
+ * Whether a sender is the brand a merchant text names: the same words, exactly. A sender that merely
+ * shares a word with a merchant ("John" and "John Lewis") is not.
+ */
+const isSameBrand = ({ sender, merchant }: { sender: string; merchant: string | null }): boolean => {
+  if (!merchant) return false;
+
+  const one = brandWords({ text: sender });
+  const other = brandWords({ text: merchant });
+
+  return one.length > 0 && one.join(' ') === other.join(' ') && one.join(' ').length >= 3;
+};
 
 /** A sender that names a merchant the owner paid this recently is worth asking about. */
 export const RECENT_PAYMENT_WINDOW_MS = 30 * 60_000;
@@ -60,5 +86,5 @@ export const senderMatchesRecentPayment = async ({
     })
   ).map((request) => readStoredParse({ value: request.parsed })?.payment?.merchant ?? null);
 
-  return [...logged, ...waiting].some((merchant) => isSameMerchant({ left: sender, right: merchant }));
+  return [...logged, ...waiting].some((merchant) => isSameBrand({ sender, merchant }));
 };
