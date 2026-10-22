@@ -1,5 +1,5 @@
 import { BULK_UPDATE_TAG_MODES } from '@bt/shared/types';
-import { recordId } from '@common/lib/zod/custom-types';
+import { ianaTimeZone, recordId } from '@common/lib/zod/custom-types';
 import { payeeIdSchema } from '@controllers/transactions.controller/schemas';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -20,6 +20,12 @@ const inputSchema = {
   payeeId: payeeIdSchema().describe(
     'ID of an existing payee to link to all transactions (from get_payees). Pass null to clear the payee',
   ),
+  timeZone: ianaTimeZone()
+    .nullable()
+    .optional()
+    .describe(
+      "IANA zone (Asia/Tbilisi) to record on all transactions, e.g. to backfill where a trip's payments happened. Each row's UTC offset is computed at its own time, so a range across a DST switch is handled; the time itself does not move. Pass null to clear the zone back to Unknown",
+    ),
 };
 
 export function registerBulkUpdateTransactions(server: McpServer) {
@@ -27,7 +33,7 @@ export function registerBulkUpdateTransactions(server: McpServer) {
     'bulk_update_transactions',
     {
       description:
-        'Update multiple transactions at once. Provide transactionIds plus at least one of categoryId, tagIds, note, or payeeId (null clears the payee). Tags can be added to, removed from, or replaced on all specified transactions.',
+        'Update multiple transactions at once. Provide transactionIds plus at least one of categoryId, tagIds, note, payeeId (null clears the payee), or timeZone (null clears the zone). Tags can be added to, removed from, or replaced on all specified transactions.',
       inputSchema,
     },
     async (args, extra) => {
@@ -44,6 +50,7 @@ export function registerBulkUpdateTransactions(server: McpServer) {
         tagMode: args.tagMode,
         note: args.note,
         payeeId: args.payeeId,
+        timeZone: args.timeZone,
       });
 
       return jsonContent({ data: result });

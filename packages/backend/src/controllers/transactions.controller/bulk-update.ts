@@ -1,5 +1,5 @@
 import { BULK_UPDATE_TAG_MODES } from '@bt/shared/types';
-import { recordId } from '@common/lib/zod/custom-types';
+import { ianaTimeZone, recordId } from '@common/lib/zod/custom-types';
 import { createController } from '@controllers/helpers/controller-factory';
 import * as transactionsService from '@services/transactions/bulk-update';
 import { resolveBulkTargetIds } from '@services/transactions/matching-transactions';
@@ -19,15 +19,18 @@ const bodyZodSchema = z
     note: z.string().max(1000, 'Note must not exceed 1000 characters').optional(),
     // Nullable on the wire: explicit `null` clears the Payee, undefined leaves it untouched.
     payeeId: payeeIdSchema(),
+    // Nullable on the wire: `null` clears the recorded zone.
+    timeZone: ianaTimeZone().nullable().optional(),
   })
   .refine(
     (data) =>
       data.categoryId !== undefined ||
       data.tagIds !== undefined ||
       data.note !== undefined ||
-      data.payeeId !== undefined,
+      data.payeeId !== undefined ||
+      data.timeZone !== undefined,
     {
-      message: 'At least one field (categoryId, tagIds, note, or payeeId) must be provided',
+      message: 'At least one field (categoryId, tagIds, note, payeeId, or timeZone) must be provided',
     },
   )
   .refine(hasOneBulkTarget, bulkTargetIssue);
@@ -37,7 +40,7 @@ const schema = z.object({
 });
 
 export default createController(schema, async ({ user, body }) => {
-  const { categoryId, tagIds, tagMode, note, payeeId } = body;
+  const { categoryId, tagIds, tagMode, note, payeeId, timeZone } = body;
   const { id: userId } = user;
 
   const transactionIds = await resolveBulkTargetIds({ userId, ...toBulkTarget(body) });
@@ -50,6 +53,7 @@ export default createController(schema, async ({ user, body }) => {
     tagMode,
     note,
     payeeId,
+    timeZone,
   });
 
   return { data: result };

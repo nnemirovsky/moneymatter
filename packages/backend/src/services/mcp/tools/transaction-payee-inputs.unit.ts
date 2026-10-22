@@ -130,3 +130,28 @@ describe('bulk_update_transactions payee input', () => {
     expect(bulkUpdate).toHaveBeenNthCalledWith(2, expect.objectContaining({ payeeId: null }));
   });
 });
+
+describe('bulk_update_transactions timeZone input', () => {
+  const schema = z.object(bulk.config.inputSchema!);
+
+  it('accepts a zone and null, and rejects an offset or an unknown zone', () => {
+    expect(schema.safeParse({ transactionIds: [ID], timeZone: 'Asia/Makassar' }).success).toBe(true);
+    expect(schema.safeParse({ transactionIds: [ID], timeZone: null }).success).toBe(true);
+    expect(schema.safeParse({ transactionIds: [ID], timeZone: '+04:00' }).success).toBe(false);
+    expect(schema.safeParse({ transactionIds: [ID], timeZone: 'Mars/Base' }).success).toBe(false);
+  });
+
+  it('passes the zone and null to the service', async () => {
+    await bulk.handler({ transactionIds: [ID], timeZone: 'Asia/Makassar' }, WRITE);
+    await bulk.handler({ transactionIds: [ID], timeZone: null }, WRITE);
+
+    expect(bulkUpdate).toHaveBeenNthCalledWith(1, expect.objectContaining({ timeZone: 'Asia/Makassar' }));
+    expect(bulkUpdate).toHaveBeenNthCalledWith(2, expect.objectContaining({ timeZone: null }));
+  });
+
+  it('describes the zone and the per-row offset', () => {
+    const description = (bulk.config.inputSchema!.timeZone as { description?: string }).description!;
+    expect(description).toContain('offset is computed at its own time');
+    expect(description).toContain('null');
+  });
+});

@@ -1586,6 +1586,8 @@ export const updateTransactions = (
     payeeId?: string | null;
     payeeLocked?: boolean;
     categorizationMeta?: CategorizationMeta | null;
+    timeZone?: string | null;
+    utcOffsetMinutes?: number | null;
   },
   where: Record<string, unknown> & { userId: number },
   {

@@ -318,6 +318,8 @@ export type BulkUpdateTransactionsBody = BulkTarget & {
   note?: string;
   // Nullable: explicit `null` clears the Payee, undefined leaves it untouched.
   payeeId?: RecordId | null;
+  /** IANA zone recorded on every row, with each row's offset at its own time. `null` clears the zone. */
+  timeZone?: string | null;
 };
 
 export interface BulkUpdateTransactionsResponse {
