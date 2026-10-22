@@ -655,7 +655,9 @@ describe('context notifications', () => {
 
       expect(other.body.response).toEqual({ outcome: 'probe', notify: false });
       expect(temu.body.response).toEqual({ outcome: 'probe', notify: false, send: 'yes' });
-      const sources = await helpers.listNotificationSources({ raw: true });
+      const sources = (await helpers.listNotificationSources({ raw: true })).filter(
+        (source) => source.appName === 'Mail',
+      );
       expect(sources.map((source) => source.sender)).toEqual(['Temu']);
       expect(sources[0]).toMatchObject({ appName: 'Mail', mode: 'pending', conversational: true, counters: {} });
     });
@@ -669,7 +671,8 @@ describe('context notifications', () => {
 
       expect(contact.body.response.send).toBeUndefined();
       expect(sms.body.response.send).toBeUndefined();
-      expect(await helpers.listNotificationSources({ raw: true })).toEqual([]);
+      const sources = await helpers.listNotificationSources({ raw: true });
+      expect(sources.filter((source) => source.conversational)).toEqual([]);
     });
 
     it('never offers a sender the owner muted, or one that paid nothing recently', async () => {

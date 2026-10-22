@@ -48,6 +48,15 @@ describe('parseContextNotification', () => {
     expect(read({ body: 'Your order has been delivered' })).toEqual({ store: null, status: 'delivered' });
   });
 
+  it('reads a store-less confirmation, at the start of a text or after another sentence', () => {
+    expect(read({ body: 'Your Temu order confirmation. Your order is confirmed!' })).toEqual({
+      store: null,
+      status: 'accepted',
+    });
+    expect(read({ body: 'Your order has been placed' })).toEqual({ store: null, status: 'accepted' });
+    expect(read({ body: 'Your order has been placed with Burger King' })).toBeNull();
+  });
+
   it('returns null for a text no rule reads', () => {
     expect(read({ title: '20% off your next order', body: 'Use code PIZZA' })).toBeNull();
     expect(read({})).toBeNull();
