@@ -9,6 +9,11 @@ import {
 import { ValidationError } from '@js/errors';
 import { z } from 'zod';
 
+// A year below 2000 is always a fat-fingered date ("26" for 2026): no ledger predates 2000, and
+// such dates poison exchange-rate lookups.
+export const MIN_TRANSACTION_TIME = new Date('2000-01-01T00:00:00.000Z');
+const BEFORE_MIN_MESSAGE = 'Transaction time cannot be before 2000-01-01';
+
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
 const DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?(Z|[+-]\d{2}:?\d{2})?$/;
 
@@ -82,6 +87,13 @@ function parseTime({ value }: { value: string }): ParsedTime | null {
 export function isTimeInput({ value }: { value: string }): boolean {
   return parseTime({ value }) !== null;
 }
+
+/** Whether a parsed time lies before the earliest ledger time; a date or wall clock is judged by its calendar year. */
+const isBeforeMin = ({ parsed }: { parsed: ParsedTime }) => {
+  if (parsed.kind === 'instant') return parsed.instant < MIN_TRANSACTION_TIME;
+  if (parsed.kind === 'wall') return parsed.wall.year < MIN_TRANSACTION_TIME.getUTCFullYear();
+  return parsed.year < MIN_TRANSACTION_TIME.getUTCFullYear();
+};
 
 const parseOrThrow = ({ value }: { value: string }): ParsedTime => {
   const parsed = parseTime({ value });
@@ -172,6 +184,7 @@ export function resolveTimeInput({
   if (timeZone) assertKnownZone({ zone: timeZone });
 
   const parsed = value === undefined ? null : parseOrThrow({ value });
+  if (parsed && isBeforeMin({ parsed })) throw new ValidationError({ message: BEFORE_MIN_MESSAGE });
 
   let time: Date | undefined;
   let offsetMinutes: number | null = null;
@@ -219,7 +232,16 @@ export function resolveRangeBound({ value, edge, zone }: { value: string; edge: 
 
 /** The `time` argument of a tool: a date, a wall clock, or an ISO time with `Z` or an offset. */
 export const timeInputSchema = () =>
-  z.string().refine((value) => isTimeInput({ value }), { message: `Not a valid time. ${HINT}` });
+  z
+    .string()
+    .refine((value) => isTimeInput({ value }), { message: `Not a valid time. ${HINT}` })
+    .refine(
+      (value) => {
+        const parsed = parseTime({ value });
+        return parsed === null || !isBeforeMin({ parsed });
+      },
+      { message: BEFORE_MIN_MESSAGE },
+    );
 
 /**
  * Rewrites the start and end bound fields of `args` as `Z` strings cut in `zone`, leaving other

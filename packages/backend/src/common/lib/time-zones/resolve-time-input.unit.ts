@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { isTimeInput, resolveRangeBound, resolveTimeInput } from './resolve-time-input';
+import { isTimeInput, resolveRangeBound, resolveTimeInput, timeInputSchema } from './resolve-time-input';
 
 const tbilisiUser = { viewingZone: 'Asia/Tbilisi', storedZone: 'Asia/Tbilisi' };
 const noSettingUser = { viewingZone: 'UTC', storedZone: null };
@@ -153,5 +153,20 @@ describe('isTimeInput', () => {
     expect(isTimeInput({ value: '2026-10-21T16:00' })).toBe(true);
     expect(isTimeInput({ value: '2026-10-21T16:00:00.500+0400' })).toBe(true);
     expect(isTimeInput({ value: '21 Oct 2026' })).toBe(false);
+  });
+});
+
+describe('the earliest ledger time', () => {
+  it.each(['1999-12-31', '1926-10-21T16:00', '1999-12-31T23:59:59Z'])('refuses %s as a point in time', (value) => {
+    expect(() => resolveTimeInput({ mode: 'create', value, ...tbilisiUser })).toThrow('before 2000-01-01');
+    expect(() => resolveTimeInput({ mode: 'update', value, ...tbilisiUser })).toThrow('before 2000-01-01');
+    expect(timeInputSchema().safeParse(value).success).toBe(false);
+  });
+
+  it('accepts the first day of 2000 and leaves range bounds alone', () => {
+    expect(timeInputSchema().safeParse('2000-01-01').success).toBe(true);
+    expect(resolveRangeBound({ value: '1990-01-01', edge: 'start', zone: 'UTC' })).toEqual(
+      new Date('1990-01-01T00:00:00.000Z'),
+    );
   });
 });
