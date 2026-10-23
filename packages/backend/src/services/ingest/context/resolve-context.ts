@@ -115,9 +115,8 @@ export const resolveContext = async ({
       context.status === 'accepted'
         ? earlier.some(
             (request) =>
-              isAppliedOrderRequest({ request }) ||
-              (isFirstStage({ request }) &&
-                Date.now() - request.createdAt.getTime() <= contextConfig.acceptedRepeatWindowMs),
+              isFirstStage({ request }) &&
+              Date.now() - request.createdAt.getTime() <= contextConfig.acceptedRepeatWindowMs,
           )
         : earlier.some((request) => isAppliedOrderRequest({ request }));
     if (isRepeat) {

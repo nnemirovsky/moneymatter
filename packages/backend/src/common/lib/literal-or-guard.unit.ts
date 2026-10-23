@@ -29,7 +29,7 @@ const sourceFiles = ({ dir }: { dir: string }): string[] =>
     const path = `${dir}/${entry.name}`;
     if (entry.isDirectory())
       return entry.name === 'migrations' || entry.name === 'node_modules' ? [] : sourceFiles({ dir: path });
-    return /\.ts$/.test(entry.name) && !/\.(unit|e2e|test)\.ts$/.test(entry.name) ? [path] : [];
+    return entry.name.endsWith('.ts') && !/\.(unit|e2e|test)\.ts$/.test(entry.name) ? [path] : [];
   });
 
 describe('raw SQL literals', () => {

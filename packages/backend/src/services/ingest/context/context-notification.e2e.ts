@@ -160,10 +160,11 @@ describe('context notifications', () => {
     });
 
     it('treats a later "delivered" as a repeat even when it comes long after the payment', async () => {
-      contextConfig.lookbackMs = 1;
       const { secret } = await setUp();
       await pay({ secret });
       await send({ secret, body: accepted() });
+      // Later, the payment is far behind the stage: only the order's own record says it was applied.
+      contextConfig.lookbackMs = 1;
 
       const delivered = await send({
         secret,
@@ -291,6 +292,26 @@ describe('context notifications', () => {
         timeout: 10_000,
         interval: 200,
       });
+    });
+
+    it('treats the acceptance of a second order from the same store, much later, as a new order', async () => {
+      const { secret } = await setUp();
+      const first = await pay({ secret, amount: '27.38' });
+      const accepted1 = await send({ secret, body: accepted() });
+      await IngestRequests.update(
+        { createdAt: new Date(Date.now() - 2 * 60 * 60_000) },
+        { where: { id: accepted1.body.response.requestId }, silent: true },
+      );
+      const second = await pay({ secret, amount: '12.30' });
+
+      const accepted2 = await send({
+        secret,
+        body: woltNotification({ title: 'Order confirmed', body: 'Urban Roastery&Coffee has confirmed your order!' }),
+      });
+
+      expect(accepted2.body.response).toMatchObject({ outcome: 'enriched' });
+      expect((await reload({ id: first.id })).note).toBe('Urban Roastery&Coffee order from Wolt');
+      expect((await reload({ id: second.id })).note).toBe('Urban Roastery&Coffee order from Wolt');
     });
 
     it('lets a later stage apply when the first stage never did and an unconfirmed payment is in its window', async () => {
