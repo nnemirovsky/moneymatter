@@ -10,12 +10,15 @@ const ignoreContextImpl = async ({
   reason,
   parsed,
   context,
+  detail,
 }: {
   requestId: RecordId;
   reason: ContextIgnoreReason | NotificationIgnoreReason;
   parsed: Pick<StoredParse, 'parser' | 'kind' | 'confidence'>;
   /** The order the notification belonged to, kept (without its excerpt) so the order's later stages are recognized. */
   context?: StoredContext;
+  /** Ids and counts that explain the decision, kept for diagnosis; never text. */
+  detail?: Record<string, unknown>;
 }): Promise<boolean> => {
   const row = await IngestRequests.findOne({ where: { id: requestId }, lock: true });
   if (!row || (row.status !== 'received' && row.status !== 'held')) return false;
@@ -32,6 +35,7 @@ const ignoreContextImpl = async ({
       kind: parsed.kind,
       confidence: parsed.confidence,
       ...(context && { context: { ...context, excerpt: '' } }),
+      ...(detail && { detail }),
     },
   });
 

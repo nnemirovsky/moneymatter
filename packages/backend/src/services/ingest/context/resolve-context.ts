@@ -5,7 +5,12 @@ import { readStoredParse, type StoredParse } from '../event/stored-parse';
 import { applyContext, holdContext } from './commit-context';
 import { contextConfig } from './context-config';
 import type { StoredContext } from './context-types';
-import { findContextCandidates, findContextRepeat, findHeldContexts } from './find-context-payment';
+import {
+  findContextCandidates,
+  findContextOrderRequests,
+  findHeldContexts,
+  isAppliedOrderRequest,
+} from './find-context-payment';
 import { normalizeStore } from './normalize-store';
 import { isPipelineCategory, pickContextCategory } from './pick-context-category';
 import { pickContextPayment } from './pick-context-payment';
@@ -14,6 +19,39 @@ import { ignoreContext } from './settle-context';
 
 const MAX_ATTEMPTS = 3;
 
+/** Closes the earlier stages of one order that are still held, so none of them claims a second payment. */
+const closeHeldStagesOfOrder = async ({
+  userId,
+  service,
+  store,
+  requestId,
+  reduced,
+}: {
+  userId: number;
+  service: string;
+  store: string;
+  requestId: IngestRequests['id'];
+  reduced: Pick<StoredParse, 'parser' | 'kind' | 'confidence'>;
+}): Promise<void> => {
+  const earlier = await findContextOrderRequests({
+    userId,
+    service,
+    store,
+    excludeRequestId: requestId,
+    windowMs: contextConfig.repeatWindowMs,
+  });
+
+  for (const request of earlier.filter((item) => item.status === 'held')) {
+    const stored = readStoredParse({ value: request.parsed });
+    await ignoreContext({
+      requestId: request.id,
+      reason: 'contextRepeat',
+      parsed: { parser: stored?.parser ?? reduced.parser, kind: 'context', confidence: stored?.confidence ?? 0 },
+      context: stored?.context,
+    });
+  }
+};
+
 /** What the matching did with a context notification. `summary` is the banner of an applied one. */
 export type ContextResolution = { kind: 'enriched'; summary: string } | { kind: 'held' } | { kind: 'ignored' };
 
@@ -21,11 +59,12 @@ export type ContextResolution = { kind: 'enriched'; summary: string } | { kind: 
  * Matches one context notification to a payment and settles its request, for a notification that has
  * just been read (`received`) and for one that waited for its payment (`held`).
  *
- * 1. A repeat of an order already handled (same service and store, any stage after the first) is
- *    ignored.
+ * 1. A stage of an order that was already applied to a payment is ignored; so is a second push of the
+ *    first stage within `acceptedRepeatWindowMs`. A later stage of an order that was never applied is read
+ *    on its own.
  * 2. The candidates are the service's payments around the notification's time that no earlier context
- *    claimed. Only an unconfirmed one may be enriched; with only confirmed ones the notification is
- *    ignored (a held one waits on).
+ *    claimed. Only an unconfirmed one may be enriched; with none, a first stage is held (confirmed
+ *    payments in the window do not stop it) and a later stage is ignored.
  * 3. One open payment and no competing context is a sure match. Otherwise the model weighs the
  *    candidates (the nearest in time stands in without one) and the match is marked as a guess.
  * 4. The store's category is picked for a row whose category is still the pipeline's, then everything
@@ -57,16 +96,30 @@ export const resolveContext = async ({
   const reduced = { parser, kind: 'context', confidence };
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
-    // Every stage of an order after the first repeats it. The first stage ("accepted") starts a new order
-    // unless the same store's was handled a moment ago (a second push of one acceptance).
-    const repeat = await findContextRepeat({
+    // A stage repeats an order that was applied to a payment: nothing is left to add. A first stage
+    // ("accepted") also repeats one handled a moment ago, whatever came of it (a second push of one
+    // acceptance). A later stage ("on its way") of an order that was never applied (its first stage was
+    // held, expired, or found the payment already confirmed) is read on its own below.
+    const earlier = await findContextOrderRequests({
       userId,
       service: context.service,
       store: context.store,
       excludeRequestId: requestId,
-      windowMs: context.status === 'accepted' ? contextConfig.acceptedRepeatWindowMs : contextConfig.repeatWindowMs,
+      windowMs: contextConfig.repeatWindowMs,
     });
-    if (repeat) {
+    // A second push of the first stage counts only against another first stage: a later stage of the same
+    // order that arrived ahead of the payment (and was ignored) must not cancel the acceptance that waits.
+    const isFirstStage = ({ request }: { request: IngestRequests }) =>
+      readStoredParse({ value: request.parsed })?.context?.status === 'accepted';
+    const isRepeat =
+      context.status === 'accepted'
+        ? earlier.some(
+            (request) =>
+              isFirstStage({ request }) &&
+              Date.now() - request.createdAt.getTime() <= contextConfig.acceptedRepeatWindowMs,
+          )
+        : earlier.some((request) => isAppliedOrderRequest({ request }));
+    if (isRepeat) {
       await ignoreContext({ requestId, reason: 'contextRepeat', parsed: reduced, context });
 
       return { kind: 'ignored' };
@@ -76,16 +129,20 @@ export const resolveContext = async ({
 
     if (!open.length) {
       if (wasHeld) return { kind: 'held' };
-      if (confirmed.length) {
-        await ignoreContext({ requestId, reason: 'contextConfirmed', parsed: reduced, context });
 
-        return { kind: 'ignored' };
-      }
-
-      // Only a first stage waits for its payment. A later one ("on its way") means the payment came long
-      // ago, so a payment that appears now belongs to another order.
+      // Only a first stage waits for its payment, even when a confirmed payment of the service stands in the
+      // window: that one may be another order's (the payment of this order can still be on its way, as it
+      // was 14 seconds behind a Wolt acceptance). A later stage ("on its way") means the payment came long
+      // ago, so a payment that appears now belongs to another order: it is ignored, with a note when a
+      // confirmed one explains why.
       if (context.status !== 'accepted') {
-        await ignoreContext({ requestId, reason: 'info', parsed: reduced, context });
+        await ignoreContext({
+          requestId,
+          reason: confirmed.length ? 'contextConfirmed' : 'info',
+          parsed: reduced,
+          context,
+          detail: { confirmedIds: confirmed.map((row) => row.id), windowAt: context.at },
+        });
 
         return { kind: 'ignored' };
       }
@@ -137,13 +194,22 @@ export const resolveContext = async ({
 
     switch (applied.kind) {
       case 'applied':
+        // The order is on its payment: an earlier stage that still waits for one has nothing left to do.
+        await closeHeldStagesOfOrder({ userId, service: context.service, store: context.store, requestId, reduced });
+
         return { kind: 'enriched', summary: applied.summary };
       case 'kept':
       case 'gone':
         return { kind: 'ignored' };
       case 'confirmed':
         if (wasHeld) return { kind: 'held' };
-        await ignoreContext({ requestId, reason: 'contextConfirmed', parsed: reduced, context });
+        await ignoreContext({
+          requestId,
+          reason: 'contextConfirmed',
+          parsed: reduced,
+          context,
+          detail: { transactionId: transaction.id },
+        });
 
         return { kind: 'ignored' };
       default:

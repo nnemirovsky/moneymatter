@@ -23,6 +23,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "knip": "npx knip",
     "backfill:time-zones": "cross-env NODE_ENV=production ts-node -r tsconfig-paths/register src/scripts/backfill-time-zones.ts",
+    "reapply:context": "cross-env NODE_ENV=production ts-node -r tsconfig-paths/register src/scripts/reapply-context.ts",
     "backfill:payee-logos": "cross-env NODE_ENV=production ts-node -r tsconfig-paths/register src/scripts/backfill-payee-logos.ts",
     "fixtures:ms-money": "ts-node -T scripts/fetch-ms-money-fixtures.ts",
     "check:money-migration": "ts-node -T scripts/check-money-migration.ts"

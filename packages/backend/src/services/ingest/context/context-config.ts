@@ -5,8 +5,9 @@
  * - `lookbackMs`: a payment may precede its context notification by this long.
  * - `lookaheadMs`: a payment may follow its context notification by this long. A context with no
  *   payment yet is held for the same time.
- * - `repeatWindowMs`: a notification of the same service and store inside this window repeats an
- *   order that was already handled (accepted, on the way, delivered).
+ * - `repeatWindowMs`: how far back the earlier requests of one order are read: a later stage repeats an
+ *   order only when one of them was applied to a payment, and the still-held stages of an applied order
+ *   are closed.
  * - `acceptedRepeatWindowMs`: the first stage of an order ("accepted") repeats an order only when the
  *   same store's was handled this recently; a later one is a new order from the same store.
  * - `guessMinConfidence`: below it the model's pick between several payments is not used and the

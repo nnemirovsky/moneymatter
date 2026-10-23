@@ -55,8 +55,10 @@ export const findContextCandidates = async ({
         [Op.gte]: new Date(time.getTime() - contextConfig.lookbackMs),
         [Op.lte]: new Date(time.getTime() + contextConfig.lookaheadMs),
       },
+      // Parenthesized: a literal is spliced into the AND list as written, and its OR would otherwise
+      // swallow the time window, the type and the owner scope that stand beside it.
       [Op.and]: literal(
-        `("Transactions"."externalData"->'cardPayment') IS NOT NULL OR ("Transactions"."externalData"->'ingest') IS NOT NULL`,
+        `(("Transactions"."externalData"->'cardPayment') IS NOT NULL OR ("Transactions"."externalData"->'ingest') IS NOT NULL)`,
       ),
     },
     order: [['time', 'ASC']],
@@ -90,11 +92,11 @@ export const findContextCandidates = async ({
 };
 
 /**
- * The earlier request of the same service and store that makes a new notification a repeat of an order
- * that was already handled, or `null`. Read on the request side because a bank settlement rebuilds a
- * row's `externalData` and loses its markers.
+ * The earlier requests of the same order (same service, same normalized store) inside `windowMs`, newest
+ * first: held, applied, or ignored without applying. Read on the request side because a bank settlement
+ * rebuilds a row's `externalData` and loses its markers.
  */
-export const findContextRepeat = async ({
+export const findContextOrderRequests = async ({
   userId,
   service,
   store,
@@ -106,7 +108,7 @@ export const findContextRepeat = async ({
   store: string;
   excludeRequestId: RecordId;
   windowMs: number;
-}): Promise<IngestRequests | null> => {
+}): Promise<IngestRequests[]> => {
   const wanted = normalizeStore({ value: store });
   const earlier = await IngestRequests.findAll({
     where: {
@@ -122,14 +124,16 @@ export const findContextRepeat = async ({
     order: [['createdAt', 'DESC']],
   });
 
-  return (
-    earlier.find((request) => {
-      const context = readStoredParse({ value: request.parsed })?.context;
+  return earlier.filter((request) => {
+    const context = readStoredParse({ value: request.parsed })?.context;
 
-      return context?.service === service && normalizeStore({ value: context.store }) === wanted;
-    }) ?? null
-  );
+    return context?.service === service && normalizeStore({ value: context.store }) === wanted;
+  });
 };
+
+/** Whether the request put its order on a payment: it was applied, or found the note already the owner's. */
+export const isAppliedOrderRequest = ({ request }: { request: IngestRequests }): boolean =>
+  request.status === 'enriched' || (request.status === 'ignored' && request.reason === 'contextNoteKept');
 
 /** The context notifications still waiting for a payment of this service. */
 export const findHeldContexts = ({ userId }: { userId: number }) =>
