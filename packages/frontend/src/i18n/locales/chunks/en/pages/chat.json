@@ -779,6 +779,12 @@
         "useThisPage": "Use this page"
       }
     },
+    "queue": {
+      "title": "Queued",
+      "sendQueued": "Send queued",
+      "edit": "Edit queued message",
+      "remove": "Remove queued message"
+    },
     "connection": {
       "label": "Model for this chat",
       "placeholder": "Choose a model",

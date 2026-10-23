@@ -128,6 +128,21 @@ describe('useChatRun', () => {
     }
   });
 
+  it('reports how the run ended once the thread has been read, and not when the stream was lost', async () => {
+    const { chatRun } = mountRun();
+    replayedStream({ events: [{ type: 'run.finished', status: 'cancelled' }] });
+
+    await chatRun.attach(RUN);
+
+    expect(chatRun.lastFinished.value).toEqual({ threadId: THREAD_ID, runId: 'run-1', status: 'cancelled' });
+
+    chatRun.lastFinished.value = null;
+    replayedStream({ events: [], outcome: 'failed' });
+    await chatRun.attach({ runId: 'run-2', messageId: 'msg-2' });
+
+    expect(chatRun.lastFinished.value).toBeNull();
+  });
+
   it('keeps the finished run on screen until the thread has been read', async () => {
     const refetches: Array<() => void> = [];
     const { chatRun, invalidateQueries } = mountRun();
