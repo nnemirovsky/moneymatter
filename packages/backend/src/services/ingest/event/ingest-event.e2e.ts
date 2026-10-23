@@ -99,6 +99,23 @@ describe('POST /ingest/event', () => {
       expect(await storedRequests()).toEqual([]);
     });
 
+    it.each([
+      ['a dry run with no kind', { dryRun: true }],
+      ['a body with nothing in it', {}],
+      ['a body of empty strings', { kind: '', app: '', title: '', body: '' }],
+    ])(
+      'answers %s with a silent 200: the shortcut posts it when its notification vanished before it was read',
+      async (_name, body) => {
+        const secret = await setUp();
+
+        const res = await send({ secret, body });
+
+        expect(res.status).toBe(200);
+        expect(res.body.response).toEqual({ outcome: 'ignored', reason: 'emptyRun', notify: false });
+        expect(await storedRequests()).toEqual([]);
+      },
+    );
+
     it('answers 422 for a body that is not an object', async () => {
       const secret = await setUp();
 
