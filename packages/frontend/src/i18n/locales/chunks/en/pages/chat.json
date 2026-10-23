@@ -779,6 +779,13 @@
         "useThisPage": "Use this page"
       }
     },
+    "queue": {
+      "title": "Queued",
+      "sendQueued": "Send queued",
+      "edit": "Edit queued message",
+      "remove": "Remove queued message",
+      "attachmentsExpired": "Attachments of an old queued message expired and were not sent."
+    },
     "connection": {
       "label": "Model for this chat",
       "placeholder": "Choose a model",

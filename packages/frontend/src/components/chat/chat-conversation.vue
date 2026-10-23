@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Button } from '@/components/lib/ui/button';
+import { useNotificationCenter } from '@/components/notification-center';
 import { ScrollArea } from '@/components/lib/ui/scroll-area';
+import { type QueuedMessage, hasExpiredAttachments, useChatQueue } from '@/composable/chat/use-chat-queue';
 import { useChatRun } from '@/composable/chat/use-chat-run';
 import { useAiSettings } from '@/composable/data-queries/ai-settings';
 import {
@@ -22,6 +24,7 @@ import {
 } from '@bt/shared/types';
 import { InboxIcon, Loader2Icon, RotateCwIcon } from '@lucide/vue';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import ChatComposer from './chat-composer.vue';
 import ChatConnectionPicker from './chat-connection-picker.vue';
@@ -31,6 +34,7 @@ import { useChatContextLabel } from './chat-context-label';
 import ChatEmptyState from './chat-empty-state.vue';
 import { isInboxThread } from './chat-inbox';
 import ChatMessage from './chat-message.vue';
+import ChatQueue from './chat-queue.vue';
 
 const props = defineProps<{
   /** The thread to show; `null` is a conversation that has not started. */
@@ -50,6 +54,7 @@ const SKELETON_COUNT = 3;
 
 // The thread is created on the first message (or the first attachment), so the conversation can hold an
 // id the page has not heard of yet; the page catches up through `thread-created`.
+const { t } = useI18n();
 const activeThreadId = ref(props.threadId);
 // A pick belongs to the thread it was made for, so another thread starts without one.
 const pickedConnectionId = ref<string | null | undefined>(undefined);
@@ -70,6 +75,7 @@ const { thread, messages, cards, hasMore, isLoading, isError, isLoadingOlder, lo
   threadId: activeThreadId,
 });
 const chatRun = useChatRun({ threadId: activeThreadId });
+const queue = useChatQueue({ threadId: activeThreadId });
 // The side panel and the chat page both show this component, so one call covers both.
 useChatPresence({ threadId: activeThreadId });
 const createThread = useCreateChatThread();
@@ -268,6 +274,8 @@ const showEmpty = computed(() => !hasContent.value && !showSkeleton.value && !sh
 
 // A reload while an answer was streaming: follow the run that is still going.
 const followedRunIds = new Set<string>();
+// Another thread stops following this one's run, so coming back must follow it again.
+watch(activeThreadId, () => followedRunIds.clear(), { flush: 'sync' });
 watch(
   messages,
   (list) => {
@@ -303,7 +311,7 @@ const ensureThread = (): Promise<string> => {
   return creatingThread;
 };
 
-const sendPayload = async ({ payload }: { payload: ChatSendMessageRequest }) => {
+const sendPayload = async ({ payload }: { payload: ChatSendMessageRequest }): Promise<boolean> => {
   isSending.value = true;
   isPinnedToBottom.value = true;
   try {
@@ -311,15 +319,71 @@ const sendPayload = async ({ payload }: { payload: ChatSendMessageRequest }) => 
     // The run composable follows the thread id; let it see the new one before the first message.
     await nextTick();
     await chatRun.send({ payload });
+    return true;
   } catch (error) {
     notifyMutationError({ error, fallbackKey: 'chat.errors.sendFailed' });
+    return false;
   } finally {
     isSending.value = false;
   }
 };
 
-const onSend = ({ text, attachmentIds }: { text: string; attachmentIds: string[] }) =>
-  sendPayload({ payload: { text, ...(attachmentIds.length > 0 ? { attachmentIds } : {}) } });
+const toPayload = ({ text, attachmentIds }: { text: string; attachmentIds: string[] }): ChatSendMessageRequest => ({
+  text,
+  ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
+});
+
+// The server takes one run at a time, so a message written while the assistant works waits in the queue
+// of its thread (its attachments are uploaded already) and goes out when the run ends.
+const onSend = async ({
+  text,
+  attachmentIds,
+  attachments,
+}: {
+  text: string;
+  attachmentIds: string[];
+  attachments: QueuedMessage['attachments'];
+}) => {
+  if (isBusy.value && activeThreadId.value) {
+    queue.enqueue({ text, attachments });
+    return;
+  }
+  const sent = await sendPayload({ payload: toPayload({ text, attachmentIds }) });
+  // The box was cleared on send; a refused message goes back into it instead of being lost.
+  if (!sent) composerRef.value?.restore({ text, attachments });
+};
+
+/** Sends the first queued message; a failed send puts it back at the front. */
+const sendNextQueued = async () => {
+  const ownerId = activeThreadId.value;
+  const taken = queue.take();
+  if (!taken || !ownerId) return;
+  // Unsent uploads are deleted by the server after an hour, so an old message goes without them.
+  const expired = hasExpiredAttachments({ message: taken });
+  if (expired) useNotificationCenter().addErrorNotification(t('chat.queue.attachmentsExpired'));
+  const next: QueuedMessage = expired ? { ...taken, attachments: [] } : taken;
+  const sent = await sendPayload({
+    payload: toPayload({ text: next.text, attachmentIds: next.attachments.map((item) => item.id) }),
+  });
+  if (!sent) queue.putBack({ message: next, threadId: ownerId });
+};
+
+// The queue carries on by itself only after a run that ended well. After a Stop or an error the user decides,
+// and so after a reload, when no run has ended in this page yet: "Send queued" starts it again.
+watch(
+  () => chatRun.lastFinished.value,
+  (finished) => {
+    if (finished?.status !== 'complete' || finished.threadId !== activeThreadId.value) return;
+    void sendNextQueued();
+  },
+);
+
+const onEditQueued = ({ id }: { id: string }) => {
+  const item = queue.items.value.find((candidate) => candidate.id === id);
+  if (!item) return;
+  queue.remove({ id });
+  composerRef.value?.restore({ text: item.text, attachments: item.attachments });
+};
 
 const onAnswer = ({ answer }: { answer: ChatClarificationAnswerInput }) =>
   sendPayload({ payload: { text: '', clarificationAnswer: answer } });
@@ -398,7 +462,9 @@ onMounted(scrollToBottom);
         </div>
 
         <div v-else-if="showError" class="flex flex-col items-center gap-3 py-10 text-center">
-          <p class="text-muted-foreground text-sm">{{ $t('chat.conversation.loadError') }}</p>
+          <p class="text-muted-foreground text-sm">
+            {{ $t('chat.conversation.loadError') }}
+          </p>
           <Button variant="outline" data-testid="retry" @click="refetch()">
             <RotateCwIcon class="size-4" aria-hidden="true" />
             {{ $t('common.actions.retry') }}
@@ -412,7 +478,9 @@ onMounted(scrollToBottom);
         >
           <InboxIcon class="text-muted-foreground size-8" aria-hidden="true" />
           <p class="font-medium">{{ $t('chat.inbox.emptyTitle') }}</p>
-          <p class="text-muted-foreground max-w-sm text-sm">{{ $t('chat.inbox.emptyDescription') }}</p>
+          <p class="text-muted-foreground max-w-sm text-sm">
+            {{ $t('chat.inbox.emptyDescription') }}
+          </p>
         </div>
 
         <ChatEmptyState
@@ -451,6 +519,13 @@ onMounted(scrollToBottom);
     </ScrollArea>
 
     <div v-if="!isInbox" class="mx-auto w-full max-w-3xl shrink-0">
+      <ChatQueue
+        :items="queue.items.value"
+        :can-send-now="!isBusy && isConfigured"
+        @edit="(id) => onEditQueued({ id })"
+        @remove="(id) => queue.remove({ id })"
+        @send-now="sendNextQueued()"
+      />
       <ChatComposer
         ref="composerRef"
         :is-streaming="chatRun.isStreaming.value"

@@ -27,11 +27,7 @@ const attachment = ({ id, fileName }: { id: string; fileName: string }): ChatAtt
 
 const mountComposer = (props: Partial<InstanceType<typeof ChatComposer>['$props']> = {}) =>
   mount(ChatComposer, {
-    props: {
-      isStreaming: false,
-      ensureThread: vi.fn().mockResolvedValue('thread-1'),
-      ...props,
-    },
+    props: { isStreaming: false, ensureThread: vi.fn().mockResolvedValue('thread-1'), ...props },
     global: { plugins: [createChatI18n()], stubs: { DesktopOnlyTooltip: { template: '<div><slot /></div>' } } },
   });
 
@@ -84,6 +80,63 @@ describe('ChatComposer', () => {
     });
   });
 
+  describe('Enter key', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('queries a coarse pointer, not the user agent', () => {
+      stubMatchMedia({ matches: false });
+      mountComposer();
+
+      expect(vi.mocked(window.matchMedia)).toHaveBeenCalledWith('(pointer: coarse)');
+    });
+
+    it('inserts a new line instead of sending on a coarse pointer', async () => {
+      stubMatchMedia({ matches: true });
+      const wrapper = mountComposer();
+
+      await type({ wrapper, text: 'Hello' });
+      const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+      wrapper.find('textarea').element.dispatchEvent(event);
+
+      expect(wrapper.emitted('send')).toBeUndefined();
+      expect(event.defaultPrevented).toBe(false);
+      expect(wrapper.find('textarea').attributes('enterkeyhint')).toBe('enter');
+    });
+
+    it('still sends with the button on a coarse pointer', async () => {
+      stubMatchMedia({ matches: true });
+      const wrapper = mountComposer();
+
+      await type({ wrapper, text: 'Hello' });
+      await wrapper.find('[data-testid="send"]').trigger('click');
+
+      expect(wrapper.emitted('send')).toHaveLength(1);
+    });
+
+    it('sends on Enter with a fine pointer and sets no enterkeyhint', async () => {
+      stubMatchMedia({ matches: false });
+      const wrapper = mountComposer();
+
+      await type({ wrapper, text: 'Hello' });
+      await wrapper.find('textarea').trigger('keydown', { key: 'Enter' });
+
+      expect(wrapper.emitted('send')).toHaveLength(1);
+      expect(wrapper.find('textarea').attributes('enterkeyhint')).toBeUndefined();
+    });
+
+    it('does not send on the Enter that confirms an IME composition', async () => {
+      stubMatchMedia({ matches: false });
+      const wrapper = mountComposer();
+
+      await type({ wrapper, text: 'こんにちは' });
+      await wrapper.find('textarea').trigger('keydown', { key: 'Enter', isComposing: true });
+
+      expect(wrapper.emitted('send')).toBeUndefined();
+    });
+  });
+
   beforeEach(() => {
     vi.mocked(uploadChatAttachment).mockReset();
     vi.mocked(fitImageForUpload).mockReset();
@@ -96,7 +149,9 @@ describe('ChatComposer', () => {
       await type({ wrapper, text: '  How much did I spend?  ' });
       await wrapper.find('textarea').trigger('keydown', { key: 'Enter' });
 
-      expect(wrapper.emitted('send')).toEqual([[{ text: 'How much did I spend?', attachmentIds: [] }]]);
+      expect(wrapper.emitted('send')).toEqual([
+        [{ text: 'How much did I spend?', attachmentIds: [], attachments: [] }],
+      ]);
       expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('');
     });
 
@@ -138,13 +193,82 @@ describe('ChatComposer', () => {
       expect(wrapper.emitted('cancel')).toHaveLength(1);
     });
 
-    it('does not send while an answer streams', async () => {
+    it('offers send, not stop, once something is typed while an answer streams', async () => {
+      const wrapper = mountComposer({ isStreaming: true });
+
+      await type({ wrapper, text: 'Next question' });
+
+      expect(wrapper.find('[data-testid="stop"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="send"]').attributes('disabled')).toBeUndefined();
+    });
+
+    it('goes back to stop when the box is emptied during a run', async () => {
+      const wrapper = mountComposer({ isStreaming: true });
+
+      await type({ wrapper, text: 'Next question' });
+      await type({ wrapper, text: '' });
+
+      expect(wrapper.find('[data-testid="stop"]').exists()).toBe(true);
+    });
+
+    it('emits a message written while an answer streams, for the parent to queue', async () => {
       const wrapper = mountComposer({ isStreaming: true });
 
       await type({ wrapper, text: 'Hello' });
-      await wrapper.find('textarea').trigger('keydown', { key: 'Enter' });
+      await wrapper.find('[data-testid="send"]').trigger('click');
 
-      expect(wrapper.emitted('send')).toBeUndefined();
+      expect(wrapper.emitted('send')).toEqual([[{ text: 'Hello', attachmentIds: [], attachments: [] }]]);
+    });
+
+    it('swaps stop for send while an attachment is still uploading, but cannot send it yet', async () => {
+      vi.mocked(uploadChatAttachment).mockReturnValue(new Promise(() => {}));
+      const wrapper = mountComposer({ isStreaming: true });
+
+      await pick({ wrapper, files: [pdf()] });
+
+      expect(wrapper.find('[data-testid="stop"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="send"]').attributes('disabled')).toBeDefined();
+    });
+
+    it('sends the attachments with their names so a queued message can show them', async () => {
+      vi.mocked(uploadChatAttachment).mockResolvedValue(attachment({ id: 'att-1', fileName: 'statement.pdf' }));
+      const wrapper = mountComposer({ isStreaming: true });
+
+      await pick({ wrapper, files: [pdf()] });
+      await wrapper.find('[data-testid="send"]').trigger('click');
+
+      expect(wrapper.emitted('send')).toEqual([
+        [
+          {
+            text: '',
+            attachmentIds: ['att-1'],
+            attachments: [{ id: 'att-1', fileName: 'statement.pdf', sizeBytes: 100 }],
+          },
+        ],
+      ]);
+    });
+
+    it('takes a queued message back into the box, in front of what is typed', async () => {
+      const wrapper = mountComposer();
+
+      await type({ wrapper, text: 'draft' });
+      wrapper.vm.restore({ text: 'queued', attachments: [{ id: 'att-9', fileName: 'a.pdf', sizeBytes: 5 }] });
+      await flushPromises();
+
+      expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('queued\ndraft');
+      expect(wrapper.findAll('[data-testid="attachment"]')).toHaveLength(1);
+
+      await wrapper.find('[data-testid="send"]').trigger('click');
+
+      expect(wrapper.emitted('send')).toEqual([
+        [
+          {
+            text: 'queued\ndraft',
+            attachmentIds: ['att-9'],
+            attachments: [{ id: 'att-9', fileName: 'a.pdf', sizeBytes: 5 }],
+          },
+        ],
+      ]);
     });
 
     it('locks the box when chat cannot answer', () => {
@@ -196,7 +320,15 @@ describe('ChatComposer', () => {
 
       await wrapper.find('[data-testid="send"]').trigger('click');
 
-      expect(wrapper.emitted('send')).toEqual([[{ text: '', attachmentIds: ['att-1'] }]]);
+      expect(wrapper.emitted('send')).toEqual([
+        [
+          {
+            text: '',
+            attachmentIds: ['att-1'],
+            attachments: [{ id: 'att-1', fileName: 'statement.pdf', sizeBytes: 100 }],
+          },
+        ],
+      ]);
       expect(wrapper.find('[data-testid="attachment"]').exists()).toBe(false);
     });
 

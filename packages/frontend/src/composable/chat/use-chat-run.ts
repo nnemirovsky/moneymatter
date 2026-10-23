@@ -1,6 +1,6 @@
 import { cancelChatRun, sendChatMessage, streamChatRunEvents } from '@/api/chat';
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const';
-import type { ChatSendMessageRequest, ChatSendMessageResponse } from '@bt/shared/types';
+import type { ChatRunStatus, ChatSendMessageRequest, ChatSendMessageResponse } from '@bt/shared/types';
 import { useQueryClient } from '@tanstack/vue-query';
 import { type MaybeRefOrGetter, computed, onScopeDispose, shallowRef, toValue, watch } from 'vue';
 
@@ -12,6 +12,8 @@ import { type ChatRunState, applyRunEvent, createRunState } from './apply-run-ev
  * live. When the run ends (or its stream cannot be followed) the thread is read again, which brings
  * the final message and its cards, and `run` is cleared.
  *
+ * `lastFinished` names the run that ended last and how, once the thread has been read again.
+ *
  * A reload attaches to the run of a message that is still `streaming`: the stream replays from its
  * start, so the state is rebuilt whole.
  */
@@ -19,6 +21,9 @@ export const useChatRun = ({ threadId }: { threadId: MaybeRefOrGetter<string | n
   const queryClient = useQueryClient();
   const run = shallowRef<ChatRunState | null>(null);
   let current: AbortController | null = null;
+  // How the last followed run ended, for what waits on it (the queue of messages). Cleared when a run is
+  // followed and left null when its stream cannot be followed to the end: whoever waits cannot tell how it went.
+  const lastFinished = shallowRef<{ threadId: string; runId: string; status: ChatRunStatus } | null>(null);
 
   const isStreaming = computed(() => run.value?.status === 'streaming');
 
@@ -45,6 +50,7 @@ export const useChatRun = ({ threadId }: { threadId: MaybeRefOrGetter<string | n
     const controller = new AbortController();
     current = controller;
     run.value = createRunState({ runId, messageId });
+    lastFinished.value = null;
 
     const outcome = await streamChatRunEvents({
       runId,
@@ -62,8 +68,10 @@ export const useChatRun = ({ threadId }: { threadId: MaybeRefOrGetter<string | n
     // it is the only source left when the stream has expired or cannot be reached.
     await refreshThread({ id });
     if (current === controller) {
+      const status = run.value?.status;
       current = null;
       run.value = null;
+      if (status && status !== 'streaming') lastFinished.value = { threadId: id, runId, status };
     }
   };
 
@@ -91,5 +99,5 @@ export const useChatRun = ({ threadId }: { threadId: MaybeRefOrGetter<string | n
   );
   onScopeDispose(stop);
 
-  return { run, isStreaming, send, attach, cancel, stop };
+  return { run, isStreaming, lastFinished, send, attach, cancel, stop };
 };

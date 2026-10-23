@@ -1,4 +1,5 @@
 import { createRunState } from '@/composable/chat/apply-run-event';
+import { resetChatQueues } from '@/composable/chat/use-chat-queue';
 import { useChatRun } from '@/composable/chat/use-chat-run';
 import { useAiSettings } from '@/composable/data-queries/ai-settings';
 import {
@@ -34,6 +35,7 @@ vi.mock('./chat-context-label', () => ({
 }));
 vi.mock('@/composable/data-queries/ai-settings', () => ({ useAiSettings: vi.fn() }));
 vi.mock('@/composable/data-queries/use-invalidating-mutation', () => ({ notifyMutationError: vi.fn() }));
+vi.mock('@/components/notification-center', () => ({ useNotificationCenter: () => ({ addErrorNotification }) }));
 vi.mock('@/composable/use-chat-presence', () => ({ useChatPresence: vi.fn() }));
 
 const assistant = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
@@ -81,17 +83,23 @@ const MessageStub = defineComponent({
 });
 
 const fill = vi.fn();
+const restore = vi.fn();
 const ComposerStub = defineComponent({
   props: ['isStreaming', 'disabled', 'ensureThread'],
   emits: ['send', 'cancel'],
   setup: (props, { emit, expose }) => {
-    expose({ fill });
+    expose({ fill, restore });
     return () =>
       h('div', {
         'data-testid': 'composer',
         'data-streaming': String(props.isStreaming),
         'data-disabled': String(props.disabled),
-        onClick: () => emit('send', { text: 'Ask', attachmentIds: ['att-1'] }),
+        onClick: () =>
+          emit('send', {
+            text: 'Ask',
+            attachmentIds: ['att-1'],
+            attachments: [{ id: 'att-1', fileName: 'a.pdf', sizeBytes: 3 }],
+          }),
         onDblclick: () => emit('cancel'),
       });
   },
@@ -129,6 +137,7 @@ const EmptyStub = defineComponent({
       }),
 });
 
+const addErrorNotification = vi.fn();
 const send = vi.fn();
 const attach = vi.fn();
 const cancel = vi.fn();
@@ -144,6 +153,7 @@ const state = {
   isLoading: ref(false),
   isError: ref(false),
   run: shallowRef<ReturnType<typeof createRunState> | null>(null),
+  lastFinished: shallowRef<{ threadId: string; runId: string; status: string } | null>(null),
   featureServedBy: ref<'connection' | 'server' | null>('connection'),
   featureKnown: ref(true),
   thread: ref<ChatThread | null>(null),
@@ -191,6 +201,8 @@ describe('ChatConversation', () => {
       mutateAsync,
       updateMutateAsync,
       fill,
+      restore,
+      addErrorNotification,
       vi.mocked(notifyMutationError),
       vi.mocked(useChatPresence),
     ]) {
@@ -204,6 +216,9 @@ describe('ChatConversation', () => {
     state.isLoading.value = false;
     state.isError.value = false;
     state.run.value = null;
+    state.lastFinished.value = null;
+    localStorage.clear();
+    resetChatQueues();
     state.featureServedBy.value = 'connection';
     state.featureKnown.value = true;
     state.thread.value = { id: 'thread-1', connectionId: 'c-thread', modelId: null } as ChatThread;
@@ -240,6 +255,7 @@ describe('ChatConversation', () => {
     vi.mocked(useChatRun).mockReturnValue({
       run: state.run,
       isStreaming: computed(() => state.run.value?.status === 'streaming'),
+      lastFinished: state.lastFinished,
       send,
       attach,
       cancel,
@@ -264,12 +280,7 @@ describe('ChatConversation', () => {
 
   describe('automation inbox thread', () => {
     beforeEach(() => {
-      state.thread.value = {
-        id: 'thread-1',
-        connectionId: null,
-        modelId: null,
-        kind: 'automationInbox',
-      } as ChatThread;
+      state.thread.value = { id: 'thread-1', connectionId: null, modelId: null, kind: 'automationInbox' } as ChatThread;
     });
 
     it('has no composer and no model picker, since the assistant never runs there', () => {
@@ -616,6 +627,198 @@ describe('ChatConversation', () => {
     await wrapper.find('[data-testid="composer"]').trigger('dblclick');
 
     expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
+  describe('message queue', () => {
+    const streaming = () => {
+      state.messages.value = [assistant({ id: 'm-live', status: 'streaming', parts: [] })];
+      state.run.value = createRunState({ runId: 'run-1', messageId: 'm-live' });
+    };
+    const finish = async ({ status }: { status: string }) => {
+      state.run.value = null;
+      state.messages.value = [assistant()];
+      state.lastFinished.value = { threadId: 'thread-1', runId: 'run-1', status };
+      await flushPromises();
+    };
+    const queued = (wrapper: ReturnType<typeof mountConversation>) =>
+      wrapper.findAll('[data-testid="queue-item"]').map((item) => item.text());
+
+    it('queues a message written during a run instead of sending it', async () => {
+      streaming();
+      const wrapper = mountConversation();
+
+      await wrapper.find('[data-testid="composer"]').trigger('click');
+
+      expect(send).not.toHaveBeenCalled();
+      expect(queued(wrapper)).toEqual(['Ask 1']);
+      expect(wrapper.find('[data-testid="queue-send-now"]').exists()).toBe(false);
+    });
+
+    it('sends the queued messages one after another as the runs complete', async () => {
+      streaming();
+      const wrapper = mountConversation();
+      await wrapper.find('[data-testid="composer"]').trigger('click');
+      await wrapper.find('[data-testid="composer"]').trigger('click');
+      expect(queued(wrapper)).toHaveLength(2);
+
+      await finish({ status: 'complete' });
+
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(send).toHaveBeenCalledWith({ payload: { text: 'Ask', attachmentIds: ['att-1'] } });
+      expect(queued(wrapper)).toHaveLength(1);
+
+      streaming();
+      await finish({ status: 'complete' });
+
+      expect(send).toHaveBeenCalledTimes(2);
+      expect(queued(wrapper)).toHaveLength(0);
+    });
+
+    it.each(['cancelled', 'failed', 'interrupted', 'stepLimit'])(
+      'keeps the queue and offers "Send queued" when the run ends as %s',
+      async (status) => {
+        streaming();
+        const wrapper = mountConversation();
+        await wrapper.find('[data-testid="composer"]').trigger('click');
+
+        await finish({ status });
+
+        expect(send).not.toHaveBeenCalled();
+        expect(queued(wrapper)).toHaveLength(1);
+
+        await wrapper.find('[data-testid="queue-send-now"]').trigger('click');
+        await flushPromises();
+
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(queued(wrapper)).toHaveLength(0);
+      },
+    );
+
+    it('keeps the message at the front when sending it fails', async () => {
+      streaming();
+      const wrapper = mountConversation();
+      await wrapper.find('[data-testid="composer"]').trigger('click');
+      send.mockRejectedValueOnce(new Error('offline'));
+
+      await finish({ status: 'complete' });
+
+      expect(notifyMutationError).toHaveBeenCalled();
+      expect(queued(wrapper)).toEqual(['Ask 1']);
+    });
+
+    it('does not send the queue of another thread when its run ends', async () => {
+      streaming();
+      const wrapper = mountConversation();
+      await wrapper.find('[data-testid="composer"]').trigger('click');
+
+      state.run.value = null;
+      state.lastFinished.value = { threadId: 'other-thread', runId: 'run-9', status: 'complete' };
+      await flushPromises();
+
+      expect(send).not.toHaveBeenCalled();
+      expect(queued(wrapper)).toHaveLength(1);
+    });
+
+    it('shows a queue left by an earlier visit, idle, with "Send queued"', async () => {
+      localStorage.setItem(
+        'bt-chat-queue',
+        JSON.stringify({ 'thread-1': [{ id: 'q1', text: 'From before', attachments: [], queuedAt: Date.now() }] }),
+      );
+      resetChatQueues();
+
+      const wrapper = mountConversation();
+
+      expect(queued(wrapper)).toEqual(['From before']);
+      expect(wrapper.find('[data-testid="queue-send-now"]').exists()).toBe(true);
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it('sends a message written while idle right away, ahead of a waiting queue', async () => {
+      localStorage.setItem(
+        'bt-chat-queue',
+        JSON.stringify({ 'thread-1': [{ id: 'q1', text: 'From before', attachments: [], queuedAt: Date.now() }] }),
+      );
+      resetChatQueues();
+      const wrapper = mountConversation();
+
+      await wrapper.find('[data-testid="composer"]').trigger('click');
+
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(queued(wrapper)).toEqual(['From before']);
+    });
+
+    it('puts a refused message back into the box when it was sent directly', async () => {
+      send.mockRejectedValueOnce(new Error('offline'));
+      const wrapper = mountConversation();
+
+      await wrapper.find('[data-testid="composer"]').trigger('click');
+      await flushPromises();
+
+      expect(restore).toHaveBeenCalledWith({
+        text: 'Ask',
+        attachments: [{ id: 'att-1', fileName: 'a.pdf', sizeBytes: 3 }],
+      });
+    });
+
+    it('sends an old queued message without its expired attachments, and says so', async () => {
+      const old = Date.now() - 2 * 60 * 60 * 1000;
+      localStorage.setItem(
+        'bt-chat-queue',
+        JSON.stringify({
+          'thread-1': [
+            { id: 'q1', text: 'Old', attachments: [{ id: 'att-9', fileName: 'a.pdf', sizeBytes: 1 }], queuedAt: old },
+          ],
+        }),
+      );
+      resetChatQueues();
+      const wrapper = mountConversation();
+
+      await wrapper.find('[data-testid="queue-send-now"]').trigger('click');
+      await flushPromises();
+
+      expect(send).toHaveBeenCalledWith({ payload: { text: 'Old' } });
+      expect(addErrorNotification).toHaveBeenCalled();
+    });
+
+    it('follows a run again when the thread is opened again', async () => {
+      state.messages.value = [assistant({ id: 'm-live', status: 'streaming', runId: 'run-7', parts: [] })];
+      const wrapper = mountConversation();
+      await flushPromises();
+      expect(attach).toHaveBeenCalledTimes(1);
+
+      await wrapper.setProps({ threadId: 'thread-2' });
+      state.messages.value = [];
+      await flushPromises();
+      await wrapper.setProps({ threadId: 'thread-1' });
+      state.messages.value = [assistant({ id: 'm-live', status: 'streaming', runId: 'run-7', parts: [] })];
+      await flushPromises();
+
+      expect(attach).toHaveBeenCalledTimes(2);
+    });
+
+    it('removes a queued message', async () => {
+      streaming();
+      const wrapper = mountConversation();
+      await wrapper.find('[data-testid="composer"]').trigger('click');
+
+      await wrapper.find('[data-testid="queue-remove"]').trigger('click');
+
+      expect(queued(wrapper)).toEqual([]);
+    });
+
+    it('takes a queued message back into the composer to edit it', async () => {
+      streaming();
+      const wrapper = mountConversation();
+      await wrapper.find('[data-testid="composer"]').trigger('click');
+
+      await wrapper.find('[data-testid="queue-edit"]').trigger('click');
+
+      expect(restore).toHaveBeenCalledWith({
+        text: 'Ask',
+        attachments: [{ id: 'att-1', fileName: 'a.pdf', sizeBytes: 3 }],
+      });
+      expect(queued(wrapper)).toEqual([]);
+    });
   });
 
   it('locks the questions while a run streams', () => {

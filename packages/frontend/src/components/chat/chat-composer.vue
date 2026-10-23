@@ -7,12 +7,13 @@ import { DesktopOnlyTooltip } from '@/components/lib/ui/tooltip';
 import { extractApiErrorMessage } from '@/js/errors';
 import { fitImageForUpload } from '@/pages/import-export/statement-parser/utils/fit-image-for-upload';
 import { cn } from '@/lib/utils';
-import type { ChatAttachment } from '@bt/shared/types';
+import type { QueuedAttachment } from '@/composable/chat/use-chat-queue';
 import { FileTextIcon, Loader2Icon, PaperclipIcon, SendIcon, SquareIcon, XIcon } from '@lucide/vue';
 import { useMediaQuery } from '@vueuse/core';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import { shouldSendOnEnter } from './chat-composer-keys';
 import {
   CHAT_ATTACHMENT_ACCEPT,
   type ChatAttachmentProblem,
@@ -22,7 +23,7 @@ import {
 
 const props = withDefaults(
   defineProps<{
-    /** An answer is streaming: sending waits, stopping is offered. */
+    /** An answer is streaming: Stop shows while the box is empty; a message written now is queued by the parent. */
     isStreaming: boolean;
     /** Chat has no model to run on, or cannot take a message for another reason. */
     disabled?: boolean;
@@ -33,19 +34,22 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  send: [message: { text: string; attachmentIds: string[] }];
+  send: [message: { text: string; attachmentIds: string[]; attachments: QueuedAttachment[] }];
   cancel: [];
 }>();
 
-// "Enter to send, Shift+Enter for a new line" does not apply on a touchscreen without a hardware keyboard.
-const isTouchOnly = useMediaQuery('(hover: none) and (pointer: coarse)');
-const showKeyboardHint = computed(() => !isTouchOnly.value);
+// "Enter to send, Shift+Enter for a new line" does not apply on a touchscreen: there Enter is a new line.
+const isCoarsePointer = useMediaQuery('(pointer: coarse)');
+const showKeyboardHint = computed(() => !isCoarsePointer.value);
 
 interface PendingAttachment {
   localId: number;
-  file: File;
+  name: string;
+  sizeBytes: number;
+  /** Null for an attachment taken back from the queue: it is uploaded already. */
+  file: File | null;
   status: 'uploading' | 'ready' | 'needsPassword';
-  attachment: ChatAttachment | null;
+  attachment: QueuedAttachment | null;
   password: string;
 }
 
@@ -63,12 +67,10 @@ const isUploading = computed(() => attachments.value.some((item) => item.status 
 const readyIds = computed(() =>
   attachments.value.flatMap((item) => (item.status === 'ready' && item.attachment ? [item.attachment.id] : [])),
 );
+const hasInput = computed(() => text.value.trim() !== '' || attachments.value.length > 0);
+const showStop = computed(() => props.isStreaming && !hasInput.value);
 const canSend = computed(
-  () =>
-    !props.disabled &&
-    !props.isStreaming &&
-    !isUploading.value &&
-    (text.value.trim() !== '' || readyIds.value.length > 0),
+  () => !props.disabled && !isUploading.value && (text.value.trim() !== '' || readyIds.value.length > 0),
 );
 
 const update = ({ localId, patch }: { localId: number; patch: Partial<PendingAttachment> }) => {
@@ -84,18 +86,16 @@ const reportProblem = (problem: ChatAttachmentProblem) => {
 };
 
 const upload = async ({ item, threadId }: { item: PendingAttachment; threadId: string }) => {
+  if (!item.file) return;
+  const { file } = item;
   update({ localId: item.localId, patch: { status: 'uploading' } });
   try {
-    const attachment = await uploadChatAttachment({
-      threadId,
-      file: item.file,
-      password: item.password || undefined,
-    });
+    const attachment = await uploadChatAttachment({ threadId, file, password: item.password || undefined });
     update({ localId: item.localId, patch: { status: 'ready', attachment } });
   } catch (error) {
     // The server words this one: a PDF that needs a password is answered with a message that says so.
     const needsPassword =
-      item.file.name.toLowerCase().endsWith('.pdf') && /password/i.test(extractApiErrorMessage(error) ?? '');
+      item.name.toLowerCase().endsWith('.pdf') && /password/i.test(extractApiErrorMessage(error) ?? '');
     if (needsPassword) {
       update({ localId: item.localId, patch: { status: 'needsPassword' } });
       return;
@@ -104,8 +104,8 @@ const upload = async ({ item, threadId }: { item: PendingAttachment; threadId: s
     const reason = extractApiErrorMessage(error);
     reportProblem(
       reason
-        ? { key: 'chat.composer.attachments.uploadRefused', params: { name: item.file.name, reason } }
-        : { key: 'chat.composer.attachments.uploadFailed', params: { name: item.file.name } },
+        ? { key: 'chat.composer.attachments.uploadRefused', params: { name: item.name, reason } }
+        : { key: 'chat.composer.attachments.uploadFailed', params: { name: item.name } },
     );
   }
 };
@@ -134,7 +134,7 @@ const prepareFiles = async ({ files }: { files: File[] }) => {
 const addFiles = async ({ files }: { files: File[] }) => {
   const { prepared, unreadable } = await prepareFiles({ files });
   const plan = planChatAttachments({
-    current: attachments.value.map((item) => ({ sizeBytes: item.file.size })),
+    current: attachments.value.map((item) => ({ sizeBytes: item.sizeBytes })),
     incoming: prepared,
   });
   problems.value = [...unreadable, ...plan.problems];
@@ -143,6 +143,8 @@ const addFiles = async ({ files }: { files: File[] }) => {
   const added = plan.accepted.map(
     (file): PendingAttachment => ({
       localId: nextLocalId++,
+      name: file.name,
+      sizeBytes: file.size,
       file,
       status: 'uploading',
       attachment: null,
@@ -157,7 +159,7 @@ const addFiles = async ({ files }: { files: File[] }) => {
   } catch {
     for (const item of added) {
       drop({ localId: item.localId });
-      reportProblem({ key: 'chat.composer.attachments.uploadFailed', params: { name: item.file.name } });
+      reportProblem({ key: 'chat.composer.attachments.uploadFailed', params: { name: item.name } });
     }
     return;
   }
@@ -205,6 +207,11 @@ const submit = () => {
   emit('send', {
     text: text.value.trim(),
     attachmentIds: readyIds.value,
+    attachments: attachments.value.flatMap((item) =>
+      item.status === 'ready' && item.attachment
+        ? [{ id: item.attachment.id, fileName: item.attachment.fileName, sizeBytes: item.attachment.sizeBytes }]
+        : [],
+    ),
   });
   text.value = '';
   attachments.value = [];
@@ -212,7 +219,7 @@ const submit = () => {
 };
 
 const onKeydown = (event: KeyboardEvent) => {
-  if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
+  if (!shouldSendOnEnter({ event, isCoarsePointer: isCoarsePointer.value })) return;
   event.preventDefault();
   submit();
 };
@@ -221,6 +228,23 @@ defineExpose({
   /** Puts text in the box and focuses it, for an example prompt the user can still edit. */
   fill: ({ text: value }: { text: string }) => {
     text.value = value;
+    textareaRef.value?.$el.querySelector('textarea')?.focus();
+  },
+  /** Takes a queued message back to edit it; what is already in the box stays, the message goes in front. */
+  restore: ({ text: value, attachments: queued }: { text: string; attachments: QueuedAttachment[] }) => {
+    text.value = [value, text.value].filter((part) => part.trim() !== '').join('\n');
+    const restored = queued.map(
+      (item): PendingAttachment => ({
+        localId: nextLocalId++,
+        name: item.fileName,
+        sizeBytes: item.sizeBytes,
+        file: null,
+        status: 'ready',
+        attachment: item,
+        password: '',
+      }),
+    );
+    attachments.value = [...restored, ...attachments.value];
     textareaRef.value?.$el.querySelector('textarea')?.focus();
   },
 });
@@ -255,17 +279,17 @@ defineExpose({
             v-if="item.status === 'uploading'"
             class="text-muted-foreground size-4 shrink-0 animate-spin"
             role="status"
-            :aria-label="$t('chat.composer.attachments.uploading', { name: item.file.name })"
+            :aria-label="$t('chat.composer.attachments.uploading', { name: item.name })"
           />
           <FileTextIcon v-else class="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
-          <span class="truncate">{{ item.file.name }}</span>
+          <span class="truncate">{{ item.name }}</span>
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
             class="ml-auto size-5 shrink-0"
             data-testid="attachment-remove"
-            :aria-label="$t('chat.composer.removeAttachment', { name: item.file.name })"
+            :aria-label="$t('chat.composer.removeAttachment', { name: item.name })"
             @click="drop({ localId: item.localId })"
           >
             <XIcon class="size-3" aria-hidden="true" />
@@ -302,7 +326,7 @@ defineExpose({
       <DesktopOnlyTooltip :content="$t('chat.composer.attach')">
         <Button
           type="button"
-          variant="ghost"
+          variant="outline"
           size="icon"
           class="size-11 shrink-0"
           data-testid="attach"
@@ -333,12 +357,13 @@ defineExpose({
           class="min-h-11 leading-5 placeholder:whitespace-nowrap [&_textarea]:py-[11px]"
           :title="$t('chat.composer.label')"
           :placeholder="$t('chat.composer.placeholder')"
+          :enterkeyhint="isCoarsePointer ? 'enter' : undefined"
           :disabled="disabled"
         />
       </div>
 
       <Button
-        v-if="isStreaming"
+        v-if="showStop"
         type="button"
         variant="outline"
         size="icon"
