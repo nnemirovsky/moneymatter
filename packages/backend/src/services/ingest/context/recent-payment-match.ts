@@ -65,7 +65,7 @@ export const senderMatchesRecentPayment = async ({
       transactionType: TRANSACTION_TYPES.expense,
       time: { [Op.gte]: since },
       [Op.and]: literal(
-        `("Transactions"."externalData"->'cardPayment') IS NOT NULL OR ("Transactions"."externalData"->'ingest') IS NOT NULL`,
+        `(("Transactions"."externalData"->'cardPayment') IS NOT NULL OR ("Transactions"."externalData"->'ingest') IS NOT NULL)`,
       ),
     },
     attributes: ['id', 'payeeId', 'externalData'],

@@ -22,10 +22,14 @@ async function reapplyContext(): Promise<void> {
 
   const users = new Set<number>();
   for (const id of ids) {
-    const request = await IngestRequests.findOne({ where: { id, pipeline: 'notification', status: 'ignored' } });
+    const request = await IngestRequests.findOne({
+      where: { id, pipeline: 'notification', status: 'ignored', reason: ['contextConfirmed', 'contextExpired'] },
+    });
     const context = request ? readStoredParse({ value: request.parsed })?.context : undefined;
-    if (!request || !context) {
-      logger.warn(`[Reapply Context] ${id}: not an ignored context notification, skipped`);
+    if (!request || context?.status !== 'accepted') {
+      logger.warn(
+        `[Reapply Context] ${id}: not a first-stage context ignored as contextConfirmed or contextExpired, skipped`,
+      );
       continue;
     }
 
@@ -34,7 +38,7 @@ async function reapplyContext(): Promise<void> {
       { replacements: { id } },
     );
     users.add(request.userId);
-    logger.info(`[Reapply Context] ${id}: held again (${context.service} / ${context.store})`);
+    logger.info(`[Reapply Context] ${id}: held again (${context!.service} / ${context!.store})`);
   }
 
   for (const userId of users) await applyHeldContexts({ userId });

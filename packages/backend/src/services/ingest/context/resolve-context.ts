@@ -42,8 +42,13 @@ const closeHeldStagesOfOrder = async ({
   });
 
   for (const request of earlier.filter((item) => item.status === 'held')) {
-    const context = readStoredParse({ value: request.parsed })?.context;
-    await ignoreContext({ requestId: request.id, reason: 'contextRepeat', parsed: reduced, context });
+    const stored = readStoredParse({ value: request.parsed });
+    await ignoreContext({
+      requestId: request.id,
+      reason: 'contextRepeat',
+      parsed: { parser: stored?.parser ?? reduced.parser, kind: 'context', confidence: stored?.confidence ?? 0 },
+      context: stored?.context,
+    });
   }
 };
 
@@ -102,9 +107,18 @@ export const resolveContext = async ({
       excludeRequestId: requestId,
       windowMs: contextConfig.repeatWindowMs,
     });
+    // A second push of the first stage counts only against another first stage: a later stage of the same
+    // order that arrived ahead of the payment (and was ignored) must not cancel the acceptance that waits.
+    const isFirstStage = ({ request }: { request: IngestRequests }) =>
+      readStoredParse({ value: request.parsed })?.context?.status === 'accepted';
     const isRepeat =
       context.status === 'accepted'
-        ? earlier.some((request) => Date.now() - request.createdAt.getTime() <= contextConfig.acceptedRepeatWindowMs)
+        ? earlier.some(
+            (request) =>
+              isAppliedOrderRequest({ request }) ||
+              (isFirstStage({ request }) &&
+                Date.now() - request.createdAt.getTime() <= contextConfig.acceptedRepeatWindowMs),
+          )
         : earlier.some((request) => isAppliedOrderRequest({ request }));
     if (isRepeat) {
       await ignoreContext({ requestId, reason: 'contextRepeat', parsed: reduced, context });
@@ -128,6 +142,7 @@ export const resolveContext = async ({
           reason: confirmed.length ? 'contextConfirmed' : 'info',
           parsed: reduced,
           context,
+          detail: { confirmedIds: confirmed.map((row) => row.id), windowAt: context.at },
         });
 
         return { kind: 'ignored' };
@@ -189,7 +204,13 @@ export const resolveContext = async ({
         return { kind: 'ignored' };
       case 'confirmed':
         if (wasHeld) return { kind: 'held' };
-        await ignoreContext({ requestId, reason: 'contextConfirmed', parsed: reduced, context });
+        await ignoreContext({
+          requestId,
+          reason: 'contextConfirmed',
+          parsed: reduced,
+          context,
+          detail: { transactionId: transaction.id },
+        });
 
         return { kind: 'ignored' };
       default:

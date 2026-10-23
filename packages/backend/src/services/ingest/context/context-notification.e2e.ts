@@ -219,6 +219,80 @@ describe('context notifications', () => {
       expect(arriving.body.response).toMatchObject({ outcome: 'ignored', reason: 'contextRepeat' });
     });
 
+    it('is not fooled by a confirmed payment of the service from hours ago: the acceptance waits for its own', async () => {
+      const { secret } = await setUp();
+      const morning = await pay({ secret, amount: '27.38' });
+      await approveCardAsIs({ card: await confirmCardOf({ transactionId: morning.id }) });
+      await Transactions.update({ time: new Date(Date.now() - 6 * 60 * 60_000) }, { where: { id: morning.id } });
+
+      const acceptance = await send({ secret, body: accepted() });
+
+      expect(acceptance.body.response).toMatchObject({ outcome: 'held', notify: false });
+      const evening = await pay({ secret, amount: '46.04' });
+      await until(async () => (await reload({ id: evening.id })).note === 'Urban Roastery&Coffee order from Wolt', {
+        timeout: 10_000,
+        interval: 200,
+      });
+      expect((await reload({ id: morning.id })).note).toBeNull();
+    });
+
+    it('never sees or touches the payments of another user', async () => {
+      const { secret } = await setUp();
+      const other = await helpers.signUpSecondUser();
+      // Another user's Wolt payment, unconfirmed and in the window, and a Temu one.
+      const theirs = await helpers.asUser({
+        cookies: other.cookies,
+        fn: async () => {
+          await helpers.setBaseCurrencyForActiveUser({ currencyCode: global.BASE_CURRENCY.code });
+          const account = await helpers.createAccount({ raw: true });
+          await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: account.id }, raw: true });
+          const { secret: theirSecret } = await ingestHelpers.createTestIngestToken();
+          await send({ secret: theirSecret, body: walletPayment({ merchant: 'Wolt' }) });
+          await send({
+            secret: theirSecret,
+            body: { ...walletPayment({ merchant: 'Temu' }), idempotencyKey: `k-${randomUUID()}` },
+          });
+
+          return Transactions.findAll({ order: [['createdAt', 'ASC']] });
+        },
+      });
+      expect(theirs.length).toBeGreaterThanOrEqual(1);
+
+      // Nothing of the main user's matches: the acceptance waits, and no row of the other user is touched.
+      const acceptance = await send({ secret, body: accepted() });
+      const probeAnswer = await send({ secret, body: { kind: 'notificationProbe', app: 'Mail', title: 'Temu' } });
+
+      expect(acceptance.body.response).toMatchObject({ outcome: 'held' });
+      expect(probeAnswer.body.response.send).toBeUndefined();
+      const after = await Transactions.findAll({ where: { id: theirs.map((row) => row.id) } });
+      expect(after.every((row) => row.note === null)).toBe(true);
+      expect(
+        (await helpers.listNotificationSources({ raw: true })).filter((source) => source.appName === 'Mail'),
+      ).toEqual([]);
+    });
+
+    it('keeps a held acceptance when a later stage of the same order is ignored before the payment arrives', async () => {
+      const { secret } = await setUp();
+      const confirmed = await pay({ secret, amount: '27.38' });
+      await approveCardAsIs({ card: await confirmCardOf({ transactionId: confirmed.id }) });
+      const acceptance = await send({ secret, body: accepted() });
+      expect(acceptance.body.response.outcome).toBe('held');
+
+      // The courier's message beats the bank: it finds only the confirmed payment and is ignored.
+      const onTheWay = await send({
+        secret,
+        body: woltNotification({ title: 'On the way', body: 'Your order from Urban Roastery&Coffee is on its way' }),
+      });
+      expect(onTheWay.body.response).toMatchObject({ outcome: 'ignored', reason: 'contextConfirmed' });
+
+      const payment = await pay({ secret, amount: '46.04' });
+
+      await until(async () => (await reload({ id: payment.id })).note === 'Urban Roastery&Coffee order from Wolt', {
+        timeout: 10_000,
+        interval: 200,
+      });
+    });
+
     it('lets a later stage apply when the first stage never did and an unconfirmed payment is in its window', async () => {
       const { secret } = await setUp();
       const held = await send({ secret, body: accepted() });
@@ -731,6 +805,19 @@ describe('context notifications', () => {
       expect(sms.body.response.send).toBeUndefined();
       const sources = await helpers.listNotificationSources({ raw: true });
       expect(sources.filter((source) => source.conversational)).toEqual([]);
+    });
+
+    it('does not offer a sender for a payment from hours ago', async () => {
+      const { secret } = await setUp();
+      const old = await pay({ secret, merchant: 'Temu' });
+      await Transactions.update({ time: new Date(Date.now() - 6 * 60 * 60_000) }, { where: { id: old.id } });
+
+      const res = await send({ secret, body: probe({ title: 'Temu' }) });
+
+      expect(res.body.response.send).toBeUndefined();
+      expect(
+        (await helpers.listNotificationSources({ raw: true })).filter((source) => source.appName === 'Mail'),
+      ).toEqual([]);
     });
 
     it('never offers a sender the owner muted, or one that paid nothing recently', async () => {

@@ -55,8 +55,10 @@ export const findContextCandidates = async ({
         [Op.gte]: new Date(time.getTime() - contextConfig.lookbackMs),
         [Op.lte]: new Date(time.getTime() + contextConfig.lookaheadMs),
       },
+      // Parenthesized: a literal is spliced into the AND list as written, and its OR would otherwise
+      // swallow the time window, the type and the owner scope that stand beside it.
       [Op.and]: literal(
-        `("Transactions"."externalData"->'cardPayment') IS NOT NULL OR ("Transactions"."externalData"->'ingest') IS NOT NULL`,
+        `(("Transactions"."externalData"->'cardPayment') IS NOT NULL OR ("Transactions"."externalData"->'ingest') IS NOT NULL)`,
       ),
     },
     order: [['time', 'ASC']],
