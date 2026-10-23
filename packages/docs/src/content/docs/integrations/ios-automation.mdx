@@ -116,7 +116,7 @@ Starting with iOS 27, a shortcut can carry its own triggers, so you don't build 
 2. Open the shortcut. It has two triggers: **Transaction** (an Apple Pay tap) and **Notification**. iOS adds them **switched off**, so nothing runs until you turn **Automation** on for each. Choose **Run Immediately** for both.
 3. Open the **Notification** trigger. It comes with **Wallet** and **Messages** already selected. Add your bank's app, and your mail app if your bank writes by email.
 4. If **Wallet** is missing from the list after the import, add it by hand.
-5. Run the shortcut once from the Shortcuts app. It sends a test request and shows a notification that confirms the connection.
+5. Check the connection with the [test request](#send-a-test-request) below, or make a small payment. Run by hand on iOS 27, the shortcut does nothing: it cannot tell a manual run from a notification that vanished before the shortcut read it, so it stays silent.
 
 </Steps>
 
@@ -154,7 +154,7 @@ The Wallet **Transaction** automation runs when you tap a card at a terminal. Ap
 - **A tap** sends the amount, merchant and card Wallet gave it.
 - **A notification** sends its title, subtitle and text, the name of the app it came from, and the time. Nothing else on your phone leaves it.
 
-The shortcut works out which of the two it got, so one shortcut handles both triggers. Run by hand, it sends a test request instead.
+The shortcut works out which of the two it got, so one shortcut handles both triggers. Anything else, such as a manual run or a notification its app withdrew before the shortcut could read it (the app removes it at once), sends an empty request that the server ignores without a message.
 
 ### The amount check
 

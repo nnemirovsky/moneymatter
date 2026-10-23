@@ -73,7 +73,7 @@ Until the file exists the page hides the iOS 27 button (the HEAD probe fails), e
 
 1. Import the signed file on an iPhone. The import asks for one thing, the setup code.
 2. Paste a setup code from the instance (Accounts → iOS Automation → **Generate setup code**).
-3. Run the Shortcut by hand. With no input it sends a dry run and shows `Connected as <username>. …`.
+3. Run the iOS 26 Shortcut by hand. With no input it sends a dry run and shows `Connected as <username>. …`. The iOS 27 Shortcut posts `{ dryRun: true }` with no kind for a manual run, or for a notification its app withdrew before the trigger read it (neither a tap nor a notification with an app); the server answers it with a silent `ignored` / `emptyRun`, so there is nothing to see. Test it with a notification or a `curl` instead.
 4. iOS 27: turn **Automation** on for both triggers, add the bank app to the Notification trigger, then tap a linked card and check that the banner reads `Logged …`. A bank push in the selected app logs the same way.
 5. iOS 26: create the Transaction automation, tap a linked card and check the same banner.
 

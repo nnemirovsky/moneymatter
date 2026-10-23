@@ -55,6 +55,23 @@ export const readEventKind = ({ body }: { body: unknown }): IngestEventKind | nu
   return INGEST_EVENT_KINDS.find((candidate) => candidate === kind) ?? null;
 };
 
+/**
+ * Whether the body is a run that carries nothing to ingest: no kind, no payload, at most the `dryRun`
+ * and `source` markers. The iOS 27 shortcut posts exactly this when it fires with neither a Wallet
+ * transaction nor a notification that has an app: a manual run, or an app that withdrew its notification
+ * ("remove all delivered notifications") before the trigger read it, which leaves every property empty. It is
+ * answered silently instead of refused. A body with any payload and no kind is still refused: the
+ * pipeline is never guessed.
+ */
+export const isEmptyRun = ({ body }: { body: unknown }): boolean => {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return false;
+
+  const { kind, dryRun: _dryRun, source: _source, ...rest } = body as Record<string, unknown>;
+  if (kind !== undefined && kind !== null && kind !== '') return false;
+
+  return Object.values(rest).every((value) => value === undefined || value === null || value === '');
+};
+
 const readText = ({
   fields,
   keys,

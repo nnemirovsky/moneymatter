@@ -36,6 +36,7 @@ import {
 import { encryptNotificationText } from './notification-text';
 import {
   parseNotificationPayload,
+  isEmptyRun,
   readEventKind,
   readProbeApp,
   type ParsedNotification,
@@ -360,7 +361,8 @@ const probeSender = async ({ userId, body }: { userId: number; body: unknown }):
 
 /**
  * Handles one `POST /ingest/event`. `kind` decides the path and is never guessed: a missing or
- * unknown one is refused before anything is read.
+ * unknown one is refused before anything is read, except a run with nothing in it (no kind, no payload),
+ * which is answered silently (`emptyRun`).
  *
  * - `notificationProbe` answers whether to send the text of a messaging or mail notification (`probeSender`).
  * - `walletTransaction` runs the card-payment pipeline unchanged (its own record, processing and
@@ -374,7 +376,8 @@ const probeSender = async ({ userId, body }: { userId: number; body: unknown }):
  * A dropped notification is answered and not stored: at most a counter on an existing source
  * changes.
  *
- * A dry run needs no kind-specific work: it answers the connection check of the card-payment path.
+ * A dry run that names a kind needs no kind-specific work: it answers the connection check of the card-payment
+ * path. One without a kind is an empty run.
  */
 export const ingestEvent = async ({
   userId,
@@ -389,7 +392,16 @@ export const ingestEvent = async ({
 
   const kind = readEventKind({ body });
   traceStep({ step: 'kind', detail: kind ?? 'invalid' });
-  if (kind === null) throw reject({ reason: 'invalidKind', locale });
+  if (kind === null) {
+    // A run with nothing in it (a manual run, or a notification its app withdrew before the trigger read it): nothing to do, nothing to show.
+    if (isEmptyRun({ body })) {
+      traceStep({ step: 'emptyRun' });
+
+      return { kind: 'notification', response: { outcome: 'ignored', reason: 'emptyRun', notify: false } };
+    }
+
+    throw reject({ reason: 'invalidKind', locale });
+  }
 
   if (kind === 'notificationProbe') return probeSender({ userId, body });
 
