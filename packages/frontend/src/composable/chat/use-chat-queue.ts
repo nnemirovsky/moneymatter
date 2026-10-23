@@ -11,7 +11,15 @@ export interface QueuedMessage {
   id: string;
   text: string;
   attachments: QueuedAttachment[];
+  /** When it was queued (ms), to tell whether its uploads can still be there: the server drops unsent ones. */
+  queuedAt: number;
 }
+
+/** The server deletes attachments that no message claimed after an hour; leave a margin for the upload itself. */
+export const QUEUED_ATTACHMENT_MAX_AGE_MS = 45 * 60 * 1000;
+
+export const hasExpiredAttachments = ({ message, now = Date.now() }: { message: QueuedMessage; now?: number }) =>
+  message.attachments.length > 0 && now - message.queuedAt > QUEUED_ATTACHMENT_MAX_AGE_MS;
 
 type QueuesByThread = Record<string, QueuedMessage[]>;
 
@@ -29,6 +37,7 @@ const isQueuedMessage = (value: unknown): value is QueuedMessage => {
   return (
     typeof item.id === 'string' &&
     typeof item.text === 'string' &&
+    typeof item.queuedAt === 'number' &&
     Array.isArray(item.attachments) &&
     item.attachments.every(isQueuedAttachment)
   );
@@ -52,26 +61,38 @@ export const parseQueues = ({ raw }: { raw: string | null }): QueuesByThread => 
   }
 };
 
-const readStorage = (): QueuesByThread => {
+/** Null when storage cannot be read, so the page keeps the queues it has in memory. */
+const readStorage = (): QueuesByThread | null => {
   try {
     return parseQueues({ raw: localStorage.getItem(CHAT_QUEUE_STORAGE_KEY) });
   } catch {
-    return {};
+    return null;
   }
 };
 
-const writeStorage = ({ queues }: { queues: QueuesByThread }) => {
+const writeStorage = ({ queues: next }: { queues: QueuesByThread }) => {
   try {
-    if (Object.keys(queues).length === 0) localStorage.removeItem(CHAT_QUEUE_STORAGE_KEY);
-    else localStorage.setItem(CHAT_QUEUE_STORAGE_KEY, JSON.stringify(queues));
+    if (Object.keys(next).length === 0) localStorage.removeItem(CHAT_QUEUE_STORAGE_KEY);
+    else localStorage.setItem(CHAT_QUEUE_STORAGE_KEY, JSON.stringify(next));
   } catch {
     // Storage can be blocked or full; the queue then lives for this page only.
   }
 };
 
 // Shared by every conversation view (the side panel and the Chat page), so a queue follows its thread around.
-const queues = ref<QueuesByThread>(readStorage());
-let nextId = 0;
+const queues = ref<QueuesByThread>(readStorage() ?? {});
+
+/** Picks up what another tab stored; every change starts from this, so tabs do not overwrite each other. */
+const syncFromStorage = () => {
+  const stored = readStorage();
+  if (stored) queues.value = stored;
+};
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key === CHAT_QUEUE_STORAGE_KEY || event.key === null) syncFromStorage();
+  });
+}
 
 const setQueue = ({ threadId, list }: { threadId: string; list: QueuedMessage[] }) => {
   const next = { ...queues.value };
@@ -83,8 +104,10 @@ const setQueue = ({ threadId, list }: { threadId: string; list: QueuedMessage[] 
 
 /** Re-reads storage; for tests, which start every case from a known state. */
 export const resetChatQueues = () => {
-  queues.value = readStorage();
+  queues.value = readStorage() ?? {};
 };
+
+let nextId = 0;
 
 /**
  * The messages waiting for the assistant to finish, per thread. They survive navigation and a reload.
@@ -96,31 +119,37 @@ export const useChatQueue = ({ threadId }: { threadId: MaybeRefOrGetter<string |
     return id ? (queues.value[id] ?? []) : [];
   });
 
+  /** A change names the thread it was made for: a send that outlasts a thread switch must not land in the new one. */
+  const resolve = ({ explicit }: { explicit?: string | null }) => {
+    syncFromStorage();
+    return explicit ?? toValue(threadId);
+  };
+
   const enqueue = ({ text, attachments }: { text: string; attachments: QueuedAttachment[] }) => {
-    const id = toValue(threadId);
+    const id = resolve({});
     if (!id) return;
-    const message: QueuedMessage = { id: `${Date.now()}-${nextId++}`, text, attachments };
+    const message: QueuedMessage = { id: `${Date.now()}-${nextId++}`, text, attachments, queuedAt: Date.now() };
     setQueue({ threadId: id, list: [...(queues.value[id] ?? []), message] });
   };
 
   const remove = ({ id: messageId }: { id: string }) => {
-    const id = toValue(threadId);
+    const id = resolve({});
     if (!id) return;
     setQueue({ threadId: id, list: (queues.value[id] ?? []).filter((item) => item.id !== messageId) });
   };
 
-  /** Takes the first message off the queue to send it. */
+  /** Takes the first message off the queue to send it; null when another tab took it first. */
   const take = (): QueuedMessage | null => {
-    const id = toValue(threadId);
+    const id = resolve({});
     const [first, ...rest] = id ? (queues.value[id] ?? []) : [];
     if (!id || !first) return null;
     setQueue({ threadId: id, list: rest });
     return first;
   };
 
-  /** Puts a message back at the front, when sending it failed. */
-  const putBack = ({ message }: { message: QueuedMessage }) => {
-    const id = toValue(threadId);
+  /** Puts a message back at the front of its own thread's queue, when sending it failed. */
+  const putBack = ({ message, threadId: ownerId }: { message: QueuedMessage; threadId: string }) => {
+    const id = resolve({ explicit: ownerId });
     if (!id) return;
     setQueue({ threadId: id, list: [message, ...(queues.value[id] ?? [])] });
   };

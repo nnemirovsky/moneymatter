@@ -21,8 +21,8 @@ export const useChatRun = ({ threadId }: { threadId: MaybeRefOrGetter<string | n
   const queryClient = useQueryClient();
   const run = shallowRef<ChatRunState | null>(null);
   let current: AbortController | null = null;
-  // How the last followed run ended, for what waits on it (the queue of messages). Stays null when the
-  // stream could not be followed to its end: whoever waits cannot tell how the run went.
+  // How the last followed run ended, for what waits on it (the queue of messages). Cleared when a run is
+  // followed and left null when its stream cannot be followed to the end: whoever waits cannot tell how it went.
   const lastFinished = shallowRef<{ threadId: string; runId: string; status: ChatRunStatus } | null>(null);
 
   const isStreaming = computed(() => run.value?.status === 'streaming');
@@ -50,6 +50,7 @@ export const useChatRun = ({ threadId }: { threadId: MaybeRefOrGetter<string | n
     const controller = new AbortController();
     current = controller;
     run.value = createRunState({ runId, messageId });
+    lastFinished.value = null;
 
     const outcome = await streamChatRunEvents({
       runId,

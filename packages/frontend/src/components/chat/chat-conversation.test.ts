@@ -35,6 +35,7 @@ vi.mock('./chat-context-label', () => ({
 }));
 vi.mock('@/composable/data-queries/ai-settings', () => ({ useAiSettings: vi.fn() }));
 vi.mock('@/composable/data-queries/use-invalidating-mutation', () => ({ notifyMutationError: vi.fn() }));
+vi.mock('@/components/notification-center', () => ({ useNotificationCenter: () => ({ addErrorNotification }) }));
 vi.mock('@/composable/use-chat-presence', () => ({ useChatPresence: vi.fn() }));
 
 const assistant = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
@@ -136,6 +137,7 @@ const EmptyStub = defineComponent({
       }),
 });
 
+const addErrorNotification = vi.fn();
 const send = vi.fn();
 const attach = vi.fn();
 const cancel = vi.fn();
@@ -200,6 +202,7 @@ describe('ChatConversation', () => {
       updateMutateAsync,
       fill,
       restore,
+      addErrorNotification,
       vi.mocked(notifyMutationError),
       vi.mocked(useChatPresence),
     ]) {
@@ -719,7 +722,7 @@ describe('ChatConversation', () => {
     it('shows a queue left by an earlier visit, idle, with "Send queued"', async () => {
       localStorage.setItem(
         'bt-chat-queue',
-        JSON.stringify({ 'thread-1': [{ id: 'q1', text: 'From before', attachments: [] }] }),
+        JSON.stringify({ 'thread-1': [{ id: 'q1', text: 'From before', attachments: [], queuedAt: Date.now() }] }),
       );
       resetChatQueues();
 
@@ -733,7 +736,7 @@ describe('ChatConversation', () => {
     it('sends a message written while idle right away, ahead of a waiting queue', async () => {
       localStorage.setItem(
         'bt-chat-queue',
-        JSON.stringify({ 'thread-1': [{ id: 'q1', text: 'From before', attachments: [] }] }),
+        JSON.stringify({ 'thread-1': [{ id: 'q1', text: 'From before', attachments: [], queuedAt: Date.now() }] }),
       );
       resetChatQueues();
       const wrapper = mountConversation();
@@ -742,6 +745,55 @@ describe('ChatConversation', () => {
 
       expect(send).toHaveBeenCalledTimes(1);
       expect(queued(wrapper)).toEqual(['From before']);
+    });
+
+    it('puts a refused message back into the box when it was sent directly', async () => {
+      send.mockRejectedValueOnce(new Error('offline'));
+      const wrapper = mountConversation();
+
+      await wrapper.find('[data-testid="composer"]').trigger('click');
+      await flushPromises();
+
+      expect(restore).toHaveBeenCalledWith({
+        text: 'Ask',
+        attachments: [{ id: 'att-1', fileName: 'a.pdf', sizeBytes: 3 }],
+      });
+    });
+
+    it('sends an old queued message without its expired attachments, and says so', async () => {
+      const old = Date.now() - 2 * 60 * 60 * 1000;
+      localStorage.setItem(
+        'bt-chat-queue',
+        JSON.stringify({
+          'thread-1': [
+            { id: 'q1', text: 'Old', attachments: [{ id: 'att-9', fileName: 'a.pdf', sizeBytes: 1 }], queuedAt: old },
+          ],
+        }),
+      );
+      resetChatQueues();
+      const wrapper = mountConversation();
+
+      await wrapper.find('[data-testid="queue-send-now"]').trigger('click');
+      await flushPromises();
+
+      expect(send).toHaveBeenCalledWith({ payload: { text: 'Old' } });
+      expect(addErrorNotification).toHaveBeenCalled();
+    });
+
+    it('follows a run again when the thread is opened again', async () => {
+      state.messages.value = [assistant({ id: 'm-live', status: 'streaming', runId: 'run-7', parts: [] })];
+      const wrapper = mountConversation();
+      await flushPromises();
+      expect(attach).toHaveBeenCalledTimes(1);
+
+      await wrapper.setProps({ threadId: 'thread-2' });
+      state.messages.value = [];
+      await flushPromises();
+      await wrapper.setProps({ threadId: 'thread-1' });
+      state.messages.value = [assistant({ id: 'm-live', status: 'streaming', runId: 'run-7', parts: [] })];
+      await flushPromises();
+
+      expect(attach).toHaveBeenCalledTimes(2);
     });
 
     it('removes a queued message', async () => {

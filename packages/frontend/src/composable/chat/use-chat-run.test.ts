@@ -136,7 +136,6 @@ describe('useChatRun', () => {
 
     expect(chatRun.lastFinished.value).toEqual({ threadId: THREAD_ID, runId: 'run-1', status: 'cancelled' });
 
-    chatRun.lastFinished.value = null;
     replayedStream({ events: [], outcome: 'failed' });
     await chatRun.attach({ runId: 'run-2', messageId: 'msg-2' });
 

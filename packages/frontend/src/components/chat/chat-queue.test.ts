@@ -9,6 +9,7 @@ const item = (overrides: Partial<QueuedMessage> = {}): QueuedMessage => ({
   id: 'q1',
   text: 'Next question',
   attachments: [],
+  queuedAt: 0,
   ...overrides,
 });
 

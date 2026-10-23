@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { Button } from '@/components/lib/ui/button';
+import { useNotificationCenter } from '@/components/notification-center';
 import { ScrollArea } from '@/components/lib/ui/scroll-area';
-import { type QueuedMessage, useChatQueue } from '@/composable/chat/use-chat-queue';
+import { type QueuedMessage, hasExpiredAttachments, useChatQueue } from '@/composable/chat/use-chat-queue';
 import { useChatRun } from '@/composable/chat/use-chat-run';
 import { useAiSettings } from '@/composable/data-queries/ai-settings';
 import {
@@ -23,6 +24,7 @@ import {
 } from '@bt/shared/types';
 import { InboxIcon, Loader2Icon, RotateCwIcon } from '@lucide/vue';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import ChatComposer from './chat-composer.vue';
 import ChatConnectionPicker from './chat-connection-picker.vue';
@@ -52,6 +54,7 @@ const SKELETON_COUNT = 3;
 
 // The thread is created on the first message (or the first attachment), so the conversation can hold an
 // id the page has not heard of yet; the page catches up through `thread-created`.
+const { t } = useI18n();
 const activeThreadId = ref(props.threadId);
 // A pick belongs to the thread it was made for, so another thread starts without one.
 const pickedConnectionId = ref<string | null | undefined>(undefined);
@@ -271,6 +274,8 @@ const showEmpty = computed(() => !hasContent.value && !showSkeleton.value && !sh
 
 // A reload while an answer was streaming: follow the run that is still going.
 const followedRunIds = new Set<string>();
+// Another thread stops following this one's run, so coming back must follow it again.
+watch(activeThreadId, () => followedRunIds.clear(), { flush: 'sync' });
 watch(
   messages,
   (list) => {
@@ -343,17 +348,24 @@ const onSend = async ({
     queue.enqueue({ text, attachments });
     return;
   }
-  await sendPayload({ payload: toPayload({ text, attachmentIds }) });
+  const sent = await sendPayload({ payload: toPayload({ text, attachmentIds }) });
+  // The box was cleared on send; a refused message goes back into it instead of being lost.
+  if (!sent) composerRef.value?.restore({ text, attachments });
 };
 
 /** Sends the first queued message; a failed send puts it back at the front. */
 const sendNextQueued = async () => {
-  const next = queue.take();
-  if (!next) return;
+  const ownerId = activeThreadId.value;
+  const taken = queue.take();
+  if (!taken || !ownerId) return;
+  // Unsent uploads are deleted by the server after an hour, so an old message goes without them.
+  const expired = hasExpiredAttachments({ message: taken });
+  if (expired) useNotificationCenter().addErrorNotification(t('chat.queue.attachmentsExpired'));
+  const next: QueuedMessage = expired ? { ...taken, attachments: [] } : taken;
   const sent = await sendPayload({
     payload: toPayload({ text: next.text, attachmentIds: next.attachments.map((item) => item.id) }),
   });
-  if (!sent) queue.putBack({ message: next });
+  if (!sent) queue.putBack({ message: next, threadId: ownerId });
 };
 
 // The queue carries on by itself only after a run that ended well. After a Stop or an error the user decides,
