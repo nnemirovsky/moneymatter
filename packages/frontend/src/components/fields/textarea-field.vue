@@ -25,6 +25,7 @@
         :readonly="readonly"
         :title="title"
         :rows="rows"
+        :enterkeyhint="enterkeyhint"
         :cols="cols"
         @input="onInput"
       />
@@ -44,13 +45,9 @@ import FieldLabel from '@/components/fields/components/field-label.vue';
 import { cn } from '@/lib/utils';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
-const MODEL_EVENTS = Object.freeze({
-  input: 'update:modelValue',
-});
+const MODEL_EVENTS = Object.freeze({ input: 'update:modelValue' });
 
-const emit = defineEmits<{
-  (e: 'update:modelValue', payload: string | number): void;
-}>();
+const emit = defineEmits<{ (e: 'update:modelValue', payload: string | number): void }>();
 
 const props = withDefaults(
   defineProps<{
@@ -66,6 +63,7 @@ const props = withDefaults(
     required?: boolean;
     readonly?: boolean;
     title?: string;
+    enterkeyhint?: 'enter' | 'send';
     maxlength?: string | number;
     // textarea proxies
     rows?: string | number;
@@ -81,6 +79,7 @@ const props = withDefaults(
     name: undefined,
     placeholder: undefined,
     title: undefined,
+    enterkeyhint: undefined,
     maxlength: undefined,
     cols: undefined,
   },
