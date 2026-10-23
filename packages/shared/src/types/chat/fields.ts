@@ -60,6 +60,14 @@ export interface ChatEntityRef {
 }
 
 /**
+ * Labels that differ for one tool: `sourceId` is the source payee on a payee merge, and the notification
+ * source on the card that sets its mode. Wins over `CHAT_FIELD_LABEL_KEYS`.
+ */
+export const CHAT_TOOL_FIELD_LABEL_KEYS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  set_notification_source: { sourceId: 'chat.fields.notificationSource' },
+};
+
+/**
  * Tool argument name to the i18n key of its label on a card. The chat capability drift suite requires
  * a key for every top-level field of every write tool, and a frontend unit test requires each key in
  * the `en` and `uk` locales.

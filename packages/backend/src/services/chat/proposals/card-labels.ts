@@ -7,6 +7,7 @@ import BudgetPlans from '@models/budget-plans.model';
 import ImportBatches from '@models/import-batches.model';
 import Portfolios from '@models/investments/portfolios.model';
 import LoanDetails from '@models/loan-details.model';
+import NotificationSources from '@models/notification-sources.model';
 import Payees from '@models/payees.model';
 import Subscriptions from '@models/subscriptions.model';
 import Trackers from '@models/trackers.model';
@@ -21,6 +22,7 @@ import VentureEvents from '@models/venture/venture-events.model';
 import VenturePlatforms from '@models/venture/venture-platforms.model';
 import { Op, type Model, type ModelStatic, type WhereOptions } from 'sequelize';
 
+import { describeSource } from '../../ingest/event/source-label';
 import type { ResolvedToolPolicy } from '../policies/rules';
 import { SAMPLE_ROW_LIMIT, TRANSACTION_SAMPLE_ATTRIBUTES } from './previews/preview-helpers';
 
@@ -67,6 +69,19 @@ const OWNED_BY_USER: Partial<Record<ChatEntityKind, NamedModel>> = {
   venturePlatform: byName({ model: VenturePlatforms }),
   ventureDeal: byName({ model: VentureDeals }),
   portfolio: byName({ model: Portfolios }),
+  notificationSource: {
+    model: NotificationSources,
+    attributes: ['appName', 'bundleId', 'sender'],
+    label: (row) =>
+      describeSource({
+        source: {
+          appName: row.appName as string | null,
+          bundleId: row.bundleId as string | null,
+          sender: row.sender as string | null,
+        },
+        payload: {},
+      }),
+  },
   vehicle: {
     model: Vehicles,
     attributes: ['year', 'make', 'model'],

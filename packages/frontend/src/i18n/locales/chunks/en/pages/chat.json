@@ -275,7 +275,8 @@
       "withSuggestedLines": "Add suggested lines",
       "year": "Year",
       "zeroSum": "Zero-sum budget",
-      "filename": "File name"
+      "filename": "File name",
+      "notificationSource": "Source"
     },
     "entities": {
       "transaction": "transaction",
@@ -574,6 +575,12 @@
           "quarterly": "Quarterly",
           "semi_annual": "Every 6 months",
           "annual": "Yearly"
+        },
+        "mode": {
+          "approved": "Approve as a payment source",
+          "muted": "Mute",
+          "context": "Context only",
+          "pending": "waiting for approval"
         }
       },
       "target": {

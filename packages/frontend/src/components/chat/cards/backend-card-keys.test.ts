@@ -1,6 +1,6 @@
 import enChat from '@/i18n/locales/chunks/en/pages/chat.json';
 import ukChat from '@/i18n/locales/chunks/uk/pages/chat.json';
-import type { ChatCardConflictReason } from '@bt/shared/types';
+import { CHAT_TOOL_FIELD_LABEL_KEYS, type ChatCardConflictReason } from '@bt/shared/types';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -125,5 +125,21 @@ describe('keys the backend emits for cards', () => {
 
   it('has every key in the uk locale', () => {
     expect(missingFrom({ messages: ukChat, keys })).toEqual([]);
+  });
+});
+
+describe('the per-tool field labels', () => {
+  const read = ({ messages, key }: { messages: unknown; key: string }) =>
+    key.split('.').reduce<unknown>((node, part) => (node as Record<string, unknown> | undefined)?.[part], messages);
+
+  it('has a name in en and uk for every label a tool overrides', () => {
+    for (const [tool, labels] of Object.entries(CHAT_TOOL_FIELD_LABEL_KEYS)) {
+      for (const [path, key] of Object.entries(labels)) {
+        const name = `${tool}.${path} -> ${key}`;
+
+        expect(typeof read({ messages: { chat: enChat.chat }, key }), name).toBe('string');
+        expect(typeof read({ messages: { chat: ukChat.chat }, key }), `${name} (uk)`).toBe('string');
+      }
+    }
   });
 });
