@@ -176,22 +176,72 @@ describe('context notifications', () => {
       expect(delivered.body.response).toMatchObject({ outcome: 'ignored', reason: 'contextRepeat' });
     });
 
-    it('recognizes the later stages of an order whose acceptance found its payment already confirmed', async () => {
+    it('holds an acceptance that finds only a confirmed payment, and gives it to the payment that follows (payee "Wolt Market")', async () => {
       const { secret } = await setUp();
-      const confirmed = await pay({ secret });
-      await approveCardAsIs({ card: await confirmCardOf({ transactionId: confirmed.id }) });
-      const first = await send({ secret, body: accepted() });
-      expect(first.body.response).toMatchObject({ reason: 'contextConfirmed' });
+      // The morning's order, paid and confirmed.
+      const earlier = await pay({ secret, amount: '27.38', merchant: 'Wolt' });
+      await approveCardAsIs({ card: await confirmCardOf({ transactionId: earlier.id }) });
+      enableServerModel();
+      mockNotificationParsing({
+        answer: () => ({}),
+        contextParse: () => ({ isOrderUpdate: true, store: 'Wolt Market Batumi', status: 'accepted', confidence: 0.9 }),
+      });
 
-      // A second order of the service is paid, then the first order's next stage arrives.
-      const next = await pay({ secret, amount: '12.30' });
+      // The acceptance comes 14 seconds before the bank's payment, which names another payee.
+      const acceptance = await send({
+        secret,
+        body: woltNotification({
+          title: 'The staff has seen your order',
+          body: 'A human being has seen your order at Wolt Market Batumi',
+        }),
+      });
+      expect(acceptance.body.response).toMatchObject({ outcome: 'held', notify: false });
+      const payment = await pay({ secret, amount: '46.04', merchant: 'Wolt Market' });
+
+      await until(async () => (await reload({ id: payment.id })).note === 'Wolt Market Batumi order from Wolt', {
+        timeout: 10_000,
+        interval: 200,
+      });
+      expect((await reload({ id: earlier.id })).note).toBeNull();
+      expect(await requestOf({ requestId: acceptance.body.response.requestId })).toMatchObject({
+        status: 'enriched',
+        transactionId: payment.id,
+      });
+
+      // The later stage finds the order applied: nothing more to add.
+      const arriving = await send({
+        secret,
+        body: woltNotification({
+          title: 'Order arriving!',
+          body: 'Your order from Wolt Market Batumi is arriving now!',
+        }),
+      });
+      expect(arriving.body.response).toMatchObject({ outcome: 'ignored', reason: 'contextRepeat' });
+    });
+
+    it('lets a later stage apply when the first stage never did and an unconfirmed payment is in its window', async () => {
+      const { secret } = await setUp();
+      const held = await send({ secret, body: accepted() });
+      await IngestRequests.update(
+        { createdAt: new Date(Date.now() - contextConfig.lookaheadMs - 60_000) },
+        { where: { id: held.body.response.requestId }, silent: true },
+      );
+      const tx = await pay({ secret });
+      await waitForIngestIdle();
+      expect((await reload({ id: tx.id })).note).toBeNull();
+
       const onTheWay = await send({
         secret,
         body: woltNotification({ title: 'On the way', body: 'Your order from Urban Roastery&Coffee is on its way' }),
       });
 
-      expect(onTheWay.body.response).toMatchObject({ outcome: 'ignored', reason: 'contextRepeat' });
-      expect((await reload({ id: next.id })).note).toBeNull();
+      expect(onTheWay.body.response).toMatchObject({ outcome: 'enriched' });
+      expect((await reload({ id: tx.id })).note).toBe('Urban Roastery&Coffee order from Wolt');
+      // The stale acceptance has nothing left to claim.
+      expect(await requestOf({ requestId: held.body.response.requestId })).toMatchObject({
+        status: 'ignored',
+        reason: 'contextRepeat',
+      });
     });
 
     it('treats a second acceptance of the same store a moment later as a repeat, not a new order', async () => {
@@ -256,8 +306,16 @@ describe('context notifications', () => {
 
       const res = await send({ secret, body: accepted() });
 
-      expect(res.body.response).toMatchObject({ outcome: 'ignored', reason: 'contextConfirmed', notify: false });
+      // The confirmed payment may be another order's: the acceptance waits for its own payment, and the
+      // confirmed one is left as it is.
+      expect(res.body.response).toMatchObject({ outcome: 'held', notify: false });
       expect((await reload({ id: tx.id })).note).toBeNull();
+
+      const later = await send({
+        secret,
+        body: woltNotification({ title: 'On the way', body: 'Your order from Pizza Planet is on its way' }),
+      });
+      expect(later.body.response).toMatchObject({ outcome: 'ignored', reason: 'contextConfirmed' });
     });
 
     it('is not matched to a payment of another service', async () => {
