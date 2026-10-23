@@ -39,9 +39,10 @@ async function reapplyContext(): Promise<void> {
     );
     users.add(request.userId);
     logger.info(`[Reapply Context] ${id}: held again (${context!.service} / ${context!.store})`);
+    // One at a time: a request put back moments ago would otherwise read as the repeat of its sibling.
+    await applyHeldContexts({ userId: request.userId });
   }
 
-  for (const userId of users) await applyHeldContexts({ userId });
   logger.info(`[Reapply Context] done for ${users.size} user(s)`);
 }
 
