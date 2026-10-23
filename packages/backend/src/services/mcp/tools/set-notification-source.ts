@@ -8,7 +8,7 @@ import { getUserId, jsonContent, requireScope } from './helpers';
 
 const inputSchema = {
   sourceId: recordId(),
-  mode: z.enum(['approved', 'muted']).optional(),
+  mode: z.enum(['approved', 'muted', 'context']).optional(),
   defaultAccountId: recordId().nullable().optional(),
 };
 
@@ -17,7 +17,7 @@ export function registerSetNotificationSource(server: McpServer) {
     'set_notification_source',
     {
       description:
-        'Approve or mute a source of iOS Automation notifications and set its default account. Requires finance:write scope.',
+        'Approve a source of iOS Automation notifications as a payment source, mute it, or make it a context source (a delivery or shopping app whose notifications add the store to a payment and never create one), and set its default account. Requires finance:write scope.',
       inputSchema,
     },
     async (args, extra) => {

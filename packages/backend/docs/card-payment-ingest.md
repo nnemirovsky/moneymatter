@@ -389,13 +389,13 @@ The inbox is a MoneyMatter-owned chat thread (`ChatThreads.kind = automationInbo
 - **No AI.** `startChatRun` refuses any inbox thread with `409`, which covers `sendMessage` and `commentOnProposal`.
 - **Cards.** Run-free `createSystemProposal` posts every item, with `storeProposal` shared with `createProposal`. They expire after 30 days (`inboxConfig.cardTtlDays`); expiry resolves nothing, and re-evaluates the thread (`reevaluateInboxThreads`).
 
-| Item                                          | Tool                            | Approve | Edit                                   | Reject              |
-| --------------------------------------------- | ------------------------------- | ------- | -------------------------------------- | ------------------- |
-| Payment logged                                | `confirm_ingest_payment`        | confirm | account, amount, payee, category, note | delete the payment  |
-| Unknown account, own transfer, low confidence | `log_ingest_request`            | log     | account, direction                     | dismiss the request |
-| Pending source                                | `set_notification_source`       | approve | default account                        | mute                |
-| Duplicate suggestion                          | `merge_duplicate_transactions`  | merge   | survivor                               | dismiss             |
-| Conversion pair                               | the existing link-transfer tool | link    |                                        | dismiss             |
+| Item                                          | Tool                            | Approve | Edit                                               | Reject              |
+| --------------------------------------------- | ------------------------------- | ------- | -------------------------------------------------- | ------------------- |
+| Payment logged                                | `confirm_ingest_payment`        | confirm | account, amount, payee, category, note             | delete the payment  |
+| Unknown account, own transfer, low confidence | `log_ingest_request`            | log     | account, direction                                 | dismiss the request |
+| Pending source                                | `set_notification_source`       | approve | mode (approved, muted or context), default account | mute                |
+| Duplicate suggestion                          | `merge_duplicate_transactions`  | merge   | survivor                                           | dismiss             |
+| Conversion pair                               | the existing link-transfer tool | link    |                                                    | dismiss             |
 
 **Two-way sync.** Records hold a nullable `proposalId` (`DuplicateSuggestions`, `IngestRequests`, `NotificationSources`). Rejecting a card calls `onInboxCardRejected` in its transaction. Settling the record elsewhere rejects the card with `statusReason: "resolvedElsewhere"`. A daily backstop in the ingest cleanup cron (`sweepOrphanedInboxCards`) closes cards whose record vanished through a path without a hook.
 

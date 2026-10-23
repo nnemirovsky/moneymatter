@@ -275,7 +275,8 @@
       "withSuggestedLines": "Додати запропоновані рядки",
       "year": "Рік",
       "zeroSum": "Бюджет з нульовим залишком",
-      "filename": "Назва файлу"
+      "filename": "Назва файлу",
+      "notificationSource": "Джерело"
     },
     "entities": {
       "transaction": "транзакція",
@@ -574,6 +575,12 @@
           "quarterly": "Щокварталу",
           "semi_annual": "Раз на пів року",
           "annual": "Щороку"
+        },
+        "mode": {
+          "approved": "Підтвердити як джерело платежів",
+          "muted": "Вимкнути",
+          "context": "Лише контекст",
+          "pending": "в очікуванні підтвердження"
         }
       },
       "target": {

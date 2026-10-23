@@ -836,6 +836,41 @@ describe('Automation inbox', () => {
       expect((await Transactions.findOne())!.accountId).toBe(main.id);
     });
 
+    it('names the source on the card, labels its row as the source and offers the three modes', async () => {
+      const { source } = await parkOnNewSource({ app: 'Cashly' });
+      const card = await waitForCard({ toolName: SET_SOURCE });
+
+      expect(card.labels?.[`notificationSource:${source.id}`]).toBe('Cashly');
+      const sourceField = card.fields.find((field) => field.path === 'sourceId')!;
+      expect(sourceField.labelKey).toBe('chat.fields.notificationSource');
+      const modeField = card.fields.find((field) => field.path === 'mode')!;
+      expect(modeField.labelKey).toBe('chat.fields.mode');
+      expect(JSON.stringify(modeField.editable)).toEqual(expect.stringContaining('approved'));
+      expect(JSON.stringify(modeField.editable)).toEqual(expect.stringContaining('muted'));
+      expect(JSON.stringify(modeField.editable)).toEqual(expect.stringContaining('context'));
+    });
+
+    it.each(['context', 'muted'] as const)(
+      'sets the mode %s chosen on the card and drops what the source held',
+      async (mode) => {
+        const { source } = await parkOnNewSource();
+        const card = await waitForCard({ toolName: SET_SOURCE });
+        const edited = await helpers.editChatProposal({
+          proposalId: card.id,
+          payload: { revision: card.revision, args: { sourceId: source.id, mode } },
+          raw: true,
+        });
+
+        const approved = await approve({ card: edited });
+
+        expect(approved.statusCode).toBe(200);
+        expect((await NotificationSources.findByPk(source.id))!.mode).toBe(mode);
+        // Neither mode reads the payment text it held: a context source never reaches the payment parser.
+        expect(await IngestRequests.count({ where: { sourceId: source.id } })).toBe(0);
+        expect(await Transactions.count()).toBe(0);
+      },
+    );
+
     it('mutes the source and deletes what it held when the card is rejected', async () => {
       const { source } = await parkOnNewSource();
       const card = await waitForCard({ toolName: SET_SOURCE });

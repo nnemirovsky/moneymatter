@@ -1,5 +1,6 @@
 import {
   CHAT_FIELD_LABEL_KEYS,
+  CHAT_TOOL_FIELD_LABEL_KEYS,
   chatCardTitleKey,
   type ChatCardTitle,
   type ChatIngestRequestSummary,
@@ -167,7 +168,8 @@ export function toChatProposalCard({
     const unsure = uncertain.get(path);
     return {
       path,
-      labelKey: CHAT_FIELD_LABEL_KEYS[path] ?? `chat.fields.${path}`,
+      labelKey:
+        CHAT_TOOL_FIELD_LABEL_KEYS[row.toolName]?.[path] ?? CHAT_FIELD_LABEL_KEYS[path] ?? `chat.fields.${path}`,
       value,
       ...describeField({ key: path, value, node: properties?.[path], entityKind: policy?.entityFields[path] }),
       ...(rowBefore && path in rowBefore && !isSameValue({ a: rowBefore[path], b: value })
