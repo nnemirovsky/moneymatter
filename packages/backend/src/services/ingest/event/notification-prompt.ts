@@ -78,7 +78,7 @@ BALANCE
 12. balanceAfter is the balance the text states after the transaction; null when it states none. Its scopeHint is account when the text ties it to this card or account in the account's own currency, total when the text calls it a total or overall balance or it is in a currency other than the transaction's without naming the account, and unknown when the text does not settle it. The BALANCE CONTEXT section lists the currencies the user holds money in at this bank; when several currencies are held, a balance in a push is usually a total.
 
 TIME
-13. occurredAt is the date and time the text states for the transaction, as ISO 8601 without a time zone ("2026-10-20T14:30:00"); null when it states none. A date alone ("24/10/2026") is not enough: use null unless the text also gives a time of day. Do not use today's date.
+13. occurredAt is the date and time the text states for the transaction, as ISO 8601 without a time zone ("2026-10-20T14:30:00"); null when it states none. A date alone ("15/01/2026") is not enough: use null unless the text also gives a time of day. Do not use today's date.
 
 PAYEE
 14. payee names the business behind the merchant text. Choose from the PAYEE CANDIDATES list or give a new name.

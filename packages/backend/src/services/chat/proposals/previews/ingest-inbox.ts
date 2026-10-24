@@ -222,8 +222,8 @@ export const resolveIngestRequest: PreviewResolver = async ({ userId, args, lock
         {
           key: 'chat.warnings.ingestConversionRate',
           params: {
-            rate: conversion!.rate,
-            usual: conversion!.usualRate,
+            rate: Number(conversion!.rate!.toPrecision(4)),
+            usual: Number(conversion!.usualRate!.toPrecision(4)),
             from: conversion!.fromCurrencyCode,
             to: conversion!.toCurrencyCode,
           },

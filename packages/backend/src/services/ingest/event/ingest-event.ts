@@ -334,9 +334,10 @@ const ingestNotification = async ({
 
 /**
  * The first step of the handshake for a messaging or mail notification without an amount. It reads the
- * app and the sender and answers `send: 'yes'` when that sender is a context source, or names a merchant
- * the owner paid in the last half hour (a mail sender only; then the sender becomes a source waiting for the
- * owner's choice). Any other sender leaves no trace: nothing is stored, no source is created, nothing is counted.
+ * app and the sender and answers `send: 'yes'` when that sender is a context source, or `senderMayBeRead`: a mail
+ * sender that names a merchant paid in the last half hour, or a text-message business ID that does, or that the
+ * user's past transfer notes name while an exchange waits (then the sender becomes a source waiting for the
+ * user's choice). Any other sender leaves no trace: nothing is stored, no source is created, nothing is counted.
  */
 const probeSender = async ({ userId, body }: { userId: number; body: unknown }): Promise<IngestEventResult> => {
   const app = readProbeApp({ body });
@@ -346,15 +347,15 @@ const probeSender = async ({ userId, body }: { userId: number; body: unknown }):
 
   let send = source?.mode === 'context';
   traceStep({ step: 'probe', detail: source ? `source:${source.mode}` : 'source:none' });
-  // A sender that names a merchant the owner has just paid is offered as a context source: its row is made
-  // (the sender and the app, no text) and this one notification is sent to be read for that payment.
-  if (
-    !send &&
-    (!source || source.mode === 'pending') &&
-    (await senderMayBeRead({ userId, appName: app.app, bundleId: app.bundleId, sender: app.title }))
-  ) {
+  // A sender that names a merchant just paid (or a business ID named in past transfer notes while an exchange waits) is
+  // offered as a context source: its row is made (the sender and the app, no text) and this one notification is sent.
+  const reason =
+    !send && (!source || source.mode === 'pending')
+      ? await senderMayBeRead({ userId, appName: app.app, bundleId: app.bundleId, sender: app.title })
+      : null;
+  if (reason) {
     await touchNotificationSource({ userId, sourceKey, app: appIdentity });
-    traceStep({ step: 'probe', detail: 'recentPayment' });
+    traceStep({ step: 'probe', detail: reason });
     send = true;
   }
 

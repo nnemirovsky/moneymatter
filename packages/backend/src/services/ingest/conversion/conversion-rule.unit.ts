@@ -27,13 +27,13 @@ const OTHER_SOURCE = 'source-2' as RecordId;
 
 const debit = (overrides: LegOverrides = {}): ConversionLeg => ({
   payment: payment(overrides.payment),
-  time: overrides.time ?? new Date('2026-10-24T07:25:42Z'),
+  time: overrides.time ?? new Date('2026-01-15T07:25:42Z'),
   sourceId: overrides.sourceId === undefined ? SOURCE : overrides.sourceId,
 });
 
 const credit = (overrides: LegOverrides = {}): ConversionLeg =>
   debit({
-    time: new Date('2026-10-24T07:27:31Z'),
+    time: new Date('2026-01-15T07:27:31Z'),
     ...overrides,
     payment: { kind: 'credit', amount: '360.00', currencyCode: 'EUR', ...overrides.payment },
   });
@@ -90,8 +90,8 @@ describe('isConversionPair', () => {
   });
 
   it('pairs only within the window', () => {
-    const late = credit({ time: new Date('2026-10-24T07:35:00Z') });
-    const later = credit({ time: new Date('2026-10-24T07:36:43Z') });
+    const late = credit({ time: new Date('2026-01-15T07:35:00Z') });
+    const later = credit({ time: new Date('2026-01-15T07:36:43Z') });
 
     expect(isConversionPair({ left: debit(), right: late })).toBe(true);
     expect(isConversionPair({ left: debit(), right: later })).toBe(false);

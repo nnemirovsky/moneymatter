@@ -19,8 +19,8 @@ const DEFAULT_TIMINGS = { ...notificationTimings };
 const SEEDED_DATES: Date[] = [];
 
 /** The owner's two pushes of one exchange: 400 USD out, 360 EUR in, two minutes later. */
-const MONEY_OUT = 'Money Transfer:\n400.00 USD\nEXAMPLE CARD\n24/10/2026';
-const MONEY_IN = 'Deposit Money: 360.00 EUR\nEXAMPLE CARD\n24/10/2026\n';
+const MONEY_OUT = 'Money Transfer:\n400.00 USD\nEXAMPLE CARD\n15/01/2026';
+const MONEY_IN = 'Deposit Money: 360.00 EUR\nEXAMPLE CARD\n15/01/2026\n';
 
 /** What the model answers for them: the date alone reads as midnight, which the server must not keep. */
 const answerFor = ({ prompt }: { prompt: string }) =>
@@ -31,7 +31,7 @@ const answerFor = ({ prompt }: { prompt: string }) =>
         amount: '400.00',
         currency: 'USD',
         merchant: 'EXAMPLE CARD',
-        occurredAt: '2026-10-24T00:00:00Z',
+        occurredAt: '2026-01-15T00:00:00Z',
       };
 
 const send = ({ secret, start, minutes, body }: { secret: string; start: Date; minutes: number; body: string }) =>
@@ -332,7 +332,7 @@ describe('a currency exchange told in two notifications', () => {
     const { secret, start } = await setUp();
 
     await send({ secret, start, minutes: 0, body: MONEY_OUT });
-    await send({ secret, start, minutes: 1, body: 'Money Transfer:\n300.00 USD\nEXAMPLE CARD\n24/10/2026' });
+    await send({ secret, start, minutes: 1, body: 'Money Transfer:\n300.00 USD\nEXAMPLE CARD\n15/01/2026' });
     const inn = await send({ secret, start, minutes: 2, body: MONEY_IN });
 
     expect(inn.body.response).toMatchObject({ outcome: 'parked' });
@@ -415,7 +415,7 @@ describe('a currency exchange told in two notifications', () => {
     const { usd, eur, secret, start } = await setUp({ mapped: false, names: ['Savings', 'Cash'] });
     // An account of another bank in each currency: never a candidate for this bank's exchange.
     await helpers.createAccount({
-      payload: helpers.buildAccountPayload({ name: 'Raiffeisen USD', currencyCode: 'USD', initialBalance: 1 }),
+      payload: helpers.buildAccountPayload({ name: 'Other Bank USD', currencyCode: 'USD', initialBalance: 1 }),
       raw: true,
     });
 
@@ -637,7 +637,7 @@ describe("what the owner's history adds to an exchange", () => {
     await seedPastExchange({ usdId: usd.id, eurId: eur.id, sent: 300, received: 270, note: 'Exchange', daysAgo: 4 });
 
     await send({ secret, start, minutes: 0, body: MONEY_OUT });
-    await send({ secret, start, minutes: 2, body: 'Deposit Money: 200.00 EUR\nEXAMPLE CARD\n24/10/2026\n' });
+    await send({ secret, start, minutes: 2, body: 'Deposit Money: 200.00 EUR\nEXAMPLE CARD\n15/01/2026\n' });
     const [pending] = await waitForCards({ count: 1 });
     const card = await refreshed(pending!);
 
@@ -727,13 +727,38 @@ describe("what the owner's history adds to an exchange", () => {
       expect(expense.note).toBe('Exchange · XCHANGE app');
     });
 
+    it('drops a message that arrives once the exchange no longer waits, without reading it', async () => {
+      const exchangeReadPrompts: string[] = [];
+      mockNotificationParsing({ answer: answerFor, exchangeReadPrompts });
+      const { usd, eur, secret, past } = await pairWithHistory();
+      await probe({ secret, title: 'XCHANGE' });
+      const [pending] = await waitForCards({ count: 1 });
+      await approve({ card: await refreshed(pending!) });
+      await expectLinkedExchange({ usdId: usd.id, eurId: eur.id, ignore: past });
+
+      const sent = await ingestHelpers.postIngestEvent({
+        secret,
+        body: {
+          kind: 'notification',
+          app: 'Messages',
+          title: 'XCHANGE',
+          subtitle: '',
+          body: MESSAGE.body,
+          idempotencyKey: `sms-${randomUUID()}`,
+        },
+      });
+
+      expect(sent.body.response).toMatchObject({ outcome: 'dropped', reason: 'noAmount' });
+      expect(exchangeReadPrompts).toEqual([]);
+    });
+
     it('drops a note that carries a number and changes nothing when the message is not the exchange', async () => {
       mockNotificationParsing({
         answer: answerFor,
         exchangeRead: ({ prompt }) =>
           prompt.includes('Ekzemplo')
             ? { confirmsExchange: true, note: 'Exchange of 400 via XCHANGE', confidence: 0.9 }
-            : { confirmsExchange: false, note: null, confidence: 0.9 },
+            : { confirmsExchange: false, note: 'Promo · XCHANGE', confidence: 0.9 },
       });
       const { secret } = await pairWithHistory();
       await probe({ secret, title: 'XCHANGE' });

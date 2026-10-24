@@ -164,12 +164,12 @@ describe('invalid fields are dropped', () => {
   });
 
   it('reads no time from a date alone, or from a date at midnight', () => {
-    expect(paymentOf({ occurredAt: '2026-10-24' }).occurredAt).toBeNull();
-    expect(paymentOf({ occurredAt: '2026-10-24T00:00:00' }).occurredAt).toBeNull();
-    expect(paymentOf({ occurredAt: '2026-10-24T00:00Z' }).occurredAt).toBeNull();
-    expect(paymentOf({ occurredAt: '2026-10-24T00:00:00.000Z' }).occurredAt).toBeNull();
-    expect(paymentOf({ occurredAt: '2026-10-24T00:01:00' }).occurredAt).toEqual(new Date('2026-10-24T00:01:00'));
-    expect(paymentOf({ occurredAt: '2026-10-24 14:30' }).occurredAt).toEqual(new Date('2026-10-24 14:30'));
+    expect(paymentOf({ occurredAt: '2026-01-15' }).occurredAt).toBeNull();
+    expect(paymentOf({ occurredAt: '2026-01-15T00:00:00' }).occurredAt).toBeNull();
+    expect(paymentOf({ occurredAt: '2026-01-15T00:00Z' }).occurredAt).toBeNull();
+    expect(paymentOf({ occurredAt: '2026-01-15T00:00:00.000Z' }).occurredAt).toBeNull();
+    expect(paymentOf({ occurredAt: '2026-01-15T00:01:00' }).occurredAt).toEqual(new Date('2026-01-15T00:01:00'));
+    expect(paymentOf({ occurredAt: '2026-01-15 14:30' }).occurredAt).toEqual(new Date('2026-01-15 14:30'));
   });
 
   it('reads no merchant from the name of the card, and keeps the bank own word for the movement', () => {
