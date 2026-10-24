@@ -2,6 +2,8 @@ import type { ChatMessage, ChatProposalCard, ChatThreadWithMessages } from '@bt/
 import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
 import { t } from '@i18n/index';
 import ChatMessages from '@models/chat-messages.model';
+import { pairWaitingExchanges } from '@services/ingest/conversion/pair-waiting-exchanges';
+import { pairWaitingExchanges } from '@services/ingest/conversion/pair-waiting-exchanges';
 import { Op, type WhereOptions } from 'sequelize';
 
 import { expireDueCards } from '../proposals/card-expiry';
@@ -52,6 +54,8 @@ export const getThread = async ({
   const thread = await findThreadOrThrow({ userId, threadId });
   // Opening a thread reads its replies and answers the pushes about it.
   await markThreadRead({ userId, threadId });
+  // The Automation inbox joins the two notifications of one currency exchange that wait on cards of their own.
+  if (thread.kind === 'automationInbox') await pairWaitingExchanges({ userId });
 
   let where: WhereOptions = { threadId };
   if (before) {

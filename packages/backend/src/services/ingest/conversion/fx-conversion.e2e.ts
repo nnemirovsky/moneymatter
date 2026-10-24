@@ -388,6 +388,28 @@ describe('a currency exchange told in two notifications', () => {
     expect(await inboxCards({ status: 'pending' })).toEqual([]);
   });
 
+  it('joins two cards that were already waiting into one when the inbox is opened, with no tap', async () => {
+    mockNotificationParsing({ answer: answerFor });
+    const { usd, eur, secret, start } = await setUp();
+    await send({ secret, start, minutes: 0, body: MONEY_OUT });
+    await send({ secret, start, minutes: 11, body: MONEY_IN });
+    const [out, inn] = await requests();
+    await waitForCards({ count: 2 });
+    // As far as the clock goes they are the two sides of one exchange.
+    await inn!.update({ payload: { ...inn!.payload, time: addMinutes(start, 2).toISOString() } });
+
+    const cards = await inboxCards({ status: 'pending' });
+
+    expect(cards).toHaveLength(1);
+    expect(cards[0]!.ingestRequest!.conversion).toMatchObject({ fromAmount: 400, toAmount: 360 });
+    expect(await requests()).toMatchObject([
+      { id: out!.id, status: 'parked' },
+      { id: inn!.id, status: 'dismissed', reason: 'conversionLeg', duplicateOfId: out!.id },
+    ]);
+    await approve({ card: cards[0]! });
+    await expectLinkedExchange({ usdId: usd.id, eurId: eur.id });
+  });
+
   it('asks for the two accounts when the bank has none the server can tell, and never offers another bank', async () => {
     mockNotificationParsing({ answer: answerFor });
     const { usd, eur, secret, start } = await setUp({ mapped: false, names: ['Savings', 'Cash'] });
