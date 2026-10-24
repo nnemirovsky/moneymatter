@@ -121,6 +121,19 @@ describe('ApproveAllBar', () => {
     expect(addSuccessNotification).toHaveBeenCalledWith('2 changes applied');
   });
 
+  it('shows only a count of what it leaves when compact, so a pinned bar stays small', () => {
+    const wrapper = mount(ApproveAllBar, {
+      props: {
+        compact: true,
+        groups: [{ messageId: 'm1', cards: [safe({ id: 'a' }), safe({ id: 'b' }), risky({ id: 'c' })] }],
+      },
+      global: { plugins: [[VueQueryPlugin, { queryClient: new QueryClient() }], createChatI18n()] },
+    });
+
+    expect(wrapper.find('[data-testid="skipped-count"]').text()).toBe('Left for you (1)');
+    expect(wrapper.find('[data-testid="skipped-card"]').exists()).toBe(false);
+  });
+
   it('stops at a failed message and still reports what was applied before it', async () => {
     vi.mocked(approveAllChatMessage)
       .mockResolvedValueOnce({ results: [{ proposalId: 'a', outcome: 'applied' }], cards: [] })

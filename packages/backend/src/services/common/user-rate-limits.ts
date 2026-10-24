@@ -58,6 +58,8 @@ export const CHAT_MESSAGE_LIMIT = userRateLimit({ prefix: 'chat-message', window
 /**
  * Chat approval limit (120 approvals per minute), shared by approving one card and "approve all".
  * An approval runs the real write handlers of the tools, so the budget bounds a runaway client; a
- * person clicking through cards, or one approve-all call, stays far below it.
+ * person clicking through cards stays far below it. The automation inbox approves a thread with one
+ * approve-all call per message, so one click there costs as many calls as the thread has messages
+ * with a safe card; past the budget the rest wait for the next click.
  */
 export const CHAT_APPROVAL_LIMIT = userRateLimit({ prefix: 'chat-approval', windowSeconds: 60, maxAttempts: 120 });

@@ -20,7 +20,7 @@ import { cardsFromActionError, patchChatCardsInCache } from '@/composable/chat/c
 import { joinsLatestPage, mergeThreadPages } from '@/composable/chat/merge-thread-pages';
 import { useApplyInvalidation } from '@/composable/chat/use-apply-invalidation';
 import { SSE_EVENT_TYPES, useSSE } from '@/composable/use-sse';
-import type { ChatProposalCard } from '@bt/shared/types';
+import type { ChatApproveAllRequest, ChatApproveAllResponse, ChatProposalCard } from '@bt/shared/types';
 import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { type MaybeRefOrGetter, computed, onScopeDispose, ref, toValue, watch } from 'vue';
 
@@ -257,6 +257,36 @@ export const useChatCardActions = () => {
     onError: onCardError,
   });
 
+  /**
+   * "Approve all" over several messages (the automation inbox): the server approves one message per
+   * call, so the calls go in order and the caches are refreshed once at the end. A call that fails ends
+   * the pass; what was applied before it still counts and is returned with the failure.
+   */
+  const approveAllMessages = useMutation({
+    mutationFn: async ({ groups }: { groups: Array<{ messageId: string; payload: ChatApproveAllRequest }> }) => {
+      const responses: ChatApproveAllResponse[] = [];
+      let failure: unknown = null;
+      for (const group of groups) {
+        try {
+          responses.push(await approveAllChatMessage(group));
+        } catch (error) {
+          failure = error;
+          break;
+        }
+      }
+      if (responses.length === 0 && failure !== null) throw failure;
+      return { responses, failure };
+    },
+    onSuccess: async ({ responses, failure }) => {
+      const cards = responses.flatMap((response) => response.cards);
+      showCards({ cards });
+      await invalidateForCards({ cards });
+      queryClient.invalidateQueries({ queryKey: VUE_QUERY_CACHE_KEYS.chatAppliedCards });
+      if (failure !== null) onCardError(failure);
+    },
+    onError: onCardError,
+  });
+
   const reject = useMutation({
     mutationFn: rejectChatProposal,
     onSuccess: ({ cards }) => showCards({ cards }),
@@ -276,10 +306,7 @@ export const useChatCardActions = () => {
   });
 
   /** A comment starts a run, like a message: follow it with `useChatRun().attach` using the answer. */
-  const comment = useMutation({
-    mutationFn: commentOnChatProposal,
-    onError: onCardError,
-  });
+  const comment = useMutation({ mutationFn: commentOnChatProposal, onError: onCardError });
 
-  return { approve, approveAll, reject, edit, refresh, comment };
+  return { approve, approveAll, approveAllMessages, reject, edit, refresh, comment };
 };

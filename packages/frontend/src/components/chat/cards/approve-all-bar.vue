@@ -19,12 +19,14 @@ export interface ApproveAllGroup {
 const props = defineProps<{
   /** The messages the bar covers: one in a conversation, every message of the thread in the automation inbox. */
   groups: ApproveAllGroup[];
+  /** Only counts what is left for the user; the thread shows those cards itself (the pinned inbox bar). */
+  compact?: boolean;
 }>();
 
 const { t } = useI18n();
 const { keyText, titleText } = useChatText();
 const { addSuccessNotification } = useNotificationCenter();
-const { approveAll } = useChatCardActions();
+const { approveAllMessages } = useChatCardActions();
 
 /**
  * Why a card is not part of the pass, as the server words it for a card it skips: the order is the
@@ -67,24 +69,15 @@ const announce = ({ responses }: { responses: ChatApproveAllResponse[] }) => {
 };
 
 const approve = async () => {
-  const responses: ChatApproveAllResponse[] = [];
-  // The server approves one message per call, so a thread goes message by message, in order.
-  for (const group of props.groups) {
-    const cards = pendingOf({ group });
-    if (!cards.some((card) => card.safe)) continue;
-    try {
-      responses.push(
-        await approveAll.mutateAsync({
-          messageId: group.messageId,
-          // The server decides which cards are safe; it needs the revision the user saw of each pending one.
-          payload: { revisions: Object.fromEntries(cards.map((card) => [card.id, card.revision])) },
-        }),
-      );
-    } catch {
-      // The mutation reports the failure; what was approved before it still counts.
-      break;
-    }
-  }
+  // The server decides which cards are safe; it needs the revision the user saw of each pending one.
+  const calls = props.groups
+    .map((group) => ({ messageId: group.messageId, cards: pendingOf({ group }) }))
+    .filter(({ cards }) => cards.some((card) => card.safe))
+    .map(({ messageId, cards }) => ({
+      messageId,
+      payload: { revisions: Object.fromEntries(cards.map((card) => [card.id, card.revision])) },
+    }));
+  const { responses } = await approveAllMessages.mutateAsync({ groups: calls }).catch(() => ({ responses: [] }));
   if (responses.length > 0) announce({ responses });
 };
 </script>
@@ -96,7 +89,7 @@ const approve = async () => {
         variant="soft-success"
         size="sm"
         data-testid="approve-all"
-        :disabled="approveAll.isPending.value"
+        :disabled="approveAllMessages.isPending.value"
         @click="approve"
       >
         <CheckCheckIcon class="size-4" aria-hidden="true" />
@@ -104,7 +97,10 @@ const approve = async () => {
       </Button>
     </div>
 
-    <div v-if="skipped.length > 0" class="text-muted-foreground text-sm">
+    <p v-if="skipped.length > 0 && compact" class="text-muted-foreground text-sm" data-testid="skipped-count">
+      {{ $t('chat.cards.approveAll.skippedTitle', { count: skipped.length }) }}
+    </p>
+    <div v-else-if="skipped.length > 0" class="text-muted-foreground text-sm">
       <p class="font-medium">{{ $t('chat.cards.approveAll.skippedTitle', { count: skipped.length }) }}</p>
       <ul class="mt-1 flex flex-col gap-0.5">
         <li v-for="item in skipped" :key="item.id" data-testid="skipped-card">

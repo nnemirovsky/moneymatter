@@ -505,7 +505,7 @@ onMounted(scrollToBottom);
         <template v-else>
           <!-- Pinned to the top: the newest card arrives at the bottom, and the button must stay in reach. -->
           <div v-if="isInbox" class="sticky top-0 z-10 -mx-1 px-1 empty:hidden">
-            <ApproveAllBar :groups="inboxApproveGroups" />
+            <ApproveAllBar :groups="inboxApproveGroups" compact />
           </div>
           <Button
             v-if="hasMore"
