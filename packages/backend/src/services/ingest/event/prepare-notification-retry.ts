@@ -4,6 +4,7 @@ import IngestRequests from '@models/ingest-requests.model';
 import { withTransaction } from '@services/common/with-transaction';
 
 import { isWaitingRequest, type ProcessIngestResult } from '../card-payment/process-ingest-request';
+import { releaseConversionLeg } from '../conversion/release-conversion-leg';
 import { FORCE_PARK_REASONS } from './stored-parse';
 
 type PrepareResult =
@@ -46,6 +47,10 @@ const prepareNotificationRetryImpl = async ({
       },
     };
   }
+
+  // Logged on its own, not through the approval of its exchange (which has already moved the other side on): the
+  // other side of the exchange, if it joined this request, waits again.
+  await releaseConversionLeg({ request: row, locale });
 
   // Back to `received` under the row lock: of two concurrent retries the second finds a request
   // that is not waiting any more. The stored text and reading stay, so the job starts from them.

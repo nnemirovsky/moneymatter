@@ -3,8 +3,12 @@ import ChatProposals from '@models/chat-proposals.model';
 import IngestRequests from '@models/ingest-requests.model';
 import { resolveCardsElsewhere } from '@services/chat/inbox/inbox-resolution';
 
+import { readUserLocale } from '../card-payment/read-user-locale';
+import { releaseConversionLeg } from '../conversion/release-conversion-leg';
+import { readStoredParse } from '../event/stored-parse';
+
 /**
- * Settles a parked request as the twin of another: it is dismissed as `parkedTwin`, linked to the
+ * Settles a parked request as the twin of another (or as the other side of its exchange, `conversionLeg`): it is dismissed, linked to the
  * request it repeats (`duplicateOfId`), loses its text and its card closes. Its reading stays, so the
  * request it joined can still learn the card the twin named.
  *
@@ -21,10 +25,16 @@ export const absorbParkedTwin = async ({
   twin,
   intoRequestId,
   holdsRowLock = false,
+  reason = 'parkedTwin',
+  parkReason,
 }: {
   twin: IngestRequests;
   intoRequestId: RecordId;
   holdsRowLock?: boolean;
+  /** Why the request is settled: the same payment (`parkedTwin`), or one side of an exchange (`conversionLeg`). */
+  reason?: 'parkedTwin' | 'conversionLeg';
+  /** The reason the request is parked with, when it is not parked yet (a request being parked as it joins). */
+  parkReason?: string;
 }): Promise<boolean> => {
   let row: IngestRequests | null = twin;
   if (!holdsRowLock) {
@@ -35,13 +45,23 @@ export const absorbParkedTwin = async ({
   }
   if (!row) return false;
 
+  // The other side of an exchange keeps the gate it parked under, for the day it waits on a card of its own again.
+  const stored = readStoredParse({ value: row.parsed });
   await row.update({
     status: 'dismissed',
-    reason: 'parkedTwin',
+    reason,
     duplicateOfId: intoRequestId,
     textEnc: null,
     summary: null,
+    ...(reason === 'conversionLeg' &&
+      stored && {
+        parsed: { ...stored, conversionParkReason: parkReason ?? row.reason } as unknown as Record<string, unknown>,
+      }),
   });
+  // A request that joined this one as the other side of an exchange waits again: this one is no longer logged for it.
+  if (reason === 'parkedTwin') {
+    await releaseConversionLeg({ request: row, locale: await readUserLocale({ userId: row.userId }) });
+  }
   await resolveCardsElsewhere({ proposalIds: [row.proposalId] });
 
   return true;

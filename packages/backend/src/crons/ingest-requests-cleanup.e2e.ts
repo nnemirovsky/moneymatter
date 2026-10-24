@@ -173,6 +173,58 @@ describe('Ingest requests cleanup cron', () => {
     for (const id of Object.values(recent)) expect(remaining.has(id)).toBe(true);
   });
 
+  it('keeps the joined side of a waiting currency exchange, however old, and deletes it once its request is final', async () => {
+    const user = await helpers.getUserInfo({ raw: true });
+    const seed = ({
+      key,
+      status,
+      reason = null,
+      duplicateOfId = null,
+    }: {
+      key: string;
+      status: IngestRequestStatus;
+      reason?: string | null;
+      duplicateOfId?: RecordId | null;
+    }) =>
+      IngestRequests.create({
+        userId: user.id,
+        pipeline: 'notification',
+        source: 'notification',
+        idempotencyKey: key,
+        fingerprint: `fingerprint-${key}`,
+        status,
+        reason,
+        duplicateOfId,
+        payload: { kind: 'notification' },
+      });
+    const waiting = await seed({ key: 'waiting', status: 'parked', reason: 'unknownAccount' });
+    const finished = await seed({ key: 'finished', status: 'logged' });
+    const legOfWaiting = await seed({
+      key: 'leg-waiting',
+      status: 'dismissed',
+      reason: 'conversionLeg',
+      duplicateOfId: waiting.id,
+    });
+    const legOfFinished = await seed({
+      key: 'leg-finished',
+      status: 'dismissed',
+      reason: 'conversionLeg',
+      duplicateOfId: finished.id,
+    });
+    await ageRows({
+      ids: [waiting.id, finished.id, legOfWaiting.id, legOfFinished.id],
+      daysAgo: INGEST_REQUEST_RETENTION_DAYS + 1,
+    });
+
+    await ingestRequestsCleanupCron.triggerManualSync();
+
+    const remaining = new Set((await IngestRequests.findAll({ attributes: ['id'] })).map((row) => row.id));
+    expect(remaining.has(legOfWaiting.id)).toBe(true);
+    expect(remaining.has(legOfFinished.id)).toBe(false);
+    expect(remaining.has(finished.id)).toBe(false);
+    expect(remaining.has(waiting.id)).toBe(true);
+  });
+
   it('deletes nothing when there is nothing to delete', async () => {
     expect(await ingestRequestsCleanupCron.triggerManualSync()).toEqual({ ...NOTHING_ELSE, deleted: 0 });
   });

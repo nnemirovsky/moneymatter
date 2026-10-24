@@ -183,6 +183,30 @@ export interface ChatIngestRequestSummary {
   alsoWaiting: number;
   /** Other sources that told of this same payment (Wallet and the bank); approving links their cards too. */
   alsoSeenIn: { sourceName: string | null; cardName: string | null; cardLastDigits: string | null }[];
+  /**
+   * Set when the payment is one side of a currency exchange the bank told in two notices: both sides, the rate the
+   * bank gave and the accounts at that bank the server suggests (`null` when it cannot tell). Approving logs both
+   * and links them as one transfer.
+   */
+  conversion: ChatIngestConversion | null;
+}
+
+export interface ChatIngestConversion {
+  fromAmount: number;
+  fromCurrencyCode: string | null;
+  toAmount: number;
+  toCurrencyCode: string | null;
+  /** Units of the incoming currency per unit of the outgoing one. */
+  rate: number | null;
+  /** The rate the owner got on their earlier exchanges between the same two accounts, when there are any. */
+  usualRate: number | null;
+  /**
+   * The note approving gives the exchange when none is written on the card: the one a business sender's message gave
+   * it, else the one the owner wrote on the latest of those exchanges.
+   */
+  suggestedNote: string | null;
+  fromAccountId: string | null;
+  toAccountId: string | null;
 }
 
 export interface ChatProposalCard {

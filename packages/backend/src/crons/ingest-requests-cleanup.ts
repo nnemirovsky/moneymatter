@@ -41,13 +41,17 @@ interface IngestCleanupResult {
 /**
  * Deletes requests that reached a final outcome and have not changed for the retention period.
  * Waiting requests (`parked`, `received`) stay until the user logs or dismisses them: they hold
- * a payment that exists nowhere else, with one exception below.
+ * a payment that exists nowhere else, with one exception below. The other side of a currency exchange that
+ * joined a request which still waits is such a payment too, so it stays with it.
  */
 const deleteFinishedRequests = async (): Promise<number> =>
   IngestRequests.destroy({
     where: {
       status: { [Op.in]: ['logged', 'rejected', 'dismissed', 'enriched'] },
       updatedAt: { [Op.lt]: subDays(new Date(), INGEST_REQUEST_RETENTION_DAYS) },
+      [Op.and]: literal(
+        `NOT (COALESCE("IngestRequests"."reason", '') = 'conversionLeg' AND "IngestRequests"."duplicateOfId" IN (SELECT "id" FROM "IngestRequests" WHERE "status" IN ('parked', 'received')))`,
+      ),
     },
   });
 

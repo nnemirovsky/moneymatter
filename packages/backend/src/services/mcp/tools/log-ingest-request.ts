@@ -8,7 +8,10 @@ import { assertBaseCurrencyUnlocked, getUserId, jsonContent, requireScope } from
 
 const inputSchema = {
   requestId: recordId(),
-  accountId: recordId().optional(),
+  accountId: recordId().optional().describe('The account to log the payment on'),
+  counterAccountId: recordId()
+    .optional()
+    .describe('For one side of a currency exchange only: the account to log the other side on'),
   direction: z.enum(['debit', 'credit']).optional(),
   note: z.string().max(2000).optional().describe('The note to log the payment with; an empty string means no note'),
 };
@@ -31,6 +34,7 @@ export function registerLogIngestRequest(server: McpServer) {
         userId,
         requestId: args.requestId,
         accountId: args.accountId,
+        counterAccountId: args.counterAccountId,
         direction: args.direction,
         note: args.note,
       });

@@ -34,6 +34,12 @@ export interface StoredParse {
   directionOverride?: 'debit' | 'credit';
   /** The note the owner wrote on that card; an empty one is no note. Absent, the pipeline picks the note. */
   noteOverride?: string;
+  /** The other side of a currency exchange this payment is one side of; the two are linked as a transfer once logged. */
+  conversion?: { partnerRequestId: RecordId };
+  /** For a request that joined another as the other side of an exchange: the reason it was parked with, restored if it waits again. */
+  conversionParkReason?: string;
+  /** The note a business sender's message gave the currency exchange that waits on this request's card. */
+  exchangeNote?: string;
   /** A context notification of a merchant app: what it said about an order, kept after its text is wiped. */
   context?: StoredContext;
 }

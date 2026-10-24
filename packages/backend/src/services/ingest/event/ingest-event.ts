@@ -1,5 +1,4 @@
 import {
-  isMailApp,
   matchAmountGate,
   isContextApp,
   isConversationalApp,
@@ -20,7 +19,7 @@ import { ingestCardPayment } from '../card-payment/ingest-card-payment';
 import { parkFailedRequest } from '../card-payment/park-failed-request';
 import { readUserLocale } from '../card-payment/read-user-locale';
 import { sanitizeForJsonb } from '../card-payment/sanitize-payload';
-import { senderMatchesRecentPayment } from '../context/recent-payment-match';
+import { senderMayBeRead, type OneOffReason } from '../conversion/exchange-sender';
 import { traceStep } from '../debug/trace-context';
 import { getGateStrictness } from '../gate-strictness.service';
 import { notificationLimits } from './constants';
@@ -127,15 +126,15 @@ const recordNotificationImpl = async ({
   notification,
   sourceKey,
   fingerprint,
-  oneOffContext,
+  oneOffReason,
 }: {
   userId: number;
   tokenId: RecordId | null;
   notification: ParsedNotification;
   sourceKey: string;
   fingerprint: string;
-  /** The sender is read once as context for a payment just made, though its source is still undecided. */
-  oneOffContext: boolean;
+  /** The sender is read once, though its source is still undecided: as context for a payment just made, or for a waiting exchange. */
+  oneOffReason: OneOffReason | null;
 }): Promise<RecordedNotification> => {
   const folded = await findFoldedOriginal({ userId, fingerprint, time: notification.time });
   // A repeat stores nothing, not even its text.
@@ -157,7 +156,8 @@ const recordNotificationImpl = async ({
       bundleId: notification.bundleId,
       time: notification.time.toISOString(),
       timeProvided: notification.timeProvided,
-      ...(oneOffContext && { oneOffContext: true }),
+      ...(oneOffReason && { oneOffContext: true }),
+      ...(oneOffReason === 'exchange' && { oneOffExchange: true }),
       ...(notification.timeZone && { timeZone: notification.timeZone }),
       ...(notification.timeOffsetMinutes !== null && { timeOffsetMinutes: notification.timeOffsetMinutes }),
     },
@@ -246,19 +246,24 @@ const ingestNotification = async ({
     await updateNotificationSource({ userId, id: source.id, mode: 'context' });
     source = await findNotificationSource({ userId, sourceKey });
   }
-  // A sender the owner has not decided on, named after a merchant just paid, is read once as context.
+  // A sender the owner has not decided on is read once: a mail sender named after a merchant just paid, or a business ID in
+  // the text messages named after a merchant just paid or in the notes of past transfers while an exchange waits.
   const strictness = await getGateStrictness({ userId });
   const showsAmount =
     matchAmountGate({
       text: [notification.title, notification.subtitle, notification.body].filter(Boolean).join('\n'),
       strictness,
     }) !== null;
-  const oneOffContext =
-    !showsAmount &&
-    source?.mode === 'pending' &&
-    source.conversational &&
-    isMailApp({ appName: notification.app }) &&
-    (await senderMatchesRecentPayment({ userId, sender: notification.title }));
+  const oneOffReason =
+    !showsAmount && source?.mode === 'pending' && source.conversational
+      ? await senderMayBeRead({
+          userId,
+          appName: notification.app,
+          bundleId: notification.bundleId,
+          sender: notification.title,
+        })
+      : null;
+  const oneOffContext = oneOffReason !== null;
   const contextApp =
     oneOffContext || (source ? source.mode === 'context' : isContextApp({ appName: notification.app }));
 
@@ -302,7 +307,7 @@ const ingestNotification = async ({
     throw new TooManyRequests({ message: t({ key: 'ingest.rateLimited', locale }) });
   }
 
-  const recorded = await recordNotification({ userId, tokenId, notification, sourceKey, fingerprint, oneOffContext });
+  const recorded = await recordNotification({ userId, tokenId, notification, sourceKey, fingerprint, oneOffReason });
   if (recorded.replay) {
     traceStep({ step: 'duplicate', detail: 'fold' });
     return { kind: 'notification', response: { outcome: 'duplicate', requestId: recorded.requestId, notify: false } };
@@ -345,9 +350,8 @@ const probeSender = async ({ userId, body }: { userId: number; body: unknown }):
   // (the sender and the app, no text) and this one notification is sent to be read for that payment.
   if (
     !send &&
-    isMailApp({ appName: app.app }) &&
     (!source || source.mode === 'pending') &&
-    (await senderMatchesRecentPayment({ userId, sender: app.title }))
+    (await senderMayBeRead({ userId, appName: app.app, bundleId: app.bundleId, sender: app.title }))
   ) {
     await touchNotificationSource({ userId, sourceKey, app: appIdentity });
     traceStep({ step: 'probe', detail: 'recentPayment' });

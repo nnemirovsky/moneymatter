@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { cleanText } from '../card-payment/clean-text';
 import { parseAmount } from '../card-payment/parse-amount';
+import { isOwnCardLabel } from '../conversion/conversion-rule';
 import type { NotificationText } from './notification-text';
 
 /**
@@ -162,7 +163,7 @@ const readDecimal = ({
   return parsed.reason === 'zero' ? { amount: '0', isZero: true, currencyCode: null } : null;
 };
 
-/** A positive amount, with the currency its text carries (`"43.60 GEL"`) when it carries one. */
+/** A positive amount, with the currency its text carries (`"43.60 EUR"`) when it carries one. */
 const readPositiveAmount = ({ value }: { value: string | null | undefined }) => {
   if (typeof value !== 'string') return null;
 
@@ -194,12 +195,37 @@ const readBalanceAfter = ({
   return { amount: read.amount, currencyCode, scopeHint: balance.scopeHint };
 };
 
+/** A date with a time of day; a date alone, or a date at exactly midnight, is how a model writes "the text names only a day". */
+const TIME_OF_DAY = /^\d{4}-\d{2}-\d{2}[T ](?!00:00(?::00(?:\.0+)?)?(?:Z|[+-]00:?00)?$)\d{2}:\d{2}/u;
+
 const readOccurredAt = ({ value }: { value: string | null }): Date | null => {
-  if (!value || !/^\d{4}-\d{2}-\d{2}/u.test(value.trim())) return null;
+  if (!value || !TIME_OF_DAY.test(value.trim())) return null;
 
   const date = new Date(value.trim());
 
   return Number.isNaN(date.getTime()) ? null : date;
+};
+
+/** The merchant as printed, or null when the text prints only the name of the user's own card ("EXAMPLE CARD"). */
+const readMerchant = ({
+  merchant,
+  cardName,
+  appName,
+}: {
+  merchant: string | null;
+  cardName: string | null;
+  appName: string | null;
+}): string | null => {
+  const text = readText({ value: merchant, maxLength: MERCHANT_MAX_LENGTH });
+
+  return text !== null &&
+    isOwnCardLabel({
+      merchant: text,
+      cardName: readText({ value: cardName, maxLength: CARD_NAME_MAX_LENGTH }),
+      appName,
+    })
+    ? null
+    : text;
 };
 
 const readPayee = ({
@@ -324,11 +350,13 @@ const readPayment = ({
   kind,
   candidateIds,
   text,
+  appName,
 }: {
   output: NotificationParseOutput;
   kind: 'debit' | 'credit';
   candidateIds: ReadonlyMap<string, string>;
   text: string | null;
+  appName: string | null;
 }): ParsedPayment | null => {
   const amount = readPositiveAmount({ value: output.amount });
   if (!amount) return null;
@@ -347,7 +375,7 @@ const readPayment = ({
     currencyCode,
     originalAmount: hasOriginal ? original.amount : null,
     originalCurrencyCode: hasOriginal ? originalCurrencyCode : null,
-    merchant: readText({ value: output.merchant, maxLength: MERCHANT_MAX_LENGTH }),
+    merchant: readMerchant({ merchant: output.merchant, cardName: output.cardName, appName }),
     payee: readPayee({ payee: output.payee, candidateIds }),
     cardName: readText({ value: output.cardName, maxLength: CARD_NAME_MAX_LENGTH }),
     cardLastDigits: readCardLastDigits({ value: output.cardLastDigits, text }),
@@ -375,11 +403,14 @@ export const classifyNotification = ({
   output,
   candidateIds,
   text,
+  appName,
 }: {
   output: NotificationParseOutput;
   candidateIds: ReadonlyMap<string, string>;
   /** The notification the model read; without it nothing is checked against the text. */
   text?: NotificationText;
+  /** The app the notification came from, so its brand followed by "card" is read as the card, not a merchant. */
+  appName?: string | null;
 }): ClassifiedNotification => {
   const confidence = clampConfidence({ value: output.confidence });
   const base = { parser: 'ai', kind: output.kind, confidence } as const;
@@ -389,7 +420,7 @@ export const classifyNotification = ({
   }
 
   const readable = text ? readableTextOf({ text }) : null;
-  const payment = readPayment({ output, kind: output.kind, candidateIds, text: readable });
+  const payment = readPayment({ output, kind: output.kind, candidateIds, text: readable, appName: appName ?? null });
 
   if (!payment) return { ...base, verdict: 'park', reason: 'lowConfidence', payment: null };
   if (readable !== null && !printsAmount({ text: readable, amount: payment.amount })) {

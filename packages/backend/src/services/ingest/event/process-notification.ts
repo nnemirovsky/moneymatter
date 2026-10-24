@@ -12,6 +12,9 @@ import { CardPaymentRateUnavailableError } from '../card-payment/rate-unavailabl
 import { readUserLocale } from '../card-payment/read-user-locale';
 import { applyHeldContexts } from '../context/apply-held-contexts';
 import { processContextNotification } from '../context/process-context-notification';
+import { findWaitingExchange } from '../conversion/exchange-sender';
+import { readExchangeMessage } from '../conversion/read-exchange-message';
+import { linkConversionLegs } from '../conversion/settle-conversion';
 import { enqueueAfterPaymentLogged } from '../follow-up-queue';
 import { dropParkedHoldRelease } from '../hold-release/drop-hold-release';
 import { absorbWaitingTwins } from '../twins/absorb-waiting-twins';
@@ -68,6 +71,13 @@ const read = async ({
   locale: string;
 }): Promise<Reading> => {
   const sourceLabel = describeSource({ source, payload: row.payload });
+
+  // A business sender read once while a currency exchange waits confirms it and gives it a note.
+  if (source && row.payload.oneOffExchange === true && (await findWaitingExchange({ userId: row.userId }))) {
+    await readExchangeMessage({ row });
+
+    return { kind: 'done' };
+  }
 
   // A context source's notifications describe a purchase and never become a payment.
   if (source?.mode === 'context' || (source && row.payload.oneOffContext === true)) {
@@ -266,6 +276,7 @@ export const processNotification = async ({
       duplicate: Boolean(readStoredParse({ value: row.parsed })?.attached),
       locale,
     });
+    await linkConversionLegs({ requestId });
 
     return 'done';
   }
@@ -354,6 +365,7 @@ export const processNotification = async ({
   // A payment that joined a row already logged changes nothing the row's own pass has not handled.
   if (result.attached) {
     await finishLoggedNotification({ requestId, duplicate: true, locale });
+    await linkConversionLegs({ requestId });
     // A merchant-app notification may have waited for the payment this one joined.
     await applyHeldContexts({ userId: row.userId });
 
@@ -371,6 +383,8 @@ export const processNotification = async ({
   // waits for the model calls among the follow-ups.
   await enqueueAfterPaymentLogged({ userId: row.userId, transactionId: result.transactionId });
   await finishLoggedNotification({ requestId, summary: categorized?.summary, locale });
+  // The second side of an approved currency exchange turns the two rows into one transfer.
+  await linkConversionLegs({ requestId });
 
   return 'done';
 };

@@ -7,6 +7,7 @@ import { runAfterCommit } from '@services/common/run-after-commit';
 import { withTransaction } from '@services/common/with-transaction';
 
 import { buildLoggedSummary } from '../card-payment/build-logged-summary';
+import { findConversionPartner } from '../conversion/find-conversion-partner';
 import { absorbParkedTwin } from '../twins/absorb-parked-twin';
 import { findJoinedTwins, findParkedTwins, joinedSlots, probeOf, TWIN_PARK_REASONS } from '../twins/find-parked-twins';
 import { lockTwins } from '../twins/lock-twins';
@@ -66,6 +67,35 @@ const parkNotificationImpl = async ({
       });
       await absorbParkedTwin({ twin: row, intoRequestId: twin.id, holdsRowLock: true });
       await runAfterCommit({ fn: () => refreshTwinCard({ userId: row.userId, proposalId: twin.proposalId }) });
+
+      return true;
+    }
+  }
+
+  // The two notices of one currency exchange (money out in one currency, money in another) wait as one card too.
+  if (parsed?.payment && TWIN_PARK_REASONS.includes(reason)) {
+    await lockTwins({ userId: row.userId });
+    const found = await findConversionPartner({ request: row, payment: parsed.payment });
+    // Read again under its lock: an approval of the partner that got there first has moved it on, and it is not paired.
+    const partner =
+      found && !found.joined
+        ? await IngestRequests.findOne({ where: { id: found.request.id, status: 'parked' }, lock: true })
+        : null;
+    if (partner) {
+      await row.update({
+        parsed: parsed as unknown as Record<string, unknown>,
+        ...(cardLabel !== undefined && { cardLabel }),
+      });
+      await absorbParkedTwin({
+        twin: row,
+        intoRequestId: partner.id,
+        holdsRowLock: true,
+        reason: 'conversionLeg',
+        parkReason: reason,
+      });
+      await runAfterCommit({
+        fn: () => refreshTwinCard({ userId: row.userId, proposalId: partner.proposalId }),
+      });
 
       return true;
     }

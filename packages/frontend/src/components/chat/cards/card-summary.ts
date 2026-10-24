@@ -41,6 +41,14 @@ export const summaryFields = ({ card }: { card: ChatProposalCard }): ChatCardFie
   return picked.length > 0 ? picked : source.slice(0, FALLBACK_FIELD_COUNT);
 };
 
+/** One side of a currency exchange as the card writes it. */
+export const conversionMoney = ({ amount, currencyCode }: { amount: number; currencyCode: string | null }): string =>
+  formatVisualValue({
+    value: amount,
+    kind: currencyCode ? 'money' : 'number',
+    currencyCode: currencyCode ?? undefined,
+  });
+
 /**
  * The one-line summary of a parked payment's card, in the same order as a transaction's: when, how much,
  * who, and the account it goes to (or the card it was paid with, until an account is chosen).
@@ -52,8 +60,10 @@ export const ingestSummaryParts = ({
   payment: ChatIngestRequestSummary;
   accountName: string | null;
 }): string[] => {
-  const amount =
-    payment.amount === null
+  const { conversion } = payment;
+  const amount = conversion
+    ? `${conversionMoney({ amount: conversion.fromAmount, currencyCode: conversion.fromCurrencyCode })} → ${conversionMoney({ amount: conversion.toAmount, currencyCode: conversion.toCurrencyCode })}`
+    : payment.amount === null
       ? null
       : formatVisualValue({
           value: payment.amount,

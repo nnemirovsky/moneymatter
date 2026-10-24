@@ -64,13 +64,13 @@ STAGE
 4. stage is authorization when the bank reports a hold or a pending purchase, settlement when it reports that an earlier hold was posted or finalized, and payment for any single notice that reports the whole payment. When unsure, use payment.
 
 AMOUNTS
-5. amount and currency are the money of THIS transaction. Never use a balance, a limit or a fee as the amount. A notice reports one transaction: extra lines about a cashback or bonus credited for it, a rewards balance, or the balance of a savings pot or piggy bank are not transactions; leave them out of amount, kind and balanceAfter. amount is a positive plain decimal with a dot and no thousands separators ("1234.50"). currency is the three-letter ISO code ("GEL", "USD"); read it from a symbol or a local word when the text has no code.
+5. amount and currency are the money of THIS transaction. Never use a balance, a limit or a fee as the amount. A notice reports one transaction: extra lines about a cashback or bonus credited for it, a rewards balance, or the balance of a savings pot or piggy bank are not transactions; leave them out of amount, kind and balanceAfter. amount is a positive plain decimal with a dot and no thousands separators ("1234.50"). currency is the three-letter ISO code ("EUR", "USD"); read it from a symbol or a local word when the text has no code.
 6. When the text states one amount for the transaction, put it in amount and currency, in the currency the text states, and leave originalAmount and originalCurrency null.
 7. When the text states two amounts for the transaction, amount and currency are what was taken from or paid into the user's account, and originalAmount and originalCurrency are what the merchant charged.
 8. When the text states no amount for the transaction, set amount to null.
 
 MERCHANT, CARD AND ACCOUNT
-9. merchant is the merchant or the counterparty exactly as the text prints it, including descriptors such as "WOLT.COM TBILISI" or "SP *COFFEE LAB". For a cash withdrawal use the ATM or place named; null when the text names none.
+9. merchant is the merchant or the counterparty exactly as the text prints it, including descriptors such as "SHOP.EXAMPLE LONDON" or "SP *COFFEE LAB". For a cash withdrawal use the ATM or place named; null when the text names none. The name of the user's own card (a bare "CARD" or "<bank> CARD") is not a merchant: use null.
 10. cardLastDigits is the last 4 to 8 digits of the card or account, without the mask ("*1234" gives "1234"); null when none is shown. Copy digits exactly as printed; never infer card digits from phone numbers, balances, dates or reference numbers. cardName is a card or product name the text prints ("Visa Classic"); null when none.
 11. isOwnAccountTransfer is true when the user moves money between their own accounts, cards, wallets or currencies (a conversion inside the bank included), and false for a payment to anyone else.
 
@@ -78,7 +78,7 @@ BALANCE
 12. balanceAfter is the balance the text states after the transaction; null when it states none. Its scopeHint is account when the text ties it to this card or account in the account's own currency, total when the text calls it a total or overall balance or it is in a currency other than the transaction's without naming the account, and unknown when the text does not settle it. The BALANCE CONTEXT section lists the currencies the user holds money in at this bank; when several currencies are held, a balance in a push is usually a total.
 
 TIME
-13. occurredAt is the date and time the text states for the transaction, as ISO 8601 without a time zone ("2026-10-20T14:30:00"); null when it states none. Do not use today's date.
+13. occurredAt is the date and time the text states for the transaction, as ISO 8601 without a time zone ("2026-10-20T14:30:00"); null when it states none. A date alone ("24/10/2026") is not enough: use null unless the text also gives a time of day. Do not use today's date.
 
 PAYEE
 14. payee names the business behind the merchant text. Choose from the PAYEE CANDIDATES list or give a new name.

@@ -769,6 +769,8 @@
     "alreadyConfirmed": "This payment is already confirmed.",
     "confirmAmountNeeded": "The new account is in another currency. Enter the amount in that currency to move the payment.",
     "accountRequired": "Choose the account to log this payment on.",
+    "conversionAccountsRequired": "Choose the account the money left and the account it arrived on.",
+    "conversionSameAccount": "Choose two different accounts for the exchange.",
     "rejectNeedsPlan": "Your plan does not allow deleting payments. Subscribe again to keep editing your data.",
     "contextNote": "{{store}} order from {{service}}"
   },

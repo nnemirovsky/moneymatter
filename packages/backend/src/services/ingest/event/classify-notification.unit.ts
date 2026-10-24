@@ -163,6 +163,29 @@ describe('invalid fields are dropped', () => {
     expect(paymentOf({ occurredAt: '2026-13-45' }).occurredAt).toBeNull();
   });
 
+  it('reads no time from a date alone, or from a date at midnight', () => {
+    expect(paymentOf({ occurredAt: '2026-10-24' }).occurredAt).toBeNull();
+    expect(paymentOf({ occurredAt: '2026-10-24T00:00:00' }).occurredAt).toBeNull();
+    expect(paymentOf({ occurredAt: '2026-10-24T00:00Z' }).occurredAt).toBeNull();
+    expect(paymentOf({ occurredAt: '2026-10-24T00:00:00.000Z' }).occurredAt).toBeNull();
+    expect(paymentOf({ occurredAt: '2026-10-24T00:01:00' }).occurredAt).toEqual(new Date('2026-10-24T00:01:00'));
+    expect(paymentOf({ occurredAt: '2026-10-24 14:30' }).occurredAt).toEqual(new Date('2026-10-24 14:30'));
+  });
+
+  it('reads no merchant from the name of the card, and keeps the bank own word for the movement', () => {
+    expect(paymentOf({ merchant: 'Money Transfer' }).merchant).toBe('Money Transfer');
+    expect(paymentOf({ merchant: 'CARD' }).merchant).toBeNull();
+    expect(
+      classifyNotification({ output: baseOutput({ merchant: 'EXAMPLE CARD' }), candidateIds, appName: 'Example Bank' }),
+    ).toMatchObject({ payment: { merchant: null } });
+    expect(paymentOf({ merchant: 'EXAMPLE CARD' }).merchant).toBe('EXAMPLE CARD');
+    expect(paymentOf({ merchant: 'Apple Card' }).merchant).toBe('Apple Card');
+    expect(paymentOf({ merchant: 'Visa Classic', cardName: 'Visa Classic' }).merchant).toBeNull();
+    expect(paymentOf({ merchant: 'SHOP.EXAMPLE LONDON', cardName: 'EXAMPLE CARD' }).merchant).toBe(
+      'SHOP.EXAMPLE LONDON',
+    );
+  });
+
   it('cleans the merchant and the card name', () => {
     expect(paymentOf({ merchant: '  WOLT.COM \n TBILISI ', cardName: ' Visa  Classic ' })).toMatchObject({
       merchant: 'WOLT.COM TBILISI',

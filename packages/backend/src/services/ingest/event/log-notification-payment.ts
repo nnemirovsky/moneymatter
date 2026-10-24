@@ -29,7 +29,7 @@ import {
   resolveNotificationAccount,
 } from './resolve-notification-account';
 import { describeSource, sourceAppName } from './source-label';
-import { toStoredPayment, type StoredParse } from './stored-parse';
+import { readStoredParse, toStoredPayment, type StoredParse } from './stored-parse';
 
 /** What the job should do after the logging transaction. */
 type LogNotificationResult =
@@ -85,7 +85,16 @@ const logNotificationPaymentImpl = async ({
   if (!row || row.status !== 'received' || row.transactionId) return { kind: 'skipped' };
 
   const userId = row.userId;
-  const base: StoredParse = { parser, kind, confidence, payment: toStoredPayment({ payment }), symbol };
+  // The other side of an approved currency exchange is kept on the request, where the link of the two rows finds it.
+  const conversion = readStoredParse({ value: row.parsed })?.conversion;
+  const base: StoredParse = {
+    parser,
+    kind,
+    confidence,
+    payment: toStoredPayment({ payment }),
+    symbol,
+    ...(conversion && { conversion }),
+  };
   const cardLabel = payment.cardName;
   const sourceLabel = describeSource({ source, payload: row.payload });
 

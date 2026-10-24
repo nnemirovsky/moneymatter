@@ -9,6 +9,7 @@ import { findOneTransaction, findTransactions } from '@models/transactions-query
 import type Transactions from '@models/transactions.model';
 import { getDismissalsForUser } from '@models/transfer-suggestion-dismissals.model';
 import { withTransaction } from '@services/common/with-transaction';
+import { hasNoMerchant } from '@services/ingest/conversion/conversion-rule';
 import { correctionOf, transferSuggestionOf } from '@services/ingest/corrections/read-ingest-suggestions';
 import { chooseSurvivor } from '@services/ingest/dedup/choose-survivor';
 import { readStoredParse } from '@services/ingest/event/stored-parse';
@@ -232,6 +233,9 @@ const postRequestCardInTransaction = async ({
 
   const stored = readStoredParse({ value: request.parsed });
   const direction = stored?.payment?.kind;
+  // The single guess in the payment's currency does not look at the bank. A payment that names no business may be one side
+  // of an exchange, which is placed on the bank's own accounts, so its card starts without an account of the owner's.
+  const isGeneric = Boolean(stored?.payment && hasNoMerchant(stored.payment));
   const note = stored?.payment
     ? await suggestParkedNote({
         userId,
@@ -245,7 +249,7 @@ const postRequestCardInTransaction = async ({
     toolName: LOG_INGEST_REQUEST_TOOL,
     args: {
       requestId: request.id,
-      ...(stored?.accountGuessId && { accountId: stored.accountGuessId }),
+      ...(stored?.accountGuessId && !isGeneric && { accountId: stored.accountGuessId }),
       ...((direction === 'debit' || direction === 'credit') && { direction }),
       ...(note && { note }),
     },

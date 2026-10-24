@@ -261,6 +261,7 @@ export const CONTEXT_IGNORE_REASONS = [
   'contextUnreadable',
   'contextExpired',
   'contextConfirmed',
+  'exchangeNoted',
 ] as const;
 
 export type ContextIgnoreReason = (typeof CONTEXT_IGNORE_REASONS)[number];
@@ -270,7 +271,8 @@ export type NotificationIgnoreReason = (typeof NOTIFICATION_IGNORE_REASONS)[numb
 /**
  * Why a request is in the state it is in: a park, ignore or rejection reason, `holdReleased` for a
  * `dismissed` request that cancelled out against the opposite payment (a hold and its release), `parkedTwin` for a
- * `dismissed` request that is the same payment as another waiting request, or
+ * `dismissed` request that is the same payment as another waiting request, `conversionLeg` for one that is the other
+ * side of the currency exchange another waiting request tells of, or
  * `interrupted` for a request whose processing died before it recorded an outcome.
  */
 export type IngestRequestReason =
@@ -281,6 +283,7 @@ export type IngestRequestReason =
   | ContextIgnoreReason
   | 'holdReleased'
   | 'parkedTwin'
+  | 'conversionLeg'
   | 'interrupted';
 
 /** One request a client sent to the card-payment endpoint, as Settings lists it. */

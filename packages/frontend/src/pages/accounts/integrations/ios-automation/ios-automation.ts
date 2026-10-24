@@ -191,6 +191,7 @@ const WAITING_REASONS: ReadonlyArray<NonNullable<CardPaymentRequestDto['reason']
   'holdReleased',
   'unverifiedParse',
   'parkedTwin',
+  'conversionLeg',
 ];
 const IGNORED_REASONS: ReadonlyArray<NonNullable<CardPaymentRequestDto['reason']>> = [
   'declined',
@@ -203,6 +204,7 @@ const IGNORED_REASONS: ReadonlyArray<NonNullable<CardPaymentRequestDto['reason']
   'contextUnreadable',
   'contextExpired',
   'contextConfirmed',
+  'exchangeNoted',
 ];
 
 /** Park reasons the Automation inbox answers with a card; the others have nothing the owner can approve. */

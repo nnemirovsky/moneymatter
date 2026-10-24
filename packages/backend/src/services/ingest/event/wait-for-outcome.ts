@@ -36,8 +36,8 @@ const toResponse = ({ row, locale }: { row: IngestRequests; locale: string }): N
       return { outcome: 'held', requestId: row.id, notify: false };
 
     case 'dismissed':
-      // The same payment already waits for the owner on a card of its own, which answers for both.
-      if (row.reason === 'parkedTwin') {
+      // The same payment, or the other side of its currency exchange, already waits on a card of its own, which answers for both.
+      if (row.reason === 'parkedTwin' || row.reason === 'conversionLeg') {
         return { outcome: 'duplicate', requestId: row.duplicateOfId ?? row.id, notify: false };
       }
 

@@ -121,6 +121,11 @@ export const parseNotificationWithAi = async ({
 
   return {
     status: 'parsed',
-    classified: classifyNotification({ output, candidateIds: shortIds.idByAlias, text }),
+    classified: classifyNotification({
+      output,
+      candidateIds: shortIds.idByAlias,
+      text,
+      appName: source.appName,
+    }),
   };
 };

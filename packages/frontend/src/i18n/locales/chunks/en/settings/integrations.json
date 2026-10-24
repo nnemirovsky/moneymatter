@@ -225,9 +225,11 @@
               "contextNoteKept": "The payment already has your note, so nothing was added.",
               "contextUnreadable": "The text could not be read as an order, so nothing was added.",
               "contextExpired": "No payment came in time, so nothing was added.",
-              "contextConfirmed": "The payment was already confirmed, so nothing was changed."
+              "contextConfirmed": "The payment was already confirmed, so nothing was changed.",
+              "exchangeNoted": "The message confirmed the currency exchange and gave it a note, so nothing else was added."
             },
-            "parkedTwin": "The same payment was already waiting on another request, so this one joined it."
+            "parkedTwin": "The same payment was already waiting on another request, so this one joined it.",
+            "conversionLeg": "This was one side of a currency exchange that waited on another request, so this one joined it."
           },
           "retry": "Retry",
           "retryAria": "Retry the payment at {name}",

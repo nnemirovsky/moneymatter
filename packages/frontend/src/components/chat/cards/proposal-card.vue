@@ -156,7 +156,23 @@ const ingestNote = computed(() => {
 const ingestAccountId = computed(() => {
   const value = props.card.fields.find((field) => field.path === 'accountId')?.value;
 
-  return typeof value === 'string' ? value : null;
+  const conversion = props.card.ingestRequest?.conversion;
+  if (typeof value === 'string') return value;
+
+  return (
+    (props.card.ingestRequest?.direction === 'credit' ? conversion?.toAccountId : conversion?.fromAccountId) ?? null
+  );
+});
+
+/** For a currency exchange: the account of the other side's payment, as chosen or as the server suggests. */
+const ingestCounterAccountId = computed(() => {
+  const value = props.card.fields.find((field) => field.path === 'counterAccountId')?.value;
+  const conversion = props.card.ingestRequest?.conversion;
+  if (typeof value === 'string') return value;
+
+  return (
+    (props.card.ingestRequest?.direction === 'credit' ? conversion?.fromAccountId : conversion?.toAccountId) ?? null
+  );
 });
 const statusText = computed(() => keyText({ key: `chat.cards.status.${props.card.status}` }) ?? props.card.status);
 // A record settled outside the card closed it: the owner rejected nothing, so the badge says so in grey.
@@ -351,9 +367,16 @@ const bodyId = useId();
 const summaryText = computed(() => {
   const payment = props.card.ingestRequest;
   if (payment) {
-    const accountName = ingestAccountId.value
-      ? lookups.entityName({ kind: 'account', id: ingestAccountId.value })
-      : null;
+    // The money-out account comes first: for the card of the incoming side it is the other account.
+    const ids =
+      payment.conversion && payment.direction === 'credit'
+        ? [ingestCounterAccountId.value, ingestAccountId.value]
+        : [ingestAccountId.value, payment.conversion ? ingestCounterAccountId.value : null];
+    const accountNames = ids
+      .filter((id): id is string => id !== null)
+      .map((id) => lookups.entityName({ kind: 'account', id }))
+      .filter((name): name is string => name !== null);
+    const accountName = accountNames.length ? accountNames.join(' → ') : null;
     return ingestSummaryParts({ payment, accountName }).join(' · ');
   }
 
@@ -473,9 +496,11 @@ const summaryText = computed(() => {
         :payment="card.ingestRequest"
         :lookups="lookups"
         :account-id="ingestAccountId"
+        :counter-account-id="ingestCounterAccountId"
         :note="ingestNote"
         :disabled="!isOpen || isBusy"
         @update:account-id="chooseAlternative({ path: 'accountId', value: $event })"
+        @update:counter-account-id="chooseAlternative({ path: 'counterAccountId', value: $event })"
         @commit:note="chooseAlternative({ path: 'note', value: $event })"
         @update:note-dirty="isIngestNoteDirty = $event"
       />

@@ -113,6 +113,27 @@ const ingestRequestOf = ({
     willLearn: lesson,
     alsoWaiting: typeof before.alsoWaiting === 'number' ? before.alsoWaiting : 0,
     alsoSeenIn: alsoSeenInOf({ value: before.alsoSeenIn }),
+    conversion: conversionOf({ value: before.conversion }),
+  };
+};
+
+/** The currency exchange the payment is one side of, as the preview stored it. */
+const conversionOf = ({ value }: { value: unknown }): ChatIngestRequestSummary['conversion'] => {
+  if (!value || typeof value !== 'object') return null;
+
+  const item = value as Record<string, unknown>;
+  if (typeof item.fromAmount !== 'number' || typeof item.toAmount !== 'number') return null;
+
+  return {
+    fromAmount: item.fromAmount,
+    fromCurrencyCode: textOf({ value: item.fromCurrencyCode }),
+    toAmount: item.toAmount,
+    toCurrencyCode: textOf({ value: item.toCurrencyCode }),
+    rate: typeof item.rate === 'number' ? item.rate : null,
+    usualRate: typeof item.usualRate === 'number' ? item.usualRate : null,
+    suggestedNote: textOf({ value: item.suggestedNote }),
+    fromAccountId: textOf({ value: item.fromAccountId }),
+    toAccountId: textOf({ value: item.toAccountId }),
   };
 };
 
@@ -129,11 +150,25 @@ const alsoSeenInOf = ({ value }: { value: unknown }): ChatIngestRequestSummary['
 const isIngestRequestCard = ({ row }: { row: Pick<ChatProposalRow, 'toolName'> }): boolean =>
   row.toolName === LOG_INGEST_REQUEST_TOOL_NAME;
 
-/** The card of a payment parked on its account, which has no account chosen yet. */
-const needsIngestAccount = ({ row }: { row: Pick<ChatProposalRow, 'toolName' | 'args' | 'preview'> }): boolean =>
-  row.toolName === LOG_INGEST_REQUEST_TOOL_NAME &&
-  row.preview?.before?.reason === 'unknownAccount' &&
-  !row.args.accountId;
+/**
+ * The card of a payment that has no account to be logged on yet: parked on its account with none chosen, or one side
+ * of a currency exchange whose two accounts the owner has not chosen and the server could not tell.
+ */
+const needsIngestAccount = ({ row }: { row: Pick<ChatProposalRow, 'toolName' | 'args' | 'preview'> }): boolean => {
+  if (row.toolName !== LOG_INGEST_REQUEST_TOOL_NAME) return false;
+  const { args } = row;
+
+  const conversion = conversionOf({ value: row.preview?.before?.conversion });
+  if (conversion) {
+    // The card's own payment is the outgoing side or the incoming one: its account and the other side's.
+    const own = row.preview?.before?.direction === 'credit' ? conversion.toAccountId : conversion.fromAccountId;
+    const other = row.preview?.before?.direction === 'credit' ? conversion.fromAccountId : conversion.toAccountId;
+
+    return !(args.accountId ?? own) || !(args.counterAccountId ?? other);
+  }
+
+  return row.preview?.before?.reason === 'unknownAccount' && !row.args.accountId;
+};
 
 /**
  * The card the API and the run stream return for a proposal row. Text on it is never the model's:

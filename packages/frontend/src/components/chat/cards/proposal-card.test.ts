@@ -43,8 +43,18 @@ vi.mock('@/components/notification-center', () => ({
 vi.mock('./use-card-lookups', () => ({
   useCardLookups: () =>
     buildLookups({
-      accounts: [{ id: 'acc-raif', name: 'Raiffeisen', currencyCode: 'RUB' } as AccountModel],
-      names: { 'account:acc-1': 'Main card', 'category:cat-1': 'Groceries', 'category:cat-2': 'Dining' },
+      accounts: [
+        { id: 'acc-raif', name: 'Raiffeisen', currencyCode: 'RUB' } as AccountModel,
+        { id: 'acc-usd', name: 'Example USD', currencyCode: 'USD' } as AccountModel,
+        { id: 'acc-eur', name: 'Example EUR', currencyCode: 'EUR' } as AccountModel,
+      ],
+      names: {
+        'account:acc-1': 'Main card',
+        'account:acc-usd': 'Example USD',
+        'account:acc-eur': 'Example EUR',
+        'category:cat-1': 'Groceries',
+        'category:cat-2': 'Dining',
+      },
       currencies: { 'acc-1': 'USD' },
     }),
 }));
@@ -197,6 +207,7 @@ describe('ProposalCard', () => {
           willLearn,
           alsoWaiting: 0,
           alsoSeenIn: [],
+          conversion: null,
         },
       });
 
@@ -314,6 +325,105 @@ describe('ProposalCard', () => {
       expect(firstArgsOf(editChatProposal)).toEqual([
         { proposalId: 'card-1', payload: { revision: 1, args: { requestId: 'req-1', accountId: 'acc-raif' } } },
       ]);
+    });
+
+    describe('one side of a currency exchange', () => {
+      const exchangeCard = ({
+        args = {},
+        direction = 'debit' as const,
+        fromAccountId = 'acc-usd' as string | null,
+        toAccountId = 'acc-eur' as string | null,
+      }: {
+        args?: Record<string, string>;
+        direction?: 'debit' | 'credit';
+        fromAccountId?: string | null;
+        toAccountId?: string | null;
+      } = {}) => {
+        const card = paymentCard();
+        card.fields = [
+          requestField,
+          ...Object.entries(args).map(([path, value]) =>
+            buildField({ path, value, display: { kind: 'entity' }, editable: { type: 'entity', entity: 'account' } }),
+          ),
+        ];
+        card.canApply = { ok: true };
+        card.ingestRequest = {
+          ...card.ingestRequest!,
+          amount: direction === 'debit' ? 400 : 360,
+          currencyCode: direction === 'debit' ? 'USD' : 'EUR',
+          direction,
+          conversion: {
+            fromAmount: 400,
+            fromCurrencyCode: 'USD',
+            toAmount: 360,
+            toCurrencyCode: 'EUR',
+            rate: 0.9,
+            usualRate: null,
+            suggestedNote: null,
+            fromAccountId,
+            toAccountId,
+          },
+        };
+
+        return card;
+      };
+
+      it('shows both amounts, the rate and the two accounts the server suggests', () => {
+        const wrapper = mountCard({ card: exchangeCard(), inbox: true });
+
+        expect(wrapper.get('[data-testid="ingest-amount"]').text()).toMatch(/400.*→.*360/);
+        expect(wrapper.get('[data-testid="ingest-conversion"]').text()).toBe('Exchange');
+        expect(wrapper.find('[data-testid="ingest-direction"]').exists()).toBe(false);
+        expect(wrapper.get('[data-testid="ingest-rate"]').text()).toContain('1 USD = 0.9 EUR');
+        const [from, to] = wrapper.findAllComponents(AccountSelectField);
+        expect(from!.props('label')).toBe('Money left');
+        expect(to!.props('label')).toBe('Money arrived');
+        expect(wrapper.find('[data-testid="ingest-lesson"]').exists()).toBe(false);
+      });
+
+      it('sums up the folded card as both amounts and both accounts', () => {
+        const wrapper = mountCard({ card: { ...exchangeCard(), status: 'applied' }, inbox: true });
+
+        expect(wrapper.get('[data-testid="card-summary"]').text()).toMatch(/→.*360.* · Example USD → Example EUR$/);
+      });
+
+      it('sums up the card of the incoming side with the money-out account first', () => {
+        const card = {
+          ...exchangeCard({ direction: 'credit', args: { counterAccountId: 'acc-usd', accountId: 'acc-eur' } }),
+          status: 'applied' as const,
+        };
+
+        expect(mountCard({ card, inbox: true }).get('[data-testid="card-summary"]').text()).toMatch(
+          / · Example USD → Example EUR$/,
+        );
+      });
+
+      it('stores the account of the outgoing side as the card account when the card is the money out', async () => {
+        vi.mocked(editChatProposal).mockResolvedValue(exchangeCard());
+        const wrapper = mountCard({ card: exchangeCard(), inbox: true });
+
+        wrapper.findAllComponents(AccountSelectField)[0]!.vm.$emit('update:modelValue', { id: 'acc-raif' });
+        await flushPromises();
+
+        expect(firstArgsOf(editChatProposal)).toEqual([
+          { proposalId: 'card-1', payload: { revision: 1, args: { requestId: 'req-1', accountId: 'acc-raif' } } },
+        ]);
+      });
+
+      it('stores the account of the outgoing side as the other account when the card is the money in', async () => {
+        vi.mocked(editChatProposal).mockResolvedValue(exchangeCard({ direction: 'credit' }));
+        const wrapper = mountCard({ card: exchangeCard({ direction: 'credit' }), inbox: true });
+
+        wrapper.findAllComponents(AccountSelectField)[0]!.vm.$emit('update:modelValue', { id: 'acc-raif' });
+        await flushPromises();
+
+        expect(firstArgsOf(editChatProposal)).toEqual([
+          {
+            proposalId: 'card-1',
+            payload: { revision: 1, args: { requestId: 'req-1', counterAccountId: 'acc-raif' } },
+          },
+        ]);
+      });
     });
 
     it('lets the owner write the note, saves it on the card on leaving the field, and holds Approve until then', async () => {

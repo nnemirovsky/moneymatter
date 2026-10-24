@@ -1,12 +1,21 @@
-import { matchAmountGate, type ChatCardWarning } from '@bt/shared/types';
+import { matchAmountGate, type ChatCardWarning, type RecordId } from '@bt/shared/types';
 import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
 import { findOneTransaction } from '@models/transactions-query';
+import {
+  findPastConversions,
+  isUnusualRate,
+  usualNote,
+  usualRate,
+} from '@services/ingest/conversion/conversion-history';
+import { impliedRate, sidesOf } from '@services/ingest/conversion/conversion-rule';
+import { findConversionPartner } from '@services/ingest/conversion/find-conversion-partner';
+import { suggestConversionAccounts } from '@services/ingest/conversion/settle-conversion';
 import { correctionOf } from '@services/ingest/corrections/read-ingest-suggestions';
 import { previewAccountLesson } from '@services/ingest/event/learn-account-choice';
 import { decryptNotificationText } from '@services/ingest/event/notification-text';
 import { describeSource, sourceAppName } from '@services/ingest/event/source-label';
-import { readStoredParse } from '@services/ingest/event/stored-parse';
+import { readStoredParse, type StoredPayment } from '@services/ingest/event/stored-parse';
 import { findWaitingSiblings, siblingMatchOf } from '@services/ingest/event/waiting-siblings';
 import { ingestMarkersOf, isUnconfirmedIngest } from '@services/ingest/ingest-markers';
 import { findJoinedTwins } from '@services/ingest/twins/find-parked-twins';
@@ -88,6 +97,53 @@ export const resolveConfirmIngestPayment: PreviewResolver = async ({ userId, arg
   };
 };
 
+/** The exchange this request is one side of, as the card shows it; null for a plain payment. */
+const conversionOf = async ({
+  request,
+  payment,
+  args,
+}: {
+  request: IngestRequests;
+  payment: StoredPayment;
+  /** The card's arguments: the accounts the owner chose, which the history is read for. */
+  args: Record<string, unknown>;
+}) => {
+  const partner = await findConversionPartner({ request, payment });
+  const partnerPayment = partner ? readStoredParse({ value: partner.request.parsed })?.payment : null;
+  if (!partner || !partnerPayment) return null;
+
+  const { debit, credit } = sidesOf({
+    left: { request, payment },
+    right: { request: partner.request, payment: partnerPayment },
+  });
+  const accounts = await suggestConversionAccounts({ request, debit: debit.payment, credit: credit.payment });
+
+  // The owner's earlier exchanges between these accounts give the usual rate and the note they wrote.
+  const ownIsDebit = payment.kind === 'debit';
+  const own = typeof args.accountId === 'string' ? (args.accountId as RecordId) : null;
+  const other = typeof args.counterAccountId === 'string' ? (args.counterAccountId as RecordId) : null;
+  const fromAccountId = (ownIsDebit ? own : other) ?? accounts.fromAccountId;
+  const toAccountId = (ownIsDebit ? other : own) ?? accounts.toAccountId;
+  const history =
+    fromAccountId && toAccountId
+      ? await findPastConversions({ userId: request.userId, fromAccountId, toAccountId })
+      : [];
+  const exactRate = Number(credit.payment.amount) / Number(debit.payment.amount);
+  const usual = usualRate({ history });
+
+  return {
+    usualRate: usual,
+    rateUnusual: usual !== null && Number.isFinite(exactRate) && isUnusualRate({ rate: exactRate, usual }),
+    suggestedNote: readStoredParse({ value: request.parsed })?.exchangeNote ?? usualNote({ history }),
+    fromAmount: Number(debit.payment.amount),
+    fromCurrencyCode: debit.payment.currencyCode,
+    toAmount: Number(credit.payment.amount),
+    toCurrencyCode: credit.payment.currencyCode,
+    rate: impliedRate({ debit: debit.payment, credit: credit.payment }),
+    ...accounts,
+  };
+};
+
 /** The card of a parked notification payment: what was read, and why it waits. */
 export const resolveIngestRequest: PreviewResolver = async ({ userId, args, lock }) => {
   const request = await IngestRequests.findOne({
@@ -103,7 +159,8 @@ export const resolveIngestRequest: PreviewResolver = async ({ userId, args, lock
     });
   }
 
-  const payment = readStoredParse({ value: request.parsed })?.payment;
+  const stored = readStoredParse({ value: request.parsed });
+  const payment = stored?.payment;
   const source = request.sourceId
     ? await NotificationSources.findOne({ where: { id: request.sourceId, userId } })
     : null;
@@ -129,6 +186,11 @@ export const resolveIngestRequest: PreviewResolver = async ({ userId, args, lock
     });
   }
 
+  // One side of a currency exchange: the card shows both sides and the accounts the bank's own accounts suggest.
+  const conversion = payment ? await conversionOf({ request, payment, args }) : null;
+
+  const unusual = conversion?.rateUnusual === true;
+
   return {
     preview: {
       before: {
@@ -136,6 +198,7 @@ export const resolveIngestRequest: PreviewResolver = async ({ userId, args, lock
         reason: request.reason,
         alsoWaiting,
         alsoSeenIn,
+        ...(conversion && { conversion }),
         name: payment?.merchant ?? describeSource({ source: null, payload: request.payload }),
         sourceName: sourceAppName({ source, payload: request.payload }),
         summary: request.summary,
@@ -154,6 +217,19 @@ export const resolveIngestRequest: PreviewResolver = async ({ userId, args, lock
     // clock, so a card pinned to it would be stale on the owner's first tap. A request that settles is
     // caught by the status check above.
     snapshot: snapshotOf({ id: request.id }),
+    ...(unusual && {
+      warnings: <ChatCardWarning[]>[
+        {
+          key: 'chat.warnings.ingestConversionRate',
+          params: {
+            rate: conversion!.rate,
+            usual: conversion!.usualRate,
+            from: conversion!.fromCurrencyCode,
+            to: conversion!.toCurrencyCode,
+          },
+        },
+      ],
+    }),
   };
 };
 

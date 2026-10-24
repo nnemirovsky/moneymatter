@@ -43,6 +43,7 @@
       "config": "Source settings",
       "conditions": "Conditions",
       "confirmOverpay": "Confirm the overpayment",
+      "counterAccountId": "Other side account",
       "createTransaction": "Create a transaction",
       "creditLimit": "Credit limit",
       "currencies": "Currencies",
@@ -609,7 +610,13 @@
         "learnSource": "Future {source} payments will go to {account}.",
         "siblings": "{count} other waiting payment will be logged on {account} too, and wait for your OK. | {count} other waiting payments will be logged on {account} too, and wait for your OK.",
         "unknownCounterparty": "Unknown",
-        "alsoSeenIn": "The same payment was also reported by {sources}. Approving links those cards to this account too."
+        "alsoSeenIn": "The same payment was also reported by {sources}. Approving links those cards to this account too.",
+        "exchange": "Exchange",
+        "rate": "Rate",
+        "conversionRate": "1 {from} = {rate} {to}",
+        "fromAccount": "Money left",
+        "toAccount": "Money arrived",
+        "conversionHint": "Your bank told of this exchange in two notifications. Approving logs both and links them as one transfer between these accounts."
       },
       "sourceSettled": "This source is not waiting for approval any more.",
       "matchingRules": {
@@ -670,6 +677,7 @@
       "subscriptionAlreadyLinked": "{count} of these transactions is already linked to a subscription, so linking is refused until it is unlinked. | {count} of these transactions are already linked to a subscription, so linking is refused until they are unlinked.",
       "subscriptionTypeMismatch": "{count} of these transactions is not of the same type (expense or income) as the subscription, so linking is refused. | {count} of these transactions are not of the same type (expense or income) as the subscription, so linking is refused.",
       "subscriptionNotLinked": "{count} of these transactions is not linked to this subscription and stays as it is. | {count} of these transactions are not linked to this subscription and stay as they are.",
+      "ingestConversionRate": "This exchange is at {rate} {to} per {from}, far from the {usual} you usually get between these accounts. Check the amounts.",
       "ingestContextGuess": "Matched to this payment from a {service} notification about {store}, by a guess between several payments. Check the note and the category."
     },
     "notices": {

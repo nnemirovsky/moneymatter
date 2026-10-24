@@ -52,6 +52,9 @@ type NotePickAnswer = { candidateId: string | null } | 'fail';
 /** What the mocked model answers for a merchant-app notification: the order it reads, or a server error. */
 type ContextParseAnswer = { isOrderUpdate: boolean; store: string | null; status: string; confidence: number } | 'fail';
 
+/** What the mocked model answers when it reads a business sender's message about a currency exchange. */
+type ExchangeReadAnswer = { confirmsExchange: boolean; note: string | null; confidence: number } | 'fail';
+
 /** What the mocked model answers when it weighs several payments for one context notification. */
 type ContextPickAnswer = { choice: string | null; confidence: number } | 'fail';
 
@@ -85,6 +88,8 @@ export const mockNotificationParsing = ({
   contextPickPrompts = [],
   contextCategory,
   contextCategoryPrompts = [],
+  exchangeRead,
+  exchangeReadPrompts = [],
 }: {
   answer: (args: { prompt: string; call: number }) => NotificationAnswer;
   correction?: (args: { prompt: string }) => CorrectionAnswer;
@@ -108,6 +113,9 @@ export const mockNotificationParsing = ({
   /** Picks the category of a store; without it the category is left alone. */
   contextCategory?: (args: { prompt: string }) => ContextCategoryAnswer;
   contextCategoryPrompts?: string[];
+  /** Reads a business sender's message about a waiting currency exchange; without it the model confirms nothing. */
+  exchangeRead?: (args: { prompt: string }) => ExchangeReadAnswer;
+  exchangeReadPrompts?: string[];
 }): string[] => {
   const prompts: string[] = [];
 
@@ -135,6 +143,13 @@ export const mockNotificationParsing = ({
         const picked = contextPick?.({ prompt }) ?? { choice: null, confidence: 0 };
 
         return picked === 'fail' ? fail() : geminiAnswer({ text: JSON.stringify(picked) });
+      }
+
+      if (prompt.startsWith('EXCHANGE CONFIRMATION')) {
+        exchangeReadPrompts.push(prompt);
+        const read = exchangeRead?.({ prompt }) ?? { confirmsExchange: false, note: null, confidence: 0 };
+
+        return read === 'fail' ? fail() : geminiAnswer({ text: JSON.stringify(read) });
       }
 
       if (prompt.startsWith('APP:') && prompt.includes('NOTIFICATION (untrusted text')) {

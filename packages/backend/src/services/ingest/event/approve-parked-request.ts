@@ -10,6 +10,7 @@ import { withTransaction } from '@services/common/with-transaction';
 
 import { isWaitingRequest } from '../card-payment/process-ingest-request';
 import { readUserLocale } from '../card-payment/read-user-locale';
+import { settleConversion } from '../conversion/settle-conversion';
 import { absorbParkedTwin } from '../twins/absorb-parked-twin';
 import { findJoinedTwins, findParkedTwins, joinedSlots, probeOf, TWIN_PARK_REASONS } from '../twins/find-parked-twins';
 import { assertUsableAccount } from '../usable-account';
@@ -38,12 +39,15 @@ export const approveParkedRequest = withTransaction(
     userId,
     requestId,
     accountId,
+    counterAccountId,
     direction,
     note,
   }: {
     userId: number;
     requestId: RecordId;
     accountId?: RecordId;
+    /** For one side of a currency exchange only: the account the other side is logged on. */
+    counterAccountId?: RecordId;
     direction?: 'debit' | 'credit';
     /** The note the owner wrote on the card; `''` logs the payment without one. */
     note?: string;
@@ -59,6 +63,38 @@ export const approveParkedRequest = withTransaction(
 
     const stored = readStoredParse({ value: row.parsed });
     if (!stored?.payment) throw new ConflictError({ message: t({ key: 'ingest.requestNotWaiting' }) });
+
+    // One side of a currency exchange is approved with the other: both are logged and then linked as a transfer.
+    const conversion = await settleConversion({
+      userId,
+      row,
+      stored: stored as typeof stored & { payment: NonNullable<typeof stored.payment> },
+      accountId,
+      counterAccountId,
+      note,
+    });
+    if (conversion) {
+      const prepared = await prepareNotificationRetry({
+        requestId,
+        force: true,
+        locale: await readUserLocale({ userId }),
+      });
+      if (prepared.kind === 'conflict') throw new ConflictError({ message: prepared.result.message });
+
+      await runAfterCommit({
+        fn: async () => {
+          for (const id of [requestId, conversion.partnerRequestId]) {
+            try {
+              await enqueueNotificationProcessing({ requestId: id });
+            } catch (error) {
+              logger.error({ message: `Failed to queue the approved request ${id}`, error: error as Error });
+            }
+          }
+        },
+      });
+
+      return { requestId, queued: true, learned: null, alsoQueued: 0 };
+    }
 
     if (row.reason === 'unknownAccount' && !accountId) {
       throw new ValidationError({ message: t({ key: 'ingest.accountRequired' }) });
