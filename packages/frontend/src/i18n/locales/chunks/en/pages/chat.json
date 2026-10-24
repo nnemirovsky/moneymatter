@@ -603,6 +603,7 @@
         "noteLabel": "Note",
         "notePlaceholder": "Add a note",
         "accountHint": "Pick the account first. Nothing is logged without it.",
+        "accountOptionalHint": "Optional. Approving logs it on the account found for this card. Pick one to log it elsewhere. Approve all safe leaves it for you until you do.",
         "learnCard": "Future {source} payments ending {digits} will go to {account}.",
         "learnCardNamed": "Future payments on {card} will go to {account}.",
         "learnSource": "Future {source} payments will go to {account}.",

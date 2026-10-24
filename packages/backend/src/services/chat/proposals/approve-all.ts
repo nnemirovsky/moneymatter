@@ -11,7 +11,7 @@ import ChatMessages from '@models/chat-messages.model';
 import ChatProposals from '@models/chat-proposals.model';
 import type Users from '@models/users.model';
 
-import { isSafeForApproveAll } from '../policies/safe-cards';
+import { isIngestCardWithoutAccount, isSafeForApproveAll } from '../policies/safe-cards';
 import { approveProposal } from './approve';
 import { expireDueCards, isExpiryDue } from './card-expiry';
 import { buildCards, loadCards } from './card-load';
@@ -23,6 +23,7 @@ function reasonKeyFor({ card }: { card: ChatProposalCard }): string {
   if (card.status !== 'pending') return 'chat.cards.notPending';
   if (card.stale) return card.stale.reasonKey;
   if (!card.canApply.ok) return card.canApply.reasonKey;
+  if (isIngestCardWithoutAccount({ card })) return 'chat.cards.ingestAccountRequired';
   if (card.egress) return 'chat.cards.needsHostConfirmation';
   if (card.confirmation.mode !== 'none' || card.danger !== 'none') return 'chat.cards.needsConfirmation';
   if (card.fields.some((field) => field.uncertain)) return 'chat.cards.hasUncertainFields';
@@ -46,10 +47,7 @@ async function approveOne({
     kind: ChatApproveAllOutcome;
     reasonKey?: string;
     appliedIds?: string[];
-  }) => ({
-    result: { proposalId: card.id, outcome: kind, ...(reasonKey ? { reasonKey } : {}) },
-    appliedIds,
-  });
+  }) => ({ result: { proposalId: card.id, outcome: kind, ...(reasonKey ? { reasonKey } : {}) }, appliedIds });
 
   try {
     const response = await approveProposal({

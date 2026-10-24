@@ -59,6 +59,8 @@ const attachmentParts = computed(() =>
 
 const proposalParts = computed(() => props.message.parts.filter((part) => part.type === 'proposal'));
 const firstProposalPartId = computed(() => proposalParts.value[0]?.id ?? null);
+// In the inbox every message is one card, and the thread has a single approve-all above it.
+const hideProposalsHeader = computed(() => props.inbox && proposalParts.value.length === 1);
 const lastProposalPartId = computed(() => proposalParts.value.at(-1)?.id ?? null);
 const proposalCards = computed(() =>
   proposalParts.value.flatMap((part) => {
@@ -123,7 +125,11 @@ const partKey = ({ part }: { part: ChatMessagePart }) => part.id;
       </template>
 
       <template v-else-if="part.type === 'proposal'">
-        <p v-if="part.id === firstProposalPartId" class="text-sm font-medium" data-testid="proposals-header">
+        <p
+          v-if="part.id === firstProposalPartId && !hideProposalsHeader"
+          class="text-sm font-medium"
+          data-testid="proposals-header"
+        >
           {{ $t('chat.message.proposedChanges', { count: proposalParts.length }, proposalParts.length) }}
         </p>
         <ProposalCard
@@ -134,7 +140,10 @@ const partKey = ({ part }: { part: ChatMessagePart }) => part.id;
           @commented="(response) => emit('commented', response)"
         />
         <p v-else class="text-muted-foreground text-sm">{{ $t('chat.message.cardUnavailable') }}</p>
-        <ApproveAllBar v-if="part.id === lastProposalPartId" :message-id="message.id" :cards="proposalCards" />
+        <ApproveAllBar
+          v-if="part.id === lastProposalPartId && !inbox"
+          :groups="[{ messageId: message.id, cards: proposalCards }]"
+        />
       </template>
 
       <ClarificationCard

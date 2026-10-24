@@ -26,7 +26,7 @@ const stub = ({ testId, props }: { testId: string; props: string[] }) =>
 
 const STUBS = {
   ProposalCard: stub({ testId: 'proposal-card', props: ['card', 'cards'] }),
-  ApproveAllBar: stub({ testId: 'approve-all-bar', props: ['messageId', 'cards'] }),
+  ApproveAllBar: stub({ testId: 'approve-all-bar', props: ['groups'] }),
   ClarificationCard: stub({ testId: 'clarification-card', props: ['part', 'disabled'] }),
   ChatChart: stub({ testId: 'chart', props: ['spec'] }),
   ChatTable: stub({ testId: 'table', props: ['spec'] }),
@@ -63,14 +63,16 @@ const mountMessage = ({
   cards = {},
   isLive = false,
   canAnswer = true,
+  inbox = false,
 }: {
   value: ChatMessage;
   cards?: Record<string, ChatProposalCard>;
   isLive?: boolean;
   canAnswer?: boolean;
+  inbox?: boolean;
 }) =>
   mount(ChatMessageView, {
-    props: { message: value, cards, isLive, canAnswer },
+    props: { message: value, cards, isLive, canAnswer, inbox },
     global: { plugins: [createChatI18n()], stubs: STUBS },
   });
 
@@ -166,13 +168,7 @@ describe('ChatMessage', () => {
             {
               type: 'visual',
               id: 'v3',
-              spec: {
-                type: 'chart',
-                kind: 'donut',
-                title: 'C',
-                unit: { kind: 'number' },
-                slices: [],
-              },
+              spec: { type: 'chart', kind: 'donut', title: 'C', unit: { kind: 'number' }, slices: [] },
             },
           ],
         }),
@@ -200,11 +196,9 @@ describe('ChatMessage', () => {
       expect(wrapper.findAll('[data-testid="proposal-card"]')).toHaveLength(2);
       expect(propsOf({ wrapper, testId: 'proposal-card' }).card.id).toBe('c1');
       expect(Object.keys(propsOf({ wrapper, testId: 'proposal-card' }).cards)).toEqual(['c1', 'c2']);
-      expect(propsOf({ wrapper, testId: 'approve-all-bar' })).toMatchObject({ messageId: 'm1' });
-      expect(propsOf({ wrapper, testId: 'approve-all-bar' }).cards.map((card: ChatProposalCard) => card.id)).toEqual([
-        'c1',
-        'c2',
-      ]);
+      const [group] = propsOf({ wrapper, testId: 'approve-all-bar' }).groups;
+      expect(group).toMatchObject({ messageId: 'm1' });
+      expect(group.cards.map((card: ChatProposalCard) => card.id)).toEqual(['c1', 'c2']);
     });
 
     it('uses the singular for one card', () => {
@@ -214,6 +208,33 @@ describe('ChatMessage', () => {
       });
 
       expect(wrapper.find('[data-testid="proposals-header"]').text()).toBe('1 proposed change');
+    });
+
+    it('leaves the approve-all to the inbox thread, and drops the header of its single card', () => {
+      const wrapper = mountMessage({
+        value: message({ parts: [{ type: 'proposal', id: 'p1', proposalId: 'c1' }] }),
+        cards: { c1: buildCard({ id: 'c1' }) },
+        inbox: true,
+      });
+
+      expect(wrapper.find('[data-testid="approve-all-bar"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="proposals-header"]').exists()).toBe(false);
+      expect(wrapper.findAll('[data-testid="proposal-card"]')).toHaveLength(1);
+    });
+
+    it('keeps the header of an inbox message with several cards', () => {
+      const wrapper = mountMessage({
+        value: message({
+          parts: [
+            { type: 'proposal', id: 'p1', proposalId: 'c1' },
+            { type: 'proposal', id: 'p2', proposalId: 'c2' },
+          ],
+        }),
+        cards: { c1: buildCard({ id: 'c1' }), c2: buildCard({ id: 'c2' }) },
+        inbox: true,
+      });
+
+      expect(wrapper.find('[data-testid="proposals-header"]').text()).toBe('2 proposed changes');
     });
 
     it('says so when a card is gone instead of leaving a hole', () => {
@@ -297,11 +318,7 @@ describe('ChatMessage', () => {
 
     it('shows the error of a failed message that has no error part', () => {
       const wrapper = mountMessage({
-        value: message({
-          status: 'failed',
-          parts: [],
-          error: { code: 'timeout', messageKey: 'chat.errors.timeout' },
-        }),
+        value: message({ status: 'failed', parts: [], error: { code: 'timeout', messageKey: 'chat.errors.timeout' } }),
       });
 
       expect(wrapper.find('[data-testid="message-error"]').text()).toContain('The answer took too long');
@@ -324,9 +341,7 @@ describe('ChatMessage', () => {
 
     it('shows an analysis part', () => {
       const wrapper = mountMessage({
-        value: message({
-          parts: [{ type: 'analysis', id: 'a1', code: '1+1', inputs: [], status: 'ok' }],
-        }),
+        value: message({ parts: [{ type: 'analysis', id: 'a1', code: '1+1', inputs: [], status: 'ok' }] }),
       });
 
       expect(wrapper.find('[data-testid="analysis"]').exists()).toBe(true);

@@ -26,6 +26,7 @@ import { InboxIcon, Loader2Icon, RotateCwIcon } from '@lucide/vue';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import ApproveAllBar, { type ApproveAllGroup } from './cards/approve-all-bar.vue';
 import ChatComposer from './chat-composer.vue';
 import ChatConnectionPicker from './chat-connection-picker.vue';
 import { isSameChatContext, toThreadContext } from './chat-context';
@@ -178,6 +179,18 @@ const displayMessages = computed<ChatMessageModel[]>(() => {
 });
 
 const displayCards = computed(() => ({ ...cards.value, ...run.value?.cards }));
+
+// The inbox shows one message per card, so its approve-all covers every message of the thread.
+const inboxApproveGroups = computed<ApproveAllGroup[]>(() =>
+  displayMessages.value.flatMap((message) => {
+    if (message.role !== 'assistant') return [];
+    const found = message.parts.flatMap((part) => {
+      const card = part.type === 'proposal' ? displayCards.value[part.proposalId] : undefined;
+      return card ? [card] : [];
+    });
+    return found.length > 0 ? [{ messageId: message.id, cards: found }] : [];
+  }),
+);
 
 const isBusy = computed(
   () =>
@@ -490,6 +503,10 @@ onMounted(scrollToBottom);
         />
 
         <template v-else>
+          <!-- Pinned to the top: the newest card arrives at the bottom, and the button must stay in reach. -->
+          <div v-if="isInbox" class="sticky top-0 z-10 -mx-1 px-1 empty:hidden">
+            <ApproveAllBar :groups="inboxApproveGroups" compact />
+          </div>
           <Button
             v-if="hasMore"
             variant="ghost"

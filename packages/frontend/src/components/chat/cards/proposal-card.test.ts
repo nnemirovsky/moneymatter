@@ -44,11 +44,7 @@ vi.mock('./use-card-lookups', () => ({
   useCardLookups: () =>
     buildLookups({
       accounts: [{ id: 'acc-raif', name: 'Raiffeisen', currencyCode: 'RUB' } as AccountModel],
-      names: {
-        'account:acc-1': 'Main card',
-        'category:cat-1': 'Groceries',
-        'category:cat-2': 'Dining',
-      },
+      names: { 'account:acc-1': 'Main card', 'category:cat-1': 'Groceries', 'category:cat-2': 'Dining' },
       currencies: { 'acc-1': 'USD' },
     }),
 }));
@@ -247,6 +243,16 @@ describe('ProposalCard', () => {
       expect(approveButton(wrapper).attributes('disabled')).toBeDefined();
       expect(wrapper.get('[data-testid="cannot-apply"]').text()).toBe('Choose the account to log this payment on.');
       expect(wrapper.find('[data-testid="ingest-account-hint"]').exists()).toBe(true);
+    });
+
+    it('does not claim nothing is logged without an account when the account is optional for the park reason', () => {
+      const card = { ...paymentCard(), canApply: { ok: true as const } };
+      card.ingestRequest!.reason = 'lowConfidence';
+
+      const hint = mountCard({ card, inbox: true }).get('[data-testid="ingest-account-hint"]').text();
+
+      expect(hint).toContain('Optional');
+      expect(hint).not.toContain('Nothing is logged without it');
     });
 
     it('preselects the guessed account and says what approving will teach', () => {
@@ -977,9 +983,7 @@ describe('ProposalCard', () => {
   describe('details', () => {
     it('lists the sources', async () => {
       const wrapper = mountCard({
-        card: createCard({
-          sources: [{ type: 'attachment', attachmentId: 'a1', fileName: 'receipt.png' }],
-        }),
+        card: createCard({ sources: [{ type: 'attachment', attachmentId: 'a1', fileName: 'receipt.png' }] }),
       });
 
       expect(wrapper.text()).not.toContain('receipt.png');
