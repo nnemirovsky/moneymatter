@@ -3,7 +3,6 @@ import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
 import { t } from '@i18n/index';
 import ChatMessages from '@models/chat-messages.model';
 import { pairWaitingExchanges } from '@services/ingest/conversion/pair-waiting-exchanges';
-import { pairWaitingExchanges } from '@services/ingest/conversion/pair-waiting-exchanges';
 import { Op, type WhereOptions } from 'sequelize';
 
 import { expireDueCards } from '../proposals/card-expiry';
