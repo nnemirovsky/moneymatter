@@ -165,7 +165,9 @@ const lessonText = computed(() => {
         @update:model-value="emit('update:accountId', $event?.id ?? null)"
       />
       <p v-if="!selectedAccount" class="text-muted-foreground text-xs" data-testid="ingest-account-hint">
-        {{ $t(`${LABEL_ROOT}.accountHint`) }}
+        {{
+          $t(payment.reason === 'unknownAccount' ? `${LABEL_ROOT}.accountHint` : `${LABEL_ROOT}.accountOptionalHint`)
+        }}
       </p>
       <template v-else-if="lessonText">
         <p v-if="alsoSeenText" class="text-muted-foreground text-xs" data-testid="ingest-also-seen">

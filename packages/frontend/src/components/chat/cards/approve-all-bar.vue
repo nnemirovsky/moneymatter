@@ -35,6 +35,8 @@ const { approveAllMessages } = useChatCardActions();
 const skipReasonKey = ({ card }: { card: ChatProposalCard }): string => {
   if (card.stale) return card.stale.reasonKey;
   if (!card.canApply.ok) return card.canApply.reasonKey;
+  if (card.toolName === 'log_ingest_request' && !card.fields.some((field) => field.path === 'accountId' && field.value))
+    return 'chat.cards.ingestAccountRequired';
   if (card.egress) return 'chat.cards.needsHostConfirmation';
   if (card.confirmation.mode !== 'none' || card.danger !== 'none') return 'chat.cards.needsConfirmation';
   if (card.fields.some((field) => field.uncertain)) return 'chat.cards.hasUncertainFields';

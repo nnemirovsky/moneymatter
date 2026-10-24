@@ -1,7 +1,7 @@
 import type { ChatCardField, ChatProposalCard } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
 
-import { isSafeForApproveAll } from './safe-cards';
+import { isIngestCardWithoutAccount, isSafeForApproveAll } from './safe-cards';
 
 let nextId = 0;
 
@@ -87,6 +87,33 @@ describe('isSafeForApproveAll', () => {
     const card = makeCard({ safe: true, danger: 'destructive', confirmation: { mode: 'confirm' } });
 
     expect(isSafeForApproveAll({ card, cards: [card] })).toBe(false);
+  });
+
+  describe('a payment of the automation inbox', () => {
+    const payment = ({ accountId }: { accountId?: string }) =>
+      makeCard({
+        toolName: 'log_ingest_request',
+        kind: 'action',
+        entity: 'ingestRequest',
+        fields: [
+          field({ path: 'requestId', value: 'r1' }),
+          ...(accountId ? [field({ path: 'accountId', value: accountId })] : []),
+        ],
+      });
+
+    it('is not safe without a chosen account, whatever it was parked for', () => {
+      const card = payment({});
+
+      expect(isIngestCardWithoutAccount({ card })).toBe(true);
+      expect(isSafeForApproveAll({ card, cards: [card] })).toBe(false);
+    });
+
+    it('is safe once an account is chosen', () => {
+      const card = payment({ accountId: 'a1' });
+
+      expect(isIngestCardWithoutAccount({ card })).toBe(false);
+      expect(isSafeForApproveAll({ card, cards: [card] })).toBe(true);
+    });
   });
 
   describe('parents', () => {

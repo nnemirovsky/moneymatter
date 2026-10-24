@@ -178,10 +178,20 @@ describe('toChatProposalCard', () => {
       expect(card.safe).toBe(true);
     });
 
-    it('does not wait for an account when it was parked for another reason', () => {
+    it('can be approved on its own without an account when parked for another reason, but is not safe for approve-all', () => {
       const card = toChatProposalCard({ row: ingestRow({ reason: 'lowConfidence' }), parents: [] });
 
       expect(card.canApply).toEqual({ ok: true });
+      expect(card.safe).toBe(false);
+    });
+
+    it('is safe for approve-all once an account is chosen, whatever it was parked for', () => {
+      const card = toChatProposalCard({
+        row: ingestRow({ reason: 'lowConfidence', args: { accountId: ID } }),
+        parents: [],
+      });
+
+      expect(card.safe).toBe(true);
     });
   });
 });

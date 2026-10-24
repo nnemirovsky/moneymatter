@@ -153,6 +153,19 @@ describe('ApproveAllBar', () => {
     expect(addSuccessNotification).toHaveBeenCalledWith('1 change applied');
   });
 
+  it('names the missing account for a payment left without one', () => {
+    const payment = buildCard({
+      id: 'p',
+      toolName: 'log_ingest_request',
+      safe: false,
+      fields: [{ path: 'requestId', labelKey: 'chat.fields.requestId', value: 'r1', editable: null }],
+      title: { key: 'chat.cards.title.action', params: { entity: 'ingestRequest' } },
+    });
+    const wrapper = mountBar({ cards: [safe({ id: 'a' }), payment] });
+
+    expect(wrapper.find('[data-testid="skipped-card"]').text()).toContain('Choose the account to log this payment on.');
+  });
+
   it('lists what it leaves for the user, with the reason', () => {
     const wrapper = mountBar({
       cards: [
