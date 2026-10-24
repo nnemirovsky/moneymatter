@@ -15,7 +15,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { computed, defineComponent, h, ref, shallowRef } from 'vue';
 
-import { createChatI18n } from './cards/card-test-fixtures';
+import { buildCard, createChatI18n } from './cards/card-test-fixtures';
 import ChatConversation from './chat-conversation.vue';
 
 vi.mock('@/composable/data-queries/chat', () => ({
@@ -138,6 +138,20 @@ const EmptyStub = defineComponent({
 });
 
 const addErrorNotification = vi.fn();
+const ApproveAllStub = defineComponent({
+  props: ['groups'],
+  setup: (props) => () =>
+    h('div', {
+      'data-testid': 'approve-all-bar',
+      'data-groups': JSON.stringify(
+        props.groups.map((group: { messageId: string; cards: ChatProposalCard[] }) => ({
+          messageId: group.messageId,
+          cards: group.cards.map((card) => card.id),
+        })),
+      ),
+    }),
+});
+
 const send = vi.fn();
 const attach = vi.fn();
 const cancel = vi.fn();
@@ -175,6 +189,7 @@ const mountConversation = ({
       plugins: [createChatI18n()],
       stubs: {
         ChatMessage: MessageStub,
+        ApproveAllBar: ApproveAllStub,
         ChatComposer: ComposerStub,
         ChatConnectionPicker: PickerStub,
         ChatEmptyState: EmptyStub,
@@ -290,6 +305,33 @@ describe('ChatConversation', () => {
 
       expect(wrapper.find('[data-testid="composer"]').exists()).toBe(false);
       expect(wrapper.find('[data-testid="picker"]').exists()).toBe(false);
+    });
+
+    it('hands the cards of every message to one approve-all bar', () => {
+      const withCard = ({ id, card }: { id: string; card: string }) =>
+        assistant({ id, parts: [{ type: 'proposal', id: `p-${id}`, proposalId: card }] });
+      state.messages.value = [
+        assistant({ id: 'm0' }),
+        withCard({ id: 'm1', card: 'c1' }),
+        withCard({ id: 'm2', card: 'c2' }),
+      ];
+      state.cards.value = { c1: buildCard({ id: 'c1' }), c2: buildCard({ id: 'c2' }) };
+
+      const wrapper = mountConversation();
+
+      expect(wrapper.findAll('[data-testid="approve-all-bar"]')).toHaveLength(1);
+      expect(JSON.parse(wrapper.find('[data-testid="approve-all-bar"]').attributes('data-groups')!)).toEqual([
+        { messageId: 'm1', cards: ['c1'] },
+        { messageId: 'm2', cards: ['c2'] },
+      ]);
+    });
+
+    it('has no thread-wide approve-all outside the inbox', () => {
+      state.thread.value = { id: 'thread-1', connectionId: null, modelId: null, kind: 'chat' } as ChatThread;
+      state.messages.value = [assistant({ id: 'm1', parts: [{ type: 'proposal', id: 'p1', proposalId: 'c1' }] })];
+      state.cards.value = { c1: buildCard({ id: 'c1' }) };
+
+      expect(mountConversation().find('[data-testid="approve-all-bar"]').exists()).toBe(false);
     });
 
     it('tells the messages they sit in the inbox', () => {

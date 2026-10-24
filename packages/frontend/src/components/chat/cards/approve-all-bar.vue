@@ -9,11 +9,16 @@ import { useI18n } from 'vue-i18n';
 
 import { useChatText } from '../chat-text';
 
-const props = defineProps<{
-  /** The assistant message whose cards the bar covers. */
+export interface ApproveAllGroup {
+  /** An assistant message; the server approves per message. */
   messageId: string;
   /** Every card of that message. */
   cards: ChatProposalCard[];
+}
+
+const props = defineProps<{
+  /** The messages the bar covers: one in a conversation, every message of the thread in the automation inbox. */
+  groups: ApproveAllGroup[];
 }>();
 
 const { t } = useI18n();
@@ -34,8 +39,11 @@ const skipReasonKey = ({ card }: { card: ChatProposalCard }): string => {
   return 'chat.cards.needsReview';
 };
 
-const pending = computed(() => props.cards.filter((card) => card.status === 'pending'));
+const pendingOf = ({ group }: { group: ApproveAllGroup }) => group.cards.filter((card) => card.status === 'pending');
+const pending = computed(() => props.groups.flatMap((group) => pendingOf({ group })));
 const safeCount = computed(() => pending.value.filter((card) => card.safe).length);
+// With one card waiting, its own Approve does the same thing.
+const isShown = computed(() => pending.value.length > 1 && safeCount.value > 0);
 const skipped = computed(() =>
   pending.value
     .filter((card) => !card.safe)
@@ -46,9 +54,10 @@ const skipped = computed(() =>
     })),
 );
 
-const announce = ({ response }: { response: ChatApproveAllResponse }) => {
-  const applied = response.results.filter((result) => result.outcome === 'applied').length;
-  const left = response.results.length - applied;
+const announce = ({ responses }: { responses: ChatApproveAllResponse[] }) => {
+  const results = responses.flatMap((response) => response.results);
+  const applied = results.filter((result) => result.outcome === 'applied').length;
+  const left = results.length - applied;
 
   addSuccessNotification(
     left === 0
@@ -57,20 +66,31 @@ const announce = ({ response }: { response: ChatApproveAllResponse }) => {
   );
 };
 
-const approve = () => {
-  approveAll.mutate(
-    {
-      messageId: props.messageId,
-      // The server decides which cards are safe; it needs the revision the user saw of each pending one.
-      payload: { revisions: Object.fromEntries(pending.value.map((card) => [card.id, card.revision])) },
-    },
-    { onSuccess: (response) => announce({ response }) },
-  );
+const approve = async () => {
+  const responses: ChatApproveAllResponse[] = [];
+  // The server approves one message per call, so a thread goes message by message, in order.
+  for (const group of props.groups) {
+    const cards = pendingOf({ group });
+    if (!cards.some((card) => card.safe)) continue;
+    try {
+      responses.push(
+        await approveAll.mutateAsync({
+          messageId: group.messageId,
+          // The server decides which cards are safe; it needs the revision the user saw of each pending one.
+          payload: { revisions: Object.fromEntries(cards.map((card) => [card.id, card.revision])) },
+        }),
+      );
+    } catch {
+      // The mutation reports the failure; what was approved before it still counts.
+      break;
+    }
+  }
+  if (responses.length > 0) announce({ responses });
 };
 </script>
 
 <template>
-  <div v-if="safeCount > 0" class="bg-card flex flex-col gap-2 rounded-xl border p-3">
+  <div v-if="isShown" class="bg-card flex flex-col gap-2 rounded-xl border p-3">
     <div class="flex flex-wrap items-center gap-3">
       <Button
         variant="soft-success"
