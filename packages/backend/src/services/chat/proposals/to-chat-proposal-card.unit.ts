@@ -154,4 +154,34 @@ describe('toChatProposalCard', () => {
       expect(card.stale?.reasonKey).toBe('chat.cards.stale.targetChanged');
     });
   });
+  describe('a parked payment waiting for its account', () => {
+    const ingestRow = ({ args = {}, reason = 'unknownAccount' }: { args?: Record<string, unknown>; reason?: string }) =>
+      row({
+        toolName: 'log_ingest_request',
+        cardKind: 'action',
+        entity: 'ingestRequest',
+        args: { requestId: ID, ...args },
+        preview: { before: { reason, requestId: ID } },
+      });
+
+    it('is not applicable, so not safe for approve-all, until an account is chosen', () => {
+      const card = toChatProposalCard({ row: ingestRow({}), parents: [] });
+
+      expect(card.canApply).toEqual({ ok: false, reasonKey: 'chat.cards.ingestAccountRequired' });
+      expect(card.safe).toBe(false);
+    });
+
+    it('is safe once the owner has chosen the account', () => {
+      const card = toChatProposalCard({ row: ingestRow({ args: { accountId: ID } }), parents: [] });
+
+      expect(card.canApply).toEqual({ ok: true });
+      expect(card.safe).toBe(true);
+    });
+
+    it('does not wait for an account when it was parked for another reason', () => {
+      const card = toChatProposalCard({ row: ingestRow({ reason: 'lowConfidence' }), parents: [] });
+
+      expect(card.canApply).toEqual({ ok: true });
+    });
+  });
 });
