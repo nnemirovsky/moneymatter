@@ -165,6 +165,21 @@ describe('parseBankPushByRules', () => {
     expect(payment).toMatchObject({ amount: '125', currencyCode: 'USD' });
   });
 
+  it('leaves a number printed before the amount to the AI instead of joining the two', () => {
+    expect(read({ body: 'Purchase\nWALMART 512 125.00 USD' })).toBeNull();
+    expect(read({ body: 'Purchase WALMART 512 125.00 USD' })).toBeNull();
+  });
+
+  it('leaves a payment from someone, a failed or reminder notice and a sentence to the AI', () => {
+    expect(read({ body: 'Payment from John 500.00 USD' })).toBeNull();
+    expect(read({ body: 'Purchase 25.00 USD unsuccessful\nShop Blue' })).toBeNull();
+    expect(read({ body: 'Purchase 25.00 USD is due\nShop Blue' })).toBeNull();
+    expect(read({ body: 'Card payment for $25.00 at Shop' })).toBeNull();
+    expect(
+      read({ body: 'Purchase 25.00 USD\nShop Blue and the big store next door that sells all kinds of things' }),
+    ).toBeNull();
+  });
+
   it('does not read the digits of a masked card as an amount', () => {
     const payment = read({ body: 'Purchase 5.00 EUR\nCard *4321\nKiosk 7' })?.classified.payment;
 

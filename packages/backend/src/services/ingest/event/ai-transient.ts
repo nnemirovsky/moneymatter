@@ -29,7 +29,6 @@ export const isAiTransientKind = (kind: string): kind is AiTransientKind =>
   kind === 'quota-exhausted' || kind === 'rate-limited' || kind === 'temporary';
 
 const MAX_RESET_WAIT_MS = 36 * 60 * 60_000;
-const MIN_RESET_WAIT_MS = 60_000;
 
 /** When the provider says the limit lifts: a CLI's `resetsAt`, or a `Retry-After` header (seconds or an HTTP date). */
 export const readResetAt = ({ cause, now = new Date() }: { cause: Error; now?: Date }): Date | null => {
@@ -54,8 +53,8 @@ export const readResetAt = ({ cause, now = new Date() }: { cause: Error; now?: D
 
 /**
  * When the job runs again after the `attempt`-th transient failure (1-based): the reset time the provider reported,
- * kept between a minute and a day and a half from now, else the next step of `schedule`. `null` once the schedule is
- * spent, whatever the provider says, and the request waits for the owner.
+ * when it is later than the next step of `schedule` and within a day and a half, else that step. `null` once the
+ * schedule is spent, whatever the provider says, and the request waits for the owner.
  */
 export const nextAiRetryAt = ({
   attempt,
@@ -68,17 +67,13 @@ export const nextAiRetryAt = ({
   schedule: readonly number[];
   now?: Date;
 }): Date | null => {
-  if (attempt > schedule.length) return null;
+  const step = schedule[attempt - 1];
+  if (step === undefined) return null;
 
-  if (resetAt) {
-    const wait = resetAt.getTime() - now.getTime();
-    // A reset a few seconds away is about to pass: wait a minute, which is also what a past time becomes.
-    if (wait <= MAX_RESET_WAIT_MS) return new Date(now.getTime() + Math.max(wait, MIN_RESET_WAIT_MS));
-  }
+  // A reset the provider reports never shortens a step: it only pushes the try later, up to a day and a half.
+  const wait = resetAt ? resetAt.getTime() - now.getTime() : 0;
 
-  const delay = schedule[attempt - 1];
-
-  return delay === undefined ? null : new Date(now.getTime() + delay);
+  return new Date(now.getTime() + Math.max(step, wait <= MAX_RESET_WAIT_MS ? wait : 0));
 };
 
 /** What the request keeps between two tries, in its payload. */

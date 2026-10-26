@@ -14,6 +14,10 @@ const escapeRegExp = ({ value }: { value: string }) => value.replace(/[.*+?^${}(
 
 const KNOWN_CURRENCY_CODES: ReadonlySet<string> = new Set(Intl.supportedValuesOf('currency'));
 
+const MAX_MERCHANT_WORDS = 6;
+/** Lower-case function words: a name that holds one is part of a sentence. */
+const PREPOSITION = /(?<![\p{L}\p{N}])(?:for|at|in|on|to|from|with|by|за|для|в|у|на|от|до|з|із|від)(?![\p{L}\p{N}])/u;
+
 const MAX_TEXT_LENGTH = 400;
 const MAX_LINES = 8;
 const RULES_CONFIDENCE = 0.9;
@@ -25,7 +29,7 @@ const wordsPattern = ({ words }: { words: string }): RegExp =>
 /** Words (several languages) of a message that is not a plain card payment: a refusal, a hold, a transfer, a fee. */
 const NOT_PLAIN_PAYMENT = wordsPattern({
   words:
-    'declin\\p{L}*|refus\\p{L}*|reject\\p{L}*|fail\\p{L}*|insufficient|limit|code|otp|hold|pending|authori[sz]\\p{L}*|reserv\\p{L}*|transfer\\p{L}*|exchange\\p{L}*|conver\\p{L}*|cashback|bonus|fee|commission|installment|loan|overdraft|reversal|cancel\\p{L}*|отказ\\p{L}*|отклон\\p{L}*|недостаточно|лимит|код|блокир\\p{L}*|перевод\\p{L}*|обмен\\p{L}*|конверт\\p{L}*|комисс\\p{L}*|кэшбэк|бонус|кредит\\p{L}*|відмов\\p{L}*|відхил\\p{L}*|недостатньо|ліміт|переказ\\p{L}*|обмін\\p{L}*|комісі\\p{L}*|кешбек',
+    'declin\\p{L}*|refus\\p{L}*|reject\\p{L}*|fail\\p{L}*|insufficient|limit|code|otp|hold|pending|authori[sz]\\p{L}*|reserv\\p{L}*|transfer\\p{L}*|exchange\\p{L}*|conver\\p{L}*|cashback|bonus|fee|commission|installment|loan|overdraft|reversal|cancel\\p{L}*|unsuccess\\p{L}*|revers\\p{L}*|return\\p{L}*|error|not completed|due|remind\\p{L}*|from|to|ошибк\\p{L}*|не прошл\\p{L}*|не прош\\p{L}*|не вдал\\p{L}*|помилк\\p{L}*|від|от|до|отказ\\p{L}*|отклон\\p{L}*|недостаточно|лимит|код|блокир\\p{L}*|перевод\\p{L}*|обмен\\p{L}*|конверт\\p{L}*|комисс\\p{L}*|кэшбэк|бонус|кредит\\p{L}*|відмов\\p{L}*|відхил\\p{L}*|недостатньо|ліміт|переказ\\p{L}*|обмін\\p{L}*|комісі\\p{L}*|кешбек',
 });
 
 const DEBIT_WORDS = wordsPattern({
@@ -74,9 +78,13 @@ const linesOf = ({ text }: { text: NotificationText }): string[] => {
     .filter(Boolean);
 };
 
-/** The amounts a line carries (with a currency), and the line without them. */
-const findAmounts = ({ line: original }: { line: string }): Found[] => {
+/**
+ * The amounts a line carries (with a currency), and the line without them (an amount leaves a `|` between the words
+ * around it). `null` when a number is in doubt: a space inside the digits may join a store number and the amount.
+ */
+const findAmounts = ({ line: original }: { line: string }): Found[] | null => {
   const found: Found[] = [];
+  let doubtful = false;
   // A date or a time sits next to an amount in some layouts; its digits are never part of the number.
   const line = original.replace(DATE, ' | ').replace(TIME, ' | ');
   const rest = line.replace(
@@ -94,6 +102,11 @@ const findAmounts = ({ line: original }: { line: string }): Found[] => {
       const code = written && KNOWN_CURRENCY_CODES.has(written) ? written : null;
       const parsed = parseAmount({ input: `${code ?? ''} ${symbol ?? ''}${digits}`.trim() });
       if (!parsed.ok || (!parsed.currencyCode && !parsed.symbol && !code && !symbol)) return token;
+      if (/[ \u00a0\u202f]/u.test(digits)) {
+        doubtful = true;
+
+        return token;
+      }
 
       found.push({
         amount: parsed.amount,
@@ -103,9 +116,10 @@ const findAmounts = ({ line: original }: { line: string }): Found[] => {
         rest: '',
       });
 
-      return ' ';
+      return ' | ';
     },
   );
+  if (doubtful) return null;
 
   return found.map((item) => ({ ...item, rest: rest.replace(/\s+/gu, ' ').trim() }));
 };
@@ -148,13 +162,14 @@ const readLine = ({ line }: { line: string }): LineReading | null => {
   if (balanceAt >= 0) {
     const clause = rest.slice(balanceAt);
     const found = findAmounts({ line: clause });
-    if (found.length !== 1) return null;
+    if (found?.length !== 1) return null;
 
     balance = found[0]!;
     rest = rest.slice(0, balanceAt);
   }
 
   const amounts = findAmounts({ line: rest });
+  if (!amounts) return null;
   rest = amounts[0]?.rest ?? rest;
 
   let card: LineReading['card'] = null;
@@ -179,7 +194,7 @@ const readLine = ({ line }: { line: string }): LineReading | null => {
     .split(/\s*[|;,]\s*|\s+-\s+/u)
     .map((piece) =>
       piece
-        .replace(/^(?:at|in|to|from|в|у|на)\s+/iu, '')
+        .replace(/^(?:at|in|в|у|на)\s+/iu, '')
         .replace(/^[\s:·•\-–—]+|[\s·•\-–—]+$/gu, '')
         .trim(),
     )
@@ -259,6 +274,8 @@ export const parseBankPushByRules = ({
   if (named.some((piece) => /:\s*$/u.test(piece))) return null;
   if (named.some((piece) => /(?:^| )card$/iu.test(piece))) return null;
   if (named.length > 1) return null;
+  // A short name, not a sentence: a preposition or many words mean the text says more than a merchant.
+  if (named.some((piece) => piece.split(/\s+/u).length > MAX_MERCHANT_WORDS || PREPOSITION.test(piece))) return null;
 
   const parsed: ParsedPayment = {
     kind: direction,

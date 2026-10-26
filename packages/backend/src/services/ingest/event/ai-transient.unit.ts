@@ -56,7 +56,7 @@ describe('nextAiRetryAt', () => {
     expect(at(4)).toBeNull();
   });
 
-  it('uses the reset time the provider reported instead of the step', () => {
+  it('uses the reset time the provider reported when it is later than the step', () => {
     const resetAt = new Date('2026-01-15T14:00:00Z');
 
     expect(nextAiRetryAt({ attempt: 1, resetAt, schedule: SCHEDULE, now: NOW })).toEqual(resetAt);
@@ -64,16 +64,13 @@ describe('nextAiRetryAt', () => {
     expect(nextAiRetryAt({ attempt: 4, resetAt, schedule: SCHEDULE, now: NOW })).toBeNull();
   });
 
-  it('waits at least a minute for a reset that is about to pass or has passed', () => {
+  it('never lets a reset that is about to pass, or has passed, shorten a step', () => {
     const soon = new Date(NOW.getTime() + 5_000);
     const past = new Date(NOW.getTime() - 5_000);
+    const step = new Date(NOW.getTime() + 5 * MINUTE);
 
-    expect(nextAiRetryAt({ attempt: 1, resetAt: soon, schedule: SCHEDULE, now: NOW })).toEqual(
-      new Date(NOW.getTime() + MINUTE),
-    );
-    expect(nextAiRetryAt({ attempt: 1, resetAt: past, schedule: SCHEDULE, now: NOW })).toEqual(
-      new Date(NOW.getTime() + MINUTE),
-    );
+    expect(nextAiRetryAt({ attempt: 1, resetAt: soon, schedule: SCHEDULE, now: NOW })).toEqual(step);
+    expect(nextAiRetryAt({ attempt: 1, resetAt: past, schedule: SCHEDULE, now: NOW })).toEqual(step);
   });
 
   it('ignores a reset more than a day and a half away and follows the schedule', () => {

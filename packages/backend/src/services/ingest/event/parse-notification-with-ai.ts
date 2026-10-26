@@ -68,8 +68,11 @@ const connectionNameOf = async ({
  *   `aiUnavailable`); the daily limit is spent → `aiLimitReached`, with no call made.
  * - The call has no tools and gets the text as untrusted data. Its answer is validated by
  *   `classifyNotification`; a candidate id the model was not shown resolves to nothing.
- * - A failed call throws (after `resolveAiExtractionFailure` has flagged a dead connection), so the
- *   job retries it; the request parks as `processingFailed` once the attempts are used.
+ * - A used-up quota, a rate limit or an overloaded provider throws `AiTransientError` (with the reset time the provider
+ *   reported and the connection that was asked): the caller parks the request as `aiQuotaWait` and reads it later.
+ * - Any other failed call throws (after `resolveAiExtractionFailure` has flagged a dead connection), so the job retries
+ *   it; the request parks as `processingFailed` once the attempts are used.
+ * - `pinnedConnectionId` is the connection the owner chose for this notification; it is used instead of the feature's.
  *
  * `candidates` and `nonZeroCurrencies` are loaded by the caller: the payees the model may pick, and the
  * currencies the user holds money in at this bank.

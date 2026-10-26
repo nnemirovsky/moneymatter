@@ -302,8 +302,10 @@ const settleClassified = async ({
  *    back for later without using an attempt, and the request stays `received`.
  * 2. A source that was muted after the request arrived drops it; one that still waits for approval,
  *    or that was deleted, parks it as `sourceNotApproved` with no AI call.
- * 3. The text is read: a Wallet notification by its layout in code, anything else by the
- *    `notificationParsing` model. A non-payment is ignored and its text wiped; an own transfer or a
+ * 3. The text is read: a Wallet notification by its layout in code, a plain bank card-payment push by its layout
+ *    (`parseBankPushByRules`), anything else by the `notificationParsing` model. While the model is out of reach
+ *    (a used-up quota, a rate limit, an overload) the request is parked as `aiQuotaWait` and the function answers
+ *    `{ retryAt }`: the worker runs the job again then, without using an attempt. A non-payment is ignored and its text wiped; an own transfer or a
  *    doubtful read parks with the payment it read.
  * 4. A payment is logged (account, currency, payee, category) through the shared logging core in its
  *    own transaction. One that cannot be (an unknown account, no rate) parks.
@@ -313,7 +315,7 @@ const settleClassified = async ({
  *
  * Every park and ignore is a returned outcome; only an unexpected failure throws, and the worker
  * retries it and parks the request as `processingFailed` when the attempts are spent. A request that
- * is no longer `received` is left as it is. A request already linked to its transaction (the job died
+ * is no longer `received` is left as it is, except one parked as `aiQuotaWait`, which the job that waited for the model reads again. A request already linked to its transaction (the job died
  * after the logging transaction) is only closed.
  */
 export const processNotification = async ({
