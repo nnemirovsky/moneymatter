@@ -3,7 +3,7 @@ import { useAiConnectionModels } from '@/composable/data-queries/use-ai-connecti
 import { useAiConnectionsList } from '@/composable/data-queries/use-ai-connections';
 import enCommon from '@/i18n/locales/chunks/en/common.json';
 import enChat from '@/i18n/locales/chunks/en/pages/chat.json';
-import { AI_PROVIDER, type AIConnectionInfo } from '@bt/shared/types';
+import { AI_PROVIDER, type AIConnectionInfo, type AiEffort } from '@bt/shared/types';
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { computed, defineComponent, h, nextTick, ref } from 'vue';
@@ -57,7 +57,12 @@ const SelectStub = defineComponent({
       ),
 });
 
-const mountPicker = (props: { connectionId: string | null; modelId?: string | null; disabled?: boolean }) =>
+const mountPicker = (props: {
+  connectionId: string | null;
+  modelId?: string | null;
+  effort?: AiEffort | null;
+  disabled?: boolean;
+}) =>
   mount(ChatConnectionPicker, {
     props,
     global: {
@@ -69,6 +74,30 @@ const mountPicker = (props: { connectionId: string | null; modelId?: string | nu
   });
 
 describe('ChatConnectionPicker', () => {
+  describe('effort', () => {
+    const codex = () => connection({ id: 'cx', provider: AI_PROVIDER.codex, name: 'ChatGPT', model: 'gpt-6-astra' });
+
+    it('adds a third select for a model that has an effort setting, and reports a pick', async () => {
+      state.connections.value = [codex()];
+      state.liveModels.value = [];
+      const wrapper = mountPicker({ connectionId: 'cx', effort: 'high' });
+
+      // The connection select and the effort select; a provider that lists no other model has no model select.
+      expect(wrapper.get('[data-testid="select"]').attributes('data-selected')).toBe('ChatGPT (gpt-6-astra)');
+      expect(wrapper.get('[data-testid="effort-select"]').attributes('data-selected')).toBe('High');
+
+      await wrapper.get('[data-testid="option-low"]').trigger('click');
+
+      expect(wrapper.emitted('select-effort')).toEqual([['low']]);
+    });
+
+    it('is not offered for a model without an effort setting', () => {
+      const wrapper = mountPicker({ connectionId: 'c1' });
+
+      expect(wrapper.find('[data-testid="option-__effort-default__"]').exists()).toBe(false);
+    });
+  });
+
   beforeEach(() => {
     state.connections.value = [
       connection({ id: 'c1', name: 'Home Ollama', model: 'llama3.2' }),

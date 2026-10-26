@@ -10,7 +10,7 @@ import {
 } from '@/composable/data-queries/chat';
 import { notifyMutationError } from '@/composable/data-queries/use-invalidating-mutation';
 import { useChatPresence } from '@/composable/use-chat-presence';
-import type { ChatMessage, ChatPageContext, ChatProposalCard, ChatThread } from '@bt/shared/types';
+import type { AiEffort, ChatMessage, ChatPageContext, ChatProposalCard, ChatThread } from '@bt/shared/types';
 import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { computed, defineComponent, h, ref, shallowRef } from 'vue';
@@ -106,8 +106,8 @@ const ComposerStub = defineComponent({
 });
 
 const PickerStub = defineComponent({
-  props: ['connectionId', 'modelId', 'disabled'],
-  emits: ['select', 'select-model'],
+  props: ['connectionId', 'modelId', 'effort', 'disabled'],
+  emits: ['select', 'select-model', 'select-effort'],
   setup:
     (props, { emit, slots }) =>
     () =>
@@ -116,6 +116,7 @@ const PickerStub = defineComponent({
           'data-testid': 'picker',
           'data-connection': String(props.connectionId),
           'data-model': String(props.modelId),
+          'data-effort': String(props.effort),
           'data-disabled': String(props.disabled),
           onClick: () => emit('select', 'c-picked'),
           onDblclick: () => emit('select-model', 'm-picked'),
@@ -173,6 +174,7 @@ const state = {
   thread: ref<ChatThread | null>(null),
   defaultConnectionId: ref<string | null>('c-default'),
   defaultModelId: ref<string | null>(null),
+  defaultEffort: ref<AiEffort | null>(null),
   isUpdating: ref(false),
 };
 
@@ -239,6 +241,7 @@ describe('ChatConversation', () => {
     state.thread.value = { id: 'thread-1', connectionId: 'c-thread', modelId: null } as ChatThread;
     state.defaultConnectionId.value = 'c-default';
     state.defaultModelId.value = null;
+    state.defaultEffort.value = null;
     state.isUpdating.value = false;
     updateMutateAsync.mockResolvedValue({});
 
@@ -265,7 +268,11 @@ describe('ChatConversation', () => {
       isPending: state.isUpdating,
     } as unknown as ReturnType<typeof useUpdateChatThread>);
     vi.mocked(useChatDefaultConnection).mockReturnValue({
-      data: computed(() => ({ connectionId: state.defaultConnectionId.value, modelId: state.defaultModelId.value })),
+      data: computed(() => ({
+        connectionId: state.defaultConnectionId.value,
+        modelId: state.defaultModelId.value,
+        effort: state.defaultEffort.value,
+      })),
     } as unknown as ReturnType<typeof useChatDefaultConnection>);
     vi.mocked(useChatRun).mockReturnValue({
       run: state.run,
@@ -950,6 +957,57 @@ describe('ChatConversation', () => {
       await flushPromises();
 
       expect(mutateAsync).toHaveBeenCalledWith({});
+    });
+
+    describe('reasoning effort', () => {
+      it('shows the effort of the thread, and the one a new conversation would inherit', () => {
+        state.thread.value = { id: 'thread-1', connectionId: 'c-thread', modelId: null, effort: 'high' } as ChatThread;
+        expect(picker(mountConversation()).attributes('data-effort')).toBe('high');
+
+        state.thread.value = null;
+        state.defaultEffort.value = 'low';
+        expect(picker(mountConversation({ threadId: null })).attributes('data-effort')).toBe('low');
+      });
+
+      it('picks an effort for the thread without touching its connection or model', async () => {
+        const wrapper = mountConversation();
+
+        await wrapper.findComponent(PickerStub).vm.$emit('select-effort', 'max');
+        await flushPromises();
+
+        expect(updateMutateAsync).toHaveBeenCalledWith({ threadId: 'thread-1', payload: { effort: 'max' } });
+      });
+
+      it('goes back to the stored effort when the pick is refused', async () => {
+        state.thread.value = { id: 'thread-1', connectionId: 'c-thread', modelId: null, effort: 'high' } as ChatThread;
+        updateMutateAsync.mockRejectedValue(new Error('refused'));
+        const wrapper = mountConversation();
+
+        await wrapper.findComponent(PickerStub).vm.$emit('select-effort', 'low');
+        await flushPromises();
+
+        expect(picker(wrapper).attributes('data-effort')).toBe('high');
+      });
+
+      it('creates the thread on the effort picked before the first message', async () => {
+        const wrapper = mountConversation({ threadId: null });
+
+        await wrapper.findComponent(PickerStub).vm.$emit('select-effort', 'minimal');
+        await wrapper.find('[data-testid="composer"]').trigger('click');
+        await flushPromises();
+
+        expect(mutateAsync).toHaveBeenCalledWith({ effort: 'minimal' });
+      });
+
+      it('starts a new conversation on the default effort once another connection is picked', async () => {
+        state.thread.value = null;
+        state.defaultEffort.value = 'low';
+        const wrapper = mountConversation({ threadId: null });
+
+        await wrapper.findComponent(PickerStub).vm.$emit('select', 'c-picked');
+
+        expect(picker(wrapper).attributes('data-effort')).toBe('null');
+      });
     });
 
     describe('model within the connection', () => {

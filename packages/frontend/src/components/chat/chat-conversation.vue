@@ -15,6 +15,7 @@ import { notifyMutationError } from '@/composable/data-queries/use-invalidating-
 import { useChatPresence } from '@/composable/use-chat-presence';
 import {
   AI_FEATURE,
+  type AiEffort,
   type ChatClarificationAnswerInput,
   type ChatCreateThreadRequest,
   type ChatMessage as ChatMessageModel,
@@ -61,12 +62,15 @@ const activeThreadId = ref(props.threadId);
 const pickedConnectionId = ref<string | null | undefined>(undefined);
 // The model picked within the connection; null is the connection's own model.
 const pickedModelId = ref<string | null | undefined>(undefined);
+// The reasoning effort picked for the model; null is the provider's default.
+const pickedEffort = ref<AiEffort | null | undefined>(undefined);
 watch(
   () => props.threadId,
   (id) => {
     if (id !== activeThreadId.value) {
       pickedConnectionId.value = undefined;
       pickedModelId.value = undefined;
+      pickedEffort.value = undefined;
     }
     activeThreadId.value = id;
   },
@@ -215,19 +219,32 @@ const shownModelId = computed<string | null>(() => {
   if (thread.value) return thread.value.modelId;
   return activeThreadId.value === null ? (defaultConnection.value?.modelId ?? null) : null;
 });
+const shownEffort = computed<AiEffort | null>(() => {
+  if (pickedEffort.value !== undefined) return pickedEffort.value;
+  if (thread.value) return thread.value.effort ?? null;
+  if (activeThreadId.value !== null) return null;
+  // A new conversation inherits the latest thread's effort along with its connection and model; another
+  // connection or model starts on the provider's default.
+  const choseAnother = pickedConnectionId.value !== undefined || pickedModelId.value !== undefined;
+  return choseAnother ? null : (defaultConnection.value?.effort ?? null);
+});
 // The stored thread is the source of truth once it has loaded.
 watch(thread, (loaded) => {
   if (loaded && !updateThread.isPending.value) {
     pickedConnectionId.value = undefined;
     pickedModelId.value = undefined;
+    pickedEffort.value = undefined;
   }
 });
 
 const onPickConnection = async ({ connectionId }: { connectionId: string | null }) => {
-  const previous = { connectionId: pickedConnectionId.value, modelId: pickedModelId.value };
+  const previous = { connectionId: pickedConnectionId.value, modelId: pickedModelId.value, effort: pickedEffort.value };
   pickedConnectionId.value = connectionId;
   // A model belongs to its connection: the new one starts on its own model.
   pickedModelId.value = null;
+  // The effort belongs to the model it was picked for; a stored thread keeps what its new model accepts, which
+  // the server decides.
+  pickedEffort.value = undefined;
   if (!activeThreadId.value) return;
 
   try {
@@ -236,24 +253,43 @@ const onPickConnection = async ({ connectionId }: { connectionId: string | null 
     // The mutation reports the failure; the picker goes back to the stored connection and model.
     pickedConnectionId.value = previous.connectionId;
     pickedModelId.value = previous.modelId;
+    pickedEffort.value = previous.effort;
     return;
   }
   pickedConnectionId.value = undefined;
   pickedModelId.value = undefined;
+  pickedEffort.value = undefined;
 };
 
 const onPickModel = async ({ modelId }: { modelId: string | null }) => {
-  const previous = pickedModelId.value;
+  const previous = { modelId: pickedModelId.value, effort: pickedEffort.value };
   pickedModelId.value = modelId;
+  pickedEffort.value = undefined;
   if (!activeThreadId.value) return;
 
   try {
     await updateThread.mutateAsync({ threadId: activeThreadId.value, payload: { modelId } });
   } catch {
-    pickedModelId.value = previous;
+    pickedModelId.value = previous.modelId;
+    pickedEffort.value = previous.effort;
     return;
   }
   pickedModelId.value = undefined;
+  pickedEffort.value = undefined;
+};
+
+const onPickEffort = async ({ effort }: { effort: AiEffort | null }) => {
+  const previous = pickedEffort.value;
+  pickedEffort.value = effort;
+  if (!activeThreadId.value) return;
+
+  try {
+    await updateThread.mutateAsync({ threadId: activeThreadId.value, payload: { effort } });
+  } catch {
+    pickedEffort.value = previous;
+    return;
+  }
+  pickedEffort.value = undefined;
 };
 
 /**
@@ -270,9 +306,12 @@ const buildCreateRequest = (): ChatCreateThreadRequest => {
         ? shownConnectionId.value
         : undefined;
 
+  const effort = pickedEffort.value;
+
   return {
     ...(connectionId === undefined ? {} : { connectionId }),
     ...(modelId === undefined ? {} : { modelId }),
+    ...(effort === undefined ? {} : { effort }),
     ...(threadContext.value && threadContextLabel.value !== null ? { pageContext: threadContext.value } : {}),
   };
 };
@@ -315,6 +354,7 @@ const ensureThread = (): Promise<string> => {
       // The stored thread is still loading; until it has, the picker names the connection it was created on.
       pickedConnectionId.value = created.connectionId;
       pickedModelId.value = created.modelId;
+      pickedEffort.value = created.effort;
       emit('thread-created', created.id);
       return created.id;
     })
@@ -451,9 +491,11 @@ onMounted(scrollToBottom);
       v-if="!isInbox"
       :connection-id="shownConnectionId"
       :model-id="shownModelId"
+      :effort="shownEffort"
       :disabled="isBusy || updateThread.isPending.value"
       @select="(connectionId) => onPickConnection({ connectionId })"
       @select-model="(modelId) => onPickModel({ modelId })"
+      @select-effort="(effort) => onPickEffort({ effort })"
     >
       <template v-if="threadContextLabel || canUseCurrentPage" #default>
         <ChatContextChip

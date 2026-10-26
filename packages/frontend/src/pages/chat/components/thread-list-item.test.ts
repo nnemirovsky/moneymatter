@@ -26,6 +26,7 @@ const hit = (overrides: Partial<ChatThreadSearchHit> = {}): ChatThreadSearchHit 
   usage: { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 },
   connectionId: null,
   modelId: null,
+  effort: null,
   kind: 'chat',
   badgeCount: 0,
   pageContext: null,
