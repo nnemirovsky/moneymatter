@@ -16,7 +16,8 @@ const KNOWN_CURRENCY_CODES: ReadonlySet<string> = new Set(Intl.supportedValuesOf
 
 const MAX_MERCHANT_WORDS = 6;
 /** Lower-case function words: a name that holds one is part of a sentence. */
-const PREPOSITION = /(?<![\p{L}\p{N}])(?:for|at|in|on|to|from|with|by|за|для|в|у|на|от|до|з|із|від)(?![\p{L}\p{N}])/u;
+const PREPOSITION =
+  /(?<![\p{L}\p{N}])(?:for|at|in|on|to|from|with|by|of|за|для|в|у|на|от|до|з|із|від)(?![\p{L}\p{N}])/iu;
 
 const MAX_TEXT_LENGTH = 400;
 const MAX_LINES = 8;
@@ -29,17 +30,18 @@ const wordsPattern = ({ words }: { words: string }): RegExp =>
 /** Words (several languages) of a message that is not a plain card payment: a refusal, a hold, a transfer, a fee. */
 const NOT_PLAIN_PAYMENT = wordsPattern({
   words:
-    'declin\\p{L}*|refus\\p{L}*|reject\\p{L}*|fail\\p{L}*|insufficient|limit|code|otp|hold|pending|authori[sz]\\p{L}*|reserv\\p{L}*|transfer\\p{L}*|exchange\\p{L}*|conver\\p{L}*|cashback|bonus|fee|commission|installment|loan|overdraft|reversal|cancel\\p{L}*|unsuccess\\p{L}*|revers\\p{L}*|return\\p{L}*|error|not completed|due|remind\\p{L}*|from|to|ошибк\\p{L}*|не прошл\\p{L}*|не прош\\p{L}*|не вдал\\p{L}*|помилк\\p{L}*|від|от|до|отказ\\p{L}*|отклон\\p{L}*|недостаточно|лимит|код|блокир\\p{L}*|перевод\\p{L}*|обмен\\p{L}*|конверт\\p{L}*|комисс\\p{L}*|кэшбэк|бонус|кредит\\p{L}*|відмов\\p{L}*|відхил\\p{L}*|недостатньо|ліміт|переказ\\p{L}*|обмін\\p{L}*|комісі\\p{L}*|кешбек',
+    'declin\\p{L}*|refus\\p{L}*|reject\\p{L}*|fail\\p{L}*|insufficient|limit|code|otp|hold|pending|authori[sz]\\p{L}*|reserv\\p{L}*|transfer\\p{L}*|exchange\\p{L}*|conver\\p{L}*|cashback|bonus|fee|commission|installment|loan|overdraft|reversal|cancel\\p{L}*|unsuccess\\p{L}*|revers\\p{L}*|return\\p{L}*|error|not completed|due|request\\p{L}*|upcoming|scheduled|expected|will|tomorrow|invoice|bill|statement|not|no|не|ні|нет|remind\\p{L}*|from|to|ошибк\\p{L}*|не прошл\\p{L}*|не прош\\p{L}*|не вдал\\p{L}*|помилк\\p{L}*|від|от|до|отказ\\p{L}*|отклон\\p{L}*|недостаточно|лимит|код|блокир\\p{L}*|перевод\\p{L}*|обмен\\p{L}*|конверт\\p{L}*|комисс\\p{L}*|кэшбэк|бонус|кредит\\p{L}*|відмов\\p{L}*|відхил\\p{L}*|недостатньо|ліміт|переказ\\p{L}*|обмін\\p{L}*|комісі\\p{L}*|кешбек',
 });
 
 const DEBIT_WORDS = wordsPattern({
-  words:
-    'purchase\\p{L}*|payment|paid|pay|spent|debit\\p{L}*|charged?|withdraw\\p{L}*|оплата|покупка|списани\\p{L}*|списано|платіж|платеж|покупк\\p{L}*',
+  words: 'purchase\\p{L}*|spent|debit\\p{L}*|charged?|withdraw\\p{L}*|покупк\\p{L}*|списани\\p{L}*|списано|списання',
 });
 const CREDIT_WORDS = wordsPattern({
   words:
     'received|credit\\p{L}*|deposit\\p{L}*|refund\\p{L}*|income|salary|пополнени\\p{L}*|зачислени\\p{L}*|поступлени\\p{L}*|возврат|поповнення|зарахуванн\\p{L}*|повернення',
 });
+
+const globally = ({ pattern }: { pattern: RegExp }): RegExp => new RegExp(pattern.source, 'giu');
 
 const BALANCE_WORDS = wordsPattern({ words: 'balance|bal|avail\\p{L}*|остаток|баланс|залишок|доступно' });
 
@@ -54,7 +56,7 @@ const TIME = /\b\d{1,2}:\d{2}(?::\d{2})?\b/gu;
 
 /** A signed amount with a currency code or symbol on either side. */
 const MONEY =
-  /([-+−–])?[ \u00a0]*(?:(?<![A-Za-z])([A-Z]{3})(?![A-Za-z])[ \u00a0]*)?([$€£¥₴₽₾₺₹])?[ \u00a0]*(\d[\d .,'\u00a0\u202f]*\d|\d)(?:[ \u00a0]*(?<![A-Za-z])([A-Z]{3})(?![A-Za-z]))?/gu;
+  /(?:(?<![^\s])([-+−–])(?=[A-Z$€£¥₴₽₾₺₹\d]))?[ \u00a0]*(?:(?<![A-Za-z])([A-Z]{3})(?![A-Za-z])[ \u00a0]*)?([$€£¥₴₽₾₺₹])?[ \u00a0]*(\d[\d .,'\u00a0\u202f]*\d|\d)(?:[ \u00a0]*(?<![A-Za-z])([A-Z]{3})(?![A-Za-z]))?/gu;
 
 interface Found {
   amount: string;
@@ -102,7 +104,10 @@ const findAmounts = ({ line: original }: { line: string }): Found[] | null => {
       const code = written && KNOWN_CURRENCY_CODES.has(written) ? written : null;
       const parsed = parseAmount({ input: `${code ?? ''} ${symbol ?? ''}${digits}`.trim() });
       if (!parsed.ok || (!parsed.currencyCode && !parsed.symbol && !code && !symbol)) return token;
-      if (/[ \u00a0\u202f]/u.test(digits)) {
+      // Doubt, left to the AI: a space inside the digits (a store number may be joined to the amount), a lone separator
+      // before exactly three digits ("1.250" is one and a quarter or twelve hundred and fifty), a code on each side.
+      const bothCodes = before && after && KNOWN_CURRENCY_CODES.has(before) && KNOWN_CURRENCY_CODES.has(after);
+      if (/[ \u00a0\u202f]/u.test(digits) || /^\d+[.,]\d{3}$/u.test(digits) || (bothCodes && before !== after)) {
         doubtful = true;
 
         return token;
@@ -188,9 +193,9 @@ const readLine = ({ line }: { line: string }): LineReading | null => {
   const pieces = rest
     .replace(DATE, ' | ')
     .replace(TIME, ' | ')
-    .replace(DEBIT_WORDS, ' | ')
-    .replace(CREDIT_WORDS, ' | ')
-    .replace(CARD_WORD, ' | ')
+    .replace(globally({ pattern: DEBIT_WORDS }), ' | ')
+    .replace(globally({ pattern: CREDIT_WORDS }), ' | ')
+    .replace(globally({ pattern: CARD_WORD }), ' | ')
     .split(/\s*[|;,]\s*|\s+-\s+/u)
     .map((piece) =>
       piece
@@ -254,7 +259,10 @@ export const parseBankPushByRules = ({
   }
 
   if (!payment) return null;
-  if (!direction && payment.sign) direction = payment.sign === '-' ? 'debit' : 'credit';
+  const signed = payment.sign ? (payment.sign === '-' ? 'debit' : 'credit') : null;
+  // A sign and a word that disagree ("+25.00 EUR purchase") are in doubt.
+  if (signed && direction && signed !== direction) return null;
+  direction ??= signed;
   if (!direction) return null;
 
   // A piece that ends in a colon is a bank's own label ("Deposit Money:"), and one that is a card's name is the AI's to read.
@@ -274,8 +282,19 @@ export const parseBankPushByRules = ({
   if (named.some((piece) => /:\s*$/u.test(piece))) return null;
   if (named.some((piece) => /(?:^| )card$/iu.test(piece))) return null;
   if (named.length > 1) return null;
-  // A short name, not a sentence: a preposition or many words mean the text says more than a merchant.
-  if (named.some((piece) => piece.split(/\s+/u).length > MAX_MERCHANT_WORDS || PREPOSITION.test(piece))) return null;
+  // A short name, not a sentence: banks print a merchant in capitals or title case, so a word that starts in lower case,
+  // a preposition, closing punctuation or many words mean the text says more than a merchant.
+  if (
+    named.some(
+      (piece) =>
+        piece.split(/\s+/u).length > MAX_MERCHANT_WORDS ||
+        PREPOSITION.test(piece) ||
+        /[.!?]\s|[.!?]$/u.test(piece) ||
+        piece.split(/\s+/u).some((word) => !/^[\p{Lu}\p{N}]/u.test(word)),
+    )
+  ) {
+    return null;
+  }
 
   const parsed: ParsedPayment = {
     kind: direction,

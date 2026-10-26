@@ -82,7 +82,7 @@ describe('parseBankPushByRules', () => {
   });
 
   it('reads the one-line form with the amount first and the merchant after a comma', () => {
-    expect(read({ body: '60.64 EUR, Cafe Moon, card payment' })?.classified.payment).toMatchObject({
+    expect(read({ body: '60.64 EUR, Cafe Moon, card purchase' })?.classified.payment).toMatchObject({
       kind: 'debit',
       amount: '60.64',
       currencyCode: 'EUR',
@@ -91,7 +91,7 @@ describe('parseBankPushByRules', () => {
   });
 
   it('reads a balance line apart from the payment', () => {
-    const payment = read({ body: 'Payment: USD 12.50\nShop Blue\nBalance: USD 1,204.30' })?.classified.payment;
+    const payment = read({ body: 'Purchase: USD 12.50\nShop Blue\nBalance: USD 1,204.30' })?.classified.payment;
 
     expect(payment).toMatchObject({
       amount: '12.5',
@@ -172,12 +172,38 @@ describe('parseBankPushByRules', () => {
 
   it('leaves a payment from someone, a failed or reminder notice and a sentence to the AI', () => {
     expect(read({ body: 'Payment from John 500.00 USD' })).toBeNull();
+    expect(read({ body: 'Incoming payment +500.00 USD John Smith' })?.classified.kind).not.toBe('debit');
+    expect(read({ body: 'Payment 500.00 USD\nJohn Smith' })).toBeNull();
     expect(read({ body: 'Purchase 25.00 USD unsuccessful\nShop Blue' })).toBeNull();
     expect(read({ body: 'Purchase 25.00 USD is due\nShop Blue' })).toBeNull();
     expect(read({ body: 'Card payment for $25.00 at Shop' })).toBeNull();
     expect(
       read({ body: 'Purchase 25.00 USD\nShop Blue and the big store next door that sells all kinds of things' }),
     ).toBeNull();
+  });
+
+  it('reads a dash with spaces around it as a separator, not as a minus sign', () => {
+    expect(read({ body: 'Shop Blue - 25.00 USD' })).toBeNull();
+    expect(read({ body: 'Purchase Shop Blue - 25.00 USD' })?.classified.kind).toBe('debit');
+  });
+
+  it('leaves to the AI a sign and a word that disagree, a lone separator before three digits, and two different codes', () => {
+    expect(read({ body: '+25.00 EUR purchase\nShop Blue' })).toBeNull();
+    expect(read({ body: 'Purchase 1.250 KWD\nShop Blue' })).toBeNull();
+    expect(read({ body: 'Purchase EUR 25.00 USD\nShop Blue' })).toBeNull();
+  });
+
+  it('leaves to the AI a merchant piece that is not a name: lower-case words, a sentence, a status', () => {
+    expect(read({ body: 'Purchase 25.00 USD\nShop Blue is blocked' })).toBeNull();
+    expect(read({ body: 'Purchase 25.00 USD\nThank you.' })).toBeNull();
+    expect(read({ body: 'Purchase 25.00 USD\nUpcoming Payment' })).toBeNull();
+    expect(read({ body: 'Purchase 25.00 USD\nx2 Shop' })).toBeNull();
+  });
+
+  it('strips every direction word and card word, not only the first', () => {
+    expect(read({ body: 'Purchase 25.00 USD, card purchase, Shop Blue' })?.classified.payment.merchant).toBe(
+      'Shop Blue',
+    );
   });
 
   it('does not read the digits of a masked card as an amount', () => {

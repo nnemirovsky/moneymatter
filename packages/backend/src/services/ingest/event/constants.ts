@@ -20,7 +20,7 @@
  * - `ignoredTtlMs`: how long a request that was read and is not a payment is kept.
  * - `aiRetryScheduleMs`: the waits between tries while the AI model is out of reach (a used-up quota, a rate limit, an
  *   overload): the delay before the first retry, the second and so on. Once the steps are spent the request waits for
- *   the owner. A reset time the provider reports replaces the step.
+ *   the owner. A reset time the provider reports pushes a step later (never earlier) when it is within a day and a half.
  * - `pendingSourceTtlMs`: a source nobody approved is deleted with what it holds after this long.
  */
 export const notificationTimings = {
