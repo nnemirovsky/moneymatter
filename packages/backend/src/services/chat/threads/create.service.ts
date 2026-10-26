@@ -1,4 +1,4 @@
-import type { ChatPageContext, ChatThread } from '@bt/shared/types';
+import type { AiEffort, ChatPageContext, ChatThread } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { ValidationError } from '@js/errors';
 import ChatThreads from '@models/chat-threads.model';
@@ -9,6 +9,7 @@ import {
   type ThreadModelChoice,
   assertSelectableConnection,
   pickDefaultThreadChoice,
+  resolveThreadEffort,
   resolveThreadModel,
 } from './thread-connection';
 import { notifyThreadUpdated } from './thread-events';
@@ -26,6 +27,8 @@ interface CreateThreadParams {
    * lets a thread that inherits its connection inherit the model too. A model needs `connectionId`.
    */
   modelId?: string | null;
+  /** A level the model accepts; omitted, a thread that inherits its connection inherits the effort too. */
+  effort?: AiEffort | null;
   /** The page the conversation starts on. */
   pageContext?: ChatPageContext | null;
 }
@@ -35,6 +38,7 @@ const createThreadImpl = async ({
   title,
   connectionId,
   modelId,
+  effort,
   pageContext,
 }: Pick<CreateThreadParams, 'userId' | 'title'> &
   ThreadModelChoice & { pageContext: ChatPageContext | null }): Promise<ChatThread> => {
@@ -49,6 +53,7 @@ const createThreadImpl = async ({
     pinned: false,
     connectionId,
     modelId,
+    effort,
     pageContext,
     lastMessageAt,
     lastReadAt: lastMessageAt,
@@ -69,15 +74,25 @@ export const createThread = async (params: CreateThreadParams): Promise<ChatThre
     if (params.modelId) throw new ValidationError({ message: t({ key: 'chat.modelNeedsConnection' }) });
     choice = await pickDefaultThreadChoice({ userId });
     // An explicit null keeps the inherited connection but not its model.
-    if (params.modelId === null) choice = { connectionId: choice.connectionId, modelId: null };
+    if (params.modelId === null) choice = { connectionId: choice.connectionId, modelId: null, effort: null };
+    if (params.effort !== undefined) {
+      choice = { ...choice, effort: await resolveThreadEffort({ userId, ...choice, effort: params.effort }) };
+    }
   } else {
     await assertSelectableConnection({ userId, connectionId: params.connectionId });
+    const modelId = await resolveThreadModel({
+      userId,
+      connectionId: params.connectionId,
+      modelId: params.modelId ?? null,
+    });
     choice = {
       connectionId: params.connectionId,
-      modelId: await resolveThreadModel({
+      modelId,
+      effort: await resolveThreadEffort({
         userId,
         connectionId: params.connectionId,
-        modelId: params.modelId ?? null,
+        modelId,
+        effort: params.effort ?? null,
       }),
     };
   }

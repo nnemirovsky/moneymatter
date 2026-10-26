@@ -1,4 +1,4 @@
-import { AI_PROVIDER } from '@bt/shared/types';
+import { AI_PROVIDER, type AiEffort } from '@bt/shared/types';
 import { getCliBinaryPath } from '@services/ai/cli/cli-binaries';
 import { buildCodexEnv } from '@services/ai/cli/cli-env';
 import { runCliProcess } from '@services/ai/cli/cli-process';
@@ -33,6 +33,7 @@ const PROVIDER = AI_PROVIDER.codex;
  */
 export async function runCodexChat({
   model,
+  effort,
   codexHome,
   prompt,
   url,
@@ -43,6 +44,7 @@ export async function runCodexChat({
   persist,
 }: {
   model: string;
+  effort?: AiEffort;
   codexHome: string;
   prompt: CliPrompt;
   url: string;
@@ -77,6 +79,7 @@ export async function runCodexChat({
           command: getCliBinaryPath({ provider: PROVIDER }),
           args: buildCodexChatArgs({
             model,
+            effort,
             workdir,
             url,
             imagePaths,

@@ -4,12 +4,13 @@ import type {
   LanguageModelV3CallOptions,
   LanguageModelV3GenerateResult,
 } from '@ai-sdk/provider';
-import { AI_PROVIDER } from '@bt/shared/types';
+import { AI_PROVIDER, type AiEffort } from '@bt/shared/types';
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import path from 'path';
 
 import { getCliBinaryPath } from './cli-binaries';
 import { runWithCliCredential } from './cli-credential-run';
+import { codexEffortArgs } from './cli-effort-args';
 import { buildCodexEnv } from './cli-env';
 import { createCliApiError, createToolUseBlockedError, CLI_ERROR_TYPE, mapCliFailure } from './cli-errors';
 import { closeObjectSchemas, stripSchemaFormats } from './cli-json-schema';
@@ -172,6 +173,7 @@ export const isCodexAnswerItem = ({ item }: { item: CodexItem }) => ALLOWED_ITEM
 
 function buildCodexArgs({
   model,
+  effort,
   workdir,
   lastMessagePath,
   schemaPath,
@@ -179,13 +181,23 @@ function buildCodexArgs({
   developerInstructions,
 }: {
   model: string;
+  effort?: AiEffort;
   workdir: string;
   lastMessagePath: string;
   schemaPath: string | undefined;
   imagePaths: string[];
   developerInstructions: string | undefined;
 }): string[] {
-  const args = [...CODEX_HARDENING_ARGS, '-m', model, '-C', workdir, '-o', lastMessagePath];
+  const args = [
+    ...CODEX_HARDENING_ARGS,
+    '-m',
+    model,
+    ...codexEffortArgs({ effort }),
+    '-C',
+    workdir,
+    '-o',
+    lastMessagePath,
+  ];
 
   if (developerInstructions)
     args.push('-c', `developer_instructions=${toTomlString({ value: developerInstructions })}`);
@@ -319,12 +331,14 @@ export async function writeCodexPromptImages({
 
 async function runCodex({
   model,
+  effort,
   codexHome,
   prompt,
   schema,
   signal,
 }: {
   model: string;
+  effort?: AiEffort;
   codexHome: string;
   prompt: CliPrompt;
   schema: JSONSchema7 | undefined;
@@ -362,6 +376,7 @@ async function runCodex({
         command: getCliBinaryPath({ provider: PROVIDER }),
         args: buildCodexArgs({
           model,
+          effort,
           workdir,
           lastMessagePath,
           schemaPath,
@@ -432,6 +447,7 @@ export function createCodexLanguageModel({
   model,
   credentialSource,
   runOptions,
+  effort,
 }: CliLanguageModelParams): LanguageModelV3 {
   const doGenerate = async (options: LanguageModelV3CallOptions): Promise<LanguageModelV3GenerateResult> => {
     const prompt = extractCliPrompt({ options });
@@ -444,7 +460,7 @@ export function createCodexLanguageModel({
       timeoutMs: runOptions?.timeoutMs ?? getFeatureRunTimeoutMs(),
       maxWaitMs: runOptions?.maxWaitMs,
       beforeRelease: runOptions?.beforeRelease,
-      run: ({ codexHome, signal }) => runCodex({ model, codexHome: codexHome!, prompt, schema, signal }),
+      run: ({ codexHome, signal }) => runCodex({ model, effort, codexHome: codexHome!, prompt, schema, signal }),
     });
   };
 

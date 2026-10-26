@@ -1,4 +1,4 @@
-import { AIFeatureStatus, AI_FEATURE, AI_PROVIDER, isAiCliProvider } from '@bt/shared/types';
+import { AIFeatureStatus, AI_FEATURE, AI_PROVIDER, isAiCliProvider, isAiEffortSupported } from '@bt/shared/types';
 import type { StoredAiSettings } from '@models/user-settings.model';
 
 import { getModelProfile } from '../ai/model-catalog';
@@ -57,13 +57,22 @@ export async function resolveFeatureStatus({
     case 'all-connections-down': {
       const { connection } = step;
       const configuredModelId = step.kind === 'configured' ? step.modelId : undefined;
+      const configuredEffort = step.kind === 'configured' ? step.effort : undefined;
       const answering = { ...connection, model: configuredModelId ?? connection.model };
+      // The run ignores a level its model does not accept, so the screen names the one that applies.
+      const effort =
+        configuredEffort &&
+        isAiEffortSupported({ provider: answering.provider, model: answering.model, effort: configuredEffort })
+          ? configuredEffort
+          : undefined;
 
       return {
         feature,
         isConfigured: step.kind === 'configured',
         configuredConnectionId: step.kind === 'configured' ? connection.id : undefined,
         configuredModelId,
+        configuredEffort,
+        effort,
         servedBy: step.kind === 'all-connections-down' ? null : 'connection',
         modelId: buildConnectionModelId(answering),
         ...(await describeModel(answering)),

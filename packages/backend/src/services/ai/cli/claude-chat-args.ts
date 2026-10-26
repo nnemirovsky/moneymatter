@@ -1,9 +1,10 @@
-import { CHAT_MAX_STEPS } from '@bt/shared/types';
+import { type AiEffort, CHAT_MAX_STEPS } from '@bt/shared/types';
 import { chmod, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { CLAUDE_HARDENING_ARGS, CLAUDE_STREAM_ARGS, createToolGuard } from './claude-code-language-model';
 import { CHAT_MCP_SERVER, CHAT_TOKEN_ENV } from './cli-chat-bridge';
+import { claudeEffortArgs } from './cli-effort-args';
 
 /** Claude Code names an MCP tool `mcp__<server>__<tool>`. */
 const CHAT_TOOL_PREFIX = `mcp__${CHAT_MCP_SERVER}__`;
@@ -16,10 +17,12 @@ const CHAT_TOOL_PREFIX = `mcp__${CHAT_MCP_SERVER}__`;
  */
 export function buildClaudeChatArgs({
   model,
+  effort,
   system,
   mcpConfigPath,
 }: {
   model: string;
+  effort?: AiEffort | null;
   system: string;
   mcpConfigPath: string;
 }): string[] {
@@ -28,6 +31,7 @@ export function buildClaudeChatArgs({
     '--include-partial-messages',
     '--model',
     model,
+    ...claudeEffortArgs({ effort }),
     '--system-prompt',
     system,
     ...CLAUDE_HARDENING_ARGS,

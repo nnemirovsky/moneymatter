@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatPageContext, ChatThread } from '@bt/shared/types';
+import type { AiEffort, ChatMessage, ChatPageContext, ChatThread } from '@bt/shared/types';
 import type ChatMessages from '@models/chat-messages.model';
 
 /** The columns of a `ChatThreads` row that the API shows; a model instance and a raw query row both fit. */
@@ -11,6 +11,7 @@ export interface ChatThreadRow {
   expiresAt: Date | string | null;
   connectionId: string | null;
   modelId: string | null;
+  effort: AiEffort | null;
   kind: ChatThread['kind'];
   pageContext: ChatPageContext | null;
   inputTokens: string | number;
@@ -36,6 +37,7 @@ export const toChatThread = ({ row }: { row: ChatThreadRow }): ChatThread => ({
   },
   connectionId: row.connectionId,
   modelId: row.modelId,
+  effort: row.effort ?? null,
   kind: row.kind,
   // Filled by `withBadgeCounts` or the list query, which count it for a whole page of threads.
   badgeCount: 0,

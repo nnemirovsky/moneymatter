@@ -1,4 +1,4 @@
-import type { ChatPageContext, ChatThread } from '@bt/shared/types';
+import type { AiEffort, ChatPageContext, ChatThread } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { ConflictError } from '@js/errors';
 import { withTransaction } from '@services/common/with-transaction';
@@ -8,7 +8,12 @@ import { hasActiveRun } from '../runs/run-lease';
 import { findThreadOrThrow } from './find-thread';
 import { getChatRetentionDays } from './retention.service';
 import { withBadgeCounts } from './thread-badges';
-import { assertSelectableConnection, resolveThreadModel } from './thread-connection';
+import {
+  assertSelectableConnection,
+  choiceAcceptsEffort,
+  resolveThreadEffort,
+  resolveThreadModel,
+} from './thread-connection';
 import { notifyThreadUpdated } from './thread-events';
 import { computeThreadExpiry } from './thread-expiry';
 import { normalizeThreadPageContext, withPageContextNames } from './thread-page-context';
@@ -23,6 +28,8 @@ interface UpdateThreadParams {
   connectionId?: string | null;
   /** A model of the thread's connection, or null for its own model. A switch of connection resets it first. */
   modelId?: string | null;
+  /** A level the thread's model accepts, or null for the provider's default. A switch of connection or model drops one the new model does not accept. */
+  effort?: AiEffort | null;
   /** Replaces the thread's page, or removes it with null. */
   pageContext?: ChatPageContext | null;
 }
@@ -39,7 +46,7 @@ interface CheckedSelection {
 class StaleSelectionError extends Error {}
 
 const updateThreadImpl = async (
-  { userId, threadId, title, pinned, connectionId, modelId, pageContext }: UpdateThreadParams,
+  { userId, threadId, title, pinned, connectionId, modelId, effort, pageContext }: UpdateThreadParams,
   checked: CheckedSelection,
 ): Promise<ChatThread> => {
   // Settings before thread, the order `setChatSettings` locks in.
@@ -68,7 +75,8 @@ const updateThreadImpl = async (
   }
 
   // The run in flight keeps the client it started with, so a switch now would show a model it is not on.
-  if ((switchesConnection || picksModel) && (await hasActiveRun({ threadId }))) {
+  const picksEffort = effort !== undefined && effort !== thread.effort;
+  if ((switchesConnection || picksModel || picksEffort) && (await hasActiveRun({ threadId }))) {
     throw new ConflictError({ message: t({ key: 'chat.runInProgress' }) });
   }
 
@@ -79,6 +87,14 @@ const updateThreadImpl = async (
   }
 
   if (checked.modelId !== undefined) thread.modelId = checked.modelId;
+
+  const choice = { userId, connectionId: thread.connectionId, modelId: thread.modelId };
+  if (effort !== undefined) {
+    thread.effort = await resolveThreadEffort({ ...choice, effort });
+  } else if (thread.effort && (switchesConnection || picksModel)) {
+    // The new model may not take the level the thread had.
+    if (!(await choiceAcceptsEffort({ ...choice, effort: thread.effort }))) thread.effort = null;
+  }
   // A page is only context for the next message, so a run in flight does not stop it from changing.
   if (pageContext !== undefined) thread.pageContext = pageContext;
 
@@ -95,13 +111,14 @@ const updateThreadTransactional = withTransaction(updateThreadImpl);
  * active is refused first, so a refused request costs no provider call.
  */
 const checkSelection = async (params: UpdateThreadParams): Promise<CheckedSelection> => {
-  const { userId, threadId, connectionId, modelId } = params;
+  const { userId, threadId, connectionId, modelId, effort } = params;
   const thread = await findThreadOrThrow({ userId, threadId });
 
   const switchesConnection = connectionId !== undefined && connectionId !== thread.connectionId;
   const picksModel = modelId !== undefined && (switchesConnection || modelId !== thread.modelId);
 
-  if ((switchesConnection || picksModel) && (await hasActiveRun({ threadId }))) {
+  const picksEffort = effort !== undefined && effort !== thread.effort;
+  if ((switchesConnection || picksModel || picksEffort) && (await hasActiveRun({ threadId }))) {
     throw new ConflictError({ message: t({ key: 'chat.runInProgress' }) });
   }
 
@@ -123,7 +140,7 @@ const normalizeContext = async ({ userId, pageContext }: UpdateThreadParams) =>
   pageContext === undefined ? undefined : normalizeThreadPageContext({ userId, context: pageContext });
 
 export const updateThread = async (params: UpdateThreadParams): Promise<ChatThread> => {
-  const hasSelection = params.connectionId !== undefined || params.modelId !== undefined;
+  const hasSelection = params.connectionId !== undefined || params.modelId !== undefined || params.effort !== undefined;
   let thread: ChatThread | undefined;
 
   // One retry covers a connection switch landing between the check and the lock; a second one is a real race.

@@ -1,4 +1,4 @@
-import { AI_PROVIDER } from '@bt/shared/types';
+import { AI_PROVIDER, type AiEffort } from '@bt/shared/types';
 import {
   buildClaudeChatArgs,
   createClaudeChatToolGuard,
@@ -34,6 +34,7 @@ const PROVIDER = AI_PROVIDER.claudeCode;
  */
 export async function runClaudeChat({
   model,
+  effort,
   credential,
   prompt,
   url,
@@ -44,6 +45,7 @@ export async function runClaudeChat({
   persist,
 }: {
   model: string;
+  effort?: AiEffort;
   credential: string;
   prompt: CliPrompt;
   url: string;
@@ -71,7 +73,7 @@ export async function runClaudeChat({
         const processResult = await runCliProcess({
           provider: PROVIDER,
           command: getCliBinaryPath({ provider: PROVIDER }),
-          args: buildClaudeChatArgs({ model, system: prompt.system, mcpConfigPath }),
+          args: buildClaudeChatArgs({ model, effort, system: prompt.system, mcpConfigPath }),
           env: buildClaudeEnv({ token: credential, home, chatToken: token }),
           cwd,
           stdin: buildClaudeStdinMessage({ prompt }),

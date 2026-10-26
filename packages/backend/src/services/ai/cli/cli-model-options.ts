@@ -1,4 +1,5 @@
 import type { LanguageModelV3GenerateResult } from '@ai-sdk/provider';
+import type { AiEffort } from '@bt/shared/types';
 
 import type { CliCredentialSource, CliRunOutcome } from './cli-credential-run';
 
@@ -17,4 +18,6 @@ export interface CliLanguageModelParams {
   model: string;
   credentialSource: CliCredentialSource;
   runOptions?: CliModelRunOptions;
+  /** Passed to the CLI as its reasoning effort; unset, the CLI's default. */
+  effort?: AiEffort;
 }

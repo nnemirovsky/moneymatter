@@ -1,4 +1,7 @@
+import type { AiEffort } from '@bt/shared/types';
+
 import { CHAT_MCP_SERVER, CHAT_TOKEN_ENV } from './cli-chat-bridge';
+import { codexEffortArgs } from './cli-effort-args';
 import {
   type CodexItem,
   CODEX_CHAT_HARDENING_ARGS,
@@ -24,12 +27,14 @@ const TOOLS_APPROVAL_MODE = 'approve';
  */
 export function buildCodexChatArgs({
   model,
+  effort,
   workdir,
   url,
   imagePaths,
   developerInstructions,
 }: {
   model: string;
+  effort?: AiEffort | null;
   workdir: string;
   url: string;
   imagePaths: string[];
@@ -40,6 +45,7 @@ export function buildCodexChatArgs({
     ...CODEX_CHAT_HARDENING_ARGS,
     '-m',
     model,
+    ...codexEffortArgs({ effort }),
     '-C',
     workdir,
     '-c',

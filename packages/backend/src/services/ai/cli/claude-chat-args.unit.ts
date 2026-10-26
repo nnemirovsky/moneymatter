@@ -27,6 +27,26 @@ const toolUse = ({ name, type = 'tool_use' }: { name: string; type?: string }) =
   input: {},
 });
 
+describe('buildClaudeChatArgs effort', () => {
+  const base = { model: 'opus', system: 'sys', mcpConfigPath: MCP_CONFIG };
+
+  it('passes --effort right after the model when the thread has one', () => {
+    const args = buildClaudeChatArgs({ ...base, effort: 'high' });
+
+    expect(args.slice(args.indexOf('--model'), args.indexOf('--model') + 4)).toEqual([
+      '--model',
+      'opus',
+      '--effort',
+      'high',
+    ]);
+  });
+
+  it('adds no flag without one', () => {
+    expect(buildClaudeChatArgs(base)).not.toContain('--effort');
+    expect(buildClaudeChatArgs({ ...base, effort: null })).not.toContain('--effort');
+  });
+});
+
 describe('buildClaudeChatArgs', () => {
   const args = buildClaudeChatArgs({ model: 'sonnet', system: 'the system prompt', mcpConfigPath: MCP_CONFIG });
 

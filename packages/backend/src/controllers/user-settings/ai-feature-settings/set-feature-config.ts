@@ -5,7 +5,7 @@ import { setFeatureConfig } from '@services/user-settings/ai-feature-settings';
 import { resolveFeatureStatus } from '@services/user-settings/resolve-feature-model-display';
 import { z } from 'zod';
 
-import { modelField } from '../ai-connections/connection-field-schemas';
+import { effortField, modelField } from '../ai-connections/connection-field-schemas';
 import { isRequestWithinAiAllowance, resolveEntitledToServerKeys } from './build-feature-status-payload';
 
 const schema = z.object({
@@ -18,6 +18,8 @@ const schema = z.object({
     connectionId: z.uuid().nullable(),
     // A model of that connection's provider; omitted, the connection's own model
     modelId: modelField.optional(),
+    // How hard the model thinks, one it accepts; omitted or null, the provider's default
+    effort: effortField.nullish(),
   }),
 });
 
@@ -32,6 +34,7 @@ export const setFeatureConfigController = createController(schema, async ({ user
     feature,
     connectionId: body.connectionId,
     modelId: body.modelId,
+    effort: body.effort,
     entitledToServerKeys,
   });
 

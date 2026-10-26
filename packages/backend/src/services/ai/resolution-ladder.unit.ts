@@ -89,6 +89,14 @@ describe('pickResolutionStep', () => {
       });
     });
 
+    it('carries the effort of the configured connection', () => {
+      expect(pick({ config: { ...PICK_SECOND, effort: 'high' }, connections: [FIRST, SECOND] })).toEqual({
+        kind: 'configured',
+        connection: SECOND,
+        effort: 'high',
+      });
+    });
+
     it('leaves the default connection on its own model when the configured one is gone', () => {
       expect(pick({ config: { ...PICK_SECOND, modelId: 'other-model' }, connections: [FIRST] })).toEqual({
         kind: 'default-connection',
@@ -221,10 +229,8 @@ describe('pickResolutionStep', () => {
 const pickChat = ({
   config = null,
   connections = [],
-}: {
-  config?: AIFeatureConfig | null;
-  connections?: LadderConnection[];
-} = {}) => pickResolutionStep({ feature: AI_FEATURE.chat, config, connections, serverKeysAllowed: true });
+}: { config?: AIFeatureConfig | null; connections?: LadderConnection[] } = {}) =>
+  pickResolutionStep({ feature: AI_FEATURE.chat, config, connections, serverKeysAllowed: true });
 
 describe('included server models', () => {
   const envBeforeTest = new Map<string, string | undefined>();

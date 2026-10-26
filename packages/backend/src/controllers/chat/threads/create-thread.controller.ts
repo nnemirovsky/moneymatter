@@ -1,5 +1,5 @@
 import { createController } from '@controllers/helpers/controller-factory';
-import { modelField } from '@controllers/user-settings/ai-connections/connection-field-schemas';
+import { effortField, modelField } from '@controllers/user-settings/ai-connections/connection-field-schemas';
 import { createThread } from '@services/chat/threads/create.service';
 import { z } from 'zod';
 
@@ -11,6 +11,7 @@ const schema = z.object({
     connectionId: z.uuid().nullable().optional(),
     // A model of that connection's provider; needs connectionId
     modelId: modelField.nullable().optional(),
+    effort: effortField.nullable().optional(),
     pageContext: pageContextSchema.nullable().optional(),
   }),
 });
@@ -21,6 +22,7 @@ export default createController(schema, async ({ user, body }) => ({
     title: body.title,
     connectionId: body.connectionId,
     modelId: body.modelId,
+    effort: body.effort,
     pageContext: body.pageContext,
   }),
   statusCode: 201,
