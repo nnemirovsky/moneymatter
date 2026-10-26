@@ -1,3 +1,4 @@
+import type { AiEffort } from '../ai/effort';
 import type { ChatPageContext } from './messages';
 
 /** `auto` is the user's first words, `model` the name the assistant gave, `user` a rename that nothing replaces. */
@@ -31,6 +32,8 @@ export interface ChatThread {
    * Null: the connection's own model.
    */
   modelId: string | null;
+  /** How hard the model thinks on the next run; null is the provider's default, or a model with no such setting. */
+  effort: AiEffort | null;
   /**
    * `automationInbox` is the thread MoneyMatter fills with cards; the assistant never runs in it. A user
    * has at most one, pinned for good: it cannot be unpinned or deleted.
@@ -59,6 +62,8 @@ export interface ChatCreateThreadRequest {
   title?: string;
   connectionId?: string | null;
   modelId?: string | null;
+  /** An effort the chosen model accepts; omitted, an inherited connection brings its effort along. */
+  effort?: AiEffort | null;
   /** The page the conversation starts on; omitted or null is none. */
   pageContext?: ChatPageContext | null;
 }
@@ -70,6 +75,8 @@ export interface ChatUpdateThreadRequest {
   connectionId?: string | null;
   /** Switching the connection resets this to null unless the request names a model of the new one. */
   modelId?: string | null;
+  /** Switching the connection or model drops an effort the new model does not accept. */
+  effort?: AiEffort | null;
   /** Replaces the thread's page, or removes it with null. */
   pageContext?: ChatPageContext | null;
 }
@@ -78,6 +85,7 @@ export interface ChatUpdateThreadRequest {
 export interface ChatDefaultConnection {
   connectionId: string | null;
   modelId: string | null;
+  effort: AiEffort | null;
 }
 
 /** A thread found by a search: `snippet` is plain text around the matching words of a message. */

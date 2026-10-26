@@ -1,5 +1,6 @@
 import {
   AI_MODEL_NAME_MAX_LENGTH,
+  AiEffort,
   ChatPageContext,
   ChatThreadKind,
   ChatThreadTitleSource,
@@ -71,6 +72,10 @@ export default class ChatThreads extends Model {
   /** A model of the connection's provider used instead of the connection's own; null is the connection's own. */
   @Column({ type: DataType.STRING(AI_MODEL_NAME_MAX_LENGTH), allowNull: true })
   modelId!: string | null;
+
+  /** How hard the model thinks, one of the levels it accepts; null is the provider's default. */
+  @Column({ type: DataType.STRING(16), allowNull: true })
+  effort!: AiEffort | null;
 
   /** The page the conversation is about; null is none. The runs read it, and the user can remove or replace it. */
   @Column({ type: DataType.JSONB, allowNull: true })

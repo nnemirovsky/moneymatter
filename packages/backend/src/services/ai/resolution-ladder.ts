@@ -1,4 +1,4 @@
-import { AIConnectionStatus, AIFeatureConfig, AI_FEATURE, AI_PROVIDER } from '@bt/shared/types';
+import { AIConnectionStatus, AIFeatureConfig, AI_FEATURE, AI_PROVIDER, type AiEffort } from '@bt/shared/types';
 import { logger } from '@js/utils/logger';
 import type { StoredAiSettings } from '@models/user-settings.model';
 
@@ -106,7 +106,7 @@ export interface LadderConnection {
 
 type ResolutionStep<C extends LadderConnection> =
   /** An explicit pick is dialled even while flagged invalid, so a recovered connection heals itself on the next run. */
-  | { kind: 'configured'; connection: C; modelId?: string }
+  | { kind: 'configured'; connection: C; modelId?: string; effort?: AiEffort }
   | { kind: 'configured-server'; model: ServerModel }
   /** No usable config: the first connection not flagged invalid answers. */
   | { kind: 'default-connection'; connection: C }
@@ -151,7 +151,14 @@ export function pickResolutionStep<C extends LadderConnection>({
         (candidate) => candidate.id === config.connectionId && !excluded.has(candidate.id),
       );
       // The override belongs to the picked connection: a fall-through to another one runs on its own model.
-      if (connection) return { kind: 'configured', connection, ...(config.modelId ? { modelId: config.modelId } : {}) };
+      if (connection) {
+        return {
+          kind: 'configured',
+          connection,
+          ...(config.modelId ? { modelId: config.modelId } : {}),
+          ...(config.effort ? { effort: config.effort } : {}),
+        };
+      }
     }
   }
 

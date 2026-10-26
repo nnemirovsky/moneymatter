@@ -1,4 +1,5 @@
 import {
+  type AiEffort,
   AIConnectionInfo,
   AIFeatureStatus,
   AIFeaturesStatusResponse,
@@ -242,17 +243,23 @@ export async function setAiFeatureConfig<R extends boolean | undefined = undefin
   feature,
   connectionId,
   modelId,
+  effort,
   raw,
 }: {
   feature: AI_FEATURE;
   connectionId: string | null;
   modelId?: string;
+  effort?: AiEffort | null;
   raw?: R;
 }) {
   return makeRequest<AIFeatureStatus, R>({
     method: 'put',
     url: `/user/settings/ai/features/${feature}`,
-    payload: { connectionId, ...(modelId === undefined ? {} : { modelId }) },
+    payload: {
+      connectionId,
+      ...(modelId === undefined ? {} : { modelId }),
+      ...(effort === undefined ? {} : { effort }),
+    },
     raw,
   });
 }

@@ -1,9 +1,10 @@
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
-import { AICliProvider, AINativeProvider, AI_FEATURE, AI_PROVIDER } from '@bt/shared/types';
+import type { LanguageModelV3 } from '@ai-sdk/provider';
+import { AICliProvider, AINativeProvider, AI_FEATURE, AI_PROVIDER, type AiEffort } from '@bt/shared/types';
 import { createGuardedFetch } from '@common/utils/url-guard';
-import type { LanguageModel } from 'ai';
+import { type LanguageModel, defaultSettingsMiddleware, wrapLanguageModel } from 'ai';
 
 import { resolveAIConfiguration } from './ai-model-resolver';
 import { createClaudeCodeLanguageModel } from './cli/claude-code-language-model';
@@ -31,6 +32,8 @@ export interface AIClientResult {
   connectionId?: string;
   /** Set when the run uses a model picked for this feature or thread instead of the connection's own model */
   modelOverridden?: boolean;
+  /** The reasoning effort the run asks for; unset, the provider's default */
+  effort?: AiEffort;
 }
 
 /**
@@ -39,9 +42,38 @@ export interface AIClientResult {
  * on every call, so a model reused across batches always runs on the latest one.
  */
 export type ProviderModelSpec =
-  | { provider: AINativeProvider; model: string; apiKey: string }
-  | { provider: AICliProvider; model: string; credentialSource: CliCredentialSource; runOptions?: CliModelRunOptions }
+  | { provider: AINativeProvider; model: string; apiKey: string; effort?: AiEffort }
+  | {
+      provider: AICliProvider;
+      model: string;
+      credentialSource: CliCredentialSource;
+      runOptions?: CliModelRunOptions;
+      effort?: AiEffort;
+    }
   | { provider: AI_PROVIDER.custom; model: string; apiKey: string | null; baseUrl: string };
+
+/**
+ * The provider options that ask a native model for an effort level. Set on the model rather than on each
+ * call, so every caller (a feature run, the chat) gets it. Google has no effort setting here.
+ */
+export function buildEffortProviderOptions({
+  provider,
+  effort,
+}: {
+  provider: AI_PROVIDER;
+  effort: AiEffort | undefined;
+}): Record<string, Record<string, string>> | undefined {
+  if (!effort) return undefined;
+
+  switch (provider) {
+    case AI_PROVIDER.anthropic:
+      return { anthropic: { effort } };
+    case AI_PROVIDER.openai:
+      return { openai: { reasoningEffort: effort } };
+    default:
+      return undefined;
+  }
+}
 
 export function createProviderModel(spec: ProviderModelSpec): LanguageModel {
   if (spec.provider === AI_PROVIDER.custom) {
@@ -58,7 +90,12 @@ export function createProviderModel(spec: ProviderModelSpec): LanguageModel {
   }
 
   if ('credentialSource' in spec) {
-    const params = { model: spec.model, credentialSource: spec.credentialSource, runOptions: spec.runOptions };
+    const params = {
+      model: spec.model,
+      credentialSource: spec.credentialSource,
+      runOptions: spec.runOptions,
+      effort: spec.effort,
+    };
 
     return spec.provider === AI_PROVIDER.claudeCode
       ? createClaudeCodeLanguageModel(params)
@@ -74,18 +111,25 @@ export function createProviderModel(spec: ProviderModelSpec): LanguageModel {
 
   const baseURL = NATIVE_PROVIDER_BASE_URLS[provider];
 
-  switch (provider) {
-    case AI_PROVIDER.openai:
-      return createOpenAI({ apiKey, baseURL })(model);
-    case AI_PROVIDER.anthropic:
-      return createAnthropic({ apiKey, baseURL })(model);
-    case AI_PROVIDER.google:
-      return createGoogleGenerativeAI({ apiKey, baseURL })(model);
-    default: {
-      const _exhaustiveCheck: never = provider;
-      throw new Error(`Unsupported AI provider: ${_exhaustiveCheck}`);
+  const native = ((): LanguageModelV3 => {
+    switch (provider) {
+      case AI_PROVIDER.openai:
+        return createOpenAI({ apiKey, baseURL })(model);
+      case AI_PROVIDER.anthropic:
+        return createAnthropic({ apiKey, baseURL })(model);
+      case AI_PROVIDER.google:
+        return createGoogleGenerativeAI({ apiKey, baseURL })(model);
+      default: {
+        const _exhaustiveCheck: never = provider;
+        throw new Error(`Unsupported AI provider: ${_exhaustiveCheck}`);
+      }
     }
-  }
+  })();
+
+  const providerOptions = buildEffortProviderOptions({ provider, effort: spec.effort });
+  return providerOptions
+    ? wrapLanguageModel({ model: native, middleware: defaultSettingsMiddleware({ settings: { providerOptions } }) })
+    : native;
 }
 
 /**
@@ -98,6 +142,7 @@ export async function createAIClient({
   allowOperatorKey,
   pinnedConnectionId,
   pinnedModelId,
+  pinnedEffort,
 }: {
   userId: number;
   feature: AI_FEATURE;
@@ -107,6 +152,8 @@ export async function createAIClient({
   pinnedConnectionId?: string | null;
   /** With a pinned connection: the model of that connection to run instead of its own. */
   pinnedModelId?: string | null;
+  /** With a pinned connection: the reasoning effort to run with; unset, the provider's default. */
+  pinnedEffort?: AiEffort | null;
 }): Promise<AIClientResult | null> {
   const resolution = await resolveAIConfiguration({
     userId,
@@ -114,6 +161,7 @@ export async function createAIClient({
     allowOperatorKey,
     pinnedConnectionId,
     pinnedModelId,
+    pinnedEffort,
   });
 
   if (!resolution) {
@@ -127,5 +175,6 @@ export async function createAIClient({
     usingUserKey: resolution.usingUserKey,
     connectionId: resolution.kind === 'connection' ? resolution.connectionId : undefined,
     modelOverridden: resolution.kind === 'connection' && resolution.modelOverridden ? true : undefined,
+    effort: resolution.kind === 'connection' ? resolution.effort : undefined,
   };
 }

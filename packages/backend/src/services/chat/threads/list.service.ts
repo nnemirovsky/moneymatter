@@ -65,7 +65,7 @@ export const listThreads = async ({
   }
 
   const rows = await connection.sequelize.query(
-    `SELECT t.id, t.title, t."titleSource", t.pinned, t."lastMessageAt", t."expiresAt", t."connectionId", t."modelId", t."pageContext", t."kind",
+    `SELECT t.id, t.title, t."titleSource", t.pinned, t."lastMessageAt", t."expiresAt", t."connectionId", t."modelId", t."effort", t."pageContext", t."kind",
             ${THREAD_BADGE_SQL} AS "badgeCount",
             t."inputTokens", t."outputTokens", t."cachedInputTokens", t."createdAt",
             ${tsQuery ? 'm."plainText"' : 'NULL::text'} AS "matchText"

@@ -1,4 +1,5 @@
 import type { Equals, Expect } from '../type-testing';
+import type { AiEffort } from './effort';
 
 /**
  * Supported AI providers for features like transaction categorization.
@@ -177,6 +178,8 @@ export interface AIFeatureConfig {
   feature: AI_FEATURE;
   connectionId: string | null;
   modelId?: string;
+  /** How hard the model thinks, one of `getAiEffortOptions` for the model that answers; unset, the provider's default. */
+  effort?: AiEffort;
 }
 
 /**
@@ -191,6 +194,10 @@ export interface AIFeatureStatus {
   configuredConnectionId?: string | null;
   /** The stored model override of the picked connection, unset while the connection's own model answers */
   configuredModelId?: string;
+  /** The stored effort of the picked connection, unset while the provider's default applies */
+  configuredEffort?: AiEffort;
+  /** The effort the answering model runs with, unset when it runs on the provider's default */
+  effort?: AiEffort;
   /** `null` when nothing answers: no credentials at all, or every connection is down */
   servedBy: 'connection' | 'server' | null;
   /** `provider/model` of what answers (e.g. 'custom/llama3.2'), '' when nothing does */
@@ -278,7 +285,10 @@ export interface ListAIConnectionModelsResponse {
 }
 
 /** PUT /user/settings/ai/features/:feature */
-export type SetAIFeatureConfigBody = Pick<AIFeatureConfig, 'connectionId' | 'modelId'>;
+export type SetAIFeatureConfigBody = Pick<AIFeatureConfig, 'connectionId' | 'modelId'> & {
+  /** A level the model accepts; omitted or null, the provider's default. */
+  effort?: AiEffort | null;
+};
 
 export type CliAuthSessionStatus = 'starting' | 'awaiting-user' | 'verifying' | 'succeeded' | 'failed' | 'expired';
 

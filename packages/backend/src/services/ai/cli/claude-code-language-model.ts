@@ -5,12 +5,13 @@ import type {
   LanguageModelV3FinishReason,
   LanguageModelV3GenerateResult,
 } from '@ai-sdk/provider';
-import { AI_PROVIDER } from '@bt/shared/types';
+import { AI_PROVIDER, type AiEffort } from '@bt/shared/types';
 import { mkdir } from 'fs/promises';
 import path from 'path';
 
 import { getCliBinaryPath } from './cli-binaries';
 import { runWithCliCredential } from './cli-credential-run';
+import { claudeEffortArgs } from './cli-effort-args';
 import { buildClaudeEnv } from './cli-env';
 import { createCliApiError, createToolUseBlockedError, CLI_ERROR_TYPE, mapCliFailure } from './cli-errors';
 import { stripSchemaFormats } from './cli-json-schema';
@@ -88,10 +89,12 @@ export function buildClaudeStdinMessage({ prompt }: { prompt: CliPrompt }): stri
 
 function buildClaudeArgs({
   model,
+  effort,
   system,
   schema,
 }: {
   model: string;
+  effort?: AiEffort;
   system: string;
   schema: JSONSchema7 | undefined;
 }): string[] {
@@ -99,6 +102,7 @@ function buildClaudeArgs({
     ...CLAUDE_STREAM_ARGS,
     '--model',
     model,
+    ...claudeEffortArgs({ effort }),
     '--system-prompt',
     system || DEFAULT_SYSTEM_PROMPT,
     ...CLAUDE_HARDENING_ARGS,
@@ -199,12 +203,14 @@ export function toUsage({ usage }: { usage: ClaudeUsage | undefined }) {
 
 async function runClaude({
   model,
+  effort,
   credential,
   prompt,
   schema,
   signal,
 }: {
   model: string;
+  effort?: AiEffort;
   credential: string;
   prompt: CliPrompt;
   schema: JSONSchema7 | undefined;
@@ -228,7 +234,7 @@ async function runClaude({
       const processResult = await runCliProcess({
         provider: PROVIDER,
         command: getCliBinaryPath({ provider: PROVIDER }),
-        args: buildClaudeArgs({ model, system: prompt.system, schema }),
+        args: buildClaudeArgs({ model, effort, system: prompt.system, schema }),
         env: buildClaudeEnv({ token: credential, home }),
         cwd,
         stdin: buildClaudeStdinMessage({ prompt }),
@@ -330,6 +336,7 @@ export function createClaudeCodeLanguageModel({
   model,
   credentialSource,
   runOptions,
+  effort,
 }: CliLanguageModelParams): LanguageModelV3 {
   const doGenerate = async (options: LanguageModelV3CallOptions): Promise<LanguageModelV3GenerateResult> => {
     const prompt = extractCliPrompt({ options });
@@ -342,7 +349,7 @@ export function createClaudeCodeLanguageModel({
       timeoutMs: runOptions?.timeoutMs ?? getFeatureRunTimeoutMs(),
       maxWaitMs: runOptions?.maxWaitMs,
       beforeRelease: runOptions?.beforeRelease,
-      run: ({ credential, signal }) => runClaude({ model, credential: credential!, prompt, schema, signal }),
+      run: ({ credential, signal }) => runClaude({ model, effort, credential: credential!, prompt, schema, signal }),
     });
   };
 

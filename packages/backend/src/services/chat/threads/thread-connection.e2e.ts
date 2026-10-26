@@ -8,7 +8,7 @@ import { RateLimitService } from '@services/common/rate-limit.service';
 import * as helpers from '@tests/helpers';
 import { useFakeAiClis } from '@tests/helpers/ai-cli';
 import { useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
-import { errorMessage, getTestUserId } from '@tests/helpers/user-settings';
+import { errorMessage, getTestUserId, readStoredFeatureConfigs } from '@tests/helpers/user-settings';
 import {
   type ChatScriptTurn,
   createChatScript,
@@ -98,6 +98,126 @@ describe('Chat thread connection', () => {
       const other = await helpers.createChatThread({ connectionId: first.id, raw: true });
       const switched = await helpers.updateChatThread({ threadId: other.id, payload: { connectionId: cli.id } });
       expect(switched.statusCode).toBe(200);
+    });
+
+    describe('reasoning effort', () => {
+      it('stores the effort of a feature next to its connection, reports it, and refuses one the model rejects', async () => {
+        const cli = await createCodexConnection();
+
+        const status = await helpers.setAiFeatureConfig({
+          feature: AI_FEATURE.categorization,
+          connectionId: cli.id,
+          effort: 'xhigh',
+          raw: true,
+        });
+
+        expect(status).toMatchObject({ configuredEffort: 'xhigh', effort: 'xhigh' });
+        expect(await readStoredFeatureConfigs({ userId: await getTestUserId() })).toEqual([
+          { feature: AI_FEATURE.categorization, connectionId: cli.id, effort: 'xhigh' },
+        ]);
+
+        const refused = await helpers.setAiFeatureConfig({
+          feature: AI_FEATURE.categorization,
+          connectionId: cli.id,
+          effort: 'minimal',
+        });
+        expect(refused.statusCode).toBe(ERROR_CODES.ValidationError);
+        expect(errorMessage({ response: refused })).toBe(t({ key: 'ai.effortNotSupported' }));
+
+        // Saved again without an effort, the pick goes back to the provider default.
+        const reset = await helpers.setAiFeatureConfig({
+          feature: AI_FEATURE.categorization,
+          connectionId: cli.id,
+          raw: true,
+        });
+        expect(reset.effort).toBeUndefined();
+      });
+
+      it('starts a thread on an effort the model accepts and reads it back everywhere', async () => {
+        const cli = await createCodexConnection();
+
+        const created = await helpers.createChatThread({ connectionId: cli.id, effort: 'high', raw: true });
+
+        expect(created.effort).toBe('high');
+        expect((await helpers.getChatThread({ threadId: created.id, raw: true })).thread.effort).toBe('high');
+        expect(await helpers.getChatDefaultConnection({ raw: true })).toMatchObject({
+          connectionId: cli.id,
+          effort: 'high',
+        });
+      });
+
+      it('starts on the provider default without one, and a new thread inherits the effort with the connection', async () => {
+        const cli = await createCodexConnection();
+        expect((await helpers.createChatThread({ connectionId: cli.id, raw: true })).effort).toBeNull();
+
+        await helpers.createChatThread({ connectionId: cli.id, effort: 'low', raw: true });
+
+        expect((await helpers.createChatThread({ raw: true })).effort).toBe('low');
+        expect((await helpers.createChatThread({ modelId: null, raw: true })).effort).toBeNull();
+      });
+
+      it('refuses an effort the model does not accept, and any effort on a custom connection', async () => {
+        const first = await helpers.createFirstConnection();
+        const cli = await createCodexConnection();
+
+        const unsupported = await helpers.createChatThread({ connectionId: cli.id, effort: 'minimal' });
+        const custom = await helpers.createChatThread({ connectionId: first.id, effort: 'high' });
+
+        for (const response of [unsupported, custom]) {
+          expect(response.statusCode).toBe(ERROR_CODES.ValidationError);
+          expect(errorMessage({ response })).toBe(t({ key: 'chat.effortNotSupported' }));
+        }
+      });
+
+      it('sets and clears the effort of a thread, refusing one the model does not accept', async () => {
+        const cli = await createCodexConnection();
+        const thread = await helpers.createChatThread({ connectionId: cli.id, raw: true });
+
+        const set = await helpers.updateChatThread({ threadId: thread.id, payload: { effort: 'xhigh' }, raw: true });
+        expect(set.effort).toBe('xhigh');
+
+        const refused = await helpers.updateChatThread({ threadId: thread.id, payload: { effort: 'minimal' } });
+        expect(refused.statusCode).toBe(ERROR_CODES.ValidationError);
+        expect((await helpers.getChatThread({ threadId: thread.id, raw: true })).thread.effort).toBe('xhigh');
+
+        const cleared = await helpers.updateChatThread({ threadId: thread.id, payload: { effort: null }, raw: true });
+        expect(cleared.effort).toBeNull();
+      });
+
+      it('keeps the effort across a model switch that accepts it and drops it when the new model does not', async () => {
+        const cli = await createCodexConnection();
+        const thread = await helpers.createChatThread({ connectionId: cli.id, effort: 'high', raw: true });
+
+        // GPT-5.5 takes low to high only.
+        const kept = await helpers.updateChatThread({
+          threadId: thread.id,
+          payload: { modelId: 'gpt-5.5' },
+          raw: true,
+        });
+        expect(kept).toMatchObject({ modelId: 'gpt-5.5', effort: 'high' });
+
+        await helpers.updateChatThread({ threadId: thread.id, payload: { modelId: null, effort: 'max' }, raw: true });
+        const dropped = await helpers.updateChatThread({
+          threadId: thread.id,
+          payload: { modelId: 'gpt-5.5' },
+          raw: true,
+        });
+        expect(dropped).toMatchObject({ modelId: 'gpt-5.5', effort: null });
+      });
+
+      it('drops the effort when the thread moves to a connection whose model does not accept it', async () => {
+        const first = await helpers.createFirstConnection();
+        const cli = await createCodexConnection();
+        const thread = await helpers.createChatThread({ connectionId: cli.id, effort: 'high', raw: true });
+
+        const moved = await helpers.updateChatThread({
+          threadId: thread.id,
+          payload: { connectionId: first.id },
+          raw: true,
+        });
+
+        expect(moved).toMatchObject({ connectionId: first.id, effort: null });
+      });
     });
 
     it.each([
@@ -270,12 +390,17 @@ describe('Chat thread connection', () => {
   describe('GET /chat/default-connection', () => {
     it('names the connection a new thread would start on', async () => {
       const { first, second } = await arrangeConnections();
-      expect(await helpers.getChatDefaultConnection({ raw: true })).toEqual({ connectionId: first.id, modelId: null });
+      expect(await helpers.getChatDefaultConnection({ raw: true })).toEqual({
+        connectionId: first.id,
+        modelId: null,
+        effort: null,
+      });
 
       await helpers.createChatThread({ connectionId: second.id, raw: true });
       expect(await helpers.getChatDefaultConnection({ raw: true })).toEqual({
         connectionId: second.id,
         modelId: null,
+        effort: null,
       });
     });
 
@@ -286,11 +411,16 @@ describe('Chat thread connection', () => {
       expect(await helpers.getChatDefaultConnection({ raw: true })).toEqual({
         connectionId: first.id,
         modelId: FIRST_OVERRIDE_MODEL,
+        effort: null,
       });
     });
 
     it('answers null when nothing can answer', async () => {
-      expect(await helpers.getChatDefaultConnection({ raw: true })).toEqual({ connectionId: null, modelId: null });
+      expect(await helpers.getChatDefaultConnection({ raw: true })).toEqual({
+        connectionId: null,
+        modelId: null,
+        effort: null,
+      });
     });
   });
 

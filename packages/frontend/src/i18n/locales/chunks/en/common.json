@@ -522,6 +522,20 @@
       "label": "Model from this connection",
       "placeholder": "Choose a model",
       "defaultTag": "Default"
+    },
+    "effort": {
+      "label": "Effort",
+      "placeholder": "Effort",
+      "default": "Default",
+      "withModel": "{model} · {effort}",
+      "levels": {
+        "minimal": "Minimal",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "xhigh": "Extra high",
+        "max": "Max"
+      }
     }
   },
   "aiUsage": {

@@ -5,6 +5,21 @@ import { CODEX_CHAT_HARDENING_ARGS, CODEX_HARDENING_ARGS } from './codex-languag
 
 const URL = 'http://127.0.0.1:4321/mcp';
 
+describe('buildCodexChatArgs effort', () => {
+  const base = { model: 'gpt-6-astra', workdir: '/w', url: URL, imagePaths: [], developerInstructions: undefined };
+
+  it('sets model_reasoning_effort in a -c override', () => {
+    const args = buildCodexChatArgs({ ...base, effort: 'medium' });
+
+    expect(args).toContain('model_reasoning_effort="medium"');
+    expect(args[args.indexOf('model_reasoning_effort="medium"') - 1]).toBe('-c');
+  });
+
+  it('adds nothing without one', () => {
+    expect(buildCodexChatArgs(base).join(' ')).not.toContain('model_reasoning_effort');
+  });
+});
+
 describe('buildCodexChatArgs', () => {
   const args = buildCodexChatArgs({
     model: 'gpt-6-astra',

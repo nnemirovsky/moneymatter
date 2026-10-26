@@ -1,10 +1,12 @@
 import {
+  type AiEffort,
   AIFeatureConfig,
   AINativeProvider,
   AI_FEATURE,
   AI_PROVIDER,
   asAiCliProvider,
   hasServerAiEntitlement,
+  isAiEffortSupported,
 } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { logger } from '@js/utils/logger';
@@ -36,6 +38,8 @@ type AIConfigResolution =
       usingUserKey: true;
       /** The run uses a model picked for the feature or thread, not the connection's own */
       modelOverridden?: true;
+      /** The effort the run asks for; only ever one the answering model accepts */
+      effort?: AiEffort;
     })
   | { kind: 'server'; provider: AINativeProvider; model: string; modelId: string; apiKey: string; usingUserKey: false };
 
@@ -49,12 +53,15 @@ function toProviderModelSpec({
   model,
   apiKey,
   userId,
+  effort,
 }: {
   connection: StoredConnection;
   /** The model to dial: the connection's own, or the override picked for the feature or thread. */
   model: string;
   apiKey: string | null;
   userId: number;
+  /** Already checked against the model; custom endpoints take none. */
+  effort?: AiEffort;
 }): ProviderModelSpec | null {
   const connection = { ...stored, model };
 
@@ -64,6 +71,7 @@ function toProviderModelSpec({
           provider: connection.provider,
           model: connection.model,
           credentialSource: connectionCredentialSource({ userId, connectionId: connection.id }),
+          ...(effort ? { effort } : {}),
         }
       : null;
   }
@@ -71,7 +79,9 @@ function toProviderModelSpec({
   if (connection.keyEncrypted && apiKey === null) return null;
 
   if (connection.provider !== AI_PROVIDER.custom) {
-    return apiKey ? { provider: connection.provider, model: connection.model, apiKey } : null;
+    return apiKey
+      ? { provider: connection.provider, model: connection.model, apiKey, ...(effort ? { effort } : {}) }
+      : null;
   }
 
   return connection.baseUrl
@@ -93,6 +103,7 @@ export async function resolveAIConfiguration({
   allowOperatorKey = false,
   pinnedConnectionId,
   pinnedModelId,
+  pinnedEffort,
 }: {
   userId: number;
   feature: AI_FEATURE;
@@ -105,13 +116,20 @@ export async function resolveAIConfiguration({
   pinnedConnectionId?: string | null;
   /** With a pinned connection: a model of that connection's provider to run instead of its own. */
   pinnedModelId?: string | null;
+  /** With a pinned connection: a reasoning effort for the model; dropped when the model does not accept it. */
+  pinnedEffort?: AiEffort | null;
 }): Promise<AIConfigResolution | null> {
   const aiSettings = await getStoredAiSettings({ userId });
   const connections = aiSettings?.connections ?? [];
   const config: AIFeatureConfig | null =
     pinnedConnectionId === undefined
       ? findStoredFeatureConfig({ aiSettings, feature })
-      : { feature, connectionId: pinnedConnectionId, ...(pinnedModelId ? { modelId: pinnedModelId } : {}) };
+      : {
+          feature,
+          connectionId: pinnedConnectionId,
+          ...(pinnedModelId ? { modelId: pinnedModelId } : {}),
+          ...(pinnedEffort ? { effort: pinnedEffort } : {}),
+        };
   const entitlements = await getEntitlementsByUserId({ userId });
   const entitled = allowOperatorKey || hasServerAiEntitlement({ entitlements, feature });
   const withinAllowance = entitled ? await isWithinAiAllowance({ userId, entitlements }) : undefined;
@@ -157,6 +175,13 @@ export async function resolveAIConfiguration({
 
         // Only the picked connection takes the override. A walk that landed on another one runs its own model.
         const model = (step.kind === 'configured' && step.modelId) || connection.model;
+        // A stored level the model stopped accepting (the model changed since) is ignored, not sent.
+        const effort =
+          step.kind === 'configured' &&
+          step.effort &&
+          isAiEffortSupported({ provider: connection.provider, model, effort: step.effort })
+            ? step.effort
+            : undefined;
         const spec = toProviderModelSpec({
           connection,
           model,
@@ -164,6 +189,7 @@ export async function resolveAIConfiguration({
             ? null
             : decryptConnectionKey({ connection, userId }),
           userId,
+          effort,
         });
 
         if (!spec) {
@@ -186,6 +212,7 @@ export async function resolveAIConfiguration({
           connectionId: connection.id,
           usingUserKey: true,
           ...(model === connection.model ? {} : { modelOverridden: true as const }),
+          ...(effort ? { effort } : {}),
         };
       }
 

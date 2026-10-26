@@ -1,4 +1,4 @@
-import { AI_PROVIDER } from '@bt/shared/types';
+import { AI_PROVIDER, type AiEffort } from '@bt/shared/types';
 import { describe, expect, it, jest } from '@jest/globals';
 import { FakeCliResponse, useFakeAiClis } from '@tests/helpers/ai-cli';
 import { generateText, Output, streamText } from 'ai';
@@ -18,13 +18,17 @@ const fakes = useFakeAiClis();
 
 let counter = 0;
 
-const buildModel = ({ model = 'sonnet', timeoutMs }: { model?: string; timeoutMs?: number } = {}) => {
+const buildModel = ({
+  model = 'sonnet',
+  timeoutMs,
+  effort,
+}: { model?: string; timeoutMs?: number; effort?: AiEffort } = {}) => {
   counter += 1;
 
   const load = jest.fn(async () => ({ credential: 'sk-ant-oat01-fake-token-value', revision: 'rev-1' }));
   const credentialSource: CliCredentialSource = { connectionKey: `claude-model-test-${counter}`, load };
 
-  return { load, model: createClaudeCodeLanguageModel({ model, credentialSource, runOptions: { timeoutMs } }) };
+  return { load, model: createClaudeCodeLanguageModel({ model, credentialSource, runOptions: { timeoutMs }, effort }) };
 };
 
 const ask = ({ model, abortSignal }: { model: ReturnType<typeof buildModel>['model']; abortSignal?: AbortSignal }) =>
@@ -82,6 +86,15 @@ describe('claude code language model', () => {
     expect(run.envKeys).not.toContain('ANTHROPIC_API_KEY');
     expect(run.envKeys).not.toContain('APPLICATION_JWT_SECRET');
     expect(run.cwd).toMatch(/mm-claude-run-.+\/work$/);
+  });
+
+  it('passes --effort to the CLI when the model has one, and nothing otherwise', async () => {
+    await ask({ model: buildModel({ model: 'opus', effort: 'max' }).model });
+    await ask({ model: buildModel({ model: 'opus' }).model });
+
+    const [withEffort, without] = [fakes.getRun({ index: 0 }).argv, fakes.getRun({ index: 1 }).argv];
+    expect(withEffort[withEffort.indexOf('--effort') + 1]).toBe('max');
+    expect(without).not.toContain('--effort');
   });
 
   it('sends the prompt as one stream-json user message with base64 images', async () => {

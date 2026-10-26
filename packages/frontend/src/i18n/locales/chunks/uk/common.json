@@ -523,6 +523,20 @@
       "label": "Модель із цього підключення",
       "placeholder": "Виберіть модель",
       "defaultTag": "За замовчуванням"
+    },
+    "effort": {
+      "label": "Зусилля",
+      "placeholder": "Зусилля",
+      "default": "За замовчуванням",
+      "withModel": "{model} · {effort}",
+      "levels": {
+        "minimal": "Мінімальні",
+        "low": "Низькі",
+        "medium": "Середні",
+        "high": "Високі",
+        "xhigh": "Дуже високі",
+        "max": "Максимальні"
+      }
     }
   },
   "aiUsage": {

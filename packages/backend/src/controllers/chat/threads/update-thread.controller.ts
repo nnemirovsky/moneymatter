@@ -1,6 +1,6 @@
 import { recordId } from '@common/lib/zod/custom-types';
 import { createController } from '@controllers/helpers/controller-factory';
-import { modelField } from '@controllers/user-settings/ai-connections/connection-field-schemas';
+import { effortField, modelField } from '@controllers/user-settings/ai-connections/connection-field-schemas';
 import { updateThread } from '@services/chat/threads/update.service';
 import { z } from 'zod';
 
@@ -16,6 +16,8 @@ const schema = z.object({
       connectionId: z.uuid().nullable().optional(),
       // null picks the connection's own model
       modelId: modelField.nullable().optional(),
+      // null goes back to the provider's default
+      effort: effortField.nullable().optional(),
       // null removes the page
       pageContext: pageContextSchema.nullable().optional(),
     })
@@ -25,8 +27,9 @@ const schema = z.object({
         body.pinned !== undefined ||
         body.connectionId !== undefined ||
         body.modelId !== undefined ||
+        body.effort !== undefined ||
         body.pageContext !== undefined,
-      { message: 'Provide a title, pinned, connectionId, modelId or pageContext' },
+      { message: 'Provide a title, pinned, connectionId, modelId, effort or pageContext' },
     ),
 });
 
@@ -38,6 +41,7 @@ export default createController(schema, async ({ user, params, body }) => ({
     pinned: body.pinned,
     connectionId: body.connectionId,
     modelId: body.modelId,
+    effort: body.effort,
     pageContext: body.pageContext,
   }),
 }));

@@ -47,6 +47,7 @@ export const getInboxThread = withTransaction(async ({ userId }: { userId: numbe
     inboxState: 'live',
     connectionId: null,
     modelId: null,
+    effort: null,
     lastMessageAt: now,
     lastReadAt: now,
     expiresAt: null,

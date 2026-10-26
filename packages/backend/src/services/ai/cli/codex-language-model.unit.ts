@@ -1,3 +1,4 @@
+import type { AiEffort } from '@bt/shared/types';
 import { describe, expect, it, jest } from '@jest/globals';
 import { useFakeAiClis } from '@tests/helpers/ai-cli';
 import { generateText, Output, streamText, UnsupportedFunctionalityError } from 'ai';
@@ -75,8 +76,9 @@ const buildModel = ({
   model = 'gpt-6-astra',
   source = buildSource().source,
   timeoutMs,
-}: { model?: string; source?: CliCredentialSource; timeoutMs?: number } = {}) =>
-  createCodexLanguageModel({ model, credentialSource: source, runOptions: { timeoutMs } });
+  effort,
+}: { model?: string; source?: CliCredentialSource; timeoutMs?: number; effort?: AiEffort } = {}) =>
+  createCodexLanguageModel({ model, credentialSource: source, runOptions: { timeoutMs }, effort });
 
 const ask = ({ model, abortSignal }: { model: ReturnType<typeof buildModel>; abortSignal?: AbortSignal }) =>
   generateText({ model, system: 'Be brief.', prompt: 'What is 2+2?', maxRetries: 0, abortSignal });
@@ -121,6 +123,16 @@ describe('codex language model', () => {
     expect(result.usage.inputTokenDetails.cacheReadTokens).toBe(5);
     expect(result.usage.outputTokens).toBe(9);
     expect(result.usage.outputTokenDetails.reasoningTokens).toBe(4);
+  });
+
+  it('sets model_reasoning_effort through -c when the model has an effort, and not otherwise', async () => {
+    fakes.setResponses({ responses: [{ text: '4' }, { text: '4' }] });
+
+    await ask({ model: buildModel({ effort: 'low' }) });
+    await ask({ model: buildModel() });
+
+    expect(fakes.getRun({ index: 0 }).argv).toContain('model_reasoning_effort="low"');
+    expect(fakes.getRun({ index: 1 }).argv.join(' ')).not.toContain('model_reasoning_effort');
   });
 
   it('runs read-only, offline-search and without agent tools, with a scrubbed env', async () => {

@@ -84,6 +84,18 @@
             @update:has-choice="(value) => (hasModelChoice = value)"
           />
 
+          <!-- Only for a model that has an effort setting. -->
+          <EffortSelect
+            v-if="pickedConnection"
+            class="mt-3"
+            :connection="pickedConnection"
+            :model-id="featureStatus.configuredModelId ?? null"
+            :effort="featureStatus.configuredEffort ?? null"
+            :label="$t('ai.effort.label')"
+            :disabled="isUpdating"
+            @select="handleEffortChange"
+          />
+
           <Callout
             v-if="!featureStatus.servedBy && featureStatus.connectionId"
             variant="destructive"
@@ -126,6 +138,8 @@
 <script setup lang="ts">
 import { type ConfigurableAIFeatureStatus, getAIFeatureDisplayInfo } from '@/common/const';
 import ConnectionModelSelect from '@/components/common/ai-connection-model/connection-model-select.vue';
+import { resolveEffectiveEffort } from '@/components/common/ai-connection-model/effort-options';
+import EffortSelect from '@/components/common/ai-connection-model/effort-select.vue';
 import AiUsageBadge from '@/components/common/ai-usage/ai-usage-badge.vue';
 import ApiKeySourceBadge from '@/components/common/api-key-source-badge.vue';
 import SelectField from '@/components/fields/select-field.vue';
@@ -137,7 +151,7 @@ import { useAiSettings } from '@/composable/data-queries/ai-settings';
 import { useAiConnectionsList } from '@/composable/data-queries/use-ai-connections';
 import { extractApiErrorMessage } from '@/js/errors';
 import { ROUTES_NAMES } from '@/routes';
-import { AIFeatureStatus, AIModelPricing } from '@bt/shared/types';
+import { AIFeatureStatus, AIModelPricing, type AiEffort } from '@bt/shared/types';
 import { BrainIcon, ChevronRightIcon, PlusIcon, TriangleAlertIcon } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -152,9 +166,7 @@ import {
 import { type ModelFitWarning, checkModelFit } from './model-fit';
 import ModelGuidePopover from './model-guide-popover.vue';
 
-const props = defineProps<{
-  featureStatus: ConfigurableAIFeatureStatus;
-}>();
+const props = defineProps<{ featureStatus: ConfigurableAIFeatureStatus }>();
 
 const { t } = useI18n();
 const { addErrorNotification, addSuccessNotification } = useNotificationCenter();
@@ -249,9 +261,12 @@ const collapsedModelLabel = computed(() => {
   const { servedBy, connectionName } = props.featureStatus;
   if (servedBy === 'server') return serverLabel.value;
   if (servedBy === 'connection' && connectionName) {
+    const model = formatAnsweringModel({ status: props.featureStatus, connections: connections.value });
+    const { effort } = props.featureStatus;
     return t('settings.ai.modelSelector.connectionOption', {
       name: connectionName,
-      model: formatAnsweringModel({ status: props.featureStatus, connections: connections.value }),
+      // The level the model runs with, where the label names the resolved model.
+      model: effort ? t('ai.effort.withModel', { model, effort: t(`ai.effort.levels.${effort}`) }) : model,
     });
   }
   return '';
@@ -323,6 +338,26 @@ const handleModelChange = async (modelId: string | null) => {
       feature: props.featureStatus.feature,
       connectionId: connection.id,
       modelId: modelId ?? undefined,
+      // The level stays when the new model accepts it, else the provider's default applies.
+      effort: resolveEffectiveEffort({ connection, modelId, effort: props.featureStatus.configuredEffort ?? null }),
+    });
+    addSuccessNotification(t('settings.ai.modelSelector.notifications.updateSuccess'));
+  } catch (error) {
+    addErrorNotification(extractApiErrorMessage(error) ?? t('settings.ai.modelSelector.notifications.updateFailed'));
+  }
+};
+
+/** The effort within the picked connection and model; null returns to the provider's default. */
+const handleEffortChange = async (effort: AiEffort | null) => {
+  const connection = pickedConnection.value;
+  if (!connection) return;
+
+  try {
+    await setFeatureConfig({
+      feature: props.featureStatus.feature,
+      connectionId: connection.id,
+      modelId: props.featureStatus.configuredModelId,
+      effort,
     });
     addSuccessNotification(t('settings.ai.modelSelector.notifications.updateSuccess'));
   } catch (error) {

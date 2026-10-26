@@ -81,6 +81,7 @@ export const runCliBridgeChat: ChatRunner = async (input) => {
 
         const common = {
           model,
+          effort: aiClient.effort,
           prompt,
           url,
           token: chatToken,

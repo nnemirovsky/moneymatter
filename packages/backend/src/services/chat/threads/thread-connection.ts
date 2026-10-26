@@ -1,4 +1,4 @@
-import { AI_FEATURE, isAiCliProvider } from '@bt/shared/types';
+import { AI_FEATURE, type AiEffort, isAiCliProvider, isAiEffortSupported } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { NotFoundError, ValidationError } from '@js/errors';
 import ChatThreads from '@models/chat-threads.model';
@@ -63,6 +63,57 @@ export async function resolveThreadModel({
   return assertConnectionServesModel({ userId, connectionId, modelId });
 }
 
+/** The provider and model a choice runs, or null for the included model, which has no effort setting. */
+const findChoiceTarget = async ({
+  userId,
+  connectionId,
+  modelId,
+}: {
+  userId: number;
+  connectionId: string | null;
+  modelId: string | null;
+}) => {
+  if (connectionId === null) return null;
+
+  const connection = (await getConnections({ userId })).find((candidate) => candidate.id === connectionId);
+  return connection ? { provider: connection.provider, model: modelId ?? connection.model } : null;
+};
+
+/** Whether the choice's model accepts `effort`: an unknown connection or the included model accepts none. */
+export const choiceAcceptsEffort = async ({
+  userId,
+  connectionId,
+  modelId,
+  effort,
+}: {
+  userId: number;
+  connectionId: string | null;
+  modelId: string | null;
+  effort: AiEffort;
+}): Promise<boolean> => {
+  const target = await findChoiceTarget({ userId, connectionId, modelId });
+  return target !== null && isAiEffortSupported({ ...target, effort });
+};
+
+/** Checks that a thread on this connection and model may run on `effort`; null is the provider's default. */
+export async function resolveThreadEffort({
+  userId,
+  connectionId,
+  modelId,
+  effort,
+}: {
+  userId: number;
+  connectionId: string | null;
+  modelId: string | null;
+  effort: AiEffort | null;
+}): Promise<AiEffort | null> {
+  if (effort === null) return null;
+  if (!(await choiceAcceptsEffort({ userId, connectionId, modelId, effort }))) {
+    throw new ValidationError({ message: t({ key: 'chat.effortNotSupported' }) });
+  }
+  return effort;
+}
+
 /** A connection a new thread may inherit: it exists, is not flagged down and its provider may run here. */
 async function isInheritable({ userId, connectionId }: { userId: number; connectionId: string }): Promise<boolean> {
   const connection = (await getConnections({ userId })).find((candidate) => candidate.id === connectionId);
@@ -75,6 +126,8 @@ export interface ThreadModelChoice {
   connectionId: string | null;
   /** Null: the connection's own model. */
   modelId: string | null;
+  /** Null: the provider's default. */
+  effort: AiEffort | null;
 }
 
 /**
@@ -89,23 +142,27 @@ export async function pickDefaultThreadChoice({ userId }: { userId: number }): P
       ['lastMessageAt', 'DESC'],
       ['id', 'DESC'],
     ],
-    attributes: ['connectionId', 'modelId'],
+    attributes: ['connectionId', 'modelId', 'effort'],
   });
 
   if (latest?.connectionId && (await isInheritable({ userId, connectionId: latest.connectionId }))) {
-    return { connectionId: latest.connectionId, modelId: latest.modelId };
+    return { connectionId: latest.connectionId, modelId: latest.modelId, effort: latest.effort };
   }
 
   const resolution = await resolveAIConfiguration({ userId, feature: AI_FEATURE.chat });
 
-  return { connectionId: resolution?.kind === 'connection' ? resolution.connectionId : null, modelId: null };
+  return {
+    connectionId: resolution?.kind === 'connection' ? resolution.connectionId : null,
+    modelId: null,
+    effort: null,
+  };
 }
 
 /** The thread's connection and model, read under the row lock so a switch that is still being written is waited for. */
 const readThreadChoice = withTransaction(
   async ({ userId, threadId }: { userId: number; threadId: string }): Promise<ThreadModelChoice> => {
-    const { connectionId, modelId } = await findThreadOrThrow({ userId, threadId, lock: true });
-    return { connectionId, modelId };
+    const { connectionId, modelId, effort } = await findThreadOrThrow({ userId, threadId, lock: true });
+    return { connectionId, modelId, effort };
   },
 );
 
@@ -134,15 +191,21 @@ export async function createThreadAiClient({
     feature: AI_FEATURE.chat,
     pinnedConnectionId: pinned.connectionId,
     pinnedModelId: pinned.modelId,
+    pinnedEffort: pinned.effort,
   });
 
   if (aiClient) {
     const answering: ThreadModelChoice = {
       connectionId: aiClient.connectionId ?? null,
       modelId: aiClient.modelOverridden ? pinned.modelId : null,
+      effort: aiClient.effort ?? null,
     };
 
-    if (answering.connectionId !== stored.connectionId || answering.modelId !== stored.modelId) {
+    if (
+      answering.connectionId !== stored.connectionId ||
+      answering.modelId !== stored.modelId ||
+      answering.effort !== stored.effort
+    ) {
       await ChatThreads.update(answering, { where: { id: threadId, userId } });
     }
   }

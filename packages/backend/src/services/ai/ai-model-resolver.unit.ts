@@ -303,6 +303,77 @@ describe('resolveAIConfiguration', () => {
     });
   });
 
+  describe('reasoning effort', () => {
+    beforeEach(() => {
+      decryptConnectionKeyMock.mockReturnValue('user-key');
+    });
+
+    it('asks a native model that takes it for the stored effort', async () => {
+      storeSettings({
+        connections: [CLAUDE],
+        featureConfigs: [{ feature: FEATURE, connectionId: CLAUDE.id, effort: 'high' }],
+      });
+
+      expect(await resolveAIConfiguration({ userId: USER_ID, feature: FEATURE })).toMatchObject({
+        connectionId: CLAUDE.id,
+        effort: 'high',
+      });
+    });
+
+    it('judges the effort against the overriding model, not the connection model', async () => {
+      storeSettings({
+        connections: [CLAUDE],
+        featureConfigs: [{ feature: FEATURE, connectionId: CLAUDE.id, modelId: 'claude-haiku-5-5', effort: 'high' }],
+      });
+
+      // Haiku has no effort setting, so the stored level is not sent.
+      expect(await resolveAIConfiguration({ userId: USER_ID, feature: FEATURE })).not.toHaveProperty('effort');
+    });
+
+    it('hands a subscription connection its effort through the spec', async () => {
+      connectionCredentialSourceMock.mockReturnValue(CLI_SOURCE);
+      getCliAiAccessMock.mockResolvedValue({ allowed: true });
+      storeSettings({
+        connections: [CODEX],
+        featureConfigs: [{ feature: FEATURE, connectionId: CODEX.id, effort: 'xhigh' }],
+      });
+
+      expect(await resolveAIConfiguration({ userId: USER_ID, feature: FEATURE })).toMatchObject({
+        credentialSource: CLI_SOURCE,
+        effort: 'xhigh',
+      });
+    });
+
+    it('never sends an effort to a custom endpoint', async () => {
+      storeSettings({
+        connections: [OLLAMA],
+        featureConfigs: [{ feature: FEATURE, connectionId: OLLAMA.id, effort: 'high' }],
+      });
+
+      expect(await resolveAIConfiguration({ userId: USER_ID, feature: FEATURE })).not.toHaveProperty('effort');
+    });
+
+    it('lets a pinned connection carry an effort, which a chat thread uses', async () => {
+      storeSettings({ connections: [CLAUDE] });
+
+      expect(
+        await resolveAIConfiguration({
+          userId: USER_ID,
+          feature: AI_FEATURE.chat,
+          pinnedConnectionId: CLAUDE.id,
+          pinnedModelId: 'claude-opus-5-5',
+          pinnedEffort: 'max',
+        }),
+      ).toMatchObject({ model: 'claude-opus-5-5', effort: 'max' });
+    });
+
+    it('runs on the provider default when no effort is stored', async () => {
+      storeSettings({ connections: [CLAUDE], featureConfigs: [{ feature: FEATURE, connectionId: CLAUDE.id }] });
+
+      expect(await resolveAIConfiguration({ userId: USER_ID, feature: FEATURE })).not.toHaveProperty('effort');
+    });
+  });
+
   it('dials a keyless custom connection at its base URL', async () => {
     storeSettings({ connections: [OLLAMA] });
     decryptConnectionKeyMock.mockReturnValue(null);

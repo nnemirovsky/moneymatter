@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import ConnectionModelSelect from '@/components/common/ai-connection-model/connection-model-select.vue';
+import EffortSelect from '@/components/common/ai-connection-model/effort-select.vue';
 import SelectField from '@/components/fields/select-field.vue';
 import { useAiSettings } from '@/composable/data-queries/ai-settings';
 import { useAiConnectionsList } from '@/composable/data-queries/use-ai-connections';
-import { AI_FEATURE } from '@bt/shared/types';
+import { AI_FEATURE, type AiEffort } from '@bt/shared/types';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -19,12 +20,18 @@ const props = withDefaults(
     connectionId: string | null;
     /** The model picked within the connection; null is the connection's own model. */
     modelId?: string | null;
+    /** The reasoning effort; null is the provider's default. */
+    effort?: AiEffort | null;
     disabled?: boolean;
   }>(),
-  { modelId: null, disabled: false },
+  { modelId: null, effort: null, disabled: false },
 );
 
-const emit = defineEmits<{ select: [connectionId: string | null]; 'select-model': [modelId: string | null] }>();
+const emit = defineEmits<{
+  select: [connectionId: string | null];
+  'select-model': [modelId: string | null];
+  'select-effort': [effort: AiEffort | null];
+}>();
 
 const { t } = useI18n();
 const { connections } = useAiConnectionsList();
@@ -98,6 +105,16 @@ const onSelect = (option: ChatConnectionOption | null) => {
         :disabled="disabled"
         @select="(next) => emit('select-model', next)"
         @update:has-choice="(value) => (hasModelChoice = value)"
+      />
+      <!-- Only for a model that has an effort setting. Sized to its level, so the connection and model share the rest. -->
+      <EffortSelect
+        v-if="selectedConnection"
+        class="w-auto min-w-24 shrink-0"
+        :connection="selectedConnection"
+        :model-id="modelId"
+        :effort="effort"
+        :disabled="disabled"
+        @select="(next) => emit('select-effort', next)"
       />
     </div>
     <!-- The thread's page context, on its own line under the selects. -->

@@ -1,4 +1,5 @@
 import {
+  type AiEffort,
   ATTACHMENT_FILENAME_HEADER,
   CHAT_DOCUMENT_PASSWORD_HEADER,
   type ChatAppliedPage,
@@ -42,12 +43,14 @@ export async function createChatThread<R extends boolean | undefined = undefined
   title,
   connectionId,
   modelId,
+  effort,
   pageContext,
   raw,
 }: {
   title?: string;
   connectionId?: string | null;
   modelId?: string | null;
+  effort?: AiEffort | null;
   pageContext?: ChatPageContext | null;
   raw?: R;
 } = {}) {
@@ -58,6 +61,7 @@ export async function createChatThread<R extends boolean | undefined = undefined
       ...(title === undefined ? {} : { title }),
       ...(connectionId === undefined ? {} : { connectionId }),
       ...(modelId === undefined ? {} : { modelId }),
+      ...(effort === undefined ? {} : { effort }),
       ...(pageContext === undefined ? {} : { pageContext }),
     },
     raw,

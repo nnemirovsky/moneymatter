@@ -1,11 +1,11 @@
-import { AIFeatureConfig, AI_FEATURE } from '@bt/shared/types';
+import { AIFeatureConfig, AI_FEATURE, type AiEffort, isAiEffortSupported } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { NotFoundError, ValidationError } from '@js/errors';
 import { DEFAULT_SETTINGS, SettingsSchema } from '@models/user-settings.model';
 
 import { getServerModel } from '../ai/resolution-ladder';
 import { withTransaction } from '../common/with-transaction';
-import { assertConnectionServesModel } from './ai-connections';
+import { assertConnectionServesModel, getStoredAiSettings } from './ai-connections';
 import { getOrCreateUserSettings } from './get-or-create-user-settings';
 
 /**
@@ -51,18 +51,23 @@ const storeFeatureConfig = withTransaction(
  * `modelId` runs the feature on another model of the connection's provider. It is checked against
  * the provider before it is stored; the connection's own model is stored as no override, so the
  * feature keeps following the connection when its model changes.
+ *
+ * `effort` is how hard the model thinks; it must be one the model that will answer accepts. Omitted or null,
+ * the provider's default applies, so a config saved without it clears an earlier level.
  */
 export const setFeatureConfig = async ({
   userId,
   feature,
   connectionId,
   modelId,
+  effort,
   entitledToServerKeys,
 }: {
   userId: number;
   feature: AI_FEATURE;
   connectionId: string | null;
   modelId?: string;
+  effort?: AiEffort | null;
   entitledToServerKeys: boolean;
 }): Promise<void> => {
   if (connectionId === null && !getServerModel({ feature, serverKeysAllowed: entitledToServerKeys })) {
@@ -79,10 +84,20 @@ export const setFeatureConfig = async ({
     override = (await assertConnectionServesModel({ userId, connectionId, modelId })) ?? undefined;
   }
 
+  if (effort) {
+    if (connectionId === null) throw new ValidationError({ message: t({ key: 'ai.includedModelHasNoChoice' }) });
+
+    const connection = (await getStoredAiSettings({ userId }))?.connections?.find(({ id }) => id === connectionId);
+    if (!connection) throw new NotFoundError({ message: t({ key: 'ai.connectionNotFound' }) });
+    if (!isAiEffortSupported({ provider: connection.provider, model: override ?? connection.model, effort })) {
+      throw new ValidationError({ message: t({ key: 'ai.effortNotSupported' }) });
+    }
+  }
+
   await storeFeatureConfig({
     userId,
     feature,
-    config: { feature, connectionId, ...(override ? { modelId: override } : {}) },
+    config: { feature, connectionId, ...(override ? { modelId: override } : {}), ...(effort ? { effort } : {}) },
   });
 };
 
