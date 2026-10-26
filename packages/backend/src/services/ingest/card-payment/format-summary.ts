@@ -30,6 +30,17 @@ export type CardPaymentSummary =
   | { type: 'notificationParked'; reason: 'sourceNotApproved'; source: string }
   | { type: 'notificationParked'; reason: 'aiUnavailable' | 'aiCapReached' | 'aiLimitReached' }
   | {
+      /** The AI model is out of reach; the request waits and is tried again by itself. */
+      type: 'notificationParked';
+      reason: 'aiQuotaWait';
+      /** The connection's name. */
+      connection: string;
+      /** Why: the quota or rate limit (`limit`), or a provider that is down or overloaded (`busy`). */
+      cause: 'limit' | 'busy';
+      /** When the next try is due, already formatted for the owner; `null` once the tries are spent. */
+      nextTry: string | null;
+    }
+  | {
       /** A payment that was read and waits for the owner: an unknown account, an own transfer, a doubtful read. */
       type: 'notificationParked';
       reason: 'needsOk';
@@ -134,6 +145,15 @@ export const formatSummary = ({ summary, locale }: { summary: CardPaymentSummary
     case 'notificationParked':
       if (summary.reason === 'sourceNotApproved') {
         return t({ key: 'ingest.summary.sourceNotApproved', variables: { source: summary.source }, locale });
+      }
+      if (summary.reason === 'aiQuotaWait') {
+        const key = summary.cause === 'limit' ? 'aiQuotaWait' : 'aiBusyWait';
+
+        return t({
+          key: `ingest.summary.${key}${summary.nextTry ? '' : 'Stopped'}`,
+          variables: { connection: summary.connection, time: summary.nextTry ?? '' },
+          locale,
+        });
       }
       if (summary.reason !== 'needsOk') return t({ key: `ingest.summary.${summary.reason}`, locale });
 

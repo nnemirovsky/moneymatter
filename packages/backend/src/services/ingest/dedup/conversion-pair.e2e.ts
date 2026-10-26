@@ -5,7 +5,7 @@ import { RateLimitService } from '@services/common/rate-limit.service';
 import * as helpers from '@tests/helpers';
 import { enableServerModel, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
 import * as ingestHelpers from '@tests/helpers/ingest-tokens';
-import { mockNotificationParsing } from '@tests/helpers/notification-ai';
+import { mockNotificationParsing, useAiOnlyNotificationParsing } from '@tests/helpers/notification-ai';
 import { addMinutes, startOfDay, subDays } from 'date-fns';
 import { randomUUID } from 'node:crypto';
 
@@ -78,6 +78,7 @@ const resetLimits = async () => {
 
 describe('currency-conversion pair', () => {
   useSelfHostWithoutServerAiKeys();
+  useAiOnlyNotificationParsing();
 
   beforeEach(async () => {
     enableServerModel();

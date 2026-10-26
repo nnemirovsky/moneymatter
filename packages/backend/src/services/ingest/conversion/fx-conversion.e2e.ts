@@ -8,7 +8,7 @@ import { readStoredParse } from '@services/ingest/event/stored-parse';
 import * as helpers from '@tests/helpers';
 import { enableServerModel, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
 import * as ingestHelpers from '@tests/helpers/ingest-tokens';
-import { mockNotificationParsing } from '@tests/helpers/notification-ai';
+import { mockNotificationParsing, useAiOnlyNotificationParsing } from '@tests/helpers/notification-ai';
 import { addMinutes, startOfDay, subDays } from 'date-fns';
 import { randomUUID } from 'node:crypto';
 
@@ -187,6 +187,7 @@ const expectLinkedExchange = async ({
 
 describe('a currency exchange told in two notifications', () => {
   useSelfHostWithoutServerAiKeys();
+  useAiOnlyNotificationParsing();
 
   beforeEach(async () => {
     enableServerModel();
@@ -554,6 +555,7 @@ const probe = ({ secret, title, app = 'Messages' }: { secret: string; title: str
 
 describe("what the owner's history adds to an exchange", () => {
   useSelfHostWithoutServerAiKeys();
+  useAiOnlyNotificationParsing();
 
   beforeEach(async () => {
     enableServerModel();

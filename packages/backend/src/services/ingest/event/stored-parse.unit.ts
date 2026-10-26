@@ -60,7 +60,13 @@ describe('readStoredParse', () => {
 
 describe('park reasons', () => {
   it('splits the reasons that left the text unread from the ones that need approval', () => {
-    expect(UNCLASSIFIED_PARK_REASONS).toEqual(['sourceNotApproved', 'aiUnavailable', 'aiCapReached', 'aiLimitReached']);
+    expect(UNCLASSIFIED_PARK_REASONS).toEqual([
+      'sourceNotApproved',
+      'aiUnavailable',
+      'aiCapReached',
+      'aiLimitReached',
+      'aiQuotaWait',
+    ]);
     expect(FORCE_PARK_REASONS).toEqual(['ownTransfer', 'lowConfidence', 'unverifiedParse']);
   });
 });

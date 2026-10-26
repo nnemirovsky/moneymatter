@@ -56,6 +56,11 @@ export const notificationIngestWorker = new Worker<NotificationJobData>(
   queueName,
   async (job: Job<NotificationJobData>, token?: string) => {
     const result = await notificationProcessing.processNotification({ requestId: job.data.requestId });
+    // The AI model is out of reach: the job is put back to run at the time the request names, without an attempt.
+    if (typeof result === 'object') {
+      await job.moveToDelayed(result.retryAt.getTime(), token);
+      throw new DelayedError();
+    }
     if (result !== 'locked') return;
 
     // A base-currency change holds the user's lock. The job goes back to the delayed set without
@@ -112,6 +117,10 @@ export const enqueueNotificationProcessing = async ({ requestId }: { requestId: 
     { replacements: { requestId }, type: QueryTypes.SELECT },
   )) as { attempts: number }[];
   if (!updated) throw new Error(`Ingest request ${requestId} does not exist.`);
+
+  // A try that waits for the AI model is replaced by this one, so two chains of retries never run on one request.
+  const earlier = await notificationIngestQueue.getJob(`${requestId}-${updated.attempts - 1}`);
+  if (earlier && (await earlier.isDelayed())) await earlier.remove();
 
   await notificationIngestQueue.add(
     'process-notification',

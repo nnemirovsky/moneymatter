@@ -11,6 +11,7 @@ import { findConversionPartner } from '../conversion/find-conversion-partner';
 import { absorbParkedTwin } from '../twins/absorb-parked-twin';
 import { findJoinedTwins, findParkedTwins, joinedSlots, probeOf, TWIN_PARK_REASONS } from '../twins/find-parked-twins';
 import { lockTwins } from '../twins/lock-twins';
+import { readAiRetry, type AiRetryState } from './ai-transient';
 import type { StoredParse } from './stored-parse';
 
 /**
@@ -126,6 +127,49 @@ const parkNotificationImpl = async ({
  * emitted after the commit.
  */
 export const parkNotification = withTransaction(parkNotificationImpl);
+
+const parkForAiQuotaImpl = async ({
+  requestId,
+  summary,
+  retry,
+}: {
+  requestId: RecordId;
+  summary: string;
+  retry: AiRetryState;
+}): Promise<boolean> => {
+  const row = await IngestRequests.findOne({ where: { id: requestId }, lock: true });
+  if (!row || !(row.status === 'received' || (row.status === 'parked' && row.reason === 'aiQuotaWait'))) return false;
+
+  // Only the first park tells the owner; the automatic tries that follow keep the retry state in the payload.
+  const first = !readAiRetry({ payload: row.payload });
+  await row.update({
+    status: 'parked',
+    reason: 'aiQuotaWait',
+    summary,
+    payload: { ...row.payload, aiRetry: retry },
+  });
+
+  // The owner is told once; the later tries only bring the line up to date.
+  if (first) {
+    const payload: IngestRequestParkedPayload = {
+      userId: row.userId,
+      requestId: row.id,
+      reason: 'aiQuotaWait',
+      sourceId: row.sourceId,
+    };
+    await runAfterCommit({ fn: () => eventBus.emit(DOMAIN_EVENTS.INGEST_REQUEST_PARKED, payload) });
+  }
+
+  return true;
+};
+
+/**
+ * Records a notification as waiting for the AI model to come back (a used-up quota, a rate limit, an overload):
+ * it is `parked` as `aiQuotaWait` with the line that says why and when the next try is, and, while the schedule lasts, the
+ * job tries again by itself (after its last step the request waits for the owner). The retry state stays in the payload
+ * so the next pass knows how many times it was tried.
+ */
+export const parkForAiQuota = withTransaction(parkForAiQuotaImpl);
 
 const ignoreNotificationImpl = async ({
   requestId,

@@ -11,10 +11,12 @@ import {
 import CardAccountMappings from '@models/card-account-mappings.model';
 import IngestRequests from '@models/ingest-requests.model';
 import { findTransactions } from '@models/transactions-query';
+import { getConnectionInfos } from '@services/user-settings/ai-connections';
 import { subDays } from 'date-fns';
 import { Op, literal } from 'sequelize';
 
 import { correctionOf, transferSuggestionOf } from '../corrections/read-ingest-suggestions';
+import { readAiRetry } from '../event/ai-transient';
 import { notificationTimings } from '../event/constants';
 import { readStoredParse } from '../event/stored-parse';
 import { cardPaymentTimings } from './constants';
@@ -61,7 +63,18 @@ const readCard = ({ row }: { row: IngestRequests }): { cardLabel: string | null;
   return { cardLabel: `${app || 'Card'} •${cardLastDigits}`, cardLastDigits };
 };
 
-const toRequestDto = ({ row, now }: { row: IngestRequests; now: Date }): CardPaymentRequestDto => {
+const toRequestDto = ({
+  row,
+  now,
+  connections,
+}: {
+  row: IngestRequests;
+  now: Date;
+  /** The owner's AI connections that work, to offer the ones other than the failing one. */
+  connections: readonly { id: string; name: string }[];
+}): CardPaymentRequestDto => {
+  const aiRetry = row.reason === 'aiQuotaWait' ? readAiRetry({ payload: row.payload }) : null;
+
   // A `received` request that outlived its processing pass reads as interrupted.
   const interrupted = row.status === 'received' && isWaitingRequest({ row, now });
 
@@ -76,6 +89,8 @@ const toRequestDto = ({ row, now }: { row: IngestRequests; now: Date }): CardPay
       row.pipeline === 'notification' ? (readStoredParse({ value: row.parsed })?.accountGuessId ?? null) : null,
     ...readShownPayment({ row }),
     time: readPayloadTime({ value: row.payload.time, fallback: row.createdAt }),
+    aiRetryAt: aiRetry?.at ?? null,
+    aiAlternatives: aiRetry ? connections.filter((connection) => connection.id !== aiRetry.connectionId) : [],
     transactionId: row.transactionId,
     createdAt: row.createdAt.toISOString(),
   };
@@ -122,7 +137,13 @@ export const listCardPaymentRequests = async ({
     limit: view === 'recent' ? CARD_PAYMENT_RECENT_REQUESTS_LIMIT : WAITING_REQUESTS_LIMIT,
   });
 
-  return rows.map((row) => toRequestDto({ row, now }));
+  const connections = rows.some((row) => row.reason === 'aiQuotaWait')
+    ? (await getConnectionInfos({ userId }))
+        .filter((info) => info.status === 'valid')
+        .map((info) => ({ id: info.id, name: info.name }))
+    : [];
+
+  return rows.map((row) => toRequestDto({ row, now, connections }));
 };
 
 /**

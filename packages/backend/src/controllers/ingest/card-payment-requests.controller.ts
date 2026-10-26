@@ -36,10 +36,15 @@ export const listCardPaymentRequestsController = createController(
 export const retryCardPaymentRequestController = createController(
   z.object({
     params: z.object({ id: recordId() }),
-    body: z.object({ force: z.boolean().optional() }).optional(),
+    body: z.object({ force: z.boolean().optional(), aiConnectionId: z.string().min(1).max(100).optional() }).optional(),
   }),
   async ({ user, params, body }) => {
-    const result = await retryIngestRequest({ userId: user.id, requestId: params.id, force: body?.force === true });
+    const result = await retryIngestRequest({
+      userId: user.id,
+      requestId: params.id,
+      force: body?.force === true,
+      aiConnectionId: body?.aiConnectionId,
+    });
 
     switch (result.outcome) {
       case 'rejected':

@@ -732,6 +732,10 @@
       "aiUnavailable": "Not logged yet: add an AI model in MoneyMatter so it can read this notification",
       "aiCapReached": "Not logged yet: this month's AI allowance is used up; retry it in MoneyMatter later",
       "aiLimitReached": "Not logged yet: today's limit of AI-read notifications is reached; retry it in MoneyMatter later",
+      "aiQuotaWait": "Waiting: the AI quota of {{connection}} is used up. Retrying automatically (next try about {{time}}).",
+      "aiQuotaWaitStopped": "Waiting: the AI quota of {{connection}} is used up. No more automatic tries; retry it in MoneyMatter once the quota resets.",
+      "aiBusyWait": "Waiting: {{connection}} cannot take AI requests right now. Retrying automatically (next try about {{time}}).",
+      "aiBusyWaitStopped": "Waiting: {{connection}} could not take AI requests. No more automatic tries; retry it in MoneyMatter later.",
       "contextAdded": "Added {{store}} to {{amount}} at {{merchant}}",
       "contextAddedCategory": "Added {{store}} to {{amount}} at {{merchant}} → {{category}}",
       "contextHeld": "{{store}} ({{service}}) is waiting for its payment"
@@ -759,6 +763,7 @@
     },
     "idempotencyConflict": "This idempotency key was already used for a different payment.",
     "requestDismissed": "This payment was dismissed in MoneyMatter.",
+    "aiConnectionUnavailable": "This AI connection is not available. Pick one that works in AI settings.",
     "requestNotFound": "Card payment request not found.",
     "requestNeedsApproval": "This payment needs your approval before it is logged. Confirm it to log it.",
     "requestNotWaiting": "This payment is not waiting to be logged.",
@@ -1056,6 +1061,7 @@
           "aiUnavailable": "A bank notification could not be read: no AI model is available.",
           "aiCapReached": "A bank notification could not be read: the monthly AI limit is reached.",
           "aiLimitReached": "A bank notification could not be read: the daily AI limit for notifications is reached.",
+          "aiQuotaWait": "A bank notification is waiting for the AI model, which is out of reach. It is retried automatically.",
           "other": "A payment is waiting for you."
         }
       }

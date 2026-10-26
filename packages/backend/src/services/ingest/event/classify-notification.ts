@@ -107,7 +107,11 @@ export interface ParsedPayment {
  * `parser` says which reader produced it and `kind` what the notification is, so a non-payment can be
  * stored as `{ parser, kind, confidence }` and nothing else.
  */
-export type ClassifiedNotification = { parser: 'wallet' | 'ai'; kind: NotificationKind; confidence: number } & (
+export type ClassifiedNotification = {
+  parser: 'wallet' | 'ai' | 'rules';
+  kind: NotificationKind;
+  confidence: number;
+} & (
   | { verdict: 'payment'; payment: ParsedPayment }
   | {
       verdict: 'park';

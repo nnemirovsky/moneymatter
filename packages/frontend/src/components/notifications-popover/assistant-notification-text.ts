@@ -17,6 +17,7 @@ const INGEST_ATTENTION_REASONS: readonly string[] = [
   'aiUnavailable',
   'aiCapReached',
   'aiLimitReached',
+  'aiQuotaWait',
 ];
 
 /**

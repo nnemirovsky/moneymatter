@@ -70,12 +70,16 @@ export const getCardPaymentRequests = async ({
 export const retryCardPaymentRequest = async ({
   id,
   force,
+  aiConnectionId,
 }: {
   id: CardPaymentRequestDto['id'];
   /** Logs a notification payment parked for the owner's approval (`ownTransfer`, `lowConfidence`). */
   force?: boolean;
+  /** Reads a notification that waits on the AI model with this other AI connection of the owner. */
+  aiConnectionId?: string;
 }): Promise<CardPaymentRetryResponse> => {
-  const payload: RetryCardPaymentRequestPayload | undefined = force ? { force } : undefined;
+  const payload: RetryCardPaymentRequestPayload | undefined =
+    force || aiConnectionId ? { ...(force && { force }), ...(aiConnectionId && { aiConnectionId }) } : undefined;
 
   return api.post(`/user/settings/card-payments/requests/${id}/retry`, payload);
 };

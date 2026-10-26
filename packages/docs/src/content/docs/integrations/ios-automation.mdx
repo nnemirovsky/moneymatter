@@ -199,7 +199,7 @@ What each notification becomes:
 - **Declined payments, codes, promotions and information** are ignored.
 - **A transfer between your own accounts**, or a text MoneyMatter is not sure about, waits for your OK.
 
-Wallet's notifications have a fixed layout (the card as the title, the merchant as the subtitle, the amount in the text), so MoneyMatter reads them directly, with no AI. Everything else is read by an AI model, in any language, and the same read tells a payment from a code or a promotion.
+Wallet's notifications have a fixed layout (the card as the title, the merchant as the subtitle, the amount in the text), so MoneyMatter reads them directly, with no AI. So are plain bank card-payment pushes whose layout leaves no doubt: an amount with its currency, a word or sign that says whether money left or arrived, at most one line left over for the merchant, and optionally a masked card, a date and time and a balance. Anything less clear, such as a refusal, a hold, a transfer or a fee, is read by an AI model, in any language, and the same read tells a payment from a code or a promotion.
 
 ### Logged now, confirm later
 
@@ -498,6 +498,9 @@ A payment that can't be logged yet is kept, not dropped. The notification says w
 | `Not logged yet: add an AI model …`     | No AI model can read this notification.              | Add a model under **Settings**, **AI**, then **Retry**.      |
 | `Not logged yet: this month's AI allowance is used up …` | The monthly AI allowance is spent.     | **Retry** after it resets or once you add your own model.    |
 | `Not logged yet: today's limit of AI-read notifications …` | The daily limit is reached.      | **Retry** tomorrow.                                          |
+| `Waiting: the AI quota of … is used up. Retrying automatically …` | The AI connection's usage limit or rate limit is reached. | Nothing: MoneyMatter tries again by itself, after 5 minutes, 15 minutes, an hour and so on (seven tries over about a day and a half), or later when the provider reports a later reset time. **Retry** tries at once. If you have another AI connection, **Parse with …** reads the payment with it; MoneyMatter never switches connections by itself. |
+| `Waiting: … cannot take AI requests right now. Retrying automatically …` | The AI provider is down or overloaded. | The same as above: MoneyMatter tries again by itself. |
+| `Waiting: … No more automatic tries …` | The automatic tries are used up (about a day and a half). | **Retry** once the quota resets or the provider is back, or **Parse with …** another connection. |
 | `Needs your OK in MoneyMatter: …`       | A transfer between your own accounts, a text MoneyMatter isn't sure about, an amount the AI read that the notification doesn't print, or no matching account. | Open the [Automation inbox](/transactions/reconciliation/#the-automation-inbox), or press **Log it** under **Waiting payments**. |
 
 On the **iOS Automation** page, **Cards without a link** shows each card that has payments waiting. Click **Link**, choose the account, and MoneyMatter offers to log the waiting payments right away. A bank notification that shows only digits is listed here too, as the source and the digits. **Waiting payments** lists everything else with **Retry** and **Dismiss**, and **Open in the inbox** when a card is waiting for you. **Show recent payments** lists what the shortcut sent lately, tap or notification, and what became of each one.

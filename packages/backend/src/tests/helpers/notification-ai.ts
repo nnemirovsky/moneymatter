@@ -1,9 +1,11 @@
 import { AI_FEATURE } from '@bt/shared/types';
+import { afterEach, beforeEach } from '@jest/globals';
 import { FALLBACK_SERVER_MODELS } from '@services/ai/resolution-ladder';
 import { GEMINI_API_URL } from '@tests/mocks/gemini/mock-api';
 import { HttpResponse, http } from 'msw';
 
 import type { NotificationParseOutput } from '../../services/ingest/event/classify-notification';
+import { notificationRules } from '../../services/ingest/event/constants';
 
 /** The model the server key runs for notification parsing. */
 const NOTIFICATION_MODEL = FALLBACK_SERVER_MODELS[AI_FEATURE.notificationParsing]!.model;
@@ -34,8 +36,11 @@ const geminiAnswer = ({ text }: { text: string }) =>
     usageMetadata: { promptTokenCount: 100, candidatesTokenCount: 50, totalTokenCount: 150 },
   });
 
-/** What the mocked model answers for one notification: the fields it fills, or a server error. */
-type NotificationAnswer = Partial<NotificationParseOutput> | 'fail';
+/**
+ * What the mocked model answers for one notification: the fields it fills, a server error (`fail`: the provider is down,
+ * which passes), or text that is no answer at all (`garbage`: a failure no later try is expected to mend).
+ */
+type NotificationAnswer = Partial<NotificationParseOutput> | 'fail' | 'garbage';
 
 /** What the mocked model answers for a short-balance correction: the account aliases best first and a reason. */
 type CorrectionAnswer = { ranking: string[]; reason: string | null } | 'fail';
@@ -60,6 +65,22 @@ type ContextPickAnswer = { choice: string | null; confidence: number } | 'fail';
 
 /** What the mocked model answers when it picks the category of a store. */
 type ContextCategoryAnswer = { categoryId: string | null; confidence: number } | 'fail';
+
+/**
+ * For a suite of the AI reading of notifications: plain pushes go to the (mocked) model, as the suite expects, instead
+ * of being read by their layout. Registers its own hooks.
+ */
+export const useAiOnlyNotificationParsing = (): void => {
+  let before = notificationRules.enabled;
+
+  beforeEach(() => {
+    before = notificationRules.enabled;
+    notificationRules.enabled = false;
+  });
+  afterEach(() => {
+    notificationRules.enabled = before;
+  });
+};
 
 /**
  * Answers `notificationParsing` calls over MSW. Every call to the model that carries a notification
@@ -218,6 +239,7 @@ export const mockNotificationParsing = ({
       if (result === 'fail') {
         return HttpResponse.json({ error: { code: 500, message: 'boom', status: 'INTERNAL' } }, { status: 500 });
       }
+      if (result === 'garbage') return geminiAnswer({ text: 'this is not the object that was asked for' });
 
       return geminiAnswer({ text: JSON.stringify({ ...NO_ANSWER_OUTPUT, ...result }) });
     }),

@@ -6,7 +6,7 @@ import { RateLimitService } from '@services/common/rate-limit.service';
 import * as helpers from '@tests/helpers';
 import { enableServerModel, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
 import * as ingestHelpers from '@tests/helpers/ingest-tokens';
-import { mockNotificationParsing } from '@tests/helpers/notification-ai';
+import { mockNotificationParsing, useAiOnlyNotificationParsing } from '@tests/helpers/notification-ai';
 import { randomUUID } from 'node:crypto';
 
 import { dedupConfig } from '../dedup/constants';
@@ -106,6 +106,7 @@ const labelsOf = async () => (await helpers.listCardMappings({ raw: true })).map
 
 describe('the same payment parked by two sources', () => {
   useSelfHostWithoutServerAiKeys();
+  useAiOnlyNotificationParsing();
 
   beforeEach(async () => {
     enableServerModel();

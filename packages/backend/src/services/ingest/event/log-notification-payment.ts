@@ -74,7 +74,7 @@ const logNotificationPaymentImpl = async ({
   requestId: RecordId;
   payment: ParsedPayment;
   symbol: string | null;
-  parser: 'wallet' | 'ai';
+  parser: 'wallet' | 'ai' | 'rules';
   kind: string;
   confidence: number;
   source: NotificationSources | null;

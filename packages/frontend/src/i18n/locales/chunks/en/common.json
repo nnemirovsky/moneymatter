@@ -374,6 +374,7 @@
           "aiUnavailable": "A bank notification could not be read: no AI model is available.",
           "aiCapReached": "A bank notification could not be read: the monthly AI limit is reached.",
           "aiLimitReached": "A bank notification could not be read: the daily AI limit for notifications is reached.",
+          "aiQuotaWait": "A bank notification is waiting for the AI model, which is out of reach. It is retried automatically.",
           "other": "A payment is waiting for you."
         }
       }

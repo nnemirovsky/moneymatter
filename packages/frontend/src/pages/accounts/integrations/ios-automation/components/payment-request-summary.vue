@@ -23,7 +23,7 @@
     </div>
 
     <p v-if="reasonKey" class="text-muted-foreground mt-2 text-sm" data-testid="payment-request-reason">
-      {{ $t(reasonKey) }}
+      {{ reasonText }}
     </p>
 
     <RouterLink
@@ -43,6 +43,7 @@ import { formatDateWithTime } from '@/js/helpers/time-zone';
 import { ROUTES_NAMES } from '@/routes';
 import type { CardPaymentRequestDto } from '@bt/shared/types';
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import { getRequestReasonKey, hasInboxCard } from '../ios-automation';
 
@@ -54,6 +55,16 @@ const props = defineProps<{
   inboxThreadId?: string | null;
 }>();
 
+const { t } = useI18n({ useScope: 'global' });
+
 const reasonKey = computed(() => getRequestReasonKey({ reason: props.request.reason }));
+// A request waiting on the AI model carries its own line: which connection, and when the next try is.
+const reasonText = computed(() =>
+  props.request.reason === 'aiQuotaWait' && props.request.summary
+    ? props.request.summary
+    : reasonKey.value
+      ? t(reasonKey.value)
+      : '',
+);
 const hasCard = computed(() => hasInboxCard({ request: props.request }));
 </script>

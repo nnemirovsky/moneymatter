@@ -18,6 +18,9 @@
  *   offered for retry; a younger one is in flight.
  * - `unclassifiedTextTtlMs`: how long the text of a notification that was never classified is kept.
  * - `ignoredTtlMs`: how long a request that was read and is not a payment is kept.
+ * - `aiRetryScheduleMs`: the waits between tries while the AI model is out of reach (a used-up quota, a rate limit, an
+ *   overload): the delay before the first retry, the second and so on. Once the steps are spent the request waits for
+ *   the owner. A reset time the provider reports pushes a step later (never earlier) when it is within a day and a half.
  * - `pendingSourceTtlMs`: a source nobody approved is deleted with what it holds after this long.
  */
 export const notificationTimings = {
@@ -31,6 +34,15 @@ export const notificationTimings = {
   unclassifiedTextTtlMs: 7 * 24 * 60 * 60_000,
   ignoredTtlMs: 7 * 24 * 60 * 60_000,
   pendingSourceTtlMs: 30 * 24 * 60 * 60_000,
+  aiRetryScheduleMs: [5, 15, 60, 3 * 60, 6 * 60, 12 * 60, 12 * 60].map((minutes) => minutes * 60_000),
+};
+
+/**
+ * Whether a plain bank push is read by its layout (`parseBankPushByRules`) before the AI is asked. An object so a test
+ * of the AI reading can turn the rules off and keep feeding the model plain texts.
+ */
+export const notificationRules = {
+  enabled: true,
 };
 
 /** Per-user caps on stored notifications. Dropped notifications do not count. An object so a test can lower them. */

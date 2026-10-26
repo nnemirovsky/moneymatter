@@ -1,7 +1,9 @@
 import type { CardPaymentRetryResponse, RecordId } from '@bt/shared/types';
 import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
 import { t } from '@i18n/index';
+import { ValidationError } from '@js/errors';
 import IngestRequests from '@models/ingest-requests.model';
+import { getConnectionInfos } from '@services/user-settings/ai-connections';
 
 import { enqueueNotificationProcessing } from '../event/notification-queue';
 import { prepareNotificationRetry } from '../event/prepare-notification-retry';
@@ -14,18 +16,39 @@ import { runIngestPass } from './run-ingest-pass';
 /** What a retry answers: a tap's outcome, or a notification's. */
 type RetryIngestResult = ProcessIngestResult | CardPaymentRetryResponse;
 
+/**
+ * The owner chose an AI connection for this notification. It must be one of theirs that works, and it stays with the
+ * request: the model is never changed without that explicit choice.
+ */
+const assertUsableAiConnection = async ({
+  userId,
+  connectionId,
+}: {
+  userId: number;
+  connectionId: string;
+}): Promise<void> => {
+  const connection = (await getConnectionInfos({ userId })).find((info) => info.id === connectionId);
+  if (!connection || connection.status !== 'valid') {
+    throw new ValidationError({ message: t({ key: 'ingest.aiConnectionUnavailable' }) });
+  }
+};
+
 const retryNotificationRequest = async ({
   userId,
   requestId,
   force,
+  aiConnectionId,
   locale,
 }: {
   userId: number;
   requestId: RecordId;
   force: boolean;
+  aiConnectionId?: string;
   locale: string;
 }): Promise<RetryIngestResult> => {
-  const prepared = await prepareNotificationRetry({ requestId, force, locale });
+  if (aiConnectionId) await assertUsableAiConnection({ userId, connectionId: aiConnectionId });
+
+  const prepared = await prepareNotificationRetry({ requestId, force, locale, aiConnectionId });
   if (prepared.kind === 'conflict') return prepared.result;
 
   await enqueueNotificationProcessing({ requestId });
@@ -91,10 +114,12 @@ export const retryIngestRequest = async ({
   userId,
   requestId,
   force = false,
+  aiConnectionId,
 }: {
   userId: number;
   requestId: RecordId;
   force?: boolean;
+  aiConnectionId?: string;
 }): Promise<RetryIngestResult> => {
   const request = await findOrThrowNotFound({
     query: IngestRequests.findOne({ where: { id: requestId, userId }, attributes: ['id', 'pipeline'] }),
@@ -103,7 +128,8 @@ export const retryIngestRequest = async ({
 
   const locale = await readUserLocale({ userId });
 
-  if (request.pipeline === 'notification') return retryNotificationRequest({ userId, requestId, force, locale });
+  if (request.pipeline === 'notification')
+    return retryNotificationRequest({ userId, requestId, force, aiConnectionId, locale });
 
   return runIngestPass({ userId, requestId, retry: true, locale });
 };
