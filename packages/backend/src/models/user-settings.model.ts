@@ -1,5 +1,6 @@
 import { SUPPORTED_LOCALES } from '@bt/shared/i18n/locales';
 import {
+  AI_EFFORT_LEVELS,
   AIConnectionInfo,
   AI_CUSTOM_INSTRUCTIONS_MAX_LENGTH,
   AI_FEATURE,
@@ -58,6 +59,8 @@ const ZodAiFeatureConfigSchema = z.object({
   connectionId: z.string().nullable(),
   /** A model of the connection's provider; never set with a null `connectionId`. */
   modelId: modelField.optional(),
+  /** How hard the model thinks, one it accepts; unset is the provider's default. */
+  effort: z.enum(AI_EFFORT_LEVELS).optional(),
 });
 
 // Field constraints are shared with the create/update routes so a restored row can't be
