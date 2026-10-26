@@ -106,10 +106,10 @@ const onSelect = (option: ChatConnectionOption | null) => {
         @select="(next) => emit('select-model', next)"
         @update:has-choice="(value) => (hasModelChoice = value)"
       />
-      <!-- Only for a model that has an effort setting; a narrow trigger, since its levels are single words. -->
+      <!-- Only for a model that has an effort setting. Sized to its level, so the connection and model share the rest. -->
       <EffortSelect
         v-if="selectedConnection"
-        class="w-28 shrink-0 @md/chat-conversation:w-36"
+        class="w-auto min-w-24 shrink-0"
         :connection="selectedConnection"
         :model-id="modelId"
         :effort="effort"

@@ -30,7 +30,7 @@ const SelectStub = defineComponent({
 const mountSelect = (props: {
   connection: { provider: AI_PROVIDER; model: string };
   modelId?: string | null;
-  effort?: 'low' | 'high' | 'max' | null;
+  effort?: 'low' | 'high' | 'minimal' | null;
 }) =>
   mount(EffortSelect, {
     props: { modelId: null, effort: null, ...props },
@@ -48,10 +48,11 @@ describe('EffortSelect', () => {
 
     expect(wrapper.findAll('button').map((button) => button.text())).toEqual([
       'Default',
-      'Minimal',
       'Low',
       'Medium',
       'High',
+      'Extra high',
+      'Max',
     ]);
   });
 
@@ -75,7 +76,7 @@ describe('EffortSelect', () => {
         .attributes('data-selected'),
     ).toBe('High');
     expect(
-      mountSelect({ connection: CODEX, effort: 'max' })
+      mountSelect({ connection: CODEX, effort: 'minimal' })
         .get('[data-testid="effort-select"]')
         .attributes('data-selected'),
     ).toBe('Default');

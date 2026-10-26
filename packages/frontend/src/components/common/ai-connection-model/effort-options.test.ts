@@ -17,10 +17,11 @@ describe('effort options', () => {
   it('offers the default first and then each level the connection model accepts', () => {
     expect(buildEffortOptions({ connection: CODEX, modelId: null }).map((option) => option.value)).toEqual([
       EFFORT_DEFAULT_VALUE,
-      'minimal',
       'low',
       'medium',
       'high',
+      'xhigh',
+      'max',
     ]);
   });
 
@@ -45,7 +46,7 @@ describe('effort options', () => {
 
     expect(findSelectedEffortOption({ options, effort: 'high' })).toEqual({ value: 'high', kind: 'level' });
     expect(findSelectedEffortOption({ options, effort: null })?.kind).toBe('default');
-    expect(findSelectedEffortOption({ options, effort: 'max' })?.kind).toBe('default');
+    expect(findSelectedEffortOption({ options, effort: 'minimal' })?.kind).toBe('default');
     expect(findSelectedEffortOption({ options: [], effort: 'high' })).toBeNull();
   });
 

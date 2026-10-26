@@ -335,12 +335,12 @@ describe('resolveAIConfiguration', () => {
       getCliAiAccessMock.mockResolvedValue({ allowed: true });
       storeSettings({
         connections: [CODEX],
-        featureConfigs: [{ feature: FEATURE, connectionId: CODEX.id, effort: 'minimal' }],
+        featureConfigs: [{ feature: FEATURE, connectionId: CODEX.id, effort: 'xhigh' }],
       });
 
       expect(await resolveAIConfiguration({ userId: USER_ID, feature: FEATURE })).toMatchObject({
         credentialSource: CLI_SOURCE,
-        effort: 'minimal',
+        effort: 'xhigh',
       });
     });
 
