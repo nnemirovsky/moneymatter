@@ -10,7 +10,7 @@ import { sseManager } from '@services/common/sse';
 import * as helpers from '@tests/helpers';
 import { enableServerModel, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
 import * as ingestHelpers from '@tests/helpers/ingest-tokens';
-import { mockNotificationParsing } from '@tests/helpers/notification-ai';
+import { mockNotificationParsing, useAiOnlyNotificationParsing } from '@tests/helpers/notification-ai';
 import { createChatScript, failOnUnscriptedChatRequests } from '@tests/mocks/openai-compatible/chat-script';
 import type { ChatScriptTurn } from '@tests/mocks/openai-compatible/chat-script';
 import { clearCapturedPushRequests, getCapturedPushRequests } from '@tests/mocks/web-push/mock-api';
@@ -20,6 +20,7 @@ import { assistantPushConfig } from './assistant-push-config';
 import { assistantPushQueue } from './assistant-push-queue';
 
 useSelfHostWithoutServerAiKeys();
+useAiOnlyNotificationParsing();
 failOnUnscriptedChatRequests();
 
 const DEFAULT_CONFIG = { ...assistantPushConfig };

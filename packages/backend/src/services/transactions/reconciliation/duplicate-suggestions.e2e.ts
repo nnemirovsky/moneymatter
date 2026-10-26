@@ -17,7 +17,7 @@ import { woltOnlinePayment } from '@services/ingest/event/fixtures/notifications
 import * as helpers from '@tests/helpers';
 import { enableServerModel, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
 import * as ingestHelpers from '@tests/helpers/ingest-tokens';
-import { mockNotificationParsing } from '@tests/helpers/notification-ai';
+import { mockNotificationParsing, useAiOnlyNotificationParsing } from '@tests/helpers/notification-ai';
 import { getMonobankTransactionsMock } from '@tests/mocks/monobank/mock-api';
 import { addHours, addMinutes, startOfDay, subDays } from 'date-fns';
 import { randomUUID } from 'node:crypto';
@@ -95,6 +95,7 @@ const booking = ({ cents, counterName }: { cents: number; counterName: string })
 
 describe('Duplicate suggestions', () => {
   useSelfHostWithoutServerAiKeys();
+  useAiOnlyNotificationParsing();
 
   beforeEach(async () => {
     enableServerModel();
