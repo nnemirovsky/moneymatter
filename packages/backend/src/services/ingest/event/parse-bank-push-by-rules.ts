@@ -15,7 +15,7 @@ const escapeRegExp = ({ value }: { value: string }) => value.replace(/[.*+?^${}(
 const KNOWN_CURRENCY_CODES: ReadonlySet<string> = new Set(Intl.supportedValuesOf('currency'));
 
 const MAX_MERCHANT_WORDS = 6;
-/** Lower-case function words: a name that holds one is part of a sentence. */
+/** Function words in any case: a name that holds one is part of a sentence, so it goes to the AI. */
 const PREPOSITION =
   /(?<![\p{L}\p{N}])(?:for|at|in|on|to|from|with|by|of|за|для|в|у|на|от|до|з|із|від)(?![\p{L}\p{N}])/iu;
 
@@ -30,7 +30,7 @@ const wordsPattern = ({ words }: { words: string }): RegExp =>
 /** Words (several languages) of a message that is not a plain card payment: a refusal, a hold, a transfer, a fee. */
 const NOT_PLAIN_PAYMENT = wordsPattern({
   words:
-    'declin\\p{L}*|refus\\p{L}*|reject\\p{L}*|fail\\p{L}*|insufficient|limit|code|otp|hold|pending|authori[sz]\\p{L}*|reserv\\p{L}*|transfer\\p{L}*|exchange\\p{L}*|conver\\p{L}*|cashback|bonus|fee|commission|installment|loan|overdraft|reversal|cancel\\p{L}*|unsuccess\\p{L}*|revers\\p{L}*|return\\p{L}*|error|not completed|due|request\\p{L}*|upcoming|scheduled|expected|will|tomorrow|invoice|bill|statement|not|no|не|ні|нет|remind\\p{L}*|from|to|ошибк\\p{L}*|не прошл\\p{L}*|не прош\\p{L}*|не вдал\\p{L}*|помилк\\p{L}*|від|от|до|отказ\\p{L}*|отклон\\p{L}*|недостаточно|лимит|код|блокир\\p{L}*|перевод\\p{L}*|обмен\\p{L}*|конверт\\p{L}*|комисс\\p{L}*|кэшбэк|бонус|кредит\\p{L}*|відмов\\p{L}*|відхил\\p{L}*|недостатньо|ліміт|переказ\\p{L}*|обмін\\p{L}*|комісі\\p{L}*|кешбек',
+    'declin\\p{L}*|refus\\p{L}*|reject\\p{L}*|fail\\p{L}*|insufficient|limit|code|otp|hold|pending|authori[sz]\\p{L}*|reserv\\p{L}*|transfer\\p{L}*|exchange\\p{L}*|conver\\p{L}*|cashback|bonus|fee|commission|installment|loan|overdraft|reversal|cancel\\p{L}*|unsuccess\\p{L}*|revers\\p{L}*|return\\p{L}*|error|not completed|deni\\p{L}*|block\\p{L}*|void\\p{L}*|suspend\\p{L}*|unauthori[sz]\\p{L}*|attempt\\p{L}*|due|request\\p{L}*|upcoming|scheduled|expected|will|tomorrow|invoice|bill|statement|not|no|не|ні|нет|remind\\p{L}*|from|to|ошибк\\p{L}*|не прошл\\p{L}*|не прош\\p{L}*|не вдал\\p{L}*|помилк\\p{L}*|від|от|до|отказ\\p{L}*|отклон\\p{L}*|недостаточно|лимит|код|блокир\\p{L}*|перевод\\p{L}*|обмен\\p{L}*|конверт\\p{L}*|комисс\\p{L}*|кэшбэк|бонус|кредит\\p{L}*|відмов\\p{L}*|відхил\\p{L}*|недостатньо|ліміт|переказ\\p{L}*|обмін\\p{L}*|комісі\\p{L}*|кешбек',
 });
 
 const DEBIT_WORDS = wordsPattern({
@@ -46,10 +46,16 @@ const globally = ({ pattern }: { pattern: RegExp }): RegExp => new RegExp(patter
 const BALANCE_WORDS = wordsPattern({ words: 'balance|bal|avail\\p{L}*|остаток|баланс|залишок|доступно' });
 
 /** A masked card number or "ending 1234": the digits are the card's, not an amount. */
-const CARD_MASK = /(?:[*•·x×]+[  ]?|(?:ending|ends|card|карт\w*|№|#)[  ]*(?:in|on|на)?[  ]*[*•·x×]*[  ]?)(\d{4,8})\b/iu;
+const CARD_MASK =
+  /(?:[*•·x×]+[  ]?|(?:ending|ends|card|карт\p{L}*|№|#)[  ]*(?:in|on|на)?[  ]*[*•·x×]*[  ]?)(\d{4,8})\b/iu;
 
 /** The word "card" alone on a line of words ("Card payment") names no merchant. */
 const CARD_WORD = wordsPattern({ words: 'card|карта|карт\\p{L}*' });
+
+const CARD_KIND = wordsPattern({
+  words: '(?:credit|debit|кредитн\\p{L}*|дебетов\\p{L}*)[ \\u00a0]+(?:card|карта|картка|карт\\p{L}*)',
+});
+const CARD_LABEL = /(?<![\p{L}\p{N}])[\p{L}\p{N}]+[ \u00a0]+(?:card|карта|картка)(?![\p{L}\p{N}])/iu;
 
 const DATE = /\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}[./]\d{1,2}[./](?:\d{4}|\d{2}))\b/gu;
 const TIME = /\b\d{1,2}:\d{2}(?::\d{2})?\b/gu;
@@ -98,6 +104,7 @@ const findAmounts = ({ line: original }: { line: string }): Found[] | null => {
       symbol: string | undefined,
       digits: string,
       after: string | undefined,
+      offset: number,
     ) => {
       // A code is a known ISO code written in capitals; a symbol in front of the number settles the currency by itself.
       const written = after ?? (symbol ? undefined : before);
@@ -106,8 +113,14 @@ const findAmounts = ({ line: original }: { line: string }): Found[] | null => {
       if (!parsed.ok || (!parsed.currencyCode && !parsed.symbol && !code && !symbol)) return token;
       // Doubt, left to the AI: a space inside the digits (a store number may be joined to the amount), a lone separator
       // before exactly three digits ("1.250" is one and a quarter or twelve hundred and fifty), a code on each side.
+      const followedByNumber = after !== undefined && /^[ \u00a0]*\d/u.test(line.slice(offset + token.length));
       const bothCodes = before && after && KNOWN_CURRENCY_CODES.has(before) && KNOWN_CURRENCY_CODES.has(after);
-      if (/[ \u00a0\u202f]/u.test(digits) || /^\d+[.,]\d{3}$/u.test(digits) || (bothCodes && before !== after)) {
+      if (
+        followedByNumber ||
+        /[ \u00a0\u202f]/u.test(digits) ||
+        /^\d+[.,]\d{3}$/u.test(digits) ||
+        (bothCodes && before !== after)
+      ) {
         doubtful = true;
 
         return token;
@@ -186,6 +199,11 @@ const readLine = ({ line }: { line: string }): LineReading | null => {
     rest = `${network ? before.slice(0, network.index) : before} | ${rest.slice(mask.index + mask[0].length)}`;
   }
 
+  // "Credit card" and "debit card" name a card, not a direction.
+  rest = rest.replace(CARD_KIND, ' | ');
+  // A card's own label ("Gold Card") is the AI's to read, with the card of the account it belongs to.
+  if (CARD_LABEL.test(rest)) return null;
+
   const debitWord = DEBIT_WORDS.test(rest);
   const creditWord = CREDIT_WORDS.test(rest);
   if (debitWord && creditWord) return null;
@@ -219,9 +237,12 @@ const readLine = ({ line }: { line: string }): LineReading | null => {
 export const parseBankPushByRules = ({
   text,
   appName,
+  sender = null,
 }: {
   text: NotificationText;
   appName: string | null;
+  /** The sender of a messaging or mail notification: a name, like the app's, that is not the merchant. */
+  sender?: string | null;
 }): RulesPayment | null => {
   const lines = linesOf({ text });
   const whole = lines.join('\n');
@@ -267,7 +288,11 @@ export const parseBankPushByRules = ({
 
   // A piece that ends in a colon is a bank's own label ("Deposit Money:"), and one that is a card's name is the AI's to read.
   // The bank's own name (the app's name, or its first word) is not the merchant, wherever it stands in the text.
-  const bankNames = [(appName ?? '').trim(), (appName ?? '').trim().split(/\s+/u)[0] ?? ''].filter(Boolean);
+  const bankNames = [
+    (appName ?? '').trim(),
+    (appName ?? '').trim().split(/\s+/u)[0] ?? '',
+    (sender ?? '').trim(),
+  ].filter(Boolean);
   const withoutBrand = pieces.map((piece) =>
     bankNames
       .reduce(
@@ -290,6 +315,7 @@ export const parseBankPushByRules = ({
         piece.split(/\s+/u).length > MAX_MERCHANT_WORDS ||
         PREPOSITION.test(piece) ||
         /[.!?]\s|[.!?]$/u.test(piece) ||
+        /\d[.,]\d/u.test(piece) ||
         piece.split(/\s+/u).some((word) => !/^[\p{Lu}\p{N}]/u.test(word)),
     )
   ) {
@@ -309,7 +335,11 @@ export const parseBankPushByRules = ({
     cardLastDigits: card?.digits ?? null,
     balanceAfter:
       balance && balance.currencyCode
-        ? { amount: balance.amount, currencyCode: balance.currencyCode, scopeHint: 'unknown' }
+        ? {
+            amount: balance.sign === '-' ? `-${balance.amount}` : balance.amount,
+            currencyCode: balance.currencyCode,
+            scopeHint: 'unknown',
+          }
         : null,
     occurredAt: readOccurredAt({ text: whole }),
   };

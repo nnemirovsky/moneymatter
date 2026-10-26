@@ -20,22 +20,17 @@ type RetryIngestResult = ProcessIngestResult | CardPaymentRetryResponse;
  * The owner chose an AI connection for this notification. It must be one of theirs that works, and it stays with the
  * request: the model is never changed without that explicit choice.
  */
-const pinAiConnection = async ({
+const assertUsableAiConnection = async ({
   userId,
-  requestId,
   connectionId,
 }: {
   userId: number;
-  requestId: RecordId;
   connectionId: string;
 }): Promise<void> => {
   const connection = (await getConnectionInfos({ userId })).find((info) => info.id === connectionId);
   if (!connection || connection.status !== 'valid') {
     throw new ValidationError({ message: t({ key: 'ingest.aiConnectionUnavailable' }) });
   }
-
-  const row = await IngestRequests.findOne({ where: { id: requestId, userId } });
-  if (row) await row.update({ payload: { ...row.payload, aiPin: connectionId } });
 };
 
 const retryNotificationRequest = async ({
@@ -51,9 +46,9 @@ const retryNotificationRequest = async ({
   aiConnectionId?: string;
   locale: string;
 }): Promise<RetryIngestResult> => {
-  if (aiConnectionId) await pinAiConnection({ userId, requestId, connectionId: aiConnectionId });
+  if (aiConnectionId) await assertUsableAiConnection({ userId, connectionId: aiConnectionId });
 
-  const prepared = await prepareNotificationRetry({ requestId, force, locale });
+  const prepared = await prepareNotificationRetry({ requestId, force, locale, aiConnectionId });
   if (prepared.kind === 'conflict') return prepared.result;
 
   await enqueueNotificationProcessing({ requestId });

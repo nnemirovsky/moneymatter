@@ -155,7 +155,7 @@ const read = async ({
 
   // A plain card-payment push is read by its layout; the model is for the texts the rules cannot settle.
   const byRules = notificationRules.enabled
-    ? parseBankPushByRules({ text, appName: source?.appName ?? appName })
+    ? parseBankPushByRules({ text, appName: source?.appName ?? appName, sender: source?.sender ?? null })
     : null;
   if (byRules) {
     return {

@@ -206,6 +206,46 @@ describe('parseBankPushByRules', () => {
     );
   });
 
+  it('does not take "credit card" for the direction of a purchase', () => {
+    expect(read({ body: 'Credit Card purchase 25.00 USD\nShop Blue' })?.classified.kind).toBe('debit');
+    expect(read({ body: 'Credit Card 25.00 USD\nShop Blue' })).toBeNull();
+  });
+
+  it('reads the card digits after a card word in Cyrillic', () => {
+    expect(read({ body: 'Purchase 25.00 USD\nкарта *4455\nShop Blue' })?.classified.payment.cardLastDigits).toBe(
+      '4455',
+    );
+  });
+
+  it('leaves to the AI a bare number in front of a code-first amount, and a card label', () => {
+    expect(read({ body: 'Purchase 1234 USD 25.00\nShop Blue' })).toBeNull();
+    expect(read({ body: 'Purchase 25.00 USD\nGold Card' })).toBeNull();
+  });
+
+  it('leaves to the AI refusal wording in capitals or title case', () => {
+    expect(read({ body: 'Purchase 25.00 USD\nShop Blue Denied' })).toBeNull();
+    expect(read({ body: 'Purchase 25.00 USD\nShop Blue BLOCKED' })).toBeNull();
+    expect(read({ body: 'Purchase 25.00 USD\nShop Blue Voided' })).toBeNull();
+  });
+
+  it('does not take the sender of a message for the merchant', () => {
+    const result = parseBankPushByRules({
+      text: { title: 'Pocket Bank', subtitle: '', body: 'Purchase 25.00 USD Shop Blue', raw: null },
+      appName: 'Messages',
+      sender: 'Pocket Bank',
+    });
+
+    expect(result?.classified.payment.merchant).toBe('Shop Blue');
+  });
+
+  it('keeps the minus sign of a balance', () => {
+    expect(
+      read({ body: 'Purchase 25.00 USD\nShop Blue\nBalance: -10.00 USD' })?.classified.payment.balanceAfter,
+    ).toMatchObject({
+      amount: '-10',
+    });
+  });
+
   it('does not read the digits of a masked card as an amount', () => {
     const payment = read({ body: 'Purchase 5.00 EUR\nCard *4321\nKiosk 7' })?.classified.payment;
 

@@ -15,10 +15,13 @@ const prepareNotificationRetryImpl = async ({
   requestId,
   force,
   locale,
+  aiConnectionId,
 }: {
   requestId: RecordId;
   force: boolean;
   locale: string;
+  /** The AI connection the owner chose for this notification; it stays on the request once the retry is allowed. */
+  aiConnectionId?: string;
 }): Promise<PrepareResult> => {
   const row = await IngestRequests.findOne({ where: { id: requestId, pipeline: 'notification' }, lock: true });
   if (!row) throw new Error(`Ingest request ${requestId} does not exist.`);
@@ -56,7 +59,12 @@ const prepareNotificationRetryImpl = async ({
   // that is not waiting any more. The stored text and reading stay, so the job starts from them.
   // A new try by hand starts the automatic schedule over if the model is still out of reach.
   const { aiRetry: _spent, ...payload } = row.payload;
-  await row.update({ status: 'received', reason: null, summary: null, payload });
+  await row.update({
+    status: 'received',
+    reason: null,
+    summary: null,
+    payload: aiConnectionId ? { ...payload, aiPin: aiConnectionId } : payload,
+  });
 
   return { kind: 'ready' };
 };

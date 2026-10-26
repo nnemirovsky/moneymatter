@@ -165,8 +165,9 @@ const parkForAiQuotaImpl = async ({
 
 /**
  * Records a notification as waiting for the AI model to come back (a used-up quota, a rate limit, an overload):
- * it is `parked` as `aiQuotaWait` with the line that says why and when the next try is, and the job tries again by
- * itself. The retry state stays in the payload so the next pass knows how many times it was tried.
+ * it is `parked` as `aiQuotaWait` with the line that says why and when the next try is, and, while the schedule lasts, the
+ * job tries again by itself (after its last step the request waits for the owner). The retry state stays in the payload
+ * so the next pass knows how many times it was tried.
  */
 export const parkForAiQuota = withTransaction(parkForAiQuotaImpl);
 

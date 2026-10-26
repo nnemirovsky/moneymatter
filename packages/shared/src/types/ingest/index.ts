@@ -243,7 +243,7 @@ export const NOTIFICATION_PARK_REASONS = [
   'aiUnavailable',
   'aiCapReached',
   'aiLimitReached',
-  /** The model is out of reach (a used-up quota, a rate limit, an overload); the request is retried by itself. */
+  /** The model is out of reach (a used-up quota, a rate limit, an overload); the request is retried by itself while the schedule lasts. */
   'aiQuotaWait',
   'ownTransfer',
   'lowConfidence',
