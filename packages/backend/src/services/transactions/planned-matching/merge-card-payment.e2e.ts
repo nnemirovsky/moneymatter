@@ -20,7 +20,7 @@ import { addHours, format, startOfDay, subDays } from 'date-fns';
 import { randomUUID } from 'node:crypto';
 
 const CARD = 'TBC Visa';
-const MERCHANT = 'Cafe Heart of Batumi';
+const MERCHANT = 'Cafe Heart of Lisbon';
 const AI_CATEGORY = 'Coffee';
 
 // Powers of two keep every converted figure exact: 1 USD = 4 AED = 8 UAH = 2 EUR.
@@ -247,7 +247,7 @@ describe('Card-payment plans – settlement on bank sync', () => {
       await syncAccount({
         connectionId,
         accountId,
-        transactions: [booking({ cents: 5200, counterName: 'HEART OF BATUMI CAFE BATUMI GE' })],
+        transactions: [booking({ cents: 5200, counterName: 'HEART OF LISBON CAFE LISBON GE' })],
       });
 
       const rows = await listAccountTransactions({ accountId });
@@ -255,7 +255,7 @@ describe('Card-payment plans – settlement on bank sync', () => {
       expect(rows.find((row) => row.id === planId)).toMatchObject({ isPlanned: false, amount: 52 });
 
       const payee = await helpers.getPayeeById({ id: plan.payeeId!, raw: true });
-      expect(payee.aliases?.map((alias) => alias.normalizedName)).toContain('heart of batumi cafe batumi ge');
+      expect(payee.aliases?.map((alias) => alias.normalizedName)).toContain('heart of lisbon cafe lisbon ge');
       expect(await helpers.listPayees({ raw: true })).toHaveLength(1);
     }, 60000);
 
@@ -274,7 +274,7 @@ describe('Card-payment plans – settlement on bank sync', () => {
       await syncAccount({
         connectionId,
         accountId,
-        transactions: [booking({ cents: 10400, counterName: 'CAFE HEART OF BATUMI', daysAgo: 1 })],
+        transactions: [booking({ cents: 10400, counterName: 'CAFE HEART OF LISBON', daysAgo: 1 })],
       });
 
       const merged = (await listAccountTransactions({ accountId })).find((row) => row.id === planId)!;
@@ -294,7 +294,7 @@ describe('Card-payment plans – settlement on bank sync', () => {
       await syncAccount({
         connectionId,
         accountId,
-        transactions: [booking({ cents: 5200, description: 'HEART OF BATUMI CAFE' })],
+        transactions: [booking({ cents: 5200, description: 'HEART OF LISBON CAFE' })],
       });
 
       const rows = await listAccountTransactions({ accountId });
@@ -324,8 +324,8 @@ describe('Card-payment plans – settlement on bank sync', () => {
       const { connectionId, accountId, secret } = await setup();
       const planId = await ingestPlan({ secret });
 
-      const other = booking({ cents: 5200, counterName: 'SPAR BATUMI', daysAgo: 2 });
-      const exact = booking({ cents: 4700, counterName: 'SPAR BATUMI', daysAgo: 1 });
+      const other = booking({ cents: 5200, counterName: 'SPAR LISBON', daysAgo: 2 });
+      const exact = booking({ cents: 4700, counterName: 'SPAR LISBON', daysAgo: 1 });
       await syncAccount({ connectionId, accountId, transactions: [other, exact] });
 
       const rows = await listAccountTransactions({ accountId });
@@ -340,7 +340,7 @@ describe('Card-payment plans – settlement on bank sync', () => {
       // The exact-amount booking settled the plan, but its text is another shop and is not learned.
       const merged = rows.find((row) => row.id === planId)!;
       const payee = await helpers.getPayeeById({ id: merged.payeeId!, raw: true });
-      expect(payee.aliases?.map((alias) => alias.normalizedName) ?? []).not.toContain('spar batumi');
+      expect(payee.aliases?.map((alias) => alias.normalizedName) ?? []).not.toContain('spar lisbon');
     }, 60000);
 
     it('does not merge a tolerance booking from another shop that shares only the city and a category word', async () => {
@@ -351,7 +351,7 @@ describe('Card-payment plans – settlement on bank sync', () => {
       await syncAccount({
         connectionId,
         accountId,
-        transactions: [booking({ cents: 5200, counterName: 'CAFE BATUMI GE' })],
+        transactions: [booking({ cents: 5200, counterName: 'CAFE LISBON GE' })],
       });
 
       const rows = await listAccountTransactions({ accountId });
@@ -359,7 +359,7 @@ describe('Card-payment plans – settlement on bank sync', () => {
       expect(rows.find((row) => row.id === planId)).toMatchObject({ isPlanned: true, amount: 47 });
 
       const payee = await helpers.getPayeeById({ id: plan.payeeId!, raw: true });
-      expect(payee.aliases?.map((alias) => alias.normalizedName) ?? []).not.toContain('cafe batumi ge');
+      expect(payee.aliases?.map((alias) => alias.normalizedName) ?? []).not.toContain('cafe lisbon ge');
     }, 60000);
 
     it('does not merge a tolerance booking whose text is another known payee, even when a token is shared', async () => {
@@ -409,14 +409,14 @@ describe('Card-payment plans – settlement on bank sync', () => {
       const heartTime = addHours(subDays(startOfDay(new Date()), 3), 12).toISOString();
       const sparTime = addHours(subDays(startOfDay(new Date()), 1), 12).toISOString();
       const heartPlanId = await ingestPlan({ secret, overrides: { time: heartTime } });
-      const sparPlanId = await ingestPlan({ secret, overrides: { merchant: 'Spar Batumi', time: sparTime } });
+      const sparPlanId = await ingestPlan({ secret, overrides: { merchant: 'Spar Lisbon', time: sparTime } });
       const heartPayeeId = (await readRow({ id: heartPlanId })).payeeId;
       const sparPayeeId = (await readRow({ id: sparPlanId })).payeeId;
       expect(heartPayeeId).not.toBe(sparPayeeId);
 
       // The Heart booking is dated next to the Spar plan, and the Spar booking next to the Heart plan.
-      const heartBooking = booking({ cents: 4700, counterName: 'CAFE HEART OF BATUMI', daysAgo: 1 });
-      const sparBooking = booking({ cents: 4700, counterName: 'SPAR BATUMI GE', daysAgo: 3 });
+      const heartBooking = booking({ cents: 4700, counterName: 'CAFE HEART OF LISBON', daysAgo: 1 });
+      const sparBooking = booking({ cents: 4700, counterName: 'SPAR LISBON GE', daysAgo: 3 });
       await syncAccount({ connectionId, accountId, transactions: [heartBooking, sparBooking] });
 
       const rows = await listAccountTransactions({ accountId });

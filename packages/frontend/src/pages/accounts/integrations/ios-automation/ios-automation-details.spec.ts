@@ -51,7 +51,7 @@ const UnlinkedCardsStub = defineComponent({
     () =>
       h('button', {
         'data-testid': 'unlinked-stub',
-        onClick: () => emit('link', { cardLabel: 'TBC Visa', count: 3 }),
+        onClick: () => emit('link', { cardLabel: 'Example Visa', count: 3 }),
       }),
 });
 
@@ -69,7 +69,7 @@ const CardLinkDialogStub = defineComponent({
           onClick: () =>
             emit('saved', {
               id: 'm1' as RecordId,
-              cardLabel: 'tbc visa',
+              cardLabel: 'example visa',
               lastDigits: null,
               currencyCode: null,
               accountId: 'a1' as RecordId,
@@ -273,7 +273,7 @@ describe('iOS Automation page', () => {
       await startLink(wrapper);
 
       expect(wrapper.get('[data-testid="link-dialog"]').attributes('data-open')).toBe('true');
-      expect(wrapper.get('[data-testid="link-dialog"]').attributes('data-label')).toBe('TBC Visa');
+      expect(wrapper.get('[data-testid="link-dialog"]').attributes('data-label')).toBe('Example Visa');
     });
 
     it('then offers to log the waiting payments, and logs them on confirm', async () => {
@@ -283,12 +283,12 @@ describe('iOS Automation page', () => {
       await startLink(wrapper);
       await click(wrapper, 'link-saved');
 
-      expect(wrapper.get('[data-testid="alert-dialog"]').text()).toContain('3 payments from tbc visa are waiting');
+      expect(wrapper.get('[data-testid="alert-dialog"]').text()).toContain('3 payments from example visa are waiting');
       expect(wrapper.get('[data-testid="alert-confirm"]').text()).toBe('Log 3 waiting payments');
 
       await click(wrapper, 'alert-confirm');
 
-      expect(mockLogWaiting).toHaveBeenCalledWith({ cardLabel: 'tbc visa' });
+      expect(mockLogWaiting).toHaveBeenCalledWith({ cardLabel: 'example visa' });
       expect(wrapper.find('[data-testid="alert-dialog"]').exists()).toBe(false);
     });
 

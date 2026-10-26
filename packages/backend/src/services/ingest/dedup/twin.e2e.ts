@@ -18,7 +18,7 @@ import { TAP_SLOT, WALLET_NOTIFICATION_SLOT } from './source-slots';
 const CARD = woltOnlinePayment.tap.card;
 const DEFAULT_TIMINGS = { ...notificationTimings };
 const RATE_DAYS_AGO = 6;
-const TBC_KEY = buildSourceKey({ bundleId: null, appName: 'TBC Bank' });
+const Example_KEY = buildSourceKey({ bundleId: null, appName: 'Example Bank' });
 const BOG_KEY = buildSourceKey({ bundleId: null, appName: 'Bank of Georgia' });
 
 /** The payee answer that works whether the payee exists already (candidate) or not yet (new name). */
@@ -47,15 +47,15 @@ type Source = 'tap' | 'wallet' | 'push' | 'bog';
 /** The seconds after noon at which each source of the payment reaches the phone. */
 const SOURCE_OFFSET_SECONDS: Record<Source, number> = { wallet: 0, tap: 3, push: 125, bog: 150 };
 
-/** What the model answers: the TBC push of the owner's phone, or the other bank's text of the same payment. */
+/** What the model answers: the Example push of the owner's phone, or the other bank's text of the same payment. */
 const answerFor = ({ prompt }: { prompt: string }) =>
-  prompt.includes('TBC CARD VISA GOLD')
-    ? { ...woltOnlinePayment.tbcPushAnswer, occurredAt: `${paymentDay}T18:40:00`, payee: WOLT_PAYEE }
+  prompt.includes('EXAMPLE CARD VISA GOLD')
+    ? { ...woltOnlinePayment.bankPushAnswer, occurredAt: `${paymentDay}T18:40:00`, payee: WOLT_PAYEE }
     : {
         kind: 'debit' as const,
         amount: '29.41',
         currency: 'GEL',
-        merchant: 'WOLT.COM TBILISI',
+        merchant: 'WOLT.COM LISBON',
         cardLastDigits: '0000',
         payee: WOLT_PAYEE,
       };
@@ -64,7 +64,7 @@ const setUp = async ({ withUsd = false, holdsUsd = false }: { withUsd?: boolean;
   await helpers.addUserCurrencies({ currencyCodes: withUsd || holdsUsd ? ['GEL', 'USD'] : ['GEL'] });
   const noon = await seedRateDay();
   const gel = await helpers.createAccount({
-    payload: helpers.buildAccountPayload({ name: 'TBC GEL', currencyCode: 'GEL', initialBalance: 1000 }),
+    payload: helpers.buildAccountPayload({ name: 'Example GEL', currencyCode: 'GEL', initialBalance: 1000 }),
     raw: true,
   });
   await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id, lastDigits: '0000' }, raw: true });
@@ -72,7 +72,7 @@ const setUp = async ({ withUsd = false, holdsUsd = false }: { withUsd?: boolean;
   let usd: { id: RecordId } | null = null;
   if (withUsd) {
     usd = await helpers.createAccount({
-      payload: helpers.buildAccountPayload({ name: 'TBC USD', currencyCode: 'USD', initialBalance: 500 }),
+      payload: helpers.buildAccountPayload({ name: 'Example USD', currencyCode: 'USD', initialBalance: 500 }),
       raw: true,
     });
     await helpers.createCardMapping({
@@ -94,7 +94,7 @@ const sendSource = ({
   secret,
   noon,
   source,
-  bogBody = 'Purchase 29.41 GEL, WOLT.COM TBILISI, card *0000',
+  bogBody = 'Purchase 29.41 GEL, WOLT.COM LISBON, card *0000',
 }: {
   secret: string;
   noon: Date;
@@ -131,10 +131,10 @@ const sendSource = ({
         secret,
         body: {
           kind: 'notification',
-          app: woltOnlinePayment.tbcPush.appName,
-          title: woltOnlinePayment.tbcPush.title,
-          subtitle: woltOnlinePayment.tbcPush.subtitle,
-          body: woltOnlinePayment.tbcPush.body,
+          app: woltOnlinePayment.bankPush.appName,
+          title: woltOnlinePayment.bankPush.title,
+          subtitle: woltOnlinePayment.bankPush.subtitle,
+          body: woltOnlinePayment.bankPush.body,
           time,
           idempotencyKey,
         },
@@ -229,7 +229,9 @@ describe('twin and settlement rules', () => {
         sourcesOf({ row })
           .map((source) => source.slot)
           .toSorted(),
-      ).toEqual([TAP_SLOT, WALLET_NOTIFICATION_SLOT, `bank:${TBC_KEY}:payment`, `bank:${BOG_KEY}:payment`].toSorted());
+      ).toEqual(
+        [TAP_SLOT, WALLET_NOTIFICATION_SLOT, `bank:${Example_KEY}:payment`, `bank:${BOG_KEY}:payment`].toSorted(),
+      );
       expect((row.externalData.ingest as { cardLastDigits?: string }).cardLastDigits).toBe('0000');
       expect(row.payeeId).toEqual(expect.any(String));
 
@@ -241,9 +243,9 @@ describe('twin and settlement rules', () => {
         ((await helpers.getPayeeById({ id: payees[0]!.id, raw: true })).aliases ?? []).map(
           (alias) => alias.normalizedName,
         );
-      expect(await aliasesOfWolt()).not.toContain('wolt com tbilisi');
+      expect(await aliasesOfWolt()).not.toContain('wolt com lisbon');
       await approveCardAsIs({ card: await confirmCardOf({ transactionId: row.id }) });
-      expect(await aliasesOfWolt()).toContain('wolt com tbilisi');
+      expect(await aliasesOfWolt()).toContain('wolt com lisbon');
 
       const account = await helpers.getAccount({ id: gel.id, raw: true });
       expect(account.currentBalance).toBe(1000 - 29.41);
@@ -254,7 +256,7 @@ describe('twin and settlement rules', () => {
     });
   });
 
-  describe('the real TBC push after the Wallet notification', () => {
+  describe('the real Example push after the Wallet notification', () => {
     it('adds the card digits and the bank time, and keeps the multi-currency balance informational', async () => {
       mockNotificationParsing({ answer: answerFor });
       const { secret, noon } = await setUp({ withUsd: true });
@@ -267,7 +269,7 @@ describe('twin and settlement rules', () => {
       const [walletSource, bankSource] = sourcesOf({ row: row! });
 
       expect(walletSource!.slot).toBe(WALLET_NOTIFICATION_SLOT);
-      expect(bankSource!.slot).toBe(`bank:${TBC_KEY}:payment`);
+      expect(bankSource!.slot).toBe(`bank:${Example_KEY}:payment`);
       expect((row!.externalData.ingest as { cardLastDigits?: string }).cardLastDigits).toBe('0000');
 
       // The push prints 18:40 on the wall and the phone stamped it 14:40:05 UTC, so the bank's time is 14:40 UTC.
@@ -377,10 +379,10 @@ describe('twin and settlement rules', () => {
         secret,
         body: {
           kind: 'notification',
-          app: woltOnlinePayment.tbcPush.appName,
-          title: woltOnlinePayment.tbcPush.title,
+          app: woltOnlinePayment.bankPush.appName,
+          title: woltOnlinePayment.bankPush.title,
           subtitle: '',
-          body: woltOnlinePayment.tbcPush.body,
+          body: woltOnlinePayment.bankPush.body,
           time: timeOf({ noon, seconds: 31 * 60 }),
           idempotencyKey: `push-${randomUUID()}`,
         },
@@ -417,7 +419,7 @@ describe('twin and settlement rules', () => {
           currency: 'GEL',
           originalAmount: '10.00',
           originalCurrency: 'USD',
-          merchant: 'WOLT.COM TBILISI',
+          merchant: 'WOLT.COM LISBON',
           cardLastDigits: '0000',
           payee: WOLT_PAYEE,
         }),
@@ -443,7 +445,7 @@ describe('twin and settlement rules', () => {
         secret,
         noon,
         source: 'bog',
-        bogBody: 'Purchase 20.50 GEL (10.00 USD), WOLT.COM TBILISI, card *0000',
+        bogBody: 'Purchase 20.50 GEL (10.00 USD), WOLT.COM LISBON, card *0000',
       });
       expect(bank.body.response.outcome).toBe('attached');
 
@@ -501,8 +503,8 @@ describe('twin and settlement rules', () => {
         secret,
         body: {
           kind: 'notification',
-          app: 'TBC Bank',
-          title: 'TBC',
+          app: 'Example Bank',
+          title: 'Example',
           subtitle: '',
           body,
           time: timeOf({ noon, seconds }),
@@ -531,8 +533,8 @@ describe('twin and settlement rules', () => {
       const rows = await allRows();
       expect(rows).toHaveLength(1);
       expect(sourcesOf({ row: rows[0]! }).map((source) => source.slot)).toEqual([
-        `bank:${TBC_KEY}:authorization`,
-        `bank:${TBC_KEY}:settlement`,
+        `bank:${Example_KEY}:authorization`,
+        `bank:${Example_KEY}:settlement`,
       ]);
     });
 

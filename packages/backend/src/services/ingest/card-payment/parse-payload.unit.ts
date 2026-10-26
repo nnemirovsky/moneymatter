@@ -14,8 +14,8 @@ const idempotencyKey = 'a'.repeat(64);
 
 const validBody = {
   amount: '₾47.00',
-  merchant: 'Cafe Heart of Batumi',
-  card: 'TBC Visa',
+  merchant: 'Cafe Heart of Lisbon',
+  card: 'Example Visa',
   idempotencyKey,
 };
 
@@ -38,8 +38,8 @@ describe('parsePayload', () => {
         amountCurrencyCode: null,
         amountSymbol: '₾',
         explicitCurrency: null,
-        merchant: 'Cafe Heart of Batumi',
-        card: 'TBC Visa',
+        merchant: 'Cafe Heart of Lisbon',
+        card: 'Example Visa',
         name: null,
         time: receivedAt,
         timeProvided: false,
@@ -75,8 +75,8 @@ describe('parsePayload', () => {
 
     it('collapses whitespace and drops invisible characters in text fields', () => {
       expect(
-        parse({ body: { ...validBody, merchant: '  Cafe  Heart ​of\nBatumi ', card: ' TBC\tVisa\u0000 ' } }),
-      ).toMatchObject({ merchant: 'Cafe Heart of Batumi', card: 'TBC Visa' });
+        parse({ body: { ...validBody, merchant: '  Cafe  Heart ​of\nLisbon ', card: ' Example\tVisa\u0000 ' } }),
+      ).toMatchObject({ merchant: 'Cafe Heart of Lisbon', card: 'Example Visa' });
     });
 
     it('ignores unknown keys', () => {
@@ -324,10 +324,10 @@ describe('parsePayload', () => {
     });
 
     it('reads a usable card and ignores invalid payment fields', () => {
-      expect(parse({ body: { dryRun: true, card: ' TBC  Visa ', amount: '0', idempotencyKey: 'x' } })).toEqual({
+      expect(parse({ body: { dryRun: true, card: ' Example  Visa ', amount: '0', idempotencyKey: 'x' } })).toEqual({
         ok: true,
         kind: 'dryRun',
-        card: 'TBC Visa',
+        card: 'Example Visa',
       });
     });
 
@@ -389,9 +389,9 @@ describe('resolvePayloadTime offsets', () => {
 
 describe('the timeZone key', () => {
   it('keeps a valid IANA zone', () => {
-    expect(parse({ body: { ...validBody, timeZone: ' Asia/Tbilisi ' } })).toMatchObject({
+    expect(parse({ body: { ...validBody, timeZone: ' Asia/Dubai ' } })).toMatchObject({
       ok: true,
-      timeZone: 'Asia/Tbilisi',
+      timeZone: 'Asia/Dubai',
     });
   });
 
@@ -404,7 +404,7 @@ describe('the timeZone key', () => {
   });
 
   it('reads a stored zone and ignores an invalid one', () => {
-    expect(readPayloadTimeZone({ value: 'Asia/Tbilisi' })).toBe('Asia/Tbilisi');
+    expect(readPayloadTimeZone({ value: 'Asia/Dubai' })).toBe('Asia/Dubai');
     expect(readPayloadTimeZone({ value: 'nope' })).toBeNull();
   });
 });

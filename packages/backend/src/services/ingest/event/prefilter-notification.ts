@@ -56,7 +56,7 @@ let ownOutputTemplates: RegExp[] | null = null;
 /**
  * One pattern per banner template, in every language: its fixed text with `.+?` where a value goes,
  * anchored at the start. "Logged 43.60 GEL at Wolt → Food" matches `Logged .+? at .+? → .+`, while a
- * bank's "Logged out of TBC" does not. Built on first use, once the translations are loaded.
+ * bank's "Logged out of Example" does not. Built on first use, once the translations are loaded.
  */
 const getOwnOutputTemplates = (): RegExp[] => {
   if (ownOutputTemplates) return ownOutputTemplates;

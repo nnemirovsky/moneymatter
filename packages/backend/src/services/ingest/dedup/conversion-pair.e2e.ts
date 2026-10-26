@@ -11,13 +11,13 @@ import { randomUUID } from 'node:crypto';
 
 import { notificationTimings } from '../event/constants';
 
-const CARD = 'TBC CARD';
+const CARD = 'EXAMPLE CARD';
 const DEFAULT_TIMINGS = { ...notificationTimings };
 const SEEDED_DATES: Date[] = [];
 
-/** The owner's two TBC pushes of 2026-10-20 (a USD transfer to FXHUB, the GEL deposit 6 minutes later). */
-const TRANSFER_OUT = 'Money Transfer: 300.00 USD\nTBC CARD\n20/10/2026';
-const DEPOSIT_IN = 'Deposit Money: 778.50 GEL\nTBC CARD\n20/10/2026';
+/** The owner's two Example pushes of 2026-10-20 (a USD transfer to XCHANGE, the GEL deposit 6 minutes later). */
+const TRANSFER_OUT = 'Money Transfer: 300.00 USD\nEXAMPLE CARD\n20/10/2026';
+const DEPOSIT_IN = 'Deposit Money: 778.50 GEL\nEXAMPLE CARD\n20/10/2026';
 
 /** The deposit is checked first: once "Money Transfer" is a payee, its name is a payee candidate in the deposit's prompt too. */
 const answerFor = ({ prompt }: { prompt: string }) =>
@@ -33,11 +33,11 @@ const setUp = async () => {
   await helpers.seedUsdExchangeRates({ date: day, ratesPerUsd: { AED: 4, GEL: 2.6 } });
 
   const gel = await helpers.createAccount({
-    payload: helpers.buildAccountPayload({ name: 'TBC GEL', currencyCode: 'GEL', initialBalance: 1000 }),
+    payload: helpers.buildAccountPayload({ name: 'Example GEL', currencyCode: 'GEL', initialBalance: 1000 }),
     raw: true,
   });
   const usd = await helpers.createAccount({
-    payload: helpers.buildAccountPayload({ name: 'TBC USD', currencyCode: 'USD', initialBalance: 1000 }),
+    payload: helpers.buildAccountPayload({ name: 'Example USD', currencyCode: 'USD', initialBalance: 1000 }),
     raw: true,
   });
   await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id }, raw: true });
@@ -51,8 +51,8 @@ const push = ({ secret, start, minutes, body }: { secret: string; start: Date; m
     secret,
     body: {
       kind: 'notification',
-      app: 'TBC Bank',
-      title: 'TBC',
+      app: 'Example Bank',
+      title: 'Example',
       subtitle: '',
       body,
       time: addMinutes(start, minutes).toISOString(),
@@ -176,7 +176,7 @@ describe('currency-conversion pair', () => {
     const { secret, start } = await setUp();
 
     await push({ secret, start, minutes: 0, body: TRANSFER_OUT });
-    await push({ secret, start, minutes: 6, body: 'Deposit Money: 900.00 GEL\nTBC CARD\n20/10/2026' });
+    await push({ secret, start, minutes: 6, body: 'Deposit Money: 900.00 GEL\nEXAMPLE CARD\n20/10/2026' });
 
     await expectLoggedWithoutSuggestion();
   });
@@ -191,7 +191,7 @@ describe('currency-conversion pair', () => {
     const { secret, start } = await setUp();
 
     await push({ secret, start, minutes: 0, body: TRANSFER_OUT });
-    await push({ secret, start, minutes: 6, body: 'Deposit Money: 300.00 USD\nTBC CARD\n20/10/2026' });
+    await push({ secret, start, minutes: 6, body: 'Deposit Money: 300.00 USD\nEXAMPLE CARD\n20/10/2026' });
 
     await expectLoggedWithoutSuggestion();
   });

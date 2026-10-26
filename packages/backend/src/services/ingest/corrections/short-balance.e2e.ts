@@ -52,14 +52,14 @@ const account = ({
 const setUp = async ({ gelBalance = 10, usdBalance = 500, eurBalance, onlyDefault = false }: SetUpOptions = {}) => {
   await helpers.addUserCurrencies({ currencyCodes: ['GEL', 'USD', 'EUR'] });
   const noon = await seedRateDay();
-  const gel = await account({ name: 'TBC GEL', currencyCode: 'GEL', initialBalance: gelBalance });
+  const gel = await account({ name: 'Example GEL', currencyCode: 'GEL', initialBalance: gelBalance });
   await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id }, raw: true });
 
-  const usd = await account({ name: 'TBC USD', currencyCode: 'USD', initialBalance: usdBalance });
+  const usd = await account({ name: 'Example USD', currencyCode: 'USD', initialBalance: usdBalance });
   const eur =
     eurBalance === undefined
       ? null
-      : await account({ name: 'TBC EUR', currencyCode: 'EUR', initialBalance: eurBalance });
+      : await account({ name: 'Example EUR', currencyCode: 'EUR', initialBalance: eurBalance });
   if (!onlyDefault) {
     await helpers.createCardMapping({
       payload: { cardLabel: CARD, accountId: usd.id, currencyCode: 'USD' },
@@ -242,7 +242,7 @@ describe('short-balance correction', () => {
 
       expect(correctionPrompts).toHaveLength(1);
       expect(correctionPrompts[0]).toContain('Payment: 29.41 GEL');
-      expect(correctionPrompts[0]).toContain('a1 | TBC EUR | EUR | 900 |');
+      expect(correctionPrompts[0]).toContain('a1 | Example EUR | EUR | 900 |');
       expect(correctionPrompts[0]).not.toContain(usd.id);
     });
 
@@ -329,7 +329,7 @@ describe('short-balance correction', () => {
     it('keeps the zone the device reported when the payment moves to a system account', async () => {
       const { tx } = await logShort();
       // A payment logged on a bank-linked account waits as planned until the bank reports it.
-      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Tbilisi' } });
+      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Dubai' } });
       await tx.update({ isPlanned: true, timeZone: 'Europe/Istanbul', utcOffsetMinutes: 180 });
 
       await helpers.approveIngestCorrection({ transactionId: tx.id, raw: true });

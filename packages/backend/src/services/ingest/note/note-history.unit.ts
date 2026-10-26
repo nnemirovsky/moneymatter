@@ -2,9 +2,9 @@ import { describe, expect, it } from '@jest/globals';
 
 import { localHour, offsetMinutesOf, suggestNoteFromHistory } from './note-history';
 
-const TBILISI = 4 * 60;
+const LISBON = 4 * 60;
 
-/** A UTC time for a local time in Tbilisi (UTC+4) on a day of October 2026. */
+/** A UTC time for a local time in Lisbon (UTC+4) on a day of October 2026. */
 const at = ({ day, local }: { day: number; local: string }) => {
   const [hours, minutes] = local.split(':').map(Number);
   return new Date(Date.UTC(2026, 9, day, hours! - 4, minutes));
@@ -29,12 +29,12 @@ const row = ({
 const suggest = ({
   history,
   local = '08:30',
-  excludedNames = ['Nord Coffee'],
+  excludedNames = ['Blue Coffee'],
 }: {
   history: ReturnType<typeof row>[];
   local?: string;
   excludedNames?: string[];
-}) => suggestNoteFromHistory({ history, time: at({ day: 21, local }), offsetMinutes: TBILISI, excludedNames });
+}) => suggestNoteFromHistory({ history, time: at({ day: 21, local }), offsetMinutes: LISBON, excludedNames });
 
 describe('suggestNoteFromHistory', () => {
   it('suggests the note that dominates the payee history', () => {
@@ -102,13 +102,13 @@ describe('suggestNoteFromHistory', () => {
     expect(
       suggest({
         history: [
-          row({ note: 'Nord Coffee', day: 19, local: '11:26' }),
-          row({ note: 'Nord Coffee', day: 9, local: '13:43' }),
-          row({ note: 'NORD COFFEE', day: 8, local: '12:06' }),
-          row({ note: 'Nord Cofee Company Ltd', day: 7, local: '12:38' }),
+          row({ note: 'Blue Coffee', day: 19, local: '11:26' }),
+          row({ note: 'Blue Coffee', day: 9, local: '13:43' }),
+          row({ note: 'BLUE COFFEE', day: 8, local: '12:06' }),
+          row({ note: 'Blue Cofee Company Ltd', day: 7, local: '12:38' }),
         ],
         local: '12:38',
-        excludedNames: ['Nord Coffee', 'Nord', 'Nord Cofee Company Ltd'],
+        excludedNames: ['Blue Coffee', 'Blue', 'Blue Cofee Company Ltd'],
       }),
     ).toEqual({ kind: 'none' });
   });
@@ -125,7 +125,7 @@ describe('offsetMinutesOf', () => {
 
 describe('localHour', () => {
   it('places a UTC time in the local day', () => {
-    expect(localHour({ time: new Date('2026-10-21T08:38:10Z'), offsetMinutes: TBILISI })).toBe(12);
-    expect(localHour({ time: new Date('2026-10-21T22:30:00Z'), offsetMinutes: TBILISI })).toBe(2);
+    expect(localHour({ time: new Date('2026-10-21T08:38:10Z'), offsetMinutes: LISBON })).toBe(12);
+    expect(localHour({ time: new Date('2026-10-21T22:30:00Z'), offsetMinutes: LISBON })).toBe(2);
   });
 });

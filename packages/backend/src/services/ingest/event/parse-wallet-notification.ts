@@ -19,7 +19,7 @@ export interface WalletPayment {
 
 /**
  * Reads Wallet's fixed layout in code, with no AI: the title is the card, the subtitle the merchant
- * and the body only the amount (`TBC Bank` / `Wolt` / `GEL 43.60`). Wallet notifies only about
+ * and the body only the amount (`Example Bank` / `Wolt` / `GEL 43.60`). Wallet notifies only about
  * payments, so a body that is just an amount `parseAmount` accepts is a `debit`.
  *
  * Returns null for anything else (another app, a blank merchant, a body with words in it, a negative

@@ -8,9 +8,9 @@ const RECEIVED_AT = new Date('2026-10-20T12:00:00.000Z');
 const body = (overrides: Record<string, unknown> = {}) => ({
   kind: 'notification',
   idempotencyKey: 'key-0123456789',
-  app: 'TBC Bank',
-  bundleId: 'ge.tbc.app',
-  title: 'TBC Bank',
+  app: 'Example Bank',
+  bundleId: 'ge.example.app',
+  title: 'Example Bank',
   subtitle: 'Wolt',
   body: 'GEL 43.60',
   ...overrides,
@@ -47,9 +47,9 @@ describe('parseNotificationPayload', () => {
       notification: {
         idempotencyKey: 'key-0123456789',
         source: 'ios-notification',
-        app: 'TBC Bank',
-        bundleId: 'ge.tbc.app',
-        title: 'TBC Bank',
+        app: 'Example Bank',
+        bundleId: 'ge.example.app',
+        title: 'Example Bank',
         subtitle: 'Wolt',
         body: 'GEL 43.60',
         raw: null,
@@ -75,7 +75,7 @@ describe('parseNotificationPayload', () => {
     });
 
     it('prefers the primary key over its alias', () => {
-      expect(parse({ overrides: { appName: 'Other' } })).toMatchObject({ notification: { app: 'TBC Bank' } });
+      expect(parse({ overrides: { appName: 'Other' } })).toMatchObject({ notification: { app: 'Example Bank' } });
     });
   });
 
@@ -176,8 +176,8 @@ describe('parseNotificationPayload', () => {
 
   describe('timeZone', () => {
     it('keeps a valid zone and the offset the time wrote', () => {
-      expect(parse({ overrides: { time: '2026-10-20T15:59:50+04:00', timeZone: 'Asia/Tbilisi' } })).toMatchObject({
-        notification: { timeZone: 'Asia/Tbilisi', timeOffsetMinutes: 240 },
+      expect(parse({ overrides: { time: '2026-10-20T15:59:50+04:00', timeZone: 'Asia/Dubai' } })).toMatchObject({
+        notification: { timeZone: 'Asia/Dubai', timeOffsetMinutes: 240 },
       });
     });
 

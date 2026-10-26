@@ -18,7 +18,7 @@ const payment: ParsedPayment = {
   originalCurrencyCode: null,
   merchant: 'Wolt',
   payee: { type: 'new', name: 'Wolt' },
-  cardName: 'TBC Visa',
+  cardName: 'Example Visa',
   cardLastDigits: '4321',
   balanceAfter: { amount: '100', currencyCode: 'GEL', scopeHint: 'account' },
   occurredAt: new Date('2026-10-20T10:15:00.000Z'),

@@ -17,9 +17,9 @@ const payee = ({ id, name, aliases = [] }: { id: string; name: string; aliases?:
   aliases: aliases.map((rawName) => ({ rawName, normalizedName: normalizePayeeName({ raw: rawName }) })),
 });
 
-const wolt = payee({ id: 'wolt', name: 'Wolt', aliases: ['WOLT.COM TBILISI'] });
+const wolt = payee({ id: 'wolt', name: 'Wolt', aliases: ['WOLT.COM LISBON'] });
 const coffeeLab = payee({ id: 'coffee-lab', name: 'Coffee Lab', aliases: ['SP *COFFEE LAB'] });
-const spar = payee({ id: 'spar', name: 'Spar', aliases: ['SPAR BATUMI'] });
+const spar = payee({ id: 'spar', name: 'Spar', aliases: ['SPAR PORTO'] });
 const cardShop = payee({ id: 'card-shop', name: 'Card Shop' });
 
 describe('extractMerchantTokens', () => {
@@ -47,14 +47,14 @@ describe('extractMerchantTokens', () => {
   });
 
   it('skips processor prefixes, domain endings and generic place words', () => {
-    expect(extractMerchantTokens({ text: 'PAYPAL *SPOTIFY www.netflix.com TBILISI cafe' })).toEqual([
+    expect(extractMerchantTokens({ text: 'PAYPAL *SPOTIFY www.netflix.com LISBON cafe' })).toEqual([
       'spotify',
       'netflix',
     ]);
   });
 
   it('skips the words of the bank itself', () => {
-    expect(extractMerchantTokens({ text: 'TBC Bank Wolt', ignoredWords: ['TBC Bank'] })).toEqual(['wolt']);
+    expect(extractMerchantTokens({ text: 'Example Bank Wolt', ignoredWords: ['Example Bank'] })).toEqual(['wolt']);
   });
 
   it('caps the number of tokens', () => {
@@ -69,7 +69,7 @@ describe('findTokenMatches', () => {
 
   it('finds payees whose name or alias contains a token', () => {
     expect(findTokenMatches({ payees, tokens: ['wolt'] }).map((entry) => entry.id)).toEqual(['wolt']);
-    expect(findTokenMatches({ payees, tokens: ['batumi'] }).map((entry) => entry.id)).toEqual(['spar']);
+    expect(findTokenMatches({ payees, tokens: ['porto'] }).map((entry) => entry.id)).toEqual(['spar']);
   });
 
   it('puts the payee that matches the most tokens first', () => {
@@ -137,7 +137,7 @@ describe('mergePayeeCandidates', () => {
 
   it('carries the payee name and its spellings', () => {
     expect(mergePayeeCandidates({ tokenMatches: [wolt], fuzzyMatches: [], recent: [] })).toEqual([
-      { payeeId: 'wolt', name: 'Wolt', aliases: ['WOLT.COM TBILISI'] },
+      { payeeId: 'wolt', name: 'Wolt', aliases: ['WOLT.COM LISBON'] },
     ]);
   });
 

@@ -10,11 +10,11 @@ import { mockNotificationParsing } from '@tests/helpers/notification-ai';
 import { format, subDays } from 'date-fns';
 import { randomUUID } from 'node:crypto';
 
-const CARD = 'TBC CARD VISA GOLD';
-const PAYEE = 'Nord Coffee';
+const CARD = 'EXAMPLE CARD VISA GOLD';
+const PAYEE = 'Blue Coffee';
 
-/** A local Tbilisi time (UTC+4) `daysAgo` days back, as the shortcut sends it. */
-const tbilisi = ({ daysAgo, local }: { daysAgo: number; local: string }) =>
+/** A local Lisbon time (UTC+4) `daysAgo` days back, as the shortcut sends it. */
+const lisbon = ({ daysAgo, local }: { daysAgo: number; local: string }) =>
   `${format(subDays(new Date(), daysAgo), 'yyyy-MM-dd')}T${local}:00+04:00`;
 
 const setUp = async () => {
@@ -42,7 +42,7 @@ const seedHistory = async ({
         accountId,
         payeeId,
         amount: row.amount ?? 15,
-        time: new Date(tbilisi({ daysAgo: row.daysAgo, local: row.local })).toISOString(),
+        time: new Date(lisbon({ daysAgo: row.daysAgo, local: row.local })).toISOString(),
         ...(row.note !== null && { note: row.note }),
       }),
       raw: true,
@@ -55,10 +55,10 @@ const tap = async ({ secret, local, amount = '16.00' }: { secret: string; local:
     secret,
     body: {
       amount,
-      merchant: 'NORD COFFEE',
+      merchant: 'BLUE COFFEE',
       card: CARD,
       source: 'ios-automation',
-      time: tbilisi({ daysAgo: 1, local }),
+      time: lisbon({ daysAgo: 1, local }),
       idempotencyKey: `key-${randomUUID()}`,
     },
   });
@@ -162,9 +162,9 @@ describe('the note of a logged payment', () => {
       accountId: account.id,
       payeeId: payee.id,
       rows: [
-        { note: 'Nord Coffee', daysAgo: 3, local: '11:26' },
-        { note: 'Nord Coffee', daysAgo: 5, local: '12:06' },
-        { note: 'Nord Coffee', daysAgo: 8, local: '13:43' },
+        { note: 'Blue Coffee', daysAgo: 3, local: '11:26' },
+        { note: 'Blue Coffee', daysAgo: 5, local: '12:06' },
+        { note: 'Blue Coffee', daysAgo: 8, local: '13:43' },
       ],
     });
 

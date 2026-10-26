@@ -236,7 +236,7 @@ export const hasInboxCard = ({ request }: { request: CardPaymentRequestDto }): b
 
 /**
  * The parked requests that were waiting on a card. Labels compare the way the server compares
- * them, so "TBC Visa •••• 1234" and "tbc visa" are one card.
+ * them, so "Example Visa •••• 1234" and "example visa" are one card.
  */
 export const selectRequestsForCard = ({
   requests,

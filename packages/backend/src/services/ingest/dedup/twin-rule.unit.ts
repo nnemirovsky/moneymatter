@@ -29,8 +29,8 @@ const candidate = (overrides: Partial<DedupCandidate> = {}): DedupCandidate => (
 
 const incoming = (overrides: Partial<DedupIncoming> = {}): DedupIncoming => ({
   time: at('2026-10-20T14:40:00Z'),
-  slot: 'bank:name:tbc bank:payment',
-  sourceKey: 'name:tbc bank',
+  slot: 'bank:name:example bank:payment',
+  sourceKey: 'name:example bank',
   stage: 'payment',
   figures: [money(29.41, 'GEL')],
   merchant: 'Wolt',
@@ -107,7 +107,7 @@ describe('pickTwin', () => {
   });
 
   it('skips the earliest row when only its slot is taken', () => {
-    const first = candidate({ id: 'row-1' as RecordId, takenSlots: ['bank:name:tbc bank:payment'] });
+    const first = candidate({ id: 'row-1' as RecordId, takenSlots: ['bank:name:example bank:payment'] });
     const second = candidate({ id: 'row-2' as RecordId, time: at('2026-10-20T14:39:00Z') });
 
     expect(pickTwin({ candidates: [first, second], incoming: incoming(), sameShop: anyShop })?.id).toBe('row-2');
@@ -115,10 +115,10 @@ describe('pickTwin', () => {
 });
 
 describe('pickSettlementTarget', () => {
-  const authorization = 'bank:name:tbc bank:authorization';
+  const authorization = 'bank:name:example bank:authorization';
   const settlement = incoming({
     stage: 'settlement',
-    slot: 'bank:name:tbc bank:settlement',
+    slot: 'bank:name:example bank:settlement',
     time: at('2026-10-22T10:00:00Z'),
   });
   const held = candidate({ takenSlots: [authorization] });
@@ -130,7 +130,7 @@ describe('pickSettlementTarget', () => {
   it('needs the same source, merchant text, amount and a free settlement slot', () => {
     const otherSource = candidate({ takenSlots: ['bank:name:bog:authorization'] });
     const otherMerchant = candidate({ takenSlots: [authorization], merchant: 'Bolt' });
-    const settled = candidate({ takenSlots: [authorization, 'bank:name:tbc bank:settlement'] });
+    const settled = candidate({ takenSlots: [authorization, 'bank:name:example bank:settlement'] });
 
     expect(pickSettlementTarget({ candidates: [otherSource], incoming: settlement })).toBeNull();
     expect(pickSettlementTarget({ candidates: [otherMerchant], incoming: settlement })).toBeNull();
@@ -188,9 +188,9 @@ describe('placeBankTime', () => {
   const reference = at('2026-10-20T14:38:00Z');
 
   it('reads the wall clock in the request zone when it fits the reference', () => {
-    expect(
-      placeBankTime({ wallClock: at('2026-10-20T18:40:00Z'), reference, zone: 'Asia/Tbilisi' })?.toISOString(),
-    ).toBe('2026-10-20T14:40:00.000Z');
+    expect(placeBankTime({ wallClock: at('2026-10-20T18:40:00Z'), reference, zone: 'Asia/Dubai' })?.toISOString()).toBe(
+      '2026-10-20T14:40:00.000Z',
+    );
   });
 
   it('falls back to the inferred offset when the zone does not explain the clock', () => {

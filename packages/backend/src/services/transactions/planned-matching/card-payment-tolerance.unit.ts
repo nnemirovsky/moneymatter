@@ -56,14 +56,14 @@ describe('isWithinCardPaymentTolerance', () => {
   });
 });
 
-const WALLET_NAMES = ['Cafe Heart of Batumi'];
+const WALLET_NAMES = ['Cafe Heart of Lisbon'];
 
 const affinity = ({ planNames = WALLET_NAMES, incomingText }: { planNames?: string[]; incomingText: string }) =>
   hasMerchantAffinity({ planNames, incomingText });
 
 describe('hasMerchantAffinity', () => {
   it('matches a reordered descriptor with extra city and country tokens', () => {
-    expect(affinity({ incomingText: 'HEART OF BATUMI CAFE BATUMI GE' })).toBe(true);
+    expect(affinity({ incomingText: 'HEART OF LISBON CAFE LISBON GE' })).toBe(true);
   });
 
   it('matches a processor prefix with a truncated merchant', () => {
@@ -71,11 +71,11 @@ describe('hasMerchantAffinity', () => {
   });
 
   it('matches a descriptor that drops a word', () => {
-    expect(affinity({ incomingText: 'CAFE HEART BATUMI' })).toBe(true);
+    expect(affinity({ incomingText: 'CAFE HEART LISBON' })).toBe(true);
   });
 
   it('refuses another shop in the same city', () => {
-    expect(affinity({ incomingText: 'SPAR BATUMI' })).toBe(false);
+    expect(affinity({ incomingText: 'SPAR LISBON' })).toBe(false);
   });
 
   it('refuses empty or punctuation-only text', () => {
@@ -84,7 +84,7 @@ describe('hasMerchantAffinity', () => {
   });
 
   it('matches a single-token name against a longer descriptor', () => {
-    expect(affinity({ planNames: ['Spar'], incomingText: 'SPAR MARKET 0123 BATUMI' })).toBe(true);
+    expect(affinity({ planNames: ['Spar'], incomingText: 'SPAR MARKET 0123 LISBON' })).toBe(true);
   });
 
   it('matches Cyrillic names', () => {
@@ -94,7 +94,7 @@ describe('hasMerchantAffinity', () => {
 
   it('ignores tokens under 3 characters and pure digits', () => {
     expect(affinity({ planNames: ['Spar 24'], incomingText: 'XX 24 24' })).toBe(false);
-    expect(affinity({ planNames: ['Cafe Heart of Batumi'], incomingText: 'OF 12 GE' })).toBe(false);
+    expect(affinity({ planNames: ['Cafe Heart of Lisbon'], incomingText: 'OF 12 GE' })).toBe(false);
   });
 
   it('allows prefixes only when both tokens have at least 4 characters', () => {
@@ -110,24 +110,24 @@ describe('hasMerchantAffinity', () => {
   });
 
   it('refuses a different shop that shares only a city or a category word', () => {
-    expect(affinity({ planNames: ['Spar Batumi'], incomingText: 'CARREFOUR BATUMI' })).toBe(false);
-    expect(affinity({ incomingText: 'CAFE BATUMI GE' })).toBe(false);
-    expect(affinity({ planNames: ['Cafe Garden Batumi'], incomingText: 'CAFE BATUMI GE' })).toBe(false);
+    expect(affinity({ planNames: ['Spar Lisbon'], incomingText: 'CARREFOUR LISBON' })).toBe(false);
+    expect(affinity({ incomingText: 'CAFE LISBON GE' })).toBe(false);
+    expect(affinity({ planNames: ['Cafe Garden Lisbon'], incomingText: 'CAFE LISBON GE' })).toBe(false);
     expect(affinity({ planNames: ['Fresh Market'], incomingText: 'GREEN MARKET' })).toBe(false);
     expect(affinity({ planNames: ['Cafe Aroma'], incomingText: 'CAFETERIA PLUS' })).toBe(false);
   });
 
   it('refuses a name made only of city and category words', () => {
-    expect(affinity({ planNames: ['Cafe Batumi'], incomingText: 'CAFE BATUMI' })).toBe(false);
+    expect(affinity({ planNames: ['Cafe Lisbon'], incomingText: 'CAFE LISBON' })).toBe(false);
     expect(affinity({ planNames: ['Кафе Батумі'], incomingText: 'КАФЕ БАТУМІ' })).toBe(false);
   });
 
   it('still matches on the distinctive token when city and category words differ', () => {
-    expect(affinity({ planNames: ['Spar Batumi'], incomingText: 'SPAR SUPERMARKET KUTAISI' })).toBe(true);
+    expect(affinity({ planNames: ['Spar Lisbon'], incomingText: 'SPAR SUPERMARKET KUTAISI' })).toBe(true);
   });
 
   it('holds when any of the plan names matches', () => {
-    expect(affinity({ planNames: ['Cafe Heart of Batumi', 'Mystery Grill'], incomingText: 'MYSTERY GRILL 01' })).toBe(
+    expect(affinity({ planNames: ['Cafe Heart of Lisbon', 'Mystery Grill'], incomingText: 'MYSTERY GRILL 01' })).toBe(
       true,
     );
   });
@@ -139,7 +139,7 @@ describe('hasMerchantAffinity', () => {
 
 describe('isSameShop', () => {
   const base = {
-    planNames: ['Cafe Heart of Batumi'],
+    planNames: ['Cafe Heart of Lisbon'],
     planPayeeId: 'payee-heart',
     incomingPayeeId: null as string | null,
   };
@@ -149,17 +149,17 @@ describe('isSameShop', () => {
   });
 
   it('refuses a booking whose text resolves to another known payee, whatever the tokens say', () => {
-    expect(isSameShop({ ...base, incomingText: 'HEART OF BATUMI', incomingPayeeId: 'payee-garden' })).toBe(false);
+    expect(isSameShop({ ...base, incomingText: 'HEART OF LISBON', incomingPayeeId: 'payee-garden' })).toBe(false);
   });
 
   it('falls back to token affinity when the text names no known payee', () => {
-    expect(isSameShop({ ...base, incomingText: 'HEART OF BATUMI CAFE' })).toBe(true);
-    expect(isSameShop({ ...base, incomingText: 'SPAR BATUMI' })).toBe(false);
+    expect(isSameShop({ ...base, incomingText: 'HEART OF LISBON CAFE' })).toBe(true);
+    expect(isSameShop({ ...base, incomingText: 'SPAR LISBON' })).toBe(false);
   });
 
   it('uses token affinity for a plan with no payee', () => {
     expect(
-      isSameShop({ ...base, planPayeeId: null, incomingText: 'HEART OF BATUMI', incomingPayeeId: 'payee-x' }),
+      isSameShop({ ...base, planPayeeId: null, incomingText: 'HEART OF LISBON', incomingPayeeId: 'payee-x' }),
     ).toBe(true);
   });
 });

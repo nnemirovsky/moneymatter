@@ -12,8 +12,8 @@ import { randomUUID } from 'node:crypto';
 
 import { cardPaymentTimings } from './constants';
 
-const CARD = 'TBC Visa';
-const MERCHANT = 'Cafe Heart of Batumi';
+const CARD = 'Example Visa';
+const MERCHANT = 'Cafe Heart of Lisbon';
 const AI_CATEGORY = 'Coffee';
 
 const payment = (overrides: Record<string, unknown> = {}) => ({

@@ -29,7 +29,7 @@ describe('buildJudgeUserMessage', () => {
         ...subject({ originalAmount: 10, originalCurrencyCode: 'USD', slots: ['tap', 'wallet-notification'] }),
         alias: 'c1',
       },
-      { ...subject({ amount: 31, names: ['WOLT.COM TBILISI', 'Wolt', 'Wolt Georgia', 'extra'] }), alias: 'c2' },
+      { ...subject({ amount: 31, names: ['WOLT.COM LISBON', 'Wolt', 'Wolt Georgia', 'extra'] }), alias: 'c2' },
     ],
   });
 
@@ -39,7 +39,7 @@ describe('buildJudgeUserMessage', () => {
     expect(message).toContain(
       'c1 | 29.41 GEL | 10 USD | <payment>Wolt</payment> | 2026-10-20T14:38:00.000Z | tap, wallet-notification',
     );
-    expect(message).toContain('c2 | 31 GEL | - | <payment>WOLT.COM TBILISI / Wolt / Wolt Georgia</payment>');
+    expect(message).toContain('c2 | 31 GEL | - | <payment>WOLT.COM LISBON / Wolt / Wolt Georgia</payment>');
   });
 
   it('says where a row without sources comes from', () => {
@@ -61,7 +61,7 @@ describe('buildJudgeSystemPrompt', () => {
 
     expect(prompt).toContain('two coffees');
     expect(prompt).toContain('When unsure, leave the candidate out');
-    expect(prompt).not.toMatch(/\bTBC\b/);
+    expect(prompt).not.toMatch(/\bExample\b/);
   });
 });
 

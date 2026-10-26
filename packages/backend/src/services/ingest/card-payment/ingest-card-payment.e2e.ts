@@ -9,8 +9,8 @@ import * as helpers from '@tests/helpers';
 import * as ingestHelpers from '@tests/helpers/ingest-tokens';
 import { randomUUID } from 'node:crypto';
 
-const CARD = 'TBC Visa';
-const MERCHANT = 'Cafe Heart of Batumi';
+const CARD = 'Example Visa';
+const MERCHANT = 'Cafe Heart of Lisbon';
 const DEFAULT_REPEAT_WINDOW_MS = cardPaymentTimings.repeatWindowMs;
 
 const payment = (overrides: Record<string, unknown> = {}) => ({
@@ -111,25 +111,25 @@ describe('POST /ingest/card-payment', () => {
 
       const res = await send({
         secret,
-        body: payment({ time: hourAgoWithOffset({ offsetMinutes: 240 }), timeZone: 'Asia/Tbilisi' }),
+        body: payment({ time: hourAgoWithOffset({ offsetMinutes: 240 }), timeZone: 'Asia/Dubai' }),
       });
 
       expect(res.status).toBe(200);
-      expect(await loggedRow({ res })).toMatchObject({ timeZone: 'Asia/Tbilisi', utcOffsetMinutes: 240 });
+      expect(await loggedRow({ res })).toMatchObject({ timeZone: 'Asia/Dubai', utcOffsetMinutes: 240 });
     });
 
     it('records the setting zone when only an offset that matches it is sent', async () => {
       const { secret } = await setUp();
-      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Tbilisi' } });
+      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Dubai' } });
 
       const res = await send({ secret, body: payment({ time: hourAgoWithOffset({ offsetMinutes: 240 }) }) });
 
-      expect(await loggedRow({ res })).toMatchObject({ timeZone: 'Asia/Tbilisi', utcOffsetMinutes: 240 });
+      expect(await loggedRow({ res })).toMatchObject({ timeZone: 'Asia/Dubai', utcOffsetMinutes: 240 });
     });
 
     it('keeps only the offset when the setting zone has another one', async () => {
       const { secret } = await setUp();
-      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Tbilisi' } });
+      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Dubai' } });
 
       const res = await send({ secret, body: payment({ time: hourAgoWithOffset({ offsetMinutes: 120 }) }) });
 
@@ -149,11 +149,11 @@ describe('POST /ingest/card-payment', () => {
 
     it('records the setting zone for a blank time', async () => {
       const { secret } = await setUp();
-      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Tbilisi' } });
+      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Dubai' } });
 
       const res = await send({ secret, body: payment() });
 
-      expect(await loggedRow({ res })).toMatchObject({ timeZone: 'Asia/Tbilisi', utcOffsetMinutes: 240 });
+      expect(await loggedRow({ res })).toMatchObject({ timeZone: 'Asia/Dubai', utcOffsetMinutes: 240 });
     });
 
     it('records the request zone for a blank time even without a setting', async () => {
@@ -181,7 +181,7 @@ describe('POST /ingest/card-payment', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.response.outcome).toBe('dryRun');
-      expect(res.body.response.summary).toMatch(/^Connected as .+\. Card "TBC Visa" is not linked yet$/);
+      expect(res.body.response.summary).toMatch(/^Connected as .+\. Card "Example Visa" is not linked yet$/);
       expect(await IngestRequests.count()).toBe(0);
       expect(await transactionsOf()).toEqual([]);
     });
@@ -191,7 +191,7 @@ describe('POST /ingest/card-payment', () => {
 
       const res = await send({ secret, body: { dryRun: true, card: CARD } });
 
-      expect(res.body.response.summary).toMatch(/Card "TBC Visa" → test$/);
+      expect(res.body.response.summary).toMatch(/Card "Example Visa" → test$/);
       expect(await IngestRequests.count()).toBe(0);
     });
 

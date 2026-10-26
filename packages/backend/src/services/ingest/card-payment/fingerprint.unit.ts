@@ -2,7 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import { computeFingerprint } from './fingerprint';
 
-const body = { card: 'TBC Visa', amount: '47.00', currency: 'GEL', merchant: 'Cafe Heart of Batumi' };
+const body = { card: 'Example Visa', amount: '47.00', currency: 'GEL', merchant: 'Cafe Heart of Lisbon' };
 
 describe('computeFingerprint', () => {
   it('is a SHA-256 hex digest', () => {
@@ -17,17 +17,19 @@ describe('computeFingerprint', () => {
 
   it('ignores surrounding and repeated whitespace', () => {
     const spaced = {
-      card: '  TBC   Visa ',
+      card: '  Example   Visa ',
       amount: ' 47.00 ',
       currency: ' GEL ',
-      merchant: '\nCafe   Heart of  Batumi ',
+      merchant: '\nCafe   Heart of  Lisbon ',
     };
 
     expect(computeFingerprint({ body: spaced })).toBe(computeFingerprint({ body }));
   });
 
   it('ignores the card label spelling that normalization folds away', () => {
-    expect(computeFingerprint({ body: { ...body, card: 'tbc visa •••• 1234' } })).toBe(computeFingerprint({ body }));
+    expect(computeFingerprint({ body: { ...body, card: 'example visa •••• 1234' } })).toBe(
+      computeFingerprint({ body }),
+    );
   });
 
   it('tells a JSON number from a string, because the parser reads 1.234 and "1.234" differently', () => {
@@ -55,8 +57,8 @@ describe('computeFingerprint', () => {
     ['amount', { amount: '47.50' }],
     ['currency', { currency: 'EUR' }],
     ['merchant', { merchant: 'Cafe Heart' }],
-    ['merchant case', { merchant: 'cafe heart of batumi' }],
-    ['card', { card: 'TBC Mastercard' }],
+    ['merchant case', { merchant: 'cafe heart of lisbon' }],
+    ['card', { card: 'Example Mastercard' }],
   ])('changes with the %s', (_name, change) => {
     expect(computeFingerprint({ body: { ...body, ...change } })).not.toBe(computeFingerprint({ body }));
   });

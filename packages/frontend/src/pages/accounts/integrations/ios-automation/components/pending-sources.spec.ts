@@ -22,7 +22,7 @@ const makeSource = (overrides: Partial<NotificationSourceDto> = {}): Notificatio
   id: 'source-1' as RecordId,
   appName: 'Messages',
   bundleId: null,
-  sender: 'TBC',
+  sender: 'Example',
   conversational: true,
   mode: 'pending',
   defaultAccountId: null,
@@ -59,7 +59,7 @@ describe('PendingSources', () => {
     const rows = wrapper.findAll('[data-testid="pending-source-row"]');
     expect(rows).toHaveLength(1);
     expect(rows[0]!.get('[data-testid="pending-source-name"]').text()).toBe('Messages');
-    expect(rows[0]!.text()).toContain('From TBC');
+    expect(rows[0]!.text()).toContain('From Example');
   });
 
   it('names a source by its bundle id when the app has no name', async () => {

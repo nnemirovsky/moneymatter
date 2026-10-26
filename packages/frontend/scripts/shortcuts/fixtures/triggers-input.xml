@@ -102,9 +102,9 @@
 				<array>
 					<dict>
 						<key>BundleIdentifier</key>
-						<string>ge.tbconline.TBC-ipad</string>
+						<string>com.example.bank</string>
 						<key>Name</key>
-						<string>TBC Bank</string>
+						<string>Example Bank</string>
 						<key>TeamIdentifier</key>
 						<string>X6W4BS736S</string>
 					</dict>

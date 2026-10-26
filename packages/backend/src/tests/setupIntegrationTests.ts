@@ -208,6 +208,22 @@ afterAll(() => mswMockServer.close());
 
 global.mswMockServer = mswMockServer;
 
+/**
+ * The suites send their pushes under an invented bank app, "Example Bank" (bundle id `com.example.bank`). A real bank app
+ * starts trusted because the shipped seed list names it; the invented one gets the same start here, and only here.
+ */
+jest.mock('@bt/shared/types', () => {
+  const actual = jest.requireActual('@bt/shared/types') as typeof import('@bt/shared/types');
+
+  return {
+    ...actual,
+    getDefaultSourceMode: (app: Parameters<typeof actual.getDefaultSourceMode>[0]) =>
+      app.appName === 'Example Bank' || app.bundleId?.toLowerCase() === 'com.example.bank'
+        ? 'auto'
+        : actual.getDefaultSourceMode(app),
+  };
+});
+
 global.BASE_CURRENCY = null;
 // Should be non-USD so that some tests make sense
 global.BASE_CURRENCY_CODE = 'AED';

@@ -18,7 +18,7 @@ export const isBalanceShort = ({ balanceBefore, amount }: { balanceBefore: Money
 
 /**
  * The accounts that could have paid in the order they are tried: only those whose balance covers the
- * converted amount (a bank such as TBC takes the whole amount from one balance that covers it, never a
+ * converted amount (a bank such as Example takes the whole amount from one balance that covers it, never a
  * split), the card's default account first, then the fullest balance. Ties fall back to the currency
  * code so the order never depends on how the rows were read.
  */

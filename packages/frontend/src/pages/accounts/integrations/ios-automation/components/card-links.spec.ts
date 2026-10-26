@@ -49,7 +49,7 @@ const CardLinkDialogStub = defineComponent({
 
 const makeMapping = (overrides: Partial<CardMappingDto> = {}): CardMappingDto => ({
   id: 'mapping-1' as RecordId,
-  cardLabel: 'TBC Visa',
+  cardLabel: 'Example Visa',
   lastDigits: null,
   currencyCode: null,
   accountId: 'account-1' as RecordId,
@@ -73,7 +73,7 @@ const dialog = (wrapper: VueWrapper) => wrapper.get('[data-testid="link-dialog"]
 describe('CardLinks', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAccountsStore.accountsRecord = { 'account-1': { name: 'TBC main' }, 'account-2': { name: 'Cash GEL' } };
+    mockAccountsStore.accountsRecord = { 'account-1': { name: 'Example main' }, 'account-2': { name: 'Cash GEL' } };
     mockDeleteMapping.mockResolvedValue({ success: true });
   });
 
@@ -84,15 +84,15 @@ describe('CardLinks', () => {
     ]);
 
     expect(rows(wrapper)).toHaveLength(2);
-    expect(rows(wrapper)[0]!.get('[data-testid="card-link-label-text"]').text()).toBe('TBC Visa');
-    expect(rows(wrapper)[0]!.get('[data-testid="card-link-account-name"]').text()).toBe('TBC main');
+    expect(rows(wrapper)[0]!.get('[data-testid="card-link-label-text"]').text()).toBe('Example Visa');
+    expect(rows(wrapper)[0]!.get('[data-testid="card-link-account-name"]').text()).toBe('Example main');
     expect(rows(wrapper)[1]!.get('[data-testid="card-link-account-name"]').text()).toBe('Cash GEL');
     expect(rows(wrapper)[0]!.get('[data-testid="card-link-currency"]').text()).toBe('Default');
   });
 
   it("shows the currency of the default row's account next to its Default chip", async () => {
     mockAccountsStore.accountsRecord = {
-      'account-1': { name: 'TBC main', currencyCode: 'GEL' },
+      'account-1': { name: 'Example main', currencyCode: 'GEL' },
       'account-2': { name: 'Cash USD', currencyCode: 'USD' },
     };
     const wrapper = await mountCardLinks([
@@ -140,9 +140,9 @@ describe('CardLinks', () => {
         'USD',
       ]);
       expect(accounts.map((row) => row.get('[data-testid="card-link-account-name"]').text())).toEqual([
-        'TBC main',
+        'Example main',
         'Cash GEL',
-        'TBC main',
+        'Example main',
       ]);
       expect(wrapper.find('[data-testid="card-link-no-default"]').exists()).toBe(false);
     });
@@ -174,7 +174,7 @@ describe('CardLinks', () => {
       expect(dialog(wrapper).attributes('data-open')).toBe('true');
       expect(dialog(wrapper).attributes('data-mapping-id')).toBe('');
       expect(dialog(wrapper).attributes('data-lock-label')).toBe('true');
-      expect(dialog(wrapper).attributes('data-initial-label')).toBe('TBC Visa');
+      expect(dialog(wrapper).attributes('data-initial-label')).toBe('Example Visa');
       expect(dialog(wrapper).attributes('data-siblings')).toBe('default,gel,usd');
     });
 
@@ -247,7 +247,7 @@ describe('CardLinks', () => {
 
     await wrapper.get('[data-testid="card-link-delete"]').trigger('click');
     expect(mockDeleteMapping).not.toHaveBeenCalled();
-    expect(wrapper.get('[data-testid="alert-dialog"]').text()).toContain('Payments from TBC Visa will wait');
+    expect(wrapper.get('[data-testid="alert-dialog"]').text()).toContain('Payments from Example Visa will wait');
 
     await wrapper.get('[data-testid="alert-confirm"]').trigger('click');
     await flushPromises();

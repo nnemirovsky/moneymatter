@@ -11,15 +11,15 @@ import { addSeconds, format, startOfDay, subDays } from 'date-fns';
 import { randomUUID } from 'node:crypto';
 
 import { notificationTimings } from '../event/constants';
-import { nordCoffeeTap } from '../event/fixtures/notifications';
+import { blueCoffeeTap } from '../event/fixtures/notifications';
 import { TAP_SLOT } from './source-slots';
 
 /**
- * The tap and the TBC push of one real payment (see `nordCoffeeTap`): the Wallet trigger fires twice in
+ * The tap and the Example push of one real payment (see `blueCoffeeTap`): the Wallet trigger fires twice in
  * the same second, the push comes 14 seconds later with a minute-precision time, a different spelling of
  * the merchant and two extra lines (a cashback credit and a piggy-bank balance).
  */
-const TBC_KEY = buildSourceKey({ bundleId: null, appName: 'TBC Bank' });
+const Example_KEY = buildSourceKey({ bundleId: null, appName: 'Example Bank' });
 const SEEDED_DATES: Date[] = [];
 
 let paymentDay = '';
@@ -39,7 +39,7 @@ const setUp = async () => {
   const tapAt = await seedRateDay();
   const gel = await helpers.createAccount({
     payload: helpers.buildAccountPayload({
-      name: 'TBC GEL',
+      name: 'Example GEL',
       currencyCode: 'GEL',
       initialBalance: 1000,
     }),
@@ -47,7 +47,7 @@ const setUp = async () => {
   });
   await helpers.createCardMapping({
     payload: {
-      cardLabel: nordCoffeeTap.tap.card,
+      cardLabel: blueCoffeeTap.tap.card,
       accountId: gel.id,
       lastDigits: '0000',
     },
@@ -70,7 +70,7 @@ const tap = ({
   ingestHelpers.postCardPayment({
     secret,
     body: {
-      ...nordCoffeeTap.tap,
+      ...blueCoffeeTap.tap,
       source: 'apple-pay',
       time: at.toISOString(),
       idempotencyKey,
@@ -82,10 +82,10 @@ const push = ({ secret, at }: { secret: string; at: Date }) =>
     secret,
     body: {
       kind: 'notification',
-      app: nordCoffeeTap.tbcPush.appName,
-      title: nordCoffeeTap.tbcPush.title,
-      subtitle: nordCoffeeTap.tbcPush.subtitle,
-      body: nordCoffeeTap.tbcPush.body,
+      app: blueCoffeeTap.bankPush.appName,
+      title: blueCoffeeTap.bankPush.title,
+      subtitle: blueCoffeeTap.bankPush.subtitle,
+      body: blueCoffeeTap.bankPush.body,
       time: at.toISOString(),
       idempotencyKey: `push-${randomUUID()}`,
     },
@@ -100,7 +100,7 @@ const resetLimits = async () => {
   await RateLimitService.resetRateLimit(`ingest-ai:d:${id}`);
 };
 
-describe('the real Nord Cofee tap and TBC push', () => {
+describe('the real Blue Cofee tap and Example push', () => {
   useSelfHostWithoutServerAiKeys();
 
   beforeEach(async () => {
@@ -160,13 +160,13 @@ describe('the real Nord Cofee tap and TBC push', () => {
   describe.each([
     { label: 'after both taps', pushFirst: false },
     { label: 'before the taps', pushFirst: true },
-  ])('the TBC push $label', ({ pushFirst }) => {
+  ])('the Example push $label', ({ pushFirst }) => {
     it('is the twin of the tap: one payment of 48.00 GEL, with the push parsed from its first lines only', async () => {
       mockNotificationParsing({
         answer: () => ({
-          ...nordCoffeeTap.tbcPushAnswer,
+          ...blueCoffeeTap.bankPushAnswer,
           occurredAt: `${paymentDay}T12:38:00`,
-          payee: { candidateId: null, newName: 'Nord Cofee Company' },
+          payee: { candidateId: null, newName: 'Blue Cofee Company' },
         }),
       });
       const { gel, secret, tapAt } = await setUp();
@@ -197,8 +197,10 @@ describe('the real Nord Cofee tap and TBC push', () => {
           }[];
         }
       ).sources;
-      expect(sources.map((source) => source.slot).toSorted()).toEqual([TAP_SLOT, `bank:${TBC_KEY}:payment`].toSorted());
-      const bank = sources.find((source) => source.slot === `bank:${TBC_KEY}:payment`)!;
+      expect(sources.map((source) => source.slot).toSorted()).toEqual(
+        [TAP_SLOT, `bank:${Example_KEY}:payment`].toSorted(),
+      );
+      const bank = sources.find((source) => source.slot === `bank:${Example_KEY}:payment`)!;
       expect(bank.balanceAfter).toMatchObject({ amount: '3768.41' });
 
       // The push prints 12:38 on the wall; the phone stamped 08:38:24 UTC, so the bank's time is 08:38 UTC. A

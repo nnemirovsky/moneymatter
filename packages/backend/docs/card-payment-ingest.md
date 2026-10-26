@@ -30,26 +30,26 @@ If the instance sits behind a gateway that asks for its own credentials (Cloudfl
 
 `Content-Type: application/json`. Unknown keys are ignored, so a newer client keeps working against an older server.
 
-| Field            | Type             | Required | Notes                                                                                                                                                                                                                                                                                                                                                                                        |
-| ---------------- | ---------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `idempotencyKey` | string           | yes      | 8 to 128 printable ASCII characters, no spaces. See [Idempotency](#idempotency).                                                                                                                                                                                                                                                                                                             |
-| `amount`         | string or number | yes      | A positive expense amount. Text may carry a currency code or symbol and locale separators: `47.00`, `47,00 GEL`, `₾47`, `1.234,56 €`.                                                                                                                                                                                                                                                        |
-| `merchant`       | string           | yes      | Up to 200 characters. A blank merchant is refused.                                                                                                                                                                                                                                                                                                                                           |
-| `card`           | string           | yes      | The card's name as the client knows it, up to 100 characters. Case and a trailing masked number (`•••• 1234`) are ignored.                                                                                                                                                                                                                                                                   |
-| `currency`       | string           | no       | A 3-letter code. Wins over the amount text. See [Currency](#currency).                                                                                                                                                                                                                                                                                                                       |
-| `time`           | string           | no       | ISO 8601 date and time **with an offset**: `2026-10-17T14:05:00+04:00`. Defaults to the time the request was received.                                                                                                                                                                                                                                                                       |
-| `timeZone`       | string           | no       | The IANA zone the payment happened in, `Asia/Tbilisi` (the shipped shortcut sends Format Date `VV`). Recorded on the transaction. Without it, the offset of `time` is stored, and the zone too when the user's time zone setting has that offset at that time. A blank `time` records the request zone, else the setting. Anything that is not an IANA name is refused as `invalidTimeZone`. |
-| `timeSource`     | string           | no       | `run` (default) or `transaction`: whether `time` is the time the client ran or a time the transaction itself carries. See [Repeat window](#repeat-window).                                                                                                                                                                                                                                   |
-| `name`           | string           | no       | The payment's own name, up to 200 characters. Kept with the transaction's data.                                                                                                                                                                                                                                                                                                              |
-| `source`         | string           | no       | Which client sent it, 1 to 32 characters of `a-z`, `0-9` and `-`. Defaults to `card-payment`.                                                                                                                                                                                                                                                                                                |
-| `dryRun`         | boolean          | no       | `true` only checks the connection and a card link. Nothing is validated beyond `card` or written.                                                                                                                                                                                                                                                                                            |
+| Field            | Type             | Required | Notes                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `idempotencyKey` | string           | yes      | 8 to 128 printable ASCII characters, no spaces. See [Idempotency](#idempotency).                                                                                                                                                                                                                                                                                                           |
+| `amount`         | string or number | yes      | A positive expense amount. Text may carry a currency code or symbol and locale separators: `47.00`, `47,00 GEL`, `₾47`, `1.234,56 €`.                                                                                                                                                                                                                                                      |
+| `merchant`       | string           | yes      | Up to 200 characters. A blank merchant is refused.                                                                                                                                                                                                                                                                                                                                         |
+| `card`           | string           | yes      | The card's name as the client knows it, up to 100 characters. Case and a trailing masked number (`•••• 1234`) are ignored.                                                                                                                                                                                                                                                                 |
+| `currency`       | string           | no       | A 3-letter code. Wins over the amount text. See [Currency](#currency).                                                                                                                                                                                                                                                                                                                     |
+| `time`           | string           | no       | ISO 8601 date and time **with an offset**: `2026-10-17T14:05:00+04:00`. Defaults to the time the request was received.                                                                                                                                                                                                                                                                     |
+| `timeZone`       | string           | no       | The IANA zone the payment happened in, `Asia/Dubai` (the shipped shortcut sends Format Date `VV`). Recorded on the transaction. Without it, the offset of `time` is stored, and the zone too when the user's time zone setting has that offset at that time. A blank `time` records the request zone, else the setting. Anything that is not an IANA name is refused as `invalidTimeZone`. |
+| `timeSource`     | string           | no       | `run` (default) or `transaction`: whether `time` is the time the client ran or a time the transaction itself carries. See [Repeat window](#repeat-window).                                                                                                                                                                                                                                 |
+| `name`           | string           | no       | The payment's own name, up to 200 characters. Kept with the transaction's data.                                                                                                                                                                                                                                                                                                            |
+| `source`         | string           | no       | Which client sent it, 1 to 32 characters of `a-z`, `0-9` and `-`. Defaults to `card-payment`.                                                                                                                                                                                                                                                                                              |
+| `dryRun`         | boolean          | no       | `true` only checks the connection and a card link. Nothing is validated beyond `card` or written.                                                                                                                                                                                                                                                                                          |
 
 Text fields lose control and invisible characters, and their whitespace is collapsed. A `time` more than 5 minutes in the future or more than 30 days in the past is refused.
 
 ### Dry run
 
 ```json
-{ "dryRun": true, "card": "TBC Visa" }
+{ "dryRun": true, "card": "Example Visa" }
 ```
 
 Answers `200` with `outcome: "dryRun"` and a summary that says who the token belongs to and, when `card` was sent, which account the card is linked to. Without `card` it says how many cards are linked.
@@ -65,7 +65,7 @@ Every response uses the API envelope. Success: `{ "status": "success", "response
   "status": "success",
   "response": {
     "outcome": "logged",
-    "summary": "Logged 47.00 GEL at Cafe Heart of Batumi → Bar, cafe",
+    "summary": "Logged 47.00 GEL at Cafe Heart of Lisbon → Bar, cafe",
     "transactionId": "0d9f6c1e-5b7a-4c1e-9a52-3f1d2b8e7a10",
     "planned": false,
     "categoryPending": false
@@ -87,7 +87,7 @@ Every response uses the API envelope. Success: `{ "status": "success", "response
   "response": {
     "outcome": "parked",
     "reason": "unknownCard",
-    "summary": "Not logged yet: link the card \"TBC Visa\" in MoneyMatter → Accounts → Apple Pay",
+    "summary": "Not logged yet: link the card \"Example Visa\" in MoneyMatter → Accounts → Apple Pay",
     "requestId": "7b3e2a94-1c6d-4f08-8e35-a2d94c51b6f3"
   }
 }
@@ -167,7 +167,7 @@ The merchant text resolves to a payee (`resolveIngestPayee`), in order:
 
 1. an exact alias or name match on the normalized spelling (case, whitespace, punctuation and accents folded; no fuzziness). An alias keeps the raw spelling verbatim in `rawName`;
 2. nothing for a name on the ignored list;
-3. a **core-name match**: case, punctuation and legal forms (`LTD`, `LLC`, `Company`, `Co`, `JSC`, `შპს`, `ООО`, …) are dropped from both names, and names with as many words that are equal or a small typo apart (no edit under 5 characters, 1 under 12, else 2) match. The one closest payee is suggested, so `NORD COFEE COMPANY LTD` goes to an existing "Nord Coffee";
+3. a **core-name match**: case, punctuation and legal forms (`LTD`, `LLC`, `Company`, `Co`, `JSC`, `შპს`, `ООО`, …) are dropped from both names, and names with as many words that are equal or a small typo apart (no edit under 5 characters, 1 under 12, else 2) match. The one closest payee is suggested, so `BLUE COFEE COMPANY LTD` goes to an existing "Blue Coffee";
 4. several payees as close: before the logging transaction, the `notificationParsing` model picks one of them (`pickAmbiguousPayee`), shown each candidate's known spellings and usual categories. A pick is suggested; no pick (or no AI) logs the payment **without a payee**, never a new look-alike payee;
 5. otherwise the closest fuzzy match is suggested, else a new payee is created at first sight, with the merchant as its own alias.
 
@@ -187,7 +187,7 @@ The note is suggested from the payee's last 50 payments of the past 12 months (`
 A bank-connected account refuses ordinary manual rows. A card payment on one is stored as a **planned** row (`planned: true`), and the bank sync's own transaction later settles it in place instead of creating a duplicate:
 
 - the same account, the same currency, a booked amount within 25% of the planned amount, and a booking time within 7 days;
-- when the amounts are equal, no further check; when they differ (a tip, a foreign-currency hold), the bank's merchant text must share distinctive words with the plan's merchant. City, country and business-kind words (`batumi`, `cafe`) do not count;
+- when the amounts are equal, no further check; when they differ (a tip, a foreign-currency hold), the bank's merchant text must share distinctive words with the plan's merchant. City, country and business-kind words (`lisbon`, `cafe`) do not count;
 - the settled row keeps the plan's category and payee and takes the bank's time and data. The bank's merchant text is stored as an alias of the payee, so the next payment matches by alias.
 
 A plan that is not settled within 7 days is listed on the iOS Automation page as **Not confirmed by the bank**, where the user deletes it (the bank's own row already exists) or keeps it.
@@ -413,7 +413,7 @@ New inbox items and parks without a card send pushes in the `assistant` group th
 curl -sS https://money.example.com/api/v1/ingest/card-payment \
   -H "Authorization: Bearer $MM_INGEST_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"dryRun": true, "card": "TBC Visa"}'
+  -d '{"dryRun": true, "card": "Example Visa"}'
 
 # Log a payment.
 curl -sS https://money.example.com/api/v1/ingest/card-payment \
@@ -421,8 +421,8 @@ curl -sS https://money.example.com/api/v1/ingest/card-payment \
   -H "Content-Type: application/json" \
   -d '{
     "idempotencyKey": "3f1c2d9e-7a54-4b18-9c0e-5d2a8b6f4e11",
-    "card": "TBC Visa",
-    "merchant": "Cafe Heart of Batumi",
+    "card": "Example Visa",
+    "merchant": "Cafe Heart of Lisbon",
     "amount": "47.00 GEL",
     "time": "2026-10-17T14:05:00+04:00"
   }'

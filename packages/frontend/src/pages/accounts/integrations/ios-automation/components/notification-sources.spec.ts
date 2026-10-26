@@ -84,7 +84,7 @@ const LOAN = makeAccount({ id: 'loan' as RecordId, name: 'Car loan', accountCate
 
 const makeSource = (overrides: Partial<NotificationSourceDto> = {}): NotificationSourceDto => ({
   id: 'source-1' as RecordId,
-  appName: 'TBC Bank',
+  appName: 'Example Bank',
   bundleId: null,
   sender: null,
   conversational: false,
@@ -125,7 +125,7 @@ describe('NotificationSources', () => {
 
     const rows = wrapper.findAll('[data-testid="notification-source-row"]');
     expect(rows.map((row) => row.get('[data-testid="notification-source-name"]').text())).toEqual([
-      'TBC Bank',
+      'Example Bank',
       'Revolut',
       'Telegram',
     ]);
@@ -194,10 +194,10 @@ describe('NotificationSources', () => {
 
   it('shows the sender of a messaging source', async () => {
     const { wrapper } = await mountSources({
-      sources: [makeSource({ appName: 'Messages', sender: 'TBC', mode: 'approved' })],
+      sources: [makeSource({ appName: 'Messages', sender: 'Example', mode: 'approved' })],
     });
 
-    expect(wrapper.text()).toContain('From TBC');
+    expect(wrapper.text()).toContain('From Example');
   });
 
   it('shows an empty state before the first notification', async () => {
@@ -233,7 +233,7 @@ describe('NotificationSources', () => {
 
     await wrapper.get('[data-testid="notification-source-forget"]').trigger('click');
     expect(mockDelete).not.toHaveBeenCalled();
-    expect(wrapper.get('[data-testid="alert-dialog"]').text()).toContain('TBC Bank counts as a new source');
+    expect(wrapper.get('[data-testid="alert-dialog"]').text()).toContain('Example Bank counts as a new source');
 
     await wrapper.get('[data-testid="alert-confirm"]').trigger('click');
     await flushPromises();

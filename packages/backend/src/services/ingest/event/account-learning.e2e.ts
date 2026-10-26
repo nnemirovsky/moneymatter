@@ -40,8 +40,8 @@ let sequence = 0;
 /** A push from a seeded bank app that shows an incoming credit and only the last digits of the card; each differs, so none is a repeat. */
 const push = () => ({
   kind: 'notification',
-  app: 'TBC Bank',
-  title: 'TBC Bank',
+  app: 'Example Bank',
+  title: 'Example Bank',
   subtitle: '',
   body: `Incoming transfer from Salary ${BASE} ${printedAmount} to card *1258`,
   idempotencyKey: `key-${randomUUID()}`,
@@ -137,7 +137,7 @@ describe('which account a parked notification payment goes to', () => {
 
   /** Three accounts in the payment's currency; only one is named after the bank. */
   const setUp = async () => {
-    const bank = await account({ name: 'TBC' });
+    const bank = await account({ name: 'Example' });
     await account({ name: 'Gazprom CC' });
     const bereke = await account({ name: 'Bereke' });
     const forte = await account({ name: 'Forte' });
@@ -160,7 +160,7 @@ describe('which account a parked notification payment goes to', () => {
   it('makes no guess when the app name matches two accounts', async () => {
     mockNotificationParsing({ answer: () => credit() });
     const { secret } = await setUp();
-    await account({ name: 'TBC Bank Savings' });
+    await account({ name: 'Example Bank Savings' });
 
     const res = await send({ secret });
 
@@ -177,14 +177,14 @@ describe('which account a parked notification payment goes to', () => {
     const waiting = (await helpers.listCardPaymentRequests({ status: 'parked', raw: true })).find(
       (entry) => entry.id === requestId,
     )!;
-    expect(waiting).toMatchObject({ cardLabel: 'TBC Bank •1258', cardLastDigits: '1258', accountGuessId: bank.id });
+    expect(waiting).toMatchObject({ cardLabel: 'Example Bank •1258', cardLastDigits: '1258', accountGuessId: bank.id });
     expect(await helpers.listUnlinkedCards({ raw: true })).toEqual([
-      { cardLabel: 'TBC Bank •1258', count: 1, lastDigits: '1258' },
+      { cardLabel: 'Example Bank •1258', count: 1, lastDigits: '1258' },
     ]);
 
     // Linking the card puts its waiting payment back through the pipeline by itself.
     const mapping = await helpers.createCardMapping({
-      payload: { cardLabel: 'TBC Bank •1258', lastDigits: '1258', accountId: bank.id },
+      payload: { cardLabel: 'Example Bank •1258', lastDigits: '1258', accountId: bank.id },
       raw: true,
     });
     expect(mapping.releasedCount).toBe(1);
@@ -204,7 +204,7 @@ describe('which account a parked notification payment goes to', () => {
       expect(card.ingestRequest).toMatchObject({
         reason: 'unknownAccount',
         counterparty: 'Salary',
-        sourceName: 'TBC Bank',
+        sourceName: 'Example Bank',
         amount: Number(printedAmount),
         currencyCode: BASE,
         direction: 'credit',
@@ -241,7 +241,7 @@ describe('which account a parked notification payment goes to', () => {
       const links = await CardAccountMappings.findAll();
       expect(links).toHaveLength(1);
       expect(links[0]).toMatchObject({
-        cardLabel: 'TBC Bank •1258',
+        cardLabel: 'Example Bank •1258',
         lastDigits: '1258',
         accountId: bank.id,
         currencyCode: null,
@@ -263,7 +263,7 @@ describe('which account a parked notification payment goes to', () => {
       expect((await approve({ card })).statusCode).toBe(200);
       await waitUntilLogged({ requestId: first.body.response.requestId });
 
-      const source = (await NotificationSources.findOne({ where: { appName: 'TBC Bank' } }))!;
+      const source = (await NotificationSources.findOne({ where: { appName: 'Example Bank' } }))!;
       expect(source.defaultAccountId).toBe(bank.id);
       expect(await CardAccountMappings.count()).toBe(0);
 
@@ -336,8 +336,8 @@ describe('which account a parked notification payment goes to', () => {
       // The link is written behind the service, so nothing re-runs the payment by itself.
       await CardAccountMappings.create({
         userId: (await helpers.getUserInfo({ raw: true })).id,
-        cardLabel: 'TBC Bank •1258',
-        normalizedLabel: 'tbc bank •1258',
+        cardLabel: 'Example Bank •1258',
+        normalizedLabel: 'example bank •1258',
         lastDigits: '1258',
         currencyCode: null,
         accountId: bank.id,
@@ -397,7 +397,7 @@ describe('which account a parked notification payment goes to', () => {
       const { bank, ids } = await parkTwo();
 
       const mapping = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Bank •1258', lastDigits: '1258', accountId: bank.id },
+        payload: { cardLabel: 'Example Bank •1258', lastDigits: '1258', accountId: bank.id },
         raw: true,
       });
 
@@ -410,7 +410,7 @@ describe('which account a parked notification payment goes to', () => {
       const { bank, secret } = await setUp();
       const first = await send({ secret });
       const ids = [first.body.response.requestId as RecordId];
-      const source = (await NotificationSources.findOne({ where: { appName: 'TBC Bank' } }))!;
+      const source = (await NotificationSources.findOne({ where: { appName: 'Example Bank' } }))!;
 
       const updated = await helpers.updateNotificationSource({
         id: source.id,

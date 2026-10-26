@@ -3,15 +3,15 @@ import { describe, expect, it } from '@jest/globals';
 
 describe('normalizeCardLabel', () => {
   it.each([
-    ['trims', '  TBC Visa  ', 'tbc visa'],
-    ['collapses inner whitespace', 'TBC   \t Visa', 'tbc visa'],
-    ['collapses a non-breaking space', 'TBC Visa', 'tbc visa'],
-    ['case-folds', 'tBc ViSa', 'tbc visa'],
+    ['trims', '  Example Visa  ', 'example visa'],
+    ['collapses inner whitespace', 'Example   \t Visa', 'example visa'],
+    ['collapses a non-breaking space', 'Example Visa', 'example visa'],
+    ['case-folds', 'ExAmple ViSa', 'example visa'],
     ['case-folds non-Latin letters', 'ТБС Карта', 'тбс карта'],
-    ['strips a trailing masked number', 'TBC Visa •••• 1234', 'tbc visa'],
-    ['strips a masked number without spaces', 'TBC Visa ••••1234', 'tbc visa'],
-    ['strips a masked number written with asterisks', 'TBC Visa **** 1234', 'tbc visa'],
-    ['strips a parenthesized masked number', 'TBC Visa (•••• 1234)', 'tbc visa'],
+    ['strips a trailing masked number', 'Example Visa •••• 1234', 'example visa'],
+    ['strips a masked number without spaces', 'Example Visa ••••1234', 'example visa'],
+    ['strips a masked number written with asterisks', 'Example Visa **** 1234', 'example visa'],
+    ['strips a parenthesized masked number', 'Example Visa (•••• 1234)', 'example visa'],
     ['keeps digits that are not behind a mask', 'Card 1234', 'card 1234'],
     ['keeps a single asterisk before digits', 'Card *1234', 'card *1234'],
     ['keeps a masked number that is not at the end', '•••• 1234 Visa', '•••• 1234 visa'],
@@ -29,7 +29,7 @@ describe('normalizeCardLabel', () => {
   });
 
   it('is idempotent', () => {
-    const once = normalizeCardLabel({ label: '  TBC   Visa •••• 1234 ' });
+    const once = normalizeCardLabel({ label: '  Example   Visa •••• 1234 ' });
 
     expect(normalizeCardLabel({ label: once })).toBe(once);
   });

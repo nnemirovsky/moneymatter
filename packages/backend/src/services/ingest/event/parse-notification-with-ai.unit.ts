@@ -60,8 +60,8 @@ const aiClient = {
 const fixture = (id: string) => notificationFixtures.find((candidate) => candidate.id === id)!;
 
 const run = ({
-  fixtureId = 'tbc-ka-debit',
-  candidates = [{ payeeId: PAYEE_ID, name: 'Wolt', aliases: ['WOLT.COM TBILISI'] }],
+  fixtureId = 'example-ka-debit',
+  candidates = [{ payeeId: PAYEE_ID, name: 'Wolt', aliases: ['WOLT.COM LISBON'] }],
 }: { fixtureId?: string; candidates?: { payeeId: string; name: string; aliases: string[] }[] } = {}) => {
   const { title, subtitle, body, appName, bundleId } = fixture(fixtureId);
 
@@ -104,7 +104,7 @@ beforeEach(() => {
 
 describe('parseNotificationWithAi', () => {
   it('reads a notification, charging the call to notificationParsing', async () => {
-    answerWith(fixture('tbc-ka-debit').answer);
+    answerWith(fixture('example-ka-debit').answer);
 
     const result = await run();
 
@@ -116,7 +116,7 @@ describe('parseNotificationWithAi', () => {
         payment: {
           amount: '43.6',
           currencyCode: 'GEL',
-          merchant: 'WOLT.COM TBILISI',
+          merchant: 'WOLT.COM LISBON',
           payee: { type: 'candidate', payeeId: PAYEE_ID },
           balanceAfter: { amount: '1204.3', currencyCode: 'GEL' },
         },
@@ -132,14 +132,14 @@ describe('parseNotificationWithAi', () => {
   });
 
   it('sends the text as untrusted data with the candidates under short ids and the balance context', async () => {
-    answerWith(fixture('tbc-ka-debit').answer);
+    answerWith(fixture('example-ka-debit').answer);
 
     await run();
 
     const call = generateTextMock.mock.calls[0]![0] as unknown as { system: string; prompt: string };
     expect(call.prompt).toContain('<notification>');
-    expect(call.prompt).toContain('WOLT.COM TBILISI, 20/10/2026');
-    expect(call.prompt).toContain('p1|Wolt|WOLT.COM TBILISI');
+    expect(call.prompt).toContain('WOLT.COM LISBON, 20/10/2026');
+    expect(call.prompt).toContain('p1|Wolt|WOLT.COM LISBON');
     expect(call.prompt).not.toContain(PAYEE_ID);
     expect(call.prompt).toContain('The user holds money at this bank in: GEL, USD.');
     expect(call.system).toContain('untrusted');
@@ -147,7 +147,7 @@ describe('parseNotificationWithAi', () => {
   });
 
   it('drops a candidate id the model was not shown', async () => {
-    answerWith({ ...fixture('tbc-ka-debit').answer, payee: { candidateId: 'p7', newName: null } });
+    answerWith({ ...fixture('example-ka-debit').answer, payee: { candidateId: 'p7', newName: null } });
 
     const result = await run();
 
@@ -164,7 +164,7 @@ describe('parseNotificationWithAi', () => {
   });
 
   it('parks a low-confidence payment', async () => {
-    answerWith({ ...fixture('tbc-ka-debit').answer, confidence: 0.4 });
+    answerWith({ ...fixture('example-ka-debit').answer, confidence: 0.4 });
 
     expect(await run()).toMatchObject({ classified: { verdict: 'park', reason: 'lowConfidence' } });
   });
@@ -323,7 +323,7 @@ describe('parseNotificationWithAi', () => {
 
   it('does not mark a connection valid when the answer came from the server model', async () => {
     createAIClientMock.mockResolvedValue({ ...aiClient, connectionId: undefined, usingUserKey: false });
-    answerWith(fixture('tbc-ka-debit').answer);
+    answerWith(fixture('example-ka-debit').answer);
 
     await run();
 

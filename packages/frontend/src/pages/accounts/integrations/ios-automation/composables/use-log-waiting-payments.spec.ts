@@ -32,7 +32,7 @@ const makeRequest = (overrides: Partial<CardPaymentRequestDto>): CardPaymentRequ
   status: 'parked',
   reason: 'unknownCard',
   summary: null,
-  cardLabel: 'TBC Visa',
+  cardLabel: 'Example Visa',
   cardLastDigits: null,
   accountGuessId: null,
   aiRetryAt: null,
@@ -75,13 +75,13 @@ describe('useLogWaitingPayments', () => {
   it('retries every waiting payment of the card, one at a time, and leaves the others', async () => {
     mockGetRequests.mockResolvedValue([
       makeRequest({ id: 'a' as RecordId }),
-      makeRequest({ id: 'b' as RecordId, cardLabel: 'tbc visa •••• 1234' }),
+      makeRequest({ id: 'b' as RecordId, cardLabel: 'example visa •••• 1234' }),
       makeRequest({ id: 'other' as RecordId, cardLabel: 'Revolut' }),
       makeRequest({ id: 'rate' as RecordId, reason: 'rateUnavailable' }),
     ]);
     const { composable } = mountComposable();
 
-    const result = await composable.logWaitingPayments({ cardLabel: 'TBC Visa' });
+    const result = await composable.logWaitingPayments({ cardLabel: 'Example Visa' });
 
     expect(mockGetRequests).toHaveBeenCalledWith({ status: 'parked' });
     expect(mockRetry.mock.calls).toEqual([[{ id: 'a' }], [{ id: 'b' }]]);
@@ -93,7 +93,7 @@ describe('useLogWaitingPayments', () => {
     mockRetry.mockResolvedValueOnce(LOGGED).mockResolvedValueOnce(PARKED);
     const { composable } = mountComposable();
 
-    expect(await composable.logWaitingPayments({ cardLabel: 'TBC Visa' })).toEqual({
+    expect(await composable.logWaitingPayments({ cardLabel: 'Example Visa' })).toEqual({
       logged: 1,
       stillWaiting: 1,
       failed: 0,
@@ -105,7 +105,7 @@ describe('useLogWaitingPayments', () => {
     mockRetry.mockRejectedValueOnce(new Error('409')).mockResolvedValueOnce(LOGGED);
     const { composable } = mountComposable();
 
-    expect(await composable.logWaitingPayments({ cardLabel: 'TBC Visa' })).toEqual({
+    expect(await composable.logWaitingPayments({ cardLabel: 'Example Visa' })).toEqual({
       logged: 1,
       stillWaiting: 0,
       failed: 1,
@@ -116,7 +116,7 @@ describe('useLogWaitingPayments', () => {
     mockGetRequests.mockResolvedValue([makeRequest({})]);
     const { composable, invalidateQueries } = mountComposable();
 
-    await composable.logWaitingPayments({ cardLabel: 'TBC Visa' });
+    await composable.logWaitingPayments({ cardLabel: 'Example Visa' });
     await flushPromises();
 
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: VUE_QUERY_CACHE_KEYS.cardPaymentRequests });
@@ -128,7 +128,7 @@ describe('useLogWaitingPayments', () => {
     mockGetRequests.mockResolvedValue([makeRequest({ id: 'a' as RecordId }), makeRequest({ id: 'b' as RecordId })]);
     const { composable } = mountComposable();
 
-    await composable.logWaitingPayments({ cardLabel: 'TBC Visa' });
+    await composable.logWaitingPayments({ cardLabel: 'Example Visa' });
 
     expect(mockAddSuccess).toHaveBeenCalledWith('settings.integrations.iosAutomation.unlinked.logged:{"count":2}');
     expect(mockAddWarning).not.toHaveBeenCalled();
@@ -139,7 +139,7 @@ describe('useLogWaitingPayments', () => {
     mockRetry.mockResolvedValueOnce(LOGGED).mockResolvedValueOnce(PARKED);
     const { composable } = mountComposable();
 
-    await composable.logWaitingPayments({ cardLabel: 'TBC Visa' });
+    await composable.logWaitingPayments({ cardLabel: 'Example Visa' });
 
     expect(mockAddSuccess).toHaveBeenCalledWith('settings.integrations.iosAutomation.unlinked.logged:{"count":1}');
     expect(mockAddWarning).toHaveBeenCalledWith('settings.integrations.iosAutomation.unlinked.notLogged:{"count":1}');
@@ -149,7 +149,7 @@ describe('useLogWaitingPayments', () => {
     mockGetRequests.mockResolvedValue([]);
     const { composable } = mountComposable();
 
-    expect(await composable.logWaitingPayments({ cardLabel: 'TBC Visa' })).toEqual({
+    expect(await composable.logWaitingPayments({ cardLabel: 'Example Visa' })).toEqual({
       logged: 0,
       stillWaiting: 0,
       failed: 0,

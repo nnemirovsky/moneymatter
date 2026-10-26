@@ -17,7 +17,7 @@ describe('app recognition', () => {
     const result = parseWalletNotification({
       bundleId: null,
       appName: 'Wallet',
-      title: 'TBC Visa',
+      title: 'Example Visa',
       subtitle: 'Wolt',
       body: 'GEL 43.60',
     });
@@ -30,7 +30,7 @@ describe('app recognition', () => {
       parseWalletNotification({
         bundleId: 'ph.telegra.Telegraph',
         appName: 'Wallet',
-        title: 'TBC Visa',
+        title: 'Example Visa',
         subtitle: 'Wolt',
         body: 'GEL 43.60',
       }),
@@ -58,7 +58,7 @@ describe('parseWalletNotification', () => {
           originalCurrencyCode: null,
           merchant: 'Wolt',
           payee: null,
-          cardName: 'TBC Bank',
+          cardName: 'Example Bank',
           cardLastDigits: null,
           balanceAfter: null,
           occurredAt: null,
@@ -75,7 +75,7 @@ describe('parseWalletNotification', () => {
       amount: '29.41',
       currencyCode: 'GEL',
       merchant: 'Wolt',
-      cardName: 'TBC Bank',
+      cardName: 'Example Bank',
     });
   });
 
@@ -111,7 +111,7 @@ describe('parseWalletNotification', () => {
       parseWalletNotification({
         bundleId: WALLET_BUNDLE,
         appName: 'Wallet',
-        title: 'TBC Bank',
+        title: 'Example Bank',
         subtitle: 'Wolt',
         body: 'GEL 43.60',
         ...override,

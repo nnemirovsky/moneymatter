@@ -35,7 +35,7 @@ const seedRequests = async ({ userId, daysAgo }: { userId: number; daysAgo: numb
       idempotencyKey: `${status}-${daysAgo}`,
       fingerprint: `fingerprint-${status}-${daysAgo}`,
       status,
-      payload: { amount: '1.00', merchant: 'Shop', card: 'TBC Visa' },
+      payload: { amount: '1.00', merchant: 'Shop', card: 'Example Visa' },
     })),
   );
 
@@ -289,8 +289,8 @@ describe('Ingest requests cleanup cron', () => {
       const user = await helpers.getUserInfo({ raw: true });
       const source = await NotificationSources.create({
         userId: user.id,
-        sourceKey: 'name:tbc bank',
-        appName: 'TBC Bank',
+        sourceKey: 'name:example bank',
+        appName: 'Example Bank',
         mode: 'auto',
       });
       const unread = await seedNotification({

@@ -3,27 +3,27 @@ import { afterEach, describe, expect, it } from '@jest/globals';
 import { notificationTimings } from './constants';
 import { computeNotificationFingerprint, isFoldedRepeat } from './notification-fingerprint';
 
-const text = { title: 'TBC Bank', subtitle: 'Wolt', body: 'GEL 43.60' };
+const text = { title: 'Example Bank', subtitle: 'Wolt', body: 'GEL 43.60' };
 
 describe('computeNotificationFingerprint', () => {
   it('is a SHA-256 hex digest', () => {
-    expect(computeNotificationFingerprint({ sourceKey: 'ge.tbc.app', text })).toMatch(/^[0-9a-f]{64}$/);
+    expect(computeNotificationFingerprint({ sourceKey: 'ge.example.app', text })).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it('is stable for the same source and text', () => {
-    expect(computeNotificationFingerprint({ sourceKey: 'ge.tbc.app', text })).toBe(
-      computeNotificationFingerprint({ sourceKey: 'ge.tbc.app', text: { ...text } }),
+    expect(computeNotificationFingerprint({ sourceKey: 'ge.example.app', text })).toBe(
+      computeNotificationFingerprint({ sourceKey: 'ge.example.app', text: { ...text } }),
     );
   });
 
   it.each([
     ['the source', { sourceKey: 'com.revolut.revolut', text }],
-    ['the title', { sourceKey: 'ge.tbc.app', text: { ...text, title: 'TBC' } }],
-    ['the subtitle', { sourceKey: 'ge.tbc.app', text: { ...text, subtitle: 'Bolt' } }],
-    ['the body', { sourceKey: 'ge.tbc.app', text: { ...text, body: 'GEL 43.61' } }],
+    ['the title', { sourceKey: 'ge.example.app', text: { ...text, title: 'Example' } }],
+    ['the subtitle', { sourceKey: 'ge.example.app', text: { ...text, subtitle: 'Bolt' } }],
+    ['the body', { sourceKey: 'ge.example.app', text: { ...text, body: 'GEL 43.61' } }],
   ])('changes with %s', (_name, input) => {
     expect(computeNotificationFingerprint(input)).not.toBe(
-      computeNotificationFingerprint({ sourceKey: 'ge.tbc.app', text }),
+      computeNotificationFingerprint({ sourceKey: 'ge.example.app', text }),
     );
   });
 

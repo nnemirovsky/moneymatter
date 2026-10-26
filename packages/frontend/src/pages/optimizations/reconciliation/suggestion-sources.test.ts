@@ -14,7 +14,7 @@ describe('describeSuggestionSlot', () => {
   });
 
   it('names a bank notification with its stage', () => {
-    expect(describeSuggestionSlot({ slot: 'bank:ge.tbconline.tbc-ipad:settlement' })).toEqual({
+    expect(describeSuggestionSlot({ slot: 'bank:com.example.bank:settlement' })).toEqual({
       key: `${I18N}.bank`,
       stageKey: `${I18N}.stages.settlement`,
     });

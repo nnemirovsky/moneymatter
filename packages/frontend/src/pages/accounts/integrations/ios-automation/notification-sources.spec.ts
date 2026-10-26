@@ -4,13 +4,15 @@ import { getSourceName } from './notification-sources';
 
 describe('getSourceName', () => {
   it('prefers the app name', () => {
-    expect(getSourceName({ source: { appName: 'TBC Bank', bundleId: 'ge.tbconline' }, fallback: '?' })).toBe(
-      'TBC Bank',
+    expect(getSourceName({ source: { appName: 'Example Bank', bundleId: 'com.example.bank' }, fallback: '?' })).toBe(
+      'Example Bank',
     );
   });
 
   it('falls back to the bundle id', () => {
-    expect(getSourceName({ source: { appName: null, bundleId: 'ge.tbconline' }, fallback: '?' })).toBe('ge.tbconline');
+    expect(getSourceName({ source: { appName: null, bundleId: 'com.example.bank' }, fallback: '?' })).toBe(
+      'com.example.bank',
+    );
   });
 
   it('uses the fallback when the source names neither', () => {

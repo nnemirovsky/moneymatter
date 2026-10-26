@@ -2,16 +2,16 @@ import { AMOUNT_GATE_SAMPLES, type GateStrictness } from '@bt/shared/types';
 import { i18nextReady } from '@i18n/index';
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
-import { nordCoffeeTap } from './fixtures/notifications';
+import { blueCoffeeTap } from './fixtures/notifications';
 import { prefilterNotification } from './prefilter-notification';
 
 const filter = ({
-  title = 'TBC Bank',
+  title = 'Example Bank',
   subtitle = '',
   body,
   strictness = 'standard',
-  bundleId = 'ge.tbc.app',
-  appName = 'TBC Bank',
+  bundleId = 'ge.example.app',
+  appName = 'Example Bank',
 }: {
   title?: string;
   subtitle?: string;
@@ -36,7 +36,7 @@ beforeAll(async () => {
 describe('prefilterNotification', () => {
   describe('the amount', () => {
     it('passes a payment and reports the part the gate matched', () => {
-      expect(filter({ title: 'TBC Bank', subtitle: 'Wolt', body: 'GEL 43.60' })).toEqual({
+      expect(filter({ title: 'Example Bank', subtitle: 'Wolt', body: 'GEL 43.60' })).toEqual({
         pass: true,
         amountText: 'GEL 43.60',
       });
@@ -52,8 +52,8 @@ describe('prefilterNotification', () => {
       },
     );
 
-    it('passes the TBC push that ends in a cashback credit and a piggy-bank balance, matching the payment amount', () => {
-      const { title, subtitle, body } = nordCoffeeTap.tbcPush;
+    it('passes the Example push that ends in a cashback credit and a piggy-bank balance, matching the payment amount', () => {
+      const { title, subtitle, body } = blueCoffeeTap.bankPush;
 
       expect(filter({ title, subtitle, body })).toEqual({
         pass: true,
@@ -62,9 +62,9 @@ describe('prefilterNotification', () => {
     });
 
     it.each(['strict', 'standard', 'loose'] as const)(
-      'passes the real TBC push of the Nord Cofee payment at %s',
+      'passes the real Example push of the Blue Cofee payment at %s',
       (strictness) => {
-        const { title, subtitle, body } = nordCoffeeTap.tbcPush;
+        const { title, subtitle, body } = blueCoffeeTap.bankPush;
 
         expect(filter({ title, subtitle, body, strictness }).pass).toBe(true);
       },
@@ -183,7 +183,7 @@ describe('prefilterNotification', () => {
       'Noted 43.60 GEL at Wolt → Food; the bank sync will confirm it',
       'Needs your OK in MoneyMatter: 43.60 GEL at Wolt',
       'Queued, will appear shortly',
-      'Not logged yet: link the card "TBC Visa" in MoneyMatter → Accounts → iOS Automation',
+      'Not logged yet: link the card "Example Visa" in MoneyMatter → Accounts → iOS Automation',
     ])('drops our own banner "%s" before it is read as a payment', (body) => {
       expect(filter({ title: '', body, bundleId: null, appName: null })).toEqual({ pass: false, reason: 'self' });
     });
@@ -217,8 +217,8 @@ describe('prefilterNotification', () => {
     it('does not take a bank for MoneyMatter', () => {
       expect(
         filter({
-          title: 'TBC Bank',
-          body: 'Logged out of TBC. Balance GEL 10.00',
+          title: 'Example Bank',
+          body: 'Logged out of Example. Balance GEL 10.00',
         }).pass,
       ).toBe(true);
     });

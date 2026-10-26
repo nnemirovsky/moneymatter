@@ -36,7 +36,7 @@ vi.mock('@/components/common/responsive-dialog.vue', async () => ({
 const makeAccount = (overrides: Partial<AccountModel>): AccountModel =>
   ({
     id: 'account-1' as RecordId,
-    name: 'TBC Visa',
+    name: 'Example Visa',
     type: ACCOUNT_TYPES.system,
     status: ACCOUNT_STATUSES.active,
     accountCategory: ACCOUNT_CATEGORIES.general,
@@ -55,7 +55,7 @@ const USD_ACCOUNT = makeAccount({ id: 'usd' as RecordId, name: 'Dollars', curren
 
 const MAPPING: CardMappingDto = {
   id: 'mapping-1' as RecordId,
-  cardLabel: 'TBC Visa',
+  cardLabel: 'Example Visa',
   lastDigits: null,
   currencyCode: null,
   accountId: 'owned' as RecordId,
@@ -175,12 +175,12 @@ describe('CardLinkDialog', () => {
   it('adds a link with the trimmed card name and the chosen account', async () => {
     const wrapper = mountDialog();
 
-    await labelInput(wrapper).setValue('  TBC Visa  ');
+    await labelInput(wrapper).setValue('  Example Visa  ');
     await pickAccount(wrapper, 'other');
     await submit(wrapper);
 
-    expect(mockCreate).toHaveBeenCalledWith({ cardLabel: 'TBC Visa', accountId: 'other' });
-    expect(wrapper.emitted('saved')?.[0]?.[0]).toMatchObject({ cardLabel: 'TBC Visa', accountId: 'other' });
+    expect(mockCreate).toHaveBeenCalledWith({ cardLabel: 'Example Visa', accountId: 'other' });
+    expect(wrapper.emitted('saved')?.[0]?.[0]).toMatchObject({ cardLabel: 'Example Visa', accountId: 'other' });
     expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false]);
   });
 
@@ -191,28 +191,28 @@ describe('CardLinkDialog', () => {
     it('sends the digits a bank notification names the card by', async () => {
       const wrapper = mountDialog();
 
-      await labelInput(wrapper).setValue('TBC Visa');
+      await labelInput(wrapper).setValue('Example Visa');
       await digitsInput(wrapper).setValue(' 8543 ');
       await pickAccount(wrapper, 'owned');
       await submit(wrapper);
 
-      expect(mockCreate).toHaveBeenCalledWith({ cardLabel: 'TBC Visa', accountId: 'owned', lastDigits: '8543' });
+      expect(mockCreate).toHaveBeenCalledWith({ cardLabel: 'Example Visa', accountId: 'owned', lastDigits: '8543' });
     });
 
     it('leaves the digits out when the field is empty', async () => {
       const wrapper = mountDialog();
 
-      await labelInput(wrapper).setValue('TBC Visa');
+      await labelInput(wrapper).setValue('Example Visa');
       await pickAccount(wrapper, 'owned');
       await submit(wrapper);
 
-      expect(mockCreate).toHaveBeenCalledWith({ cardLabel: 'TBC Visa', accountId: 'owned' });
+      expect(mockCreate).toHaveBeenCalledWith({ cardLabel: 'Example Visa', accountId: 'owned' });
     });
 
     it.each(['123', '123456789', '12a4'])('refuses %s, which is not 4 to 8 digits', async (digits) => {
       const wrapper = mountDialog();
 
-      await labelInput(wrapper).setValue('TBC Visa');
+      await labelInput(wrapper).setValue('Example Visa');
       await digitsInput(wrapper).setValue(digits);
       await pickAccount(wrapper, 'owned');
       await submit(wrapper);
@@ -241,7 +241,7 @@ describe('CardLinkDialog', () => {
     });
 
     it('hides the field when an account is added to a card that already has its digits', () => {
-      const wrapper = mountDialog({ lockLabel: true, initialLabel: 'TBC Visa' });
+      const wrapper = mountDialog({ lockLabel: true, initialLabel: 'Example Visa' });
 
       expect(wrapper.find('[data-testid="card-link-last-digits"]').exists()).toBe(false);
     });
@@ -277,7 +277,7 @@ describe('CardLinkDialog', () => {
     mockCreate.mockRejectedValue(new Error('A link for this card already exists'));
     const wrapper = mountDialog();
 
-    await labelInput(wrapper).setValue('TBC Visa');
+    await labelInput(wrapper).setValue('Example Visa');
     await pickAccount(wrapper, 'owned');
     await submit(wrapper);
 
@@ -289,17 +289,17 @@ describe('CardLinkDialog', () => {
     it('starts from the link being edited', () => {
       const wrapper = mountDialog({ mapping: MAPPING });
 
-      expect((labelInput(wrapper).element as HTMLInputElement).value).toBe('TBC Visa');
+      expect((labelInput(wrapper).element as HTMLInputElement).value).toBe('Example Visa');
       expect((wrapper.get('[data-testid="account-select"]').element as HTMLSelectElement).value).toBe('owned');
     });
 
     it('renames the card and sends only the name', async () => {
       const wrapper = mountDialog({ mapping: MAPPING });
 
-      await labelInput(wrapper).setValue('TBC Visa Gold');
+      await labelInput(wrapper).setValue('Example Visa Gold');
       await submit(wrapper);
 
-      expect(mockUpdate).toHaveBeenCalledWith({ id: 'mapping-1', cardLabel: 'TBC Visa Gold' });
+      expect(mockUpdate).toHaveBeenCalledWith({ id: 'mapping-1', cardLabel: 'Example Visa Gold' });
     });
 
     it('points the card at another account and sends only the account', async () => {
@@ -337,12 +337,12 @@ describe('CardLinkDialog', () => {
     it('adds an account for one currency and sends the currency', async () => {
       const wrapper = mountDialog();
 
-      await labelInput(wrapper).setValue('TBC Visa');
+      await labelInput(wrapper).setValue('Example Visa');
       await pickCurrency(wrapper, 'USD');
       await pickAccount(wrapper, 'usd');
       await submit(wrapper);
 
-      expect(mockCreate).toHaveBeenCalledWith({ cardLabel: 'TBC Visa', accountId: 'usd', currencyCode: 'USD' });
+      expect(mockCreate).toHaveBeenCalledWith({ cardLabel: 'Example Visa', accountId: 'usd', currencyCode: 'USD' });
       expect(wrapper.get('[data-testid="card-link-currency-hint"]').text()).toContain('in this currency');
     });
 
@@ -360,7 +360,7 @@ describe('CardLinkDialog', () => {
 
     it('drops an account that does not fit the currency picked after it', async () => {
       const wrapper = mountDialog();
-      await labelInput(wrapper).setValue('TBC Visa');
+      await labelInput(wrapper).setValue('Example Visa');
       await pickAccount(wrapper, 'owned');
 
       await pickCurrency(wrapper, 'USD');
@@ -376,10 +376,10 @@ describe('CardLinkDialog', () => {
         { ...MAPPING, id: 'mapping-2' as RecordId, currencyCode: 'GEL', accountId: 'owned' as RecordId },
       ];
 
-      const wrapper = mountDialog({ initialLabel: 'TBC Visa', lockLabel: true, siblings });
+      const wrapper = mountDialog({ initialLabel: 'Example Visa', lockLabel: true, siblings });
 
       expect(currencyValues(wrapper)).toEqual(['USD']);
-      expect((labelInput(wrapper).element as HTMLInputElement).value).toBe('TBC Visa');
+      expect((labelInput(wrapper).element as HTMLInputElement).value).toBe('Example Visa');
       expect(labelInput(wrapper).attributes('disabled')).toBeDefined();
       expect(wrapper.text()).toContain('Add an account');
     });
@@ -387,7 +387,7 @@ describe('CardLinkDialog', () => {
     it('offers the default to a card that has only currency rows', () => {
       const siblings: CardMappingDto[] = [{ ...MAPPING, currencyCode: 'GEL' }];
 
-      const wrapper = mountDialog({ initialLabel: 'TBC Visa', lockLabel: true, siblings });
+      const wrapper = mountDialog({ initialLabel: 'Example Visa', lockLabel: true, siblings });
 
       expect(currencyValues(wrapper)).toEqual(['default', 'USD']);
     });

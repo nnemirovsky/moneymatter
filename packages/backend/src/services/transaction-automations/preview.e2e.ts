@@ -351,7 +351,7 @@ describe('POST /automations/preview', () => {
       secret,
       body: {
         amount: '47.00',
-        merchant: 'Cafe Heart of Batumi',
+        merchant: 'Cafe Heart of Lisbon',
         card: 'TBC Visa',
         idempotencyKey: 'preview-card-payment-plan',
       },

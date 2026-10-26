@@ -12,7 +12,6 @@ import { assertGroupsPartitionTimeline, changesDayIn, findGroup, planMove, type 
 
 const UPDATE_CHUNK_SIZE = 500;
 const SAMPLES_PER_GROUP = 5;
-const DEFAULT_DISPLAY_ZONE = 'Asia/Tbilisi';
 
 interface SelectedRow {
   id: string;
@@ -68,7 +67,8 @@ interface BackfillOptions {
   groups?: BackfillGroup[];
   importCreatedFrom?: Date;
   importCreatedTo?: Date;
-  displayZone?: string;
+  /** The zone the report reads local dates in; the caller names it, there is no default. */
+  displayZone: string;
 }
 
 const selectRows = async ({ createdFrom, createdTo, lock }: { createdFrom: Date; createdTo: Date; lock: boolean }) =>
@@ -223,7 +223,7 @@ export async function runTimeZoneBackfill({
   groups = DEFAULT_GROUPS,
   importCreatedFrom = DEFAULT_IMPORT_CREATED_FROM,
   importCreatedTo = DEFAULT_IMPORT_CREATED_TO,
-  displayZone = DEFAULT_DISPLAY_ZONE,
+  displayZone,
 }: BackfillOptions): Promise<BackfillReport> {
   assertGroupsPartitionTimeline({ groups });
 

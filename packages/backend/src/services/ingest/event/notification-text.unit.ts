@@ -2,7 +2,12 @@ import { describe, expect, it } from '@jest/globals';
 
 import { decryptNotificationText, encryptNotificationText } from './notification-text';
 
-const text = { title: 'TBC Bank', subtitle: 'Wolt', body: 'GEL 43.60 • card *1234', raw: 'TBC Bank\nWolt\nGEL 43.60' };
+const text = {
+  title: 'Example Bank',
+  subtitle: 'Wolt',
+  body: 'GEL 43.60 • card *1234',
+  raw: 'Example Bank\nWolt\nGEL 43.60',
+};
 
 describe('notification text', () => {
   it('round-trips through encryption', () => {
@@ -10,7 +15,7 @@ describe('notification text', () => {
   });
 
   it('round-trips an absent raw text and non-Latin script', () => {
-    const georgian = { title: 'თიბისი', subtitle: '', body: '43.60 ლარი', raw: null };
+    const georgian = { title: 'მაგალითი', subtitle: '', body: '43.60 ლარი', raw: null };
 
     expect(decryptNotificationText({ textEnc: encryptNotificationText({ text: georgian }) })).toEqual(georgian);
   });

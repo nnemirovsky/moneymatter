@@ -32,7 +32,7 @@ export const buildSuggestion = (overrides: Partial<DuplicateSuggestionItem> = {}
   candidate: buildTransaction({ id: asId('tx-b') }),
   suggestedSurvivorId: asId('tx-b'),
   transactionSlots: ['wallet-notification'],
-  candidateSlots: ['bank:ge.tbconline.tbc-ipad:settlement'],
+  candidateSlots: ['bank:com.example.bank:settlement'],
   ...overrides,
 });
 

@@ -20,7 +20,7 @@ const createSecondUserAccount = async () => {
   return account;
 };
 
-/** The owner's TBC card: a GEL and a USD account, and the base-currency account as its default. */
+/** The owner's Example card: a GEL and a USD account, and the base-currency account as its default. */
 const createCurrencyAccounts = async () => {
   await helpers.addUserCurrencies({ currencyCodes: ['GEL', 'USD'] });
   const base = await helpers.createAccount({ payload: helpers.buildAccountPayload({ name: 'Base' }), raw: true });
@@ -44,7 +44,7 @@ describe('Card links', () => {
 
     it("does not list another user's links", async () => {
       const account = await helpers.createAccount({ raw: true });
-      await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: account.id }, raw: true });
+      await helpers.createCardMapping({ payload: { cardLabel: 'Example Visa', accountId: account.id }, raw: true });
       const other = await helpers.signUpSecondUser();
 
       const otherList = await helpers.asUser({
@@ -71,13 +71,13 @@ describe('Card links', () => {
       const account = await helpers.createAccount({ raw: true });
 
       const response = await helpers.createCardMapping({
-        payload: { cardLabel: '  TBC Visa  ', accountId: account.id },
+        payload: { cardLabel: '  Example Visa  ', accountId: account.id },
       });
 
       expect(response.statusCode).toBe(201);
       expect(response.body.response).toEqual({
         id: expect.any(String),
-        cardLabel: 'TBC Visa',
+        cardLabel: 'Example Visa',
         lastDigits: null,
         currencyCode: null,
         accountId: account.id,
@@ -88,10 +88,10 @@ describe('Card links', () => {
 
     it('answers 409 for a label that normalizes to an existing one', async () => {
       const account = await helpers.createAccount({ raw: true });
-      await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: account.id }, raw: true });
+      await helpers.createCardMapping({ payload: { cardLabel: 'Example Visa', accountId: account.id }, raw: true });
 
       const duplicate = await helpers.createCardMapping({
-        payload: { cardLabel: '  tbc   VISA •••• 1234', accountId: account.id },
+        payload: { cardLabel: '  example   VISA •••• 1234', accountId: account.id },
       });
 
       expect(duplicate.statusCode).toBe(409);
@@ -101,14 +101,14 @@ describe('Card links', () => {
 
     it('lets two users link the same card name', async () => {
       const account = await helpers.createAccount({ raw: true });
-      await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: account.id }, raw: true });
+      await helpers.createCardMapping({ payload: { cardLabel: 'Example Visa', accountId: account.id }, raw: true });
       const other = await helpers.signUpSecondUser();
 
       const created = await helpers.asUser({
         cookies: other.cookies,
         fn: async () => {
           const otherAccount = await createSecondUserAccount();
-          return helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: otherAccount.id } });
+          return helpers.createCardMapping({ payload: { cardLabel: 'Example Visa', accountId: otherAccount.id } });
         },
       });
 
@@ -120,7 +120,7 @@ describe('Card links', () => {
       const foreignAccount = await helpers.asUser({ cookies: other.cookies, fn: createSecondUserAccount });
 
       const response = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: foreignAccount.id },
+        payload: { cardLabel: 'Example Visa', accountId: foreignAccount.id },
       });
 
       expect(response.statusCode).toBe(422);
@@ -130,7 +130,7 @@ describe('Card links', () => {
 
     it('answers 422 for an account that does not exist', async () => {
       const response = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: '0192f0c2-0000-7000-8000-000000000000' },
+        payload: { cardLabel: 'Example Visa', accountId: '0192f0c2-0000-7000-8000-000000000000' },
       });
 
       expect(response.statusCode).toBe(422);
@@ -140,7 +140,9 @@ describe('Card links', () => {
       const account = await helpers.createAccount({ raw: true });
       await helpers.updateAccount({ id: account.id, payload: { status: ACCOUNT_STATUSES.archived } });
 
-      const response = await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: account.id } });
+      const response = await helpers.createCardMapping({
+        payload: { cardLabel: 'Example Visa', accountId: account.id },
+      });
 
       expect(response.statusCode).toBe(422);
       expect(await helpers.listCardMappings({ raw: true })).toEqual([]);
@@ -152,7 +154,7 @@ describe('Card links', () => {
         raw: true,
       });
 
-      const response = await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: loan.id } });
+      const response = await helpers.createCardMapping({ payload: { cardLabel: 'Example Visa', accountId: loan.id } });
 
       expect(response.statusCode).toBe(422);
       expect(await helpers.listCardMappings({ raw: true })).toEqual([]);
@@ -162,7 +164,7 @@ describe('Card links', () => {
       ['a blank label', { cardLabel: '   ' }],
       ['a label over the limit', { cardLabel: 'x'.repeat(CARD_LABEL_MAX_LENGTH + 1) }],
       ['a missing label', {}],
-      ['a malformed account id', { cardLabel: 'TBC Visa', accountId: 'not-an-id' }],
+      ['a malformed account id', { cardLabel: 'Example Visa', accountId: 'not-an-id' }],
     ])('answers 422 for %s', async (_name, overrides) => {
       const account = await helpers.createAccount({ raw: true });
 
@@ -177,22 +179,22 @@ describe('Card links', () => {
       const { base, gel, usd } = await createCurrencyAccounts();
 
       const fallback = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: base.id },
+        payload: { cardLabel: 'Example Visa', accountId: base.id },
         raw: true,
       });
       const gelRow = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: gel.id, currencyCode: 'GEL' },
+        payload: { cardLabel: 'Example Visa', accountId: gel.id, currencyCode: 'GEL' },
         raw: true,
       });
       const usdRow = await helpers.createCardMapping({
-        payload: { cardLabel: 'tbc visa', accountId: usd.id, currencyCode: 'usd' },
+        payload: { cardLabel: 'example visa', accountId: usd.id, currencyCode: 'usd' },
         raw: true,
       });
 
       expect(fallback).toMatchObject({ currencyCode: null, accountId: base.id });
-      expect(gelRow).toMatchObject({ currencyCode: 'GEL', accountId: gel.id, cardLabel: 'TBC Visa' });
+      expect(gelRow).toMatchObject({ currencyCode: 'GEL', accountId: gel.id, cardLabel: 'Example Visa' });
       // A row joins the card as it is spelled: the case of the first label wins.
-      expect(usdRow).toMatchObject({ currencyCode: 'USD', accountId: usd.id, cardLabel: 'TBC Visa' });
+      expect(usdRow).toMatchObject({ currencyCode: 'USD', accountId: usd.id, cardLabel: 'Example Visa' });
       expect((await helpers.listCardMappings({ raw: true })).map((row) => row.currencyCode)).toEqual([
         null,
         'GEL',
@@ -202,17 +204,17 @@ describe('Card links', () => {
 
     it('answers 409 for a second row of the same card and currency, and for a second default', async () => {
       const { base, gel } = await createCurrencyAccounts();
-      await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: base.id }, raw: true });
+      await helpers.createCardMapping({ payload: { cardLabel: 'Example Visa', accountId: base.id }, raw: true });
       await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: gel.id, currencyCode: 'GEL' },
+        payload: { cardLabel: 'Example Visa', accountId: gel.id, currencyCode: 'GEL' },
         raw: true,
       });
 
       const secondGel = await helpers.createCardMapping({
-        payload: { cardLabel: ' TBC  visa •••• 1234', accountId: gel.id, currencyCode: 'GEL' },
+        payload: { cardLabel: ' Example  visa •••• 1234', accountId: gel.id, currencyCode: 'GEL' },
       });
       const secondDefault = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: base.id },
+        payload: { cardLabel: 'Example Visa', accountId: base.id },
       });
 
       expect(secondGel.statusCode).toBe(409);
@@ -225,7 +227,7 @@ describe('Card links', () => {
 
       const created = await Promise.all(
         [
-          { cardLabel: 'TBC Visa', accountId: gel.id, currencyCode: 'GEL' },
+          { cardLabel: 'Example Visa', accountId: gel.id, currencyCode: 'GEL' },
           { cardLabel: 'Revolut', accountId: gel.id, currencyCode: 'GEL' },
           { cardLabel: 'Revolut', accountId: base.id },
         ].map((payload) => helpers.createCardMapping({ payload })),
@@ -238,7 +240,7 @@ describe('Card links', () => {
       const { gel } = await createCurrencyAccounts();
 
       const response = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: gel.id, currencyCode: 'USD' },
+        payload: { cardLabel: 'Example Visa', accountId: gel.id, currencyCode: 'USD' },
       });
 
       expect(response.statusCode).toBe(422);
@@ -248,7 +250,7 @@ describe('Card links', () => {
     it('lets the default row point at an account in any currency', async () => {
       const { usd } = await createCurrencyAccounts();
 
-      const response = await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: usd.id } });
+      const response = await helpers.createCardMapping({ payload: { cardLabel: 'Example Visa', accountId: usd.id } });
 
       expect(response.statusCode).toBe(201);
     });
@@ -260,7 +262,7 @@ describe('Card links', () => {
       const { usd } = await createCurrencyAccounts();
 
       const response = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: usd.id, currencyCode },
+        payload: { cardLabel: 'Example Visa', accountId: usd.id, currencyCode },
       });
 
       expect(response.statusCode).toBe(422);
@@ -268,9 +270,9 @@ describe('Card links', () => {
 
     it('removes one currency and leaves the rest of the card', async () => {
       const { base, gel } = await createCurrencyAccounts();
-      await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: base.id }, raw: true });
+      await helpers.createCardMapping({ payload: { cardLabel: 'Example Visa', accountId: base.id }, raw: true });
       const gelRow = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: gel.id, currencyCode: 'GEL' },
+        payload: { cardLabel: 'Example Visa', accountId: gel.id, currencyCode: 'GEL' },
         raw: true,
       });
 
@@ -284,27 +286,27 @@ describe('Card links', () => {
     it('renames the whole card and keeps its currencies', async () => {
       const { base, gel } = await createCurrencyAccounts();
       const fallback = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: base.id },
+        payload: { cardLabel: 'Example Visa', accountId: base.id },
         raw: true,
       });
       await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: gel.id, currencyCode: 'GEL' },
+        payload: { cardLabel: 'Example Visa', accountId: gel.id, currencyCode: 'GEL' },
         raw: true,
       });
 
-      const renamed = await helpers.updateCardMapping({ id: fallback.id, payload: { cardLabel: 'TBC Platinum' } });
+      const renamed = await helpers.updateCardMapping({ id: fallback.id, payload: { cardLabel: 'Example Platinum' } });
 
       expect(renamed.statusCode).toBe(200);
       expect((await helpers.listCardMappings({ raw: true })).map((row) => row.cardLabel)).toEqual([
-        'TBC Platinum',
-        'TBC Platinum',
+        'Example Platinum',
+        'Example Platinum',
       ]);
     });
 
     it('answers 409 when renaming a card to the label of another card', async () => {
       const { base, gel } = await createCurrencyAccounts();
       const visa = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: gel.id, currencyCode: 'GEL' },
+        payload: { cardLabel: 'Example Visa', accountId: gel.id, currencyCode: 'GEL' },
         raw: true,
       });
       await helpers.createCardMapping({ payload: { cardLabel: 'Revolut', accountId: base.id }, raw: true });
@@ -317,7 +319,7 @@ describe('Card links', () => {
     it('points a currency row only at an account in its currency', async () => {
       const { base, gel, usd } = await createCurrencyAccounts();
       const gelRow = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: gel.id, currencyCode: 'GEL' },
+        payload: { cardLabel: 'Example Visa', accountId: gel.id, currencyCode: 'GEL' },
         raw: true,
       });
 
@@ -332,7 +334,7 @@ describe('Card links', () => {
     it('cannot change the currency of a row', async () => {
       const { gel } = await createCurrencyAccounts();
       const gelRow = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: gel.id, currencyCode: 'GEL' },
+        payload: { cardLabel: 'Example Visa', accountId: gel.id, currencyCode: 'GEL' },
         raw: true,
       });
 
@@ -348,7 +350,7 @@ describe('Card links', () => {
       const account = await helpers.createAccount({ raw: true });
 
       const created = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: account.id, lastDigits: ' 1234 ' },
+        payload: { cardLabel: 'Example Visa', accountId: account.id, lastDigits: ' 1234 ' },
         raw: true,
       });
 
@@ -359,7 +361,7 @@ describe('Card links', () => {
     it('sets and clears the digits of an existing link', async () => {
       const account = await helpers.createAccount({ raw: true });
       const mapping = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: account.id },
+        payload: { cardLabel: 'Example Visa', accountId: account.id },
         raw: true,
       });
 
@@ -378,13 +380,13 @@ describe('Card links', () => {
         raw: true,
       });
       const fallback = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: base.id, lastDigits: '1234' },
+        payload: { cardLabel: 'Example Visa', accountId: base.id, lastDigits: '1234' },
         raw: true,
       });
 
       // The new row inherits the card's digits; a change on one row reaches both.
       const gelRow = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: gel.id, currencyCode: 'GEL' },
+        payload: { cardLabel: 'Example Visa', accountId: gel.id, currencyCode: 'GEL' },
         raw: true,
       });
       await helpers.updateCardMapping({ id: fallback.id, payload: { lastDigits: '9999' }, raw: true });
@@ -396,7 +398,7 @@ describe('Card links', () => {
     it('answers 409 when the digits belong to another card', async () => {
       const account = await helpers.createAccount({ raw: true });
       await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: account.id, lastDigits: '1234' },
+        payload: { cardLabel: 'Example Visa', accountId: account.id, lastDigits: '1234' },
         raw: true,
       });
       const other = await helpers.createCardMapping({
@@ -417,7 +419,7 @@ describe('Card links', () => {
     it('lets two users hold the same digits', async () => {
       const account = await helpers.createAccount({ raw: true });
       await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: account.id, lastDigits: '1234' },
+        payload: { cardLabel: 'Example Visa', accountId: account.id, lastDigits: '1234' },
         raw: true,
       });
       const other = await helpers.signUpSecondUser();
@@ -427,7 +429,7 @@ describe('Card links', () => {
         fn: async () => {
           const otherAccount = await createSecondUserAccount();
           return helpers.createCardMapping({
-            payload: { cardLabel: 'TBC Visa', accountId: otherAccount.id, lastDigits: '1234' },
+            payload: { cardLabel: 'Example Visa', accountId: otherAccount.id, lastDigits: '1234' },
           });
         },
       });
@@ -444,7 +446,7 @@ describe('Card links', () => {
       const account = await helpers.createAccount({ raw: true });
 
       const response = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: account.id, lastDigits },
+        payload: { cardLabel: 'Example Visa', accountId: account.id, lastDigits },
       });
 
       expect(response.statusCode).toBe(422);
@@ -456,27 +458,30 @@ describe('Card links', () => {
     it('renames the label and keeps the account', async () => {
       const account = await helpers.createAccount({ raw: true });
       const mapping = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: account.id },
+        payload: { cardLabel: 'Example Visa', accountId: account.id },
         raw: true,
       });
 
-      const response = await helpers.updateCardMapping({ id: mapping.id, payload: { cardLabel: 'TBC Mastercard' } });
+      const response = await helpers.updateCardMapping({
+        id: mapping.id,
+        payload: { cardLabel: 'Example Mastercard' },
+      });
 
       expect(response.statusCode).toBe(200);
-      expect(response.body.response).toEqual({ ...mapping, cardLabel: 'TBC Mastercard' });
+      expect(response.body.response).toEqual({ ...mapping, cardLabel: 'Example Mastercard' });
     });
 
     it('lets a link change only the letter case of its own label', async () => {
       const account = await helpers.createAccount({ raw: true });
       const mapping = await helpers.createCardMapping({
-        payload: { cardLabel: 'tbc visa', accountId: account.id },
+        payload: { cardLabel: 'example visa', accountId: account.id },
         raw: true,
       });
 
-      const response = await helpers.updateCardMapping({ id: mapping.id, payload: { cardLabel: 'TBC Visa' } });
+      const response = await helpers.updateCardMapping({ id: mapping.id, payload: { cardLabel: 'Example Visa' } });
 
       expect(response.statusCode).toBe(200);
-      expect(response.body.response.cardLabel).toBe('TBC Visa');
+      expect(response.body.response.cardLabel).toBe('Example Visa');
     });
 
     it('points the link at another account', async () => {
@@ -486,7 +491,7 @@ describe('Card links', () => {
         raw: true,
       });
       const mapping = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: first.id },
+        payload: { cardLabel: 'Example Visa', accountId: first.id },
         raw: true,
       });
 
@@ -498,18 +503,18 @@ describe('Card links', () => {
 
     it('answers 409 when the new label belongs to another link', async () => {
       const account = await helpers.createAccount({ raw: true });
-      await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: account.id }, raw: true });
+      await helpers.createCardMapping({ payload: { cardLabel: 'Example Visa', accountId: account.id }, raw: true });
       const other = await helpers.createCardMapping({
         payload: { cardLabel: 'Monobank', accountId: account.id },
         raw: true,
       });
 
-      const response = await helpers.updateCardMapping({ id: other.id, payload: { cardLabel: 'tbc visa' } });
+      const response = await helpers.updateCardMapping({ id: other.id, payload: { cardLabel: 'example visa' } });
 
       expect(response.statusCode).toBe(409);
       expect((await helpers.listCardMappings({ raw: true })).map((row) => row.cardLabel).toSorted()).toEqual([
+        'Example Visa',
         'Monobank',
-        'TBC Visa',
       ]);
     });
 
@@ -521,7 +526,7 @@ describe('Card links', () => {
       });
       await helpers.updateAccount({ id: second.id, payload: { status: ACCOUNT_STATUSES.archived } });
       const mapping = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: first.id },
+        payload: { cardLabel: 'Example Visa', accountId: first.id },
         raw: true,
       });
 
@@ -534,7 +539,7 @@ describe('Card links', () => {
     it('answers 422 for a body with no fields', async () => {
       const account = await helpers.createAccount({ raw: true });
       const mapping = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: account.id },
+        payload: { cardLabel: 'Example Visa', accountId: account.id },
         raw: true,
       });
 
@@ -546,7 +551,7 @@ describe('Card links', () => {
     it("answers 404 for another user's link", async () => {
       const account = await helpers.createAccount({ raw: true });
       const mapping = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: account.id },
+        payload: { cardLabel: 'Example Visa', accountId: account.id },
         raw: true,
       });
       const other = await helpers.signUpSecondUser();
@@ -557,7 +562,7 @@ describe('Card links', () => {
       });
 
       expect(response.statusCode).toBe(404);
-      expect((await helpers.listCardMappings({ raw: true }))[0]!.cardLabel).toBe('TBC Visa');
+      expect((await helpers.listCardMappings({ raw: true }))[0]!.cardLabel).toBe('Example Visa');
     });
   });
 
@@ -565,7 +570,7 @@ describe('Card links', () => {
     it('removes the link and answers 404 the second time', async () => {
       const account = await helpers.createAccount({ raw: true });
       const mapping = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: account.id },
+        payload: { cardLabel: 'Example Visa', accountId: account.id },
         raw: true,
       });
 
@@ -580,7 +585,7 @@ describe('Card links', () => {
     it("answers 404 for another user's link and keeps it", async () => {
       const account = await helpers.createAccount({ raw: true });
       const mapping = await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC Visa', accountId: account.id },
+        payload: { cardLabel: 'Example Visa', accountId: account.id },
         raw: true,
       });
       const other = await helpers.signUpSecondUser();

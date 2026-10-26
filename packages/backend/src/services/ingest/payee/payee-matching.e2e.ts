@@ -14,7 +14,7 @@ import { randomUUID } from 'node:crypto';
 
 import * as merchantCore from './merchant-core';
 
-const CARD = 'TBC CARD VISA GOLD';
+const CARD = 'EXAMPLE CARD VISA GOLD';
 
 const linkCard = async () => {
   const account = await helpers.createAccount({ raw: true });
@@ -97,32 +97,32 @@ describe('payee matching of an automated payment', () => {
         createCategory('Bar, cafe'),
         createCategory('Restaurant, fast-food'),
       ]);
-      const nordCoffee = await payeeWithHistory({
-        name: 'Nord Coffee',
+      const blueCoffee = await payeeWithHistory({
+        name: 'Blue Coffee',
         accountId: account.id,
         categoryIds: [restaurant.id, barCafe.id, barCafe.id, barCafe.id, barCafe.id],
       });
       queueAdd.mockClear();
 
-      const transactionId = await tap({ secret, merchant: 'Nord Cofee Company Ltd' });
+      const transactionId = await tap({ secret, merchant: 'Blue Cofee Company Ltd' });
       const tx = await stored({ id: transactionId });
 
-      expect(tx.payeeId).toBe(nordCoffee.id);
+      expect(tx.payeeId).toBe(blueCoffee.id);
       expect(tx.categoryId).toBe(barCafe.id);
       expect(tx.categorizationMeta ?? null).toBeNull();
       expect(tx.note ?? null).toBeNull();
-      expect(await payeeNames()).toEqual(['Nord Coffee']);
+      expect(await payeeNames()).toEqual(['Blue Coffee']);
       // The payee's history settles the category, so the AI is not asked.
       expect(queueAdd).not.toHaveBeenCalled();
       // A match the pipeline made on its own is a suggestion: no alias until the owner confirms it.
-      expect(await aliasesOf({ payeeId: nordCoffee.id })).not.toContain('nord cofee company ltd');
+      expect(await aliasesOf({ payeeId: blueCoffee.id })).not.toContain('blue cofee company ltd');
 
       await approveCardAsIs({ card: await confirmCardOf({ transactionId }) });
-      expect(await aliasesOf({ payeeId: nordCoffee.id })).toContain('nord cofee company ltd');
-      const alias = (await helpers.getPayeeById({ id: nordCoffee.id, raw: true })).aliases!.find(
-        (entry) => entry.normalizedName === 'nord cofee company ltd',
+      expect(await aliasesOf({ payeeId: blueCoffee.id })).toContain('blue cofee company ltd');
+      const alias = (await helpers.getPayeeById({ id: blueCoffee.id, raw: true })).aliases!.find(
+        (entry) => entry.normalizedName === 'blue cofee company ltd',
       );
-      expect(alias!.rawName).toBe('Nord Cofee Company Ltd');
+      expect(alias!.rawName).toBe('Blue Cofee Company Ltd');
     });
 
     it('maps the next identical merchant by its confirmed alias, without the matcher or the model', async () => {
@@ -130,21 +130,21 @@ describe('payee matching of an automated payment', () => {
       const payeePickPrompts: string[] = [];
       mockNotificationParsing({ answer: () => ({}), payeePickPrompts });
       const { account, secret } = await linkCard();
-      const nordCoffee = await payeeWithHistory({ name: 'Nord Coffee', accountId: account.id, categoryIds: [] });
-      await payeeWithHistory({ name: 'Nord Coffea', accountId: account.id, categoryIds: [] });
-      const first = await tap({ secret, merchant: 'NORD COFFEX LTD' });
+      const blueCoffee = await payeeWithHistory({ name: 'Blue Coffee', accountId: account.id, categoryIds: [] });
+      await payeeWithHistory({ name: 'Blue Coffea', accountId: account.id, categoryIds: [] });
+      const first = await tap({ secret, merchant: 'BLUE COFFEX LTD' });
       await confirmCardWith({
         card: await confirmCardOf({ transactionId: first }),
-        changes: { payeeId: nordCoffee.id },
+        changes: { payeeId: blueCoffee.id },
       });
       const coreMatch = jest.spyOn(merchantCore, 'matchMerchantCore');
       const fuzzyMatch = jest.spyOn(fuzzyMatcher, 'fuzzyFindBestMatch');
       const promptsBefore = payeePickPrompts.length;
 
       try {
-        const next = await stored({ id: await tap({ secret, merchant: 'nord  coffex ltd', amount: '9.00' }) });
+        const next = await stored({ id: await tap({ secret, merchant: 'blue  coffex ltd', amount: '9.00' }) });
 
-        expect(next.payeeId).toBe(nordCoffee.id);
+        expect(next.payeeId).toBe(blueCoffee.id);
         expect(coreMatch).not.toHaveBeenCalled();
         expect(fuzzyMatch).not.toHaveBeenCalled();
         expect(payeePickPrompts).toHaveLength(promptsBefore);
@@ -158,45 +158,45 @@ describe('payee matching of an automated payment', () => {
       enableServerModel();
       const { account, secret } = await linkCard();
       const [barCafe, hardware] = await Promise.all([createCategory('Bar, cafe'), createCategory('Hardware store')]);
-      const nordCoffee = await payeeWithHistory({
-        name: 'Nord Coffee',
+      const blueCoffee = await payeeWithHistory({
+        name: 'Blue Coffee',
         accountId: account.id,
         categoryIds: [barCafe.id, barCafe.id],
       });
-      await payeeWithHistory({ name: 'Nord Coffea', accountId: account.id, categoryIds: [hardware.id] });
+      await payeeWithHistory({ name: 'Blue Coffea', accountId: account.id, categoryIds: [hardware.id] });
       const payeePickPrompts: string[] = [];
       mockNotificationParsing({
         answer: () => ({}),
         payeePickPrompts,
-        payeePick: ({ prompt }) => ({ candidateId: /(p\d+)\|Nord Coffee\|/.exec(prompt)?.[1] ?? null }),
+        payeePick: ({ prompt }) => ({ candidateId: /(p\d+)\|Blue Coffee\|/.exec(prompt)?.[1] ?? null }),
       });
 
-      const tx = await stored({ id: await tap({ secret, merchant: 'NORD COFFEX LTD' }) });
+      const tx = await stored({ id: await tap({ secret, merchant: 'BLUE COFFEX LTD' }) });
 
       expect(payeePickPrompts).toHaveLength(1);
       expect(payeePickPrompts[0]).toContain('Bar, cafe');
       expect(payeePickPrompts[0]).toContain('Hardware store');
-      expect(tx.payeeId).toBe(nordCoffee.id);
+      expect(tx.payeeId).toBe(blueCoffee.id);
       expect(tx.categoryId).toBe(barCafe.id);
       expect(tx.note ?? null).toBeNull();
-      expect(await payeeNames()).toEqual(['Nord Coffea', 'Nord Coffee']);
+      expect(await payeeNames()).toEqual(['Blue Coffea', 'Blue Coffee']);
       // The AI's pick is a suggestion too: the alias waits for the owner.
-      expect(await aliasesOf({ payeeId: nordCoffee.id })).not.toContain('nord coffex ltd');
+      expect(await aliasesOf({ payeeId: blueCoffee.id })).not.toContain('blue coffex ltd');
 
       await approveCardAsIs({ card: await confirmCardOf({ transactionId: tx.id }) });
-      expect(await aliasesOf({ payeeId: nordCoffee.id })).toContain('nord coffex ltd');
+      expect(await aliasesOf({ payeeId: blueCoffee.id })).toContain('blue coffex ltd');
     });
 
     it('logs no payee and keeps the merchant as the note when equally close payees stay undecided', async () => {
       const { account, secret } = await linkCard();
-      await payeeWithHistory({ name: 'Nord Coffee', accountId: account.id, categoryIds: [] });
-      await payeeWithHistory({ name: 'Nord Coffea', accountId: account.id, categoryIds: [] });
+      await payeeWithHistory({ name: 'Blue Coffee', accountId: account.id, categoryIds: [] });
+      await payeeWithHistory({ name: 'Blue Coffea', accountId: account.id, categoryIds: [] });
 
-      const tx = await stored({ id: await tap({ secret, merchant: 'NORD COFFEX LTD' }) });
+      const tx = await stored({ id: await tap({ secret, merchant: 'BLUE COFFEX LTD' }) });
 
       expect(tx.payeeId ?? null).toBeNull();
-      expect(tx.note).toBe('NORD COFFEX LTD');
-      expect(await payeeNames()).toEqual(['Nord Coffea', 'Nord Coffee']);
+      expect(tx.note).toBe('BLUE COFFEX LTD');
+      expect(await payeeNames()).toEqual(['Blue Coffea', 'Blue Coffee']);
     });
   });
 
@@ -223,15 +223,15 @@ describe('payee matching of an automated payment', () => {
 
     it('learns the merchant as an alias when the owner sets the payee by editing the transaction', async () => {
       const { account, secret } = await linkCard();
-      const nordCoffee = await payeeWithHistory({ name: 'Nord Coffee', accountId: account.id, categoryIds: [] });
-      await payeeWithHistory({ name: 'Nord Coffea', accountId: account.id, categoryIds: [] });
-      const transactionId = await tap({ secret, merchant: 'NORD COFFEX LTD' });
+      const blueCoffee = await payeeWithHistory({ name: 'Blue Coffee', accountId: account.id, categoryIds: [] });
+      await payeeWithHistory({ name: 'Blue Coffea', accountId: account.id, categoryIds: [] });
+      const transactionId = await tap({ secret, merchant: 'BLUE COFFEX LTD' });
 
-      await helpers.updateTransaction({ id: transactionId, payload: { payeeId: nordCoffee.id }, raw: true });
+      await helpers.updateTransaction({ id: transactionId, payload: { payeeId: blueCoffee.id }, raw: true });
 
-      expect(await aliasesOf({ payeeId: nordCoffee.id })).toContain('nord coffex ltd');
-      const next = await stored({ id: await tap({ secret, merchant: 'NORD COFFEX LTD', amount: '9.00' }) });
-      expect(next.payeeId).toBe(nordCoffee.id);
+      expect(await aliasesOf({ payeeId: blueCoffee.id })).toContain('blue coffex ltd');
+      const next = await stored({ id: await tap({ secret, merchant: 'BLUE COFFEX LTD', amount: '9.00' }) });
+      expect(next.payeeId).toBe(blueCoffee.id);
     });
 
     it('keeps a payee the owner uses elsewhere when they pick another one for a payment', async () => {
@@ -270,11 +270,11 @@ describe('payee matching of an automated payment', () => {
 
     it('clears the note when the owner empties it', async () => {
       const { account, secret } = await linkCard();
-      await payeeWithHistory({ name: 'Nord Coffee', accountId: account.id, categoryIds: [] });
-      await payeeWithHistory({ name: 'Nord Coffea', accountId: account.id, categoryIds: [] });
-      const transactionId = await tap({ secret, merchant: 'NORD COFFEX LTD' });
+      await payeeWithHistory({ name: 'Blue Coffee', accountId: account.id, categoryIds: [] });
+      await payeeWithHistory({ name: 'Blue Coffea', accountId: account.id, categoryIds: [] });
+      const transactionId = await tap({ secret, merchant: 'BLUE COFFEX LTD' });
       const card = await confirmCardOf({ transactionId });
-      expect(card.fields.find((field) => field.path === 'note')?.value).toBe('NORD COFFEX LTD');
+      expect(card.fields.find((field) => field.path === 'note')?.value).toBe('BLUE COFFEX LTD');
 
       await confirmCardWith({ card, changes: { note: '' } });
 

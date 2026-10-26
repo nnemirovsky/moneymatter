@@ -9,8 +9,8 @@ import { getLunchFlowBalanceMock, getLunchFlowTransactionsMock } from '@tests/mo
 import { addHours, startOfDay, subDays } from 'date-fns';
 import { randomUUID } from 'node:crypto';
 
-const CARD = 'TBC Visa';
-const MERCHANT = 'Cafe Heart of Batumi';
+const CARD = 'Example Visa';
+const MERCHANT = 'Cafe Heart of Lisbon';
 
 const payment = (overrides: Record<string, unknown> = {}) => ({
   amount: '47.00',
@@ -151,8 +151,8 @@ describe('card payment processing', () => {
   describe('payee', () => {
     it('creates a payee and an alias for a first-seen merchant and resolves its logo', async () => {
       await BrandLogos.create({
-        normalizedName: 'cafe heart of batumi',
-        domain: 'heartofbatumi.ge',
+        normalizedName: 'cafe heart of lisbon',
+        domain: 'heartoflisbon.ge',
         brandName: MERCHANT,
         source: 'seed',
       });
@@ -163,16 +163,16 @@ describe('card payment processing', () => {
 
       const payees = await helpers.listPayees({ raw: true });
       expect(payees).toHaveLength(1);
-      expect(payees[0]).toMatchObject({ id: tx.payeeId, name: MERCHANT, normalizedName: 'cafe heart of batumi' });
+      expect(payees[0]).toMatchObject({ id: tx.payeeId, name: MERCHANT, normalizedName: 'cafe heart of lisbon' });
 
       const detail = await helpers.getPayeeById({ id: tx.payeeId!, raw: true });
-      expect(detail.aliases?.map((alias) => alias.normalizedName)).toContain('cafe heart of batumi');
+      expect(detail.aliases?.map((alias) => alias.normalizedName)).toContain('cafe heart of lisbon');
 
       await until(async () => (await helpers.getPayeeById({ id: tx.payeeId!, raw: true })).logoDomain !== null, {
         timeout: 10_000,
         interval: 200,
       });
-      expect((await helpers.getPayeeById({ id: tx.payeeId!, raw: true })).logoDomain).toBe('heartofbatumi.ge');
+      expect((await helpers.getPayeeById({ id: tx.payeeId!, raw: true })).logoDomain).toBe('heartoflisbon.ge');
 
       const second = await ingest({ secret, overrides: { amount: '12.00' } });
       expect((await storedTransaction(second)).payeeId).toBe(tx.payeeId);
@@ -181,7 +181,7 @@ describe('card payment processing', () => {
 
     it('links the existing payee behind a known alias', async () => {
       const payee = await helpers.createPayee({
-        payload: helpers.buildPayeePayload({ name: 'Heart of Batumi' }),
+        payload: helpers.buildPayeePayload({ name: 'Heart of Lisbon' }),
         raw: true,
       });
       await helpers.createPayeeAlias({ payeeId: payee.id, rawName: MERCHANT, raw: true });
@@ -336,7 +336,7 @@ describe('card payment processing', () => {
 
   describe('a card with an account per currency', () => {
     /**
-     * The owner's TBC card: a GEL and a USD account of its own, and the base-currency account as the
+     * The owner's Example card: a GEL and a USD account of its own, and the base-currency account as the
      * default for every other currency. Rates per USD make the cross rates exact: 1 GEL = 2 AED and
      * 1 EUR = 8 AED.
      */
@@ -449,7 +449,7 @@ describe('card payment processing', () => {
 
       const res = await send({ secret, body: { dryRun: true, card: CARD } });
 
-      expect(res.body.response.summary).toMatch(/Card "TBC Visa" → Default$/);
+      expect(res.body.response.summary).toMatch(/Card "Example Visa" → Default$/);
     });
   });
 
@@ -541,7 +541,7 @@ describe('card payment processing', () => {
       expect(logged.planned).toBe(true);
       expect(tx.isPlanned).toBe(true);
       expect(logged.summary).toMatch(
-        /^Noted 47\.00 [A-Z]{3} at Cafe Heart of Batumi → Uncategorized; the bank sync will confirm it$/,
+        /^Noted 47\.00 [A-Z]{3} at Cafe Heart of Lisbon → Uncategorized; the bank sync will confirm it$/,
       );
       expect((await helpers.getAccount({ id: account.id, raw: true })).currentBalance).toEqual(before.currentBalance);
     });

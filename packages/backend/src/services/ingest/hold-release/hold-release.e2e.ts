@@ -18,7 +18,7 @@ import { notificationTimings } from '../event/constants';
 const CONFIRM = 'confirm_ingest_payment';
 const LOG_REQUEST = 'log_ingest_request';
 const DROP_BOTH = 'bulk_delete_transactions';
-const CARD = 'TBC CARD VISA GOLD';
+const CARD = 'EXAMPLE CARD VISA GOLD';
 const DEFAULT_TIMINGS = { ...notificationTimings };
 const SEEDED_DATES: Date[] = [];
 
@@ -72,7 +72,7 @@ const setUp = async ({ linkCard = true }: { linkCard?: boolean } = {}) => {
   const start = await seedRateDay();
   const gel = await helpers.createAccount({
     payload: helpers.buildAccountPayload({
-      name: 'TBC GEL',
+      name: 'Example GEL',
       currencyCode: 'GEL',
       initialBalance: 1000,
     }),
@@ -111,8 +111,8 @@ const push = ({
     secret,
     body: {
       kind: 'notification',
-      app: 'TBC Bank',
-      title: 'TBC',
+      app: 'Example Bank',
+      title: 'Example',
       subtitle: '',
       body: pushBody({ release, reversal, amount, note }),
       time: at.toISOString(),
@@ -245,7 +245,7 @@ describe('a hold and its release', () => {
       expect(notices).toHaveLength(1);
       expect(notices[0]!.params).toEqual({
         amount: '1.00 GEL',
-        source: 'TBC Bank',
+        source: 'Example Bank',
       });
     });
   });

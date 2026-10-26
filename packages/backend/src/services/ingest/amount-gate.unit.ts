@@ -51,7 +51,7 @@ describe('amount gate', () => {
   });
 
   it('returns the matched amount text only', () => {
-    expect(matchAmountGate({ text: 'TBC Bank\nWolt\nGEL 43.60', strictness: 'strict' })).toBe('GEL 43.60');
+    expect(matchAmountGate({ text: 'Example Bank\nWolt\nGEL 43.60', strictness: 'strict' })).toBe('GEL 43.60');
     expect(matchAmountGate({ text: 'Purchase 43.60 GEL at Wolt', strictness: 'strict' })).toBe('43.60 GEL');
   });
 

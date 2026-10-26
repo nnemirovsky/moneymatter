@@ -35,7 +35,7 @@ const setUp = async () => {
   await helpers.addUserCurrencies({ currencyCodes: ['GEL'] });
   const noon = await seedRateDay();
   const gel = await helpers.createAccount({
-    payload: helpers.buildAccountPayload({ name: 'TBC GEL', currencyCode: 'GEL', initialBalance: 1000 }),
+    payload: helpers.buildAccountPayload({ name: 'Example GEL', currencyCode: 'GEL', initialBalance: 1000 }),
     raw: true,
   });
   const other = await helpers.createAccount({

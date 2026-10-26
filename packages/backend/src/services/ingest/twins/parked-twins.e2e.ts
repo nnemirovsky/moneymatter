@@ -19,7 +19,7 @@ const DEFAULT_DEDUP = { ...dedupConfig };
 const walletTemu = ({ time }: { time?: string } = {}) => ({
   kind: 'notification',
   app: 'Wallet',
-  title: 'TBC Bank',
+  title: 'Example Bank',
   subtitle: 'Temu',
   body: `${BASE} 143.97`,
   ...(time && { time }),
@@ -29,8 +29,8 @@ const walletTemu = ({ time }: { time?: string } = {}) => ({
 /** The bank's push for the same payment, 14 seconds later, naming the card with its digits. */
 const bankTemu = () => ({
   kind: 'notification',
-  app: 'TBC Bank',
-  title: 'TBC Bank',
+  app: 'Example Bank',
+  title: 'Example Bank',
   subtitle: '',
   body: `Purchase ${BASE} 143.97, TEMU.COM, card *1234`,
   idempotencyKey: `key-${randomUUID()}`,
@@ -43,7 +43,7 @@ const answerBank = () =>
       amount: '143.97',
       currency: BASE,
       merchant: 'TEMU.COM',
-      cardName: 'TBC Concept VISA Platinum',
+      cardName: 'Example Concept VISA Platinum',
       cardLastDigits: '1234',
     }),
   });
@@ -96,7 +96,7 @@ const approve = async ({ card, accountId }: { card: ChatProposalCard; accountId:
 
 const account = () =>
   helpers.createAccount({
-    payload: helpers.buildAccountPayload({ name: 'TBC', currencyCode: BASE, initialBalance: 1000 }),
+    payload: helpers.buildAccountPayload({ name: 'Example', currencyCode: BASE, initialBalance: 1000 }),
     raw: true,
   });
 
@@ -120,7 +120,7 @@ describe('the same payment parked by two sources', () => {
   it('waits as one card when Wallet comes first and the bank second, and approving logs once and learns both cards', async () => {
     const { secret } = { secret: (await ingestHelpers.createTestIngestToken()).secret };
     answerBank();
-    const tbc = await account();
+    const example = await account();
 
     const first = await send({ secret, body: walletTemu() });
     const second = await send({ secret, body: bankTemu() });
@@ -135,17 +135,17 @@ describe('the same payment parked by two sources', () => {
     expect(cards).toHaveLength(1);
     // The card names the other source and its card.
     expect(cards[0]!.ingestRequest!.alsoSeenIn).toEqual([
-      { sourceName: 'TBC Bank', cardName: 'TBC Concept VISA Platinum', cardLastDigits: '1234' },
+      { sourceName: 'Example Bank', cardName: 'Example Concept VISA Platinum', cardLastDigits: '1234' },
     ]);
 
-    await approve({ card: cards[0]!, accountId: tbc.id });
+    await approve({ card: cards[0]!, accountId: example.id });
     await until(async () => (await IngestRequests.findByPk(wallet!.id))!.status === 'logged', {
       timeout: 20_000,
       interval: 150,
     });
 
     expect(await helpers.getTransactions({ raw: true })).toHaveLength(1);
-    expect(await labelsOf()).toEqual(['TBC Bank', 'TBC Concept VISA Platinum']);
+    expect(await labelsOf()).toEqual(['Example Bank', 'Example Concept VISA Platinum']);
     expect(await inboxCards({ status: 'pending' })).toHaveLength(0);
   });
 
@@ -175,7 +175,7 @@ describe('the same payment parked by two sources', () => {
   it('settles the twin that is still waiting when the owner approves the other, and learns its card too', async () => {
     const { secret } = { secret: (await ingestHelpers.createTestIngestToken()).secret };
     answerBank();
-    const tbc = await account();
+    const example = await account();
     // Two cards exist for one payment, as they did before twins were joined at parking.
     dedupConfig.twinWindowMs = 1;
     await send({ secret, body: walletTemu() });
@@ -184,7 +184,7 @@ describe('the same payment parked by two sources', () => {
     const cards = await waitForCards({ count: 2 });
     expect(cards).toHaveLength(2);
 
-    await approve({ card: cards[0]!, accountId: tbc.id });
+    await approve({ card: cards[0]!, accountId: example.id });
     await until(async () => (await requests()).some((request) => request.status === 'logged'), {
       timeout: 20_000,
       interval: 150,
@@ -194,17 +194,17 @@ describe('the same payment parked by two sources', () => {
     const all = await requests();
     expect(all.filter((request) => request.reason === 'parkedTwin')).toHaveLength(1);
     expect(await helpers.getTransactions({ raw: true })).toHaveLength(1);
-    expect(await labelsOf()).toEqual(['TBC Bank', 'TBC Concept VISA Platinum']);
+    expect(await labelsOf()).toEqual(['Example Bank', 'Example Concept VISA Platinum']);
   });
 
   it('absorbs a waiting twin when the other source logs on a card that is already linked', async () => {
     const { secret } = { secret: (await ingestHelpers.createTestIngestToken()).secret };
     answerBank();
-    const tbc = await account();
+    const example = await account();
     await send({ secret, body: walletTemu() });
     await waitForCards({ count: 1 });
     await helpers.createCardMapping({
-      payload: { cardLabel: 'TBC Concept VISA Platinum', accountId: tbc.id, lastDigits: '1234' },
+      payload: { cardLabel: 'Example Concept VISA Platinum', accountId: example.id, lastDigits: '1234' },
       raw: true,
     });
 
@@ -235,12 +235,12 @@ describe('the same payment parked by two sources', () => {
   it('absorbs only one of two waiting payments when the other source logs: the other is another payment', async () => {
     const { secret } = { secret: (await ingestHelpers.createTestIngestToken()).secret };
     answerBank();
-    const tbc = await account();
+    const example = await account();
     await send({ secret, body: walletTemu({ time: new Date(Date.now() - 600_000).toISOString() }) });
     await send({ secret, body: walletTemu({ time: new Date().toISOString() }) });
     await waitForCards({ count: 2 });
     await helpers.createCardMapping({
-      payload: { cardLabel: 'TBC Concept VISA Platinum', accountId: tbc.id, lastDigits: '1234' },
+      payload: { cardLabel: 'Example Concept VISA Platinum', accountId: example.id, lastDigits: '1234' },
       raw: true,
     });
 
@@ -261,7 +261,7 @@ describe('the same payment parked by two sources', () => {
               amount: '143.97',
               currency: BASE,
               merchant: 'TEMU.COM',
-              cardName: 'TBC Concept VISA Platinum',
+              cardName: 'Example Concept VISA Platinum',
               cardLastDigits: '1234',
             }
           : {
@@ -269,11 +269,11 @@ describe('the same payment parked by two sources', () => {
               amount: '50.00',
               currency: BASE,
               merchant: 'Corner Cafe',
-              cardName: 'TBC Concept VISA Platinum',
+              cardName: 'Example Concept VISA Platinum',
               cardLastDigits: '1234',
             },
     });
-    const tbc = await account();
+    const example = await account();
     // An earlier payment of the same bank card already waits.
     await send({
       secret,
@@ -284,7 +284,7 @@ describe('the same payment parked by two sources', () => {
     const cards = await waitForCards({ count: 2 });
     const temuCard = cards.find((card) => card.ingestRequest?.counterparty === 'Temu')!;
 
-    await approve({ card: temuCard, accountId: tbc.id });
+    await approve({ card: temuCard, accountId: example.id });
 
     await until(async () => (await helpers.getTransactions({ raw: true })).length === 2, {
       timeout: 20_000,
@@ -295,7 +295,7 @@ describe('the same payment parked by two sources', () => {
   it('logs the second coffee of a source apart once the first, with its twin, is approved', async () => {
     const { secret } = await ingestHelpers.createTestIngestToken();
     answerBank();
-    const tbc = await account();
+    const example = await account();
     await send({ secret, body: walletTemu() });
     await send({ secret, body: bankTemu() });
     // A second coffee paid with the physical card: only the bank tells of it.
@@ -303,7 +303,7 @@ describe('the same payment parked by two sources', () => {
     const cards = await waitForCards({ count: 2 });
     const first = cards.find((card) => card.ingestRequest?.alsoSeenIn?.length)!;
 
-    await approve({ card: first, accountId: tbc.id });
+    await approve({ card: first, accountId: example.id });
 
     // The card is linked now, so the waiting second coffee is logged too, as its own payment.
     await until(async () => (await helpers.getTransactions({ raw: true })).length === 2, {

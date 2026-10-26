@@ -22,23 +22,23 @@ describe('UnlinkedCards', () => {
 
   it('lists each card with how many payments wait on it', async () => {
     const wrapper = await mountUnlinked([
-      { cardLabel: 'TBC Visa', count: 3 },
+      { cardLabel: 'Example Visa', count: 3 },
       { cardLabel: 'Revolut', count: 1 },
     ]);
 
     const rows = wrapper.findAll('[data-testid="unlinked-card-row"]');
     expect(rows).toHaveLength(2);
-    expect(rows[0]!.text()).toContain('TBC Visa');
+    expect(rows[0]!.text()).toContain('Example Visa');
     expect(rows[0]!.get('[data-testid="unlinked-card-count"]').text()).toBe('3 payments waiting');
     expect(rows[1]!.get('[data-testid="unlinked-card-count"]').text()).toBe('1 payment waiting');
   });
 
   it('asks to link the card with its label and count', async () => {
-    const wrapper = await mountUnlinked([{ cardLabel: 'TBC Visa', count: 3 }]);
+    const wrapper = await mountUnlinked([{ cardLabel: 'Example Visa', count: 3 }]);
 
     await wrapper.get('[data-testid="unlinked-card-link"]').trigger('click');
 
-    expect(wrapper.emitted('link')).toEqual([[{ cardLabel: 'TBC Visa', count: 3, lastDigits: undefined }]]);
+    expect(wrapper.emitted('link')).toEqual([[{ cardLabel: 'Example Visa', count: 3, lastDigits: undefined }]]);
   });
 
   it('passes the digits of a card a notification names, to pre-fill the link', async () => {

@@ -11,8 +11,10 @@ import { formatReport, runTimeZoneBackfill } from '../services/time-zone-backfil
  * entered in, and moves their stored instants from the sheet's Istanbul anchoring to the real wall
  * clock in that zone. Amounts are not touched. See `services/time-zone-backfill`.
  *
- * Dry run (default, writes nothing):  node dist/scripts/backfill-time-zones.js
- * Apply (one transaction):            node dist/scripts/backfill-time-zones.js --apply
+ * Dry run (default, writes nothing):  node dist/scripts/backfill-time-zones.js --display-zone=<IANA zone>
+ * Apply (one transaction):            node dist/scripts/backfill-time-zones.js --display-zone=<IANA zone> --apply
+ *
+ * `--display-zone` is required: the zone the report reads local dates in.
  *
  * `--expect key=count[,key=count]` overrides a group's expected row count. Without a match the run
  * aborts, which is the point of the counts: they were taken from the data when the groups were approved.
@@ -54,8 +56,12 @@ async function main(): Promise<void> {
   const from = readFlag({ name: 'import-created-from' });
   const to = readFlag({ name: 'import-created-to' });
 
+  const displayZone = readFlag({ name: 'display-zone' });
+  if (!displayZone) throw new Error('Pass --display-zone=<IANA zone>: the zone the report reads local dates in');
+
   const report = await runTimeZoneBackfill({
     apply,
+    displayZone,
     groups,
     ...(from && { importCreatedFrom: new Date(from) }),
     ...(to && { importCreatedTo: new Date(to) }),

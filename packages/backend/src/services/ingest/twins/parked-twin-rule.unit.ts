@@ -12,7 +12,7 @@ const payment = (overrides: Partial<StoredPayment> = {}): StoredPayment => ({
   originalCurrencyCode: null,
   merchant: 'Temu',
   payee: null,
-  cardName: 'TBC Bank',
+  cardName: 'Example Bank',
   cardLastDigits: null,
   balanceAfter: null,
   occurredAt: null,
@@ -29,7 +29,7 @@ const probe = (overrides: ProbeOverrides = {}): TwinProbe => ({
 
 const WINDOW = 30 * 60_000;
 const bank = (overrides: ProbeOverrides = {}) =>
-  probe({ slot: 'bank:name:tbc bank:payment', time: new Date('2026-10-22T16:16:40Z'), ...overrides });
+  probe({ slot: 'bank:name:example bank:payment', time: new Date('2026-10-22T16:16:40Z'), ...overrides });
 
 describe('isParkedTwin', () => {
   it('joins Wallet and the bank for one payment', () => {
@@ -37,7 +37,7 @@ describe('isParkedTwin', () => {
       isParkedTwin({
         left: probe(),
         right: bank({
-          payment: { merchant: 'TEMU.COM', cardName: 'TBC Concept VISA Platinum', cardLastDigits: '1234' },
+          payment: { merchant: 'TEMU.COM', cardName: 'Example Concept VISA Platinum', cardLastDigits: '1234' },
         }),
         windowMs: WINDOW,
       }),
@@ -92,7 +92,7 @@ describe('isParkedTwin', () => {
 describe('isSameMerchant', () => {
   it('reads two spellings of one business as one', () => {
     expect(isSameMerchant({ left: 'Temu', right: 'TEMU.COM LU' })).toBe(true);
-    expect(isSameMerchant({ left: 'Wolt', right: 'WOLT TBILISI' })).toBe(true);
+    expect(isSameMerchant({ left: 'Wolt', right: 'WOLT LISBON' })).toBe(true);
   });
 
   it('does not join different businesses or a name too short to tell', () => {

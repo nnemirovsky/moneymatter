@@ -32,7 +32,7 @@ import {
 const makeAccount = (overrides: Partial<AccountModel> & { share?: { isOwner: boolean } } = {}): AccountModel =>
   ({
     id: 'account-1' as RecordId,
-    name: 'TBC Visa',
+    name: 'Example Visa',
     type: ACCOUNT_TYPES.system,
     status: ACCOUNT_STATUSES.active,
     accountCategory: ACCOUNT_CATEGORIES.general,
@@ -411,7 +411,7 @@ describe('selectRequestsForCard', () => {
     status: 'parked',
     reason: 'unknownCard',
     summary: null,
-    cardLabel: 'TBC Visa',
+    cardLabel: 'Example Visa',
     cardLastDigits: null,
     accountGuessId: null,
     aiRetryAt: null,
@@ -427,16 +427,16 @@ describe('selectRequestsForCard', () => {
   it('picks the parked unknown-card requests of the card', () => {
     const requests = [makeRequest({ id: 'a' as RecordId }), makeRequest({ id: 'b' as RecordId })];
 
-    expect(selectRequestsForCard({ requests, cardLabel: 'TBC Visa' }).map(({ id }) => id)).toEqual(['a', 'b']);
+    expect(selectRequestsForCard({ requests, cardLabel: 'Example Visa' }).map(({ id }) => id)).toEqual(['a', 'b']);
   });
 
   it('matches spellings of one card the way the server does', () => {
     const requests = [
-      makeRequest({ id: 'a' as RecordId, cardLabel: 'tbc  visa •••• 1234' }),
-      makeRequest({ id: 'b' as RecordId, cardLabel: ' TBC Visa ' }),
+      makeRequest({ id: 'a' as RecordId, cardLabel: 'example  visa •••• 1234' }),
+      makeRequest({ id: 'b' as RecordId, cardLabel: ' Example Visa ' }),
     ];
 
-    expect(selectRequestsForCard({ requests, cardLabel: 'TBC Visa' }).map(({ id }) => id)).toEqual(['a', 'b']);
+    expect(selectRequestsForCard({ requests, cardLabel: 'Example Visa' }).map(({ id }) => id)).toEqual(['a', 'b']);
   });
 
   it('picks a notification parked on its account under the card its digits name', () => {
@@ -464,7 +464,7 @@ describe('selectRequestsForCard', () => {
       makeRequest({ id: 'no-label' as RecordId, cardLabel: null }),
     ];
 
-    expect(selectRequestsForCard({ requests, cardLabel: 'TBC Visa' })).toEqual([]);
+    expect(selectRequestsForCard({ requests, cardLabel: 'Example Visa' })).toEqual([]);
   });
 });
 

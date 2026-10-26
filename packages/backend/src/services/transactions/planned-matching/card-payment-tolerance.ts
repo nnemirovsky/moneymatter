@@ -60,7 +60,7 @@ const tokensMatch = ({ planToken, incomingToken }: { planToken: string; incoming
 /**
  * Whether the bank's merchant text is about the same shop as any of the plan's names (the Wallet
  * merchant, the payee name, its aliases). Only a name's distinctive tokens count: city, country and
- * business-kind words ("batumi", "cafe", "market") are shared by different shops and are skipped.
+ * business-kind words ("lisbon", "cafe", "market") are shared by different shops and are skipped.
  * A name matches when more than half of its distinctive tokens find a partner in the bank text,
  * which tolerates reordering, extra city and country words, processor prefixes and truncation, and
  * rules out a different shop. A name with no distinctive token never matches: when in doubt, the

@@ -450,7 +450,7 @@ describe('User data wipe (POST /user/wipe-data)', () => {
       secret,
       body: {
         amount: '47.00',
-        merchant: 'Cafe Heart of Batumi',
+        merchant: 'Cafe Heart of Lisbon',
         card: 'Unlinked Visa',
         idempotencyKey: `wipe-${randomUUID()}`,
       },

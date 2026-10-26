@@ -25,7 +25,7 @@ failOnUnscriptedChatRequests();
 
 const DEFAULT_CONFIG = { ...assistantPushConfig };
 const BASE = global.BASE_CURRENCY_CODE;
-const CARD = 'TBC Visa';
+const CARD = 'Example Visa';
 
 const ASSISTANT_TYPES: NotificationType[] = [
   NOTIFICATION_TYPES.chatReplyReady,
@@ -178,16 +178,16 @@ const walletPayment = ({ secret, card = CARD, amount }: { secret: string; card?:
 
 let bankPushes = 0;
 
-/** A TBC push that only the AI can read. Each differs in its amount: the same text within seconds folds into one. */
+/** A Example push that only the AI can read. Each differs in its amount: the same text within seconds folds into one. */
 const bankPush = ({ secret }: { secret: string }) =>
   ingestHelpers.postIngestEvent({
     secret,
     body: {
       kind: 'notification',
-      app: 'TBC Bank',
-      title: 'TBC Bank',
+      app: 'Example Bank',
+      title: 'Example Bank',
       subtitle: '',
-      body: `Purchase ${BASE} ${(43.6 + ++bankPushes).toFixed(2)}, WOLT.COM TBILISI`,
+      body: `Purchase ${BASE} ${(43.6 + ++bankPushes).toFixed(2)}, WOLT.COM LISBON`,
       idempotencyKey: `push-${randomUUID()}`,
     },
   });

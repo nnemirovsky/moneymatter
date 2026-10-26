@@ -21,7 +21,7 @@ const baseOutput = (overrides: Partial<NotificationParseOutput> = {}): Notificat
   currency: 'GEL',
   originalAmount: null,
   originalCurrency: null,
-  merchant: 'WOLT.COM TBILISI',
+  merchant: 'WOLT.COM LISBON',
   payee: null,
   cardName: null,
   cardLastDigits: null,
@@ -187,8 +187,8 @@ describe('invalid fields are dropped', () => {
   });
 
   it('cleans the merchant and the card name', () => {
-    expect(paymentOf({ merchant: '  WOLT.COM \n TBILISI ', cardName: ' Visa  Classic ' })).toMatchObject({
-      merchant: 'WOLT.COM TBILISI',
+    expect(paymentOf({ merchant: '  WOLT.COM \n LISBON ', cardName: ' Visa  Classic ' })).toMatchObject({
+      merchant: 'WOLT.COM LISBON',
       cardName: 'Visa Classic',
     });
     expect(paymentOf({ merchant: '   ' }).merchant).toBeNull();
@@ -279,7 +279,15 @@ describe('the schema', () => {
 });
 
 describe('verbatim checks against the notification text', () => {
-  const text = ({ body, title = 'TBC Bank', subtitle = '' }: { body: string; title?: string; subtitle?: string }) => ({
+  const text = ({
+    body,
+    title = 'Example Bank',
+    subtitle = '',
+  }: {
+    body: string;
+    title?: string;
+    subtitle?: string;
+  }) => ({
     title,
     subtitle,
     body,
@@ -297,14 +305,14 @@ describe('verbatim checks against the notification text', () => {
   };
 
   it('keeps card digits the text prints, after a mask or on their own', () => {
-    expect(digitsOf({ body: 'Purchase 43.60 GEL, WOLT.COM TBILISI, card *1258', cardLastDigits: '1258' })).toBe('1258');
+    expect(digitsOf({ body: 'Purchase 43.60 GEL, WOLT.COM LISBON, card *1258', cardLastDigits: '1258' })).toBe('1258');
     expect(digitsOf({ body: 'Card •1258: 43.60 GEL at Wolt', cardLastDigits: '1258' })).toBe('1258');
     expect(digitsOf({ body: 'VISA **** 1258 purchase 43.60 GEL Wolt', cardLastDigits: '*1258' })).toBe('1258');
     expect(digitsOf({ body: 'Card ending 1258, 43.60 GEL, Wolt', cardLastDigits: '1258' })).toBe('1258');
   });
 
   it('drops card digits the text does not print', () => {
-    expect(digitsOf({ body: 'Purchase 43.60 GEL, WOLT.COM TBILISI', cardLastDigits: '1258' })).toBeNull();
+    expect(digitsOf({ body: 'Purchase 43.60 GEL, WOLT.COM LISBON', cardLastDigits: '1258' })).toBeNull();
   });
 
   it('drops card digits that only appear inside a phone number, a balance, a date or a reference', () => {
@@ -326,7 +334,7 @@ describe('verbatim checks against the notification text', () => {
     expect(classifyWithText({ body: 'Paid 1.234,50 EUR at Store', amount: '1234.50', currency: 'EUR' }).verdict).toBe(
       'payment',
     );
-    expect(classifyWithText({ body: 'Paid GEL48 at Nord', amount: '48' }).verdict).toBe('payment');
+    expect(classifyWithText({ body: 'Paid GEL48 at Blue', amount: '48' }).verdict).toBe('payment');
     expect(classifyWithText({ body: 'Card *1258 3 000,00 RUB, Salary', amount: '3000', currency: 'RUB' }).verdict).toBe(
       'payment',
     );
@@ -382,7 +390,7 @@ describe('the fixtures', () => {
   });
 
   it('keeps a stated foreign-currency amount and a total balance apart', () => {
-    const fixture = notificationFixtures.find((candidate) => candidate.id === 'tbc-en-foreign-currency')!;
+    const fixture = notificationFixtures.find((candidate) => candidate.id === 'example-en-foreign-currency')!;
     const result = classifyNotification({ output: fixture.answer, candidateIds });
 
     expect(result.verdict === 'payment' && result.payment).toMatchObject({

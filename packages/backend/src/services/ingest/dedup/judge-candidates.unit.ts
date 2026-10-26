@@ -80,12 +80,15 @@ describe('pickJudgeCandidates', () => {
     });
 
     it('compares the whole slot, so another bank is another channel', () => {
-      const incoming = { ...subject, slots: ['bank:name:tbc:payment'] };
+      const incoming = { ...subject, slots: ['bank:name:example:payment'] };
 
       expect(
         pickJudgeCandidates({
           subject: incoming,
-          pool: [row('same', { slots: ['bank:name:tbc:payment'] }), row('other', { slots: ['bank:name:bog:payment'] })],
+          pool: [
+            row('same', { slots: ['bank:name:example:payment'] }),
+            row('other', { slots: ['bank:name:bog:payment'] }),
+          ],
         }),
       ).toEqual(['other']);
     });

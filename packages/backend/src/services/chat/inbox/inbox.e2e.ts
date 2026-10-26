@@ -224,14 +224,14 @@ const answerFor = ({ prompt }: { prompt: string }) =>
         amount: '778.50',
         currency: 'GEL',
         merchant: 'Deposit Money',
-        cardName: 'TBC CARD',
+        cardName: 'EXAMPLE CARD',
       }
     : {
         kind: 'debit' as const,
         amount: '300.00',
         currency: 'USD',
         merchant: 'Money Transfer',
-        cardName: 'TBC CARD',
+        cardName: 'EXAMPLE CARD',
       };
 
 const threadOf = async ({ id }: { id: string }) => (await ChatThreads.findByPk(id))!;
@@ -415,7 +415,7 @@ describe('Automation inbox', () => {
     it('updates the card of the first source when a second source of the payment arrives, and adds no second card', async () => {
       await helpers.addUserCurrencies({ currencyCodes: ['GEL'] });
       const noon = await seedRateDay();
-      const gel = await account({ name: 'TBC GEL', currencyCode: 'GEL' });
+      const gel = await account({ name: 'Example GEL', currencyCode: 'GEL' });
       await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id }, raw: true });
       const { secret } = await ingestHelpers.createTestIngestToken();
 
@@ -450,14 +450,14 @@ describe('Automation inbox', () => {
         await helpers.addUserCurrencies({ currencyCodes: ['GEL', 'USD', ...(withEur ? ['EUR'] : [])] });
         // With EUR at 1.6 per USD the EUR estimate (23.53) differs from the suggested USD one (14.7).
         const noon = await seedRateDay(withEur ? { eurPerUsd: 1.6 } : {});
-        const gel = await account({ name: 'TBC GEL', currencyCode: 'GEL', initialBalance: 10 });
-        const usd = await account({ name: 'TBC USD', currencyCode: 'USD', initialBalance: 500 });
+        const gel = await account({ name: 'Example GEL', currencyCode: 'GEL', initialBalance: 10 });
+        const usd = await account({ name: 'Example USD', currencyCode: 'USD', initialBalance: 500 });
         await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id }, raw: true });
         await helpers.createCardMapping({
           payload: { cardLabel: CARD, accountId: usd.id, currencyCode: 'USD' },
           raw: true,
         });
-        const eur = withEur ? await account({ name: 'TBC EUR', currencyCode: 'EUR', initialBalance: 100 }) : null;
+        const eur = withEur ? await account({ name: 'Example EUR', currencyCode: 'EUR', initialBalance: 100 }) : null;
         if (eur) {
           await helpers.createCardMapping({
             payload: { cardLabel: CARD, accountId: eur.id, currencyCode: 'EUR' },
@@ -913,7 +913,7 @@ describe('Automation inbox', () => {
       mockNotificationParsing({ answer: () => ({}), ...JUDGED });
       await helpers.addUserCurrencies({ currencyCodes: ['GEL'] });
       const noon = await seedRateDay();
-      const gel = await account({ name: 'TBC GEL', currencyCode: 'GEL' });
+      const gel = await account({ name: 'Example GEL', currencyCode: 'GEL' });
       await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id }, raw: true });
       const { secret } = await ingestHelpers.createTestIngestToken();
       const [typed] = await helpers.createTransaction({
@@ -994,8 +994,8 @@ describe('Automation inbox', () => {
   });
 
   describe('the card of a currency-conversion pair', () => {
-    const TRANSFER_OUT = 'Money Transfer: 300.00 USD\nTBC CARD\n20/10/2026';
-    const DEPOSIT_IN = 'Deposit Money: 778.50 GEL\nTBC CARD\n20/10/2026';
+    const TRANSFER_OUT = 'Money Transfer: 300.00 USD\nEXAMPLE CARD\n20/10/2026';
+    const DEPOSIT_IN = 'Deposit Money: 778.50 GEL\nEXAMPLE CARD\n20/10/2026';
     const raisePair = async () => {
       enableServerModel();
       mockNotificationParsing({ answer: answerFor });
@@ -1003,11 +1003,11 @@ describe('Automation inbox', () => {
       const day = subDays(startOfDay(new Date()), 6);
       SEEDED_DATES.push(day);
       await helpers.seedUsdExchangeRates({ date: day, ratesPerUsd: { AED: 4, GEL: 2.6 } });
-      const gel = await account({ name: 'TBC GEL', currencyCode: 'GEL' });
-      const usd = await account({ name: 'TBC USD', currencyCode: 'USD' });
-      await helpers.createCardMapping({ payload: { cardLabel: 'TBC CARD', accountId: gel.id }, raw: true });
+      const gel = await account({ name: 'Example GEL', currencyCode: 'GEL' });
+      const usd = await account({ name: 'Example USD', currencyCode: 'USD' });
+      await helpers.createCardMapping({ payload: { cardLabel: 'EXAMPLE CARD', accountId: gel.id }, raw: true });
       await helpers.createCardMapping({
-        payload: { cardLabel: 'TBC CARD', accountId: usd.id, currencyCode: 'USD' },
+        payload: { cardLabel: 'EXAMPLE CARD', accountId: usd.id, currencyCode: 'USD' },
         raw: true,
       });
       const { secret } = await ingestHelpers.createTestIngestToken();
@@ -1017,8 +1017,8 @@ describe('Automation inbox', () => {
           secret,
           body: {
             kind: 'notification',
-            app: 'TBC Bank',
-            title: 'TBC',
+            app: 'Example Bank',
+            title: 'Example',
             subtitle: '',
             body,
             time: addMinutes(start, minutes).toISOString(),

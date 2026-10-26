@@ -20,11 +20,11 @@ describe('slotOfNotification', () => {
   });
 
   it('gives a bank one slot per stage', () => {
-    expect(slotOfNotification({ sourceKey: 'name:tbc bank', stage: 'authorization' })).toBe(
-      'bank:name:tbc bank:authorization',
+    expect(slotOfNotification({ sourceKey: 'name:example bank', stage: 'authorization' })).toBe(
+      'bank:name:example bank:authorization',
     );
-    expect(slotOfNotification({ sourceKey: 'name:tbc bank', stage: null })).toBe('bank:name:tbc bank:payment');
-    expect(bankSlot({ sourceKey: 'name:tbc bank', stage: 'settlement' })).toBe('bank:name:tbc bank:settlement');
+    expect(slotOfNotification({ sourceKey: 'name:example bank', stage: null })).toBe('bank:name:example bank:payment');
+    expect(bankSlot({ sourceKey: 'name:example bank', stage: 'settlement' })).toBe('bank:name:example bank:settlement');
   });
 });
 

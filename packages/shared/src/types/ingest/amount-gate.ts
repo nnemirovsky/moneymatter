@@ -133,7 +133,7 @@ export interface AmountGateSample {
 
 export const AMOUNT_GATE_SAMPLES: readonly AmountGateSample[] = [
   // Matches at every level.
-  { text: 'TBC Bank\nWolt\nGEL 43.60', minLevel: 'strict' },
+  { text: 'Example Bank\nWolt\nGEL 43.60', minLevel: 'strict' },
   { text: 'Purchase 43.60 GEL at Wolt', minLevel: 'strict' },
   { text: 'Card *1234: 1 234,56 EUR', minLevel: 'strict' },
   { text: 'You paid ₾43.60', minLevel: 'strict' },

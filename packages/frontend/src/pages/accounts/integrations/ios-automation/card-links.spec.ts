@@ -5,7 +5,7 @@ import { getFreeLinkTargets, groupCardMappings, hasDefaultLink } from './card-li
 
 const row = (overrides: Partial<CardMappingDto>): CardMappingDto => ({
   id: 'row' as RecordId,
-  cardLabel: 'TBC Visa',
+  cardLabel: 'Example Visa',
   lastDigits: null,
   currencyCode: null,
   accountId: 'account' as RecordId,
@@ -27,7 +27,7 @@ describe('groupCardMappings', () => {
     });
 
     expect(groups.map((group) => [group.cardLabel, group.mappings.map((mapping) => mapping.id)])).toEqual([
-      ['TBC Visa', ['a', 'b', 'd']],
+      ['Example Visa', ['a', 'b', 'd']],
       ['Revolut', ['c']],
     ]);
   });

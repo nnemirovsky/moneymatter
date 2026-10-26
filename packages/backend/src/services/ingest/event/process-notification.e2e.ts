@@ -18,7 +18,7 @@ import { randomUUID } from 'node:crypto';
 import { notificationTimings } from './constants';
 import type { StoredParse } from './stored-parse';
 
-const CARD = 'TBC Visa';
+const CARD = 'Example Visa';
 const BASE = global.BASE_CURRENCY_CODE;
 
 const DEFAULT_TIMINGS = { ...notificationTimings };
@@ -37,10 +37,10 @@ const wallet = (overrides: Record<string, unknown> = {}) => ({
 /** A push from a seeded bank app: free text, so the reader has to understand it. */
 const push = (overrides: Record<string, unknown> = {}) => ({
   kind: 'notification',
-  app: 'TBC Bank',
-  title: 'TBC Bank',
+  app: 'Example Bank',
+  title: 'Example Bank',
   subtitle: '',
-  body: `Purchase ${BASE} 43.60, WOLT.COM TBILISI`,
+  body: `Purchase ${BASE} 43.60, WOLT.COM LISBON`,
   idempotencyKey: `key-${randomUUID()}`,
   ...overrides,
 });
@@ -50,7 +50,7 @@ const wolt = (overrides: Record<string, unknown> = {}) => ({
   kind: 'debit' as const,
   amount: '43.60',
   currency: BASE,
-  merchant: 'WOLT.COM TBILISI',
+  merchant: 'WOLT.COM LISBON',
   cardName: CARD,
   ...overrides,
 });
@@ -263,7 +263,7 @@ describe('process notification', () => {
       const res = await send({ secret, body: push() });
 
       expect(res.status).toBe(200);
-      expect(res.body.response.summary).toBe(`Logged 43.60 ${BASE} at WOLT.COM TBILISI → Food`);
+      expect(res.body.response.summary).toBe(`Logged 43.60 ${BASE} at WOLT.COM LISBON → Food`);
       expect(prompts).toHaveLength(1);
       expect(prompts[0]).toContain('p1|Wolt');
 
@@ -462,7 +462,7 @@ describe('process notification', () => {
         expect(parked.body.response).toMatchObject({
           outcome: 'parked',
           reason,
-          summary: `Needs your OK in MoneyMatter: ${shown} ${BASE} at WOLT.COM TBILISI`,
+          summary: `Needs your OK in MoneyMatter: ${shown} ${BASE} at WOLT.COM LISBON`,
         });
         expect(await helpers.getTransactions({ raw: true })).toEqual([]);
 
@@ -548,7 +548,7 @@ describe('process notification', () => {
         const res = await send({ secret, body: push() });
 
         expect(res.status).toBe(200);
-        expect(res.body.response.summary).toBe(`Logged 12.00 USD (43.60 ${BASE}) at WOLT.COM TBILISI → Uncategorized`);
+        expect(res.body.response.summary).toBe(`Logged 12.00 USD (43.60 ${BASE}) at WOLT.COM LISBON → Uncategorized`);
         const request = await storedRequest({ requestId: res.body.response.requestId });
         const tx = await storedTransaction({ transactionId: request.transactionId! });
         expect(tx.amount.toNumber()).toBe(43.6);
@@ -569,7 +569,7 @@ describe('process notification', () => {
 
         const res = await send({
           secret,
-          body: push({ body: `Purchase ${BASE} 43.60, WOLT.COM TBILISI, card *4321` }),
+          body: push({ body: `Purchase ${BASE} 43.60, WOLT.COM LISBON, card *4321` }),
         });
 
         expect(res.body.response.outcome).toBe('logged');
@@ -591,7 +591,7 @@ describe('process notification', () => {
         const stored = await storedRequest({ requestId: parked.body.response.requestId });
         expect(readParsed({ row: stored }).accountGuessId).toBe(account.id);
 
-        const source = await sourceOf({ app: 'TBC Bank' });
+        const source = await sourceOf({ app: 'Example Bank' });
         // The default answers the payment that waited on it: the server puts it back through the pipeline.
         const updated = await helpers.updateNotificationSource({
           id: source.id,
@@ -675,7 +675,7 @@ describe('process notification', () => {
         const first = await send({ secret, body: push({ time }) });
         expect(first.body.response.outcome).toBe('logged');
 
-        await send({ secret, body: push({ time, body: `Purchase GEL 5.00, WOLT.COM TBILISI` }) });
+        await send({ secret, body: push({ time, body: `Purchase GEL 5.00, WOLT.COM LISBON` }) });
 
         // The first payment taught the source which accounts belong to it.
         expect(prompts[1]).toMatch(/The user holds money at this bank in: (GEL, USD|USD, GEL)\./);

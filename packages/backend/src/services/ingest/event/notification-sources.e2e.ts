@@ -8,9 +8,9 @@ import { randomUUID } from 'node:crypto';
 
 const notification = (overrides: Record<string, unknown> = {}) => ({
   kind: 'notification',
-  app: 'TBC Bank',
-  bundleId: 'ge.tbc.app',
-  title: 'TBC Bank',
+  app: 'Example Bank',
+  bundleId: 'ge.example.app',
+  title: 'Example Bank',
   body: 'GEL 43.60',
   idempotencyKey: `key-${randomUUID()}`,
   ...overrides,
@@ -45,8 +45,8 @@ describe('notification sources', () => {
 
       expect(source).toEqual({
         id: expect.any(String),
-        appName: 'TBC Bank',
-        bundleId: 'ge.tbc.app',
+        appName: 'Example Bank',
+        bundleId: 'ge.example.app',
         sender: null,
         conversational: false,
         mode: 'auto',
@@ -66,7 +66,7 @@ describe('notification sources', () => {
 
       const sources = await helpers.listNotificationSources({ raw: true });
 
-      expect(sources.map((source) => source.appName)).toEqual(['Revolut', 'TBC Bank']);
+      expect(sources.map((source) => source.appName)).toEqual(['Revolut', 'Example Bank']);
     });
 
     it("does not list another user's sources", async () => {

@@ -8,7 +8,7 @@ const logged = ({
 }: { overrides?: Partial<Extract<CardPaymentSummary, { type: 'logged' }>> } = {}): CardPaymentSummary => ({
   type: 'logged',
   payment: { amount: 47, currencyCode: 'GEL', decimals: 2 },
-  merchant: 'Cafe Heart of Batumi',
+  merchant: 'Cafe Heart of Lisbon',
   categoryName: 'Bar, cafe',
   categoryPending: false,
   planned: false,
@@ -24,7 +24,7 @@ describe('formatSummary', () => {
   describe('a logged payment', () => {
     it('writes the amount with the currency decimals', () => {
       expect(formatSummary({ summary: logged(), locale: 'en' })).toBe(
-        'Logged 47.00 GEL at Cafe Heart of Batumi → Bar, cafe',
+        'Logged 47.00 GEL at Cafe Heart of Lisbon → Bar, cafe',
       );
     });
 
@@ -33,10 +33,10 @@ describe('formatSummary', () => {
       const kwd = logged({ overrides: { payment: { amount: 1.5, currencyCode: 'KWD', decimals: 3 } } });
 
       expect(formatSummary({ summary: jpy, locale: 'en' })).toBe(
-        'Logged 1,200 JPY at Cafe Heart of Batumi → Bar, cafe',
+        'Logged 1,200 JPY at Cafe Heart of Lisbon → Bar, cafe',
       );
       expect(formatSummary({ summary: kwd, locale: 'en' })).toBe(
-        'Logged 1.500 KWD at Cafe Heart of Batumi → Bar, cafe',
+        'Logged 1.500 KWD at Cafe Heart of Lisbon → Bar, cafe',
       );
     });
 
@@ -49,34 +49,34 @@ describe('formatSummary', () => {
       });
 
       expect(formatSummary({ summary, locale: 'en' })).toBe(
-        'Logged 12.50 EUR (36.71 GEL) at Cafe Heart of Batumi → Bar, cafe',
+        'Logged 12.50 EUR (36.71 GEL) at Cafe Heart of Lisbon → Bar, cafe',
       );
     });
 
     it('says the bank sync will confirm a planned row', () => {
       expect(formatSummary({ summary: logged({ overrides: { planned: true } }), locale: 'en' })).toBe(
-        'Noted 47.00 GEL at Cafe Heart of Batumi → Bar, cafe; the bank sync will confirm it',
+        'Noted 47.00 GEL at Cafe Heart of Lisbon → Bar, cafe; the bank sync will confirm it',
       );
     });
 
     it('says already logged for a replay, a planned one included', () => {
       expect(formatSummary({ summary: logged({ overrides: { duplicate: true } }), locale: 'en' })).toBe(
-        'Already logged 47.00 GEL at Cafe Heart of Batumi → Bar, cafe',
+        'Already logged 47.00 GEL at Cafe Heart of Lisbon → Bar, cafe',
       );
       expect(formatSummary({ summary: logged({ overrides: { duplicate: true, planned: true } }), locale: 'en' })).toBe(
-        'Already logged 47.00 GEL at Cafe Heart of Batumi → Bar, cafe',
+        'Already logged 47.00 GEL at Cafe Heart of Lisbon → Bar, cafe',
       );
     });
 
     it('says categorizing while the answer is on its way', () => {
       expect(formatSummary({ summary: logged({ overrides: { categoryPending: true } }), locale: 'en' })).toBe(
-        'Logged 47.00 GEL at Cafe Heart of Batumi → categorizing…',
+        'Logged 47.00 GEL at Cafe Heart of Lisbon → categorizing…',
       );
     });
 
     it('says Uncategorized when no category name is known', () => {
       expect(formatSummary({ summary: logged({ overrides: { categoryName: null } }), locale: 'en' })).toBe(
-        'Logged 47.00 GEL at Cafe Heart of Batumi → Uncategorized',
+        'Logged 47.00 GEL at Cafe Heart of Lisbon → Uncategorized',
       );
     });
 
@@ -90,8 +90,8 @@ describe('formatSummary', () => {
   describe('a parked payment', () => {
     it('names the card to link', () => {
       expect(
-        formatSummary({ summary: { type: 'parked', reason: 'unknownCard', card: 'TBC Visa' }, locale: 'en' }),
-      ).toBe('Not logged yet: link the card "TBC Visa" in MoneyMatter → Accounts → iOS Automation');
+        formatSummary({ summary: { type: 'parked', reason: 'unknownCard', card: 'Example Visa' }, locale: 'en' }),
+      ).toBe('Not logged yet: link the card "Example Visa" in MoneyMatter → Accounts → iOS Automation');
     });
 
     it('names the missing rate', () => {
@@ -118,24 +118,24 @@ describe('formatSummary', () => {
       const summary: CardPaymentSummary = {
         type: 'dryRun',
         username: 'nick',
-        card: 'TBC Visa',
-        accountName: 'TBC Main',
+        card: 'Example Visa',
+        accountName: 'Example Main',
         linkedCardCount: 2,
       };
 
-      expect(formatSummary({ summary, locale: 'en' })).toBe('Connected as nick. Card "TBC Visa" → TBC Main');
+      expect(formatSummary({ summary, locale: 'en' })).toBe('Connected as nick. Card "Example Visa" → Example Main');
     });
 
     it('says a card is not linked yet', () => {
       const summary: CardPaymentSummary = {
         type: 'dryRun',
         username: 'nick',
-        card: 'TBC Visa',
+        card: 'Example Visa',
         accountName: null,
         linkedCardCount: 0,
       };
 
-      expect(formatSummary({ summary, locale: 'en' })).toBe('Connected as nick. Card "TBC Visa" is not linked yet');
+      expect(formatSummary({ summary, locale: 'en' })).toBe('Connected as nick. Card "Example Visa" is not linked yet');
     });
 
     it.each([
@@ -159,7 +159,7 @@ describe('formatSummary', () => {
     it('formats numbers and text in Ukrainian', () => {
       const summary = logged({ overrides: { payment: { amount: 1234.5, currencyCode: 'GEL', decimals: 2 } } });
 
-      expect(formatSummary({ summary, locale: 'uk' })).toBe('Записано 1 234,50 GEL: Cafe Heart of Batumi → Bar, cafe');
+      expect(formatSummary({ summary, locale: 'uk' })).toBe('Записано 1 234,50 GEL: Cafe Heart of Lisbon → Bar, cafe');
     });
 
     it.each([
@@ -180,7 +180,7 @@ describe('formatSummary', () => {
 
     it('falls back to English text for a locale without the keys', () => {
       expect(formatSummary({ summary: logged(), locale: 'xx' })).toBe(
-        'Logged 47.00 GEL at Cafe Heart of Batumi → Bar, cafe',
+        'Logged 47.00 GEL at Cafe Heart of Lisbon → Bar, cafe',
       );
     });
   });
@@ -194,7 +194,7 @@ describe('formatSummary', () => {
             reason: 'needsOk',
             payment: { amount: 43.6, currencyCode: 'GEL', decimals: 2 },
             merchant: 'Wolt',
-            source: 'TBC Bank',
+            source: 'Example Bank',
           },
           locale: 'en',
         }),
@@ -204,19 +204,25 @@ describe('formatSummary', () => {
     it('names the source when no payment could be read', () => {
       expect(
         formatSummary({
-          summary: { type: 'notificationParked', reason: 'needsOk', payment: null, merchant: null, source: 'TBC Bank' },
+          summary: {
+            type: 'notificationParked',
+            reason: 'needsOk',
+            payment: null,
+            merchant: null,
+            source: 'Example Bank',
+          },
           locale: 'en',
         }),
-      ).toBe('Needs your OK in MoneyMatter: TBC Bank');
+      ).toBe('Needs your OK in MoneyMatter: Example Bank');
     });
 
     it('asks to approve a source by name', () => {
       expect(
         formatSummary({
-          summary: { type: 'notificationParked', reason: 'sourceNotApproved', source: 'Messages · TBC' },
+          summary: { type: 'notificationParked', reason: 'sourceNotApproved', source: 'Messages · Example' },
           locale: 'en',
         }),
-      ).toBe('Not logged yet: approve "Messages · TBC" as a payment source in MoneyMatter');
+      ).toBe('Not logged yet: approve "Messages · Example" as a payment source in MoneyMatter');
     });
 
     it.each(['aiUnavailable', 'aiCapReached', 'aiLimitReached'] as const)('says why %s left it unread', (reason) => {

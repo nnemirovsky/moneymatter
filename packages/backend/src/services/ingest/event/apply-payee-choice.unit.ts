@@ -42,18 +42,18 @@ describe('applyPayeeChoice', () => {
   it('keeps the payee an exact lookup finds and ignores what the model chose', async () => {
     matchMerchant.mockResolvedValueOnce({ kind: 'exact', payeeId: 'wolt' });
 
-    const result = await apply({ rawMerchant: 'WOLT.COM TBILISI', choice: { type: 'new', name: 'Something' } });
+    const result = await apply({ rawMerchant: 'WOLT.COM LISBON', choice: { type: 'new', name: 'Something' } });
 
     expect(result).toBe('wolt');
     expect(create).not.toHaveBeenCalled();
   });
 
   it('takes the one payee the core name matches over what the model chose', async () => {
-    matchMerchant.mockResolvedValueOnce({ kind: 'unique', payeeId: 'nord', distance: 1 });
+    matchMerchant.mockResolvedValueOnce({ kind: 'unique', payeeId: 'blue', distance: 1 });
 
-    const result = await apply({ rawMerchant: 'NORD COFEE COMPANY LTD', choice: { type: 'new', name: 'Nord Cofee' } });
+    const result = await apply({ rawMerchant: 'BLUE COFEE COMPANY LTD', choice: { type: 'new', name: 'Blue Cofee' } });
 
-    expect(result).toBe('nord');
+    expect(result).toBe('blue');
     expect(create).not.toHaveBeenCalled();
   });
 
@@ -61,12 +61,12 @@ describe('applyPayeeChoice', () => {
     matchMerchant.mockResolvedValueOnce({
       kind: 'ambiguous',
       candidates: [
-        { payeeId: 'a', name: 'Nord Coffea', distance: 1 },
-        { payeeId: 'b', name: 'Nord Coffee', distance: 1 },
+        { payeeId: 'a', name: 'Blue Coffea', distance: 1 },
+        { payeeId: 'b', name: 'Blue Coffee', distance: 1 },
       ],
     });
 
-    expect(await apply({ rawMerchant: 'NORD COFFEX', choice: null })).toBeNull();
+    expect(await apply({ rawMerchant: 'BLUE COFFEX', choice: null })).toBeNull();
     expect(unmatched).not.toHaveBeenCalled();
   });
 
@@ -88,7 +88,7 @@ describe('applyPayeeChoice', () => {
     it('becomes the payee', async () => {
       findPayee.mockResolvedValue({ id: 'wolt' } as never);
 
-      expect(await apply({ rawMerchant: 'WOLT.COM TBILISI', choice: { type: 'candidate', payeeId: 'wolt' } })).toBe(
+      expect(await apply({ rawMerchant: 'WOLT.COM LISBON', choice: { type: 'candidate', payeeId: 'wolt' } })).toBe(
         'wolt',
       );
     });
@@ -97,7 +97,7 @@ describe('applyPayeeChoice', () => {
       matchMerchant.mockResolvedValueOnce({ kind: 'ignored' });
       findPayee.mockResolvedValue({ id: 'wolt' } as never);
 
-      expect(await apply({ rawMerchant: 'WOLT.COM TBILISI', choice: { type: 'candidate', payeeId: 'wolt' } })).toBe(
+      expect(await apply({ rawMerchant: 'WOLT.COM LISBON', choice: { type: 'candidate', payeeId: 'wolt' } })).toBe(
         'wolt',
       );
     });
@@ -123,7 +123,7 @@ describe('applyPayeeChoice', () => {
     it('adopts a payee that already has the name instead of creating one', async () => {
       resolveName.mockResolvedValueOnce({ payeeId: 'wolt', name: 'Wolt', via: 'canonical' });
 
-      expect(await apply({ rawMerchant: 'WOLT TBILISI GE', choice: { type: 'new', name: 'Wolt' } })).toBe('wolt');
+      expect(await apply({ rawMerchant: 'WOLT LISBON GE', choice: { type: 'new', name: 'Wolt' } })).toBe('wolt');
       expect(create).not.toHaveBeenCalled();
     });
 

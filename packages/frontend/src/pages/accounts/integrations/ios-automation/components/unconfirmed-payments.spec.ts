@@ -30,8 +30,8 @@ const makePlan = (overrides: Partial<UnconfirmedCardPaymentDto> = {}): Unconfirm
   accountId: 'account-1' as RecordId,
   amount: 47,
   currencyCode: 'GEL',
-  merchant: 'Cafe Heart of Batumi',
-  card: 'TBC Visa',
+  merchant: 'Cafe Heart of Lisbon',
+  card: 'Example Visa',
   time: '2026-10-05T10:00:00.000Z',
   awaitingConfirmation: false,
   bankUnconfirmed: true,
@@ -59,7 +59,7 @@ describe('UnconfirmedPayments', () => {
     const { wrapper } = await mountUnconfirmed([makePlan()]);
 
     const row = wrapper.get('[data-testid="unconfirmed-payment-row"]');
-    expect(row.get('[data-testid="unconfirmed-payment-merchant"]').text()).toBe('Cafe Heart of Batumi');
+    expect(row.get('[data-testid="unconfirmed-payment-merchant"]').text()).toBe('Cafe Heart of Lisbon');
     expect(row.get('[data-testid="unconfirmed-payment-amount"]').text()).toContain('47.00');
     expect(row.get('[data-testid="unconfirmed-payment-date"]').text()).toBe('Oct 5, 2026');
   });

@@ -11,7 +11,7 @@ import Screenshot from '~/components/screenshot.astro';
 
 Every time you pay, your iPhone can tell MoneyMatter within seconds, without you typing anything. MoneyMatter files the payment on the account linked to the card, finds or creates the payee, picks a category, converts the currency when it needs to, and answers with one line that your iPhone shows as a notification:
 
-> Logged 47.00 GEL at Cafe Heart of Batumi → Bar, cafe
+> Logged 47.00 GEL at Cafe Heart of Lisbon → Bar, cafe
 
 It works through an iOS **Shortcut** that starts on its own. The shortcut sends the payment to MoneyMatter with a personal [ingest token](/integrations/ingest-tokens/). What it can send depends on your iOS version:
 
@@ -60,7 +60,7 @@ The shortcut is a file that your MoneyMatter instance serves. On an iPhone the s
 
 ## Step 1: Link your cards
 
-Apple Wallet gives each card a name, such as `TBC Visa`. MoneyMatter needs to know which account that name belongs to.
+Apple Wallet gives each card a name, such as `Example Visa`. MoneyMatter needs to know which account that name belongs to.
 
 <Steps>
 
@@ -74,7 +74,7 @@ Apple Wallet gives each card a name, such as `TBC Visa`. MoneyMatter needs to kn
 <Screenshot
   src="/screenshots/integrations/ios-automation-card-links.png"
   alt="The iOS Automation page with the Card links section listing a card with a GEL account, a USD account and a default account, and the Link a card button above it."
-  hint="Open /accounts/integrations/ios-automation as the docs test user with the card TBC Visa linked to a GEL account, a USD account and a default account. Crop to the Card links section."
+  hint="Open /accounts/integrations/ios-automation as the docs test user with the card Example Visa linked to a GEL account, a USD account and a default account. Crop to the Card links section."
 />
 
 You can link several cards to the same account, and every card you pay with needs its own link. A payment from a card without a link isn't lost: see [Payments that wait](#payments-that-wait).
@@ -207,7 +207,7 @@ Every automatic payment, tap or notification, is **logged at once**, so your bal
 
 ### Sources: approving apps and senders
 
-A **source** is the app a notification came from. For messaging and mail apps it is the app and the sender, so approving "Messages · TBC" doesn't approve every chat.
+A **source** is the app a notification came from. For messaging and mail apps it is the app and the sender, so approving "Messages · Example" doesn't approve every chat.
 
 - **Wallet and the apps on MoneyMatter's list of well-known sources** are trusted from the start and show as **Known**.
 - **Everything else starts as waiting.** Its first notification puts a card in the inbox, "Treat this app as a payment source?", and the source shows under **Sources waiting for your OK** on the iOS Automation page. Its notifications are kept, encrypted, and are not sent to AI until you decide.
@@ -217,13 +217,13 @@ A **source** is the app a notification came from. For messaging and mail apps it
 
 <Screenshot
   src="/screenshots/integrations/ios-automation-sources.png"
-  alt="The Notification sources section of the iOS Automation page listing Wallet as known, TBC Bank as approved and Messages from a sender as waiting, with Approve and Mute buttons on the waiting one."
-  hint="Open /accounts/integrations/ios-automation as the docs test user after sending notification events for Wallet, TBC Bank (bundle ge.tbconline.TBC-ipad) and a Messages sender. Crop to the Notification sources section."
+  alt="The Notification sources section of the iOS Automation page listing Wallet as known, Example Bank as approved and Messages from a sender as waiting, with Approve and Mute buttons on the waiting one."
+  hint="Open /accounts/integrations/ios-automation as the docs test user after sending notification events for Wallet, Example Bank (bundle com.example.bank) and a Messages sender. Crop to the Notification sources section."
 />
 
 ### Context from delivery apps
 
-A delivery or shopping app tells you what an order is, and your bank only tells you how much: "TBC: 60.64 GEL, Wolt". A **context source** closes that gap. Its notifications carry no amount, so they never create a payment. MoneyMatter reads the order ("Urban Roastery&Coffee has accepted your order"), finds the payment it belongs to and adds the store to it.
+A delivery or shopping app tells you what an order is, and your bank only tells you how much: "Example: 60.64 GEL, Wolt". A **context source** closes that gap. Its notifications carry no amount, so they never create a payment. MoneyMatter reads the order ("Urban Roastery&Coffee has accepted your order"), finds the payment it belongs to and adds the store to it.
 
 - **Set it up like a bank app.** Add the app (Wolt, Glovo, Bolt Food, Uber Eats, Yandex Eda, Amazon, Deliveroo, DoorDash) to the **Notification** trigger's app list. These apps start as **Context** sources. Any other app you add shows up under **Sources waiting for your OK** after its first notification, with how many notifications without an amount were dropped, and you choose **Context only** there. You can also switch a source to **Context** in **Notification sources**. A messaging or mail sender ("Mail from Госуслуги") can be one too: use **Add a context source by name**, or the **Context** action on its row. Until you do, only the sender's name leaves the phone, and the server stores nothing about an unknown sender.
 - **What changes on the payment.** The note becomes "Urban Roastery&Coffee order from Wolt", and the category becomes the one that fits the store ("Bar, cafe" instead of the Wolt default), from your own categories. The shortcut answers "Added Urban Roastery&Coffee to 60.64 GEL at Wolt → Bar, cafe", and the payment's card in the Automation inbox shows both.
@@ -345,7 +345,7 @@ This is the manual guide for **iOS 26 or earlier**, and for anyone whose instanc
 
 3. **Format Date** again on the current date, with **Date Format** set to **Custom** and the format `yyyy-MM-dd'T'HH:mmZZZZZ`. This is the time to the minute, used in the next step.
 
-   Optionally add one more **Format Date** on the current date with **Date Format** set to **Custom** and the format `VV`. It prints the time zone's name, such as `Asia/Tbilisi`. Send it as `timeZone` in step 6. Without it MoneyMatter stores the offset of the payment time, and your time zone too when it has that offset.
+   Optionally add one more **Format Date** on the current date with **Date Format** set to **Custom** and the format `VV`. It prints the time zone's name, such as `Asia/Dubai`. Send it as `timeZone` in step 6. Without it MoneyMatter stores the offset of the payment time, and your time zone too when it has that offset.
 
 4. **Text.** Join four values with `|` between them: the card, the merchant, the amount and the time to the minute from step 3.
 
@@ -390,7 +390,7 @@ Run this from any computer before you trust the automation. It sends a dry run, 
 curl -sS https://money.example.com/api/v1/ingest/card-payment \
   -H "Authorization: Bearer $MM_INGEST_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"dryRun": true, "card": "TBC Visa"}'
+  -d '{"dryRun": true, "card": "Example Visa"}'
 ```
 
 If the card is linked, the answer names the account:
@@ -400,7 +400,7 @@ If the card is linked, the answer names the account:
   "status": "success",
   "response": {
     "outcome": "dryRun",
-    "summary": "Connected as alex. Card \"TBC Visa\" → Everyday Checking"
+    "summary": "Connected as alex. Card \"Example Visa\" → Everyday Checking"
   }
 }
 ```
@@ -415,8 +415,8 @@ curl -sS https://money.example.com/api/v1/ingest/card-payment \
   -H "Content-Type: application/json" \
   -d '{
     "idempotencyKey": "docs-test-0001",
-    "card": "TBC Visa",
-    "merchant": "Cafe Heart of Batumi",
+    "card": "Example Visa",
+    "merchant": "Cafe Heart of Lisbon",
     "amount": "47.00 GEL"
   }'
 ```
@@ -426,7 +426,7 @@ curl -sS https://money.example.com/api/v1/ingest/card-payment \
   "status": "success",
   "response": {
     "outcome": "logged",
-    "summary": "Logged 47.00 GEL at Cafe Heart of Batumi → Bar, cafe",
+    "summary": "Logged 47.00 GEL at Cafe Heart of Lisbon → Bar, cafe",
     "transactionId": "0d9f6c1e-5b7a-4c1e-9a52-3f1d2b8e7a10",
     "planned": false,
     "categoryPending": false
@@ -452,7 +452,7 @@ When the payment currency differs from the account's, MoneyMatter converts the a
 
 ### Payee and category
 
-The merchant name is matched to your payees first. Letter case, punctuation and company forms such as `LTD`, `LLC`, `Company` or `შპს` don't count, and a small typo is forgiven, so `NORD COFEE COMPANY LTD` goes to your payee "Nord Coffee". If the name is spelled almost like two or more of your payees, the AI picks one of them; without an answer the payment is logged with no payee, and you choose it on the inbox card. Only a name that matches none of your payees becomes a new payee, with its logo when one is found.
+The merchant name is matched to your payees first. Letter case, punctuation and company forms such as `LTD`, `LLC`, `Company` or `შპს` don't count, and a small typo is forgiven, so `BLUE COFEE COMPANY LTD` goes to your payee "Blue Coffee". If the name is spelled almost like two or more of your payees, the AI picks one of them; without an answer the payment is logged with no payee, and you choose it on the inbox card. Only a name that matches none of your payees becomes a new payee, with its logo when one is found.
 
 The note comes from your own past payments to that payee, never from the merchant name. If you usually write the same note there, at that time of day ("Breakfast" in the morning, "Lunch" at midday), it is filled in. If your notes there vary, the AI picks the one that fits the time and amount best, or none; it never writes a new one. Without such notes the note stays empty. You can change or clear it on the inbox card. To build an automation rule on the merchant text, use its **Merchant** condition.
 
@@ -469,7 +469,7 @@ A payee MoneyMatter matched on its own is only a suggestion. When you confirm th
 
 A connected account doesn't accept hand-written transactions, so a payment on one is stored as a **planned** transaction and the notification says `Noted … the bank sync will confirm it`. When the bank reports its own transaction, it settles the planned one in place: no duplicate, and your category and payee stay.
 
-The bank's amount can differ from what Wallet showed (a tip, a foreign-currency hold). It still settles the payment when the amounts are within 25%, the dates are within 7 days, and the bank's merchant text shares words with the merchant you paid. City and shop-type words such as `Batumi` or `Cafe` don't count, because different shops share them. A bank text that clearly belongs to another payee never settles it.
+The bank's amount can differ from what Wallet showed (a tip, a foreign-currency hold). It still settles the payment when the amounts are within 25%, the dates are within 7 days, and the bank's merchant text shares words with the merchant you paid. City and shop-type words such as `Lisbon` or `Cafe` don't count, because different shops share them. A bank text that clearly belongs to another payee never settles it.
 
 If the bank never reports a matching transaction within 7 days, the planned payment appears under **Not confirmed by the bank** on the iOS Automation page. If the bank's own transaction is already there under another description, delete the note; otherwise keep it. A planned payment that the bank sync hasn't settled can also be merged with the bank's row in [Reconciliation](/transactions/reconciliation/).
 
@@ -507,7 +507,7 @@ On the **iOS Automation** page, **Cards without a link** shows each card that ha
 
 <Screenshot
   src="/screenshots/integrations/ios-automation-waiting.png"
-  alt="The iOS Automation page with a Cards without a link section showing TBC Visa with two payments waiting and a Link button, and a Waiting payments section with one payment, its reason, and Retry and Dismiss buttons."
+  alt="The iOS Automation page with a Cards without a link section showing Example Visa with two payments waiting and a Link button, and a Waiting payments section with one payment, its reason, and Retry and Dismiss buttons."
   hint="Open /accounts/integrations/ios-automation as the docs test user after sending two ingest requests for an unlinked card and one with a missing rate. Crop to the two sections."
 />
 

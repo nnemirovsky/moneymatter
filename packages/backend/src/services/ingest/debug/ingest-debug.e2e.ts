@@ -68,11 +68,11 @@ describe('the ingest debug trace', () => {
     const { secret, token } = await ingestHelpers.createTestIngestToken();
     process.env.INGEST_DEBUG_TOKEN_IDS = token.id;
     const account = await helpers.createAccount({ raw: true });
-    await helpers.createCardMapping({ payload: { cardLabel: 'TBC Visa', accountId: account.id }, raw: true });
+    await helpers.createCardMapping({ payload: { cardLabel: 'Example Visa', accountId: account.id }, raw: true });
     const wallet = {
       kind: 'notification',
       app: 'Wallet',
-      title: 'TBC Visa',
+      title: 'Example Visa',
       subtitle: 'Wolt',
       body: `${BASE} 12.00`,
       idempotencyKey: `key-${randomUUID()}`,

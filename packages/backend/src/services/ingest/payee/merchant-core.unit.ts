@@ -10,8 +10,8 @@ const payee = ({ id, name, aliases = [] }: { id: string; name: string; aliases?:
 
 describe('merchantCoreName', () => {
   it('drops case, punctuation and the legal forms at the end', () => {
-    expect(merchantCoreName({ raw: 'NORD COFEE COMPANY LTD' })).toBe('nord cofee');
-    expect(merchantCoreName({ raw: 'Nord Coffee Co.' })).toBe('nord coffee');
+    expect(merchantCoreName({ raw: 'BLUE COFEE COMPANY LTD' })).toBe('blue cofee');
+    expect(merchantCoreName({ raw: 'Blue Coffee Co.' })).toBe('blue coffee');
     expect(merchantCoreName({ raw: 'Wolt Georgia, LLC' })).toBe('wolt georgia');
   });
 
@@ -19,7 +19,7 @@ describe('merchantCoreName', () => {
     expect(merchantCoreName({ raw: 'შპს ნორდი' })).toBe('ნორდი');
     expect(merchantCoreName({ raw: 'ი/მ გიორგი' })).toBe('გიორგი');
     expect(merchantCoreName({ raw: 'ООО "Ромашка"' })).toBe('ромашка');
-    expect(merchantCoreName({ raw: 'LLC Nord' })).toBe('nord');
+    expect(merchantCoreName({ raw: 'LLC Blue' })).toBe('blue');
   });
 
   it('keeps a short legal-looking word that starts a name', () => {
@@ -33,7 +33,7 @@ describe('merchantCoreName', () => {
 
 describe('editDistance', () => {
   it('counts inserts, deletes, substitutions and swapped neighbours as one edit each', () => {
-    expect(editDistance({ a: 'nord cofee', b: 'nord coffee' })).toBe(1);
+    expect(editDistance({ a: 'blue cofee', b: 'blue coffee' })).toBe(1);
     expect(editDistance({ a: 'wolt', b: 'wlot' })).toBe(1);
     expect(editDistance({ a: 'spar', b: 'spa' })).toBe(1);
     expect(editDistance({ a: 'cafe', b: 'coffee' })).toBe(3);
@@ -50,13 +50,13 @@ describe('allowedEdits', () => {
 });
 
 describe('matchMerchantCore', () => {
-  const nordCoffee = payee({ id: 'nord', name: 'Nord Coffee', aliases: ['Nord'] });
+  const blueCoffee = payee({ id: 'blue', name: 'Blue Coffee', aliases: ['Blue'] });
   const wolt = payee({ id: 'wolt', name: 'Wolt' });
 
   it('matches a typo and a legal suffix to the one payee they belong to', () => {
-    expect(matchMerchantCore({ rawMerchant: 'NORD COFEE COMPANY LTD', payees: [nordCoffee, wolt] })).toEqual({
+    expect(matchMerchantCore({ rawMerchant: 'BLUE COFEE COMPANY LTD', payees: [blueCoffee, wolt] })).toEqual({
       kind: 'unique',
-      payeeId: 'nord',
+      payeeId: 'blue',
       distance: 1,
     });
   });
@@ -75,28 +75,28 @@ describe('matchMerchantCore', () => {
     const spa = payee({ id: 'spa', name: 'Spa' });
 
     expect(matchMerchantCore({ rawMerchant: 'SPAR', payees: [spa] })).toEqual({ kind: 'none' });
-    expect(matchMerchantCore({ rawMerchant: 'Nord Coffee Batumi', payees: [nordCoffee] })).toEqual({ kind: 'none' });
-    expect(matchMerchantCore({ rawMerchant: 'Coffee Lab', payees: [nordCoffee, wolt] })).toEqual({ kind: 'none' });
+    expect(matchMerchantCore({ rawMerchant: 'Blue Coffee Lisbon', payees: [blueCoffee] })).toEqual({ kind: 'none' });
+    expect(matchMerchantCore({ rawMerchant: 'Coffee Lab', payees: [blueCoffee, wolt] })).toEqual({ kind: 'none' });
   });
 
   it('prefers the payee whose name is equal over one a typo away', () => {
-    const nordCofe = payee({ id: 'nord-cofe', name: 'Nord Cofe' });
+    const blueCofe = payee({ id: 'blue-cofe', name: 'Blue Cofe' });
 
-    expect(matchMerchantCore({ rawMerchant: 'Nord Cofe Ltd', payees: [nordCoffee, nordCofe] })).toEqual({
+    expect(matchMerchantCore({ rawMerchant: 'Blue Cofe Ltd', payees: [blueCoffee, blueCofe] })).toEqual({
       kind: 'unique',
-      payeeId: 'nord-cofe',
+      payeeId: 'blue-cofe',
       distance: 0,
     });
   });
 
   it('reports every close payee when several are as close, in name order', () => {
-    const nordCoffea = payee({ id: 'nord-coffea', name: 'Nord Coffea' });
+    const blueCoffea = payee({ id: 'blue-coffea', name: 'Blue Coffea' });
 
-    expect(matchMerchantCore({ rawMerchant: 'NORD COFFEX LTD', payees: [nordCoffee, nordCoffea] })).toEqual({
+    expect(matchMerchantCore({ rawMerchant: 'BLUE COFFEX LTD', payees: [blueCoffee, blueCoffea] })).toEqual({
       kind: 'ambiguous',
       candidates: [
-        { payeeId: 'nord-coffea', name: 'Nord Coffea', distance: 1 },
-        { payeeId: 'nord', name: 'Nord Coffee', distance: 1 },
+        { payeeId: 'blue-coffea', name: 'Blue Coffea', distance: 1 },
+        { payeeId: 'blue', name: 'Blue Coffee', distance: 1 },
       ],
     });
   });

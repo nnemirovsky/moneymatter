@@ -18,9 +18,9 @@ import { VALID_GEMINI_API_KEY, createGeminiMock } from '@tests/mocks/gemini/mock
 import { getLunchFlowBalanceMock, getLunchFlowTransactionsMock } from '@tests/mocks/lunchflow/mock-api';
 import { randomUUID } from 'node:crypto';
 
-const CARD = 'TBC Visa';
+const CARD = 'Example Visa';
 const OTHER_CARD = 'Revolut Metal';
-const MERCHANT = 'Cafe Heart of Batumi';
+const MERCHANT = 'Cafe Heart of Lisbon';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const payment = (overrides: Record<string, unknown> = {}) => ({

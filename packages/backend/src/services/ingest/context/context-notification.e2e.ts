@@ -14,7 +14,7 @@ import { randomUUID } from 'node:crypto';
 
 import { contextConfig } from './context-config';
 
-const CARD = 'TBC Visa';
+const CARD = 'Example Visa';
 const BASE = global.BASE_CURRENCY_CODE;
 const DEFAULT_CONFIG = { ...contextConfig };
 
@@ -185,7 +185,7 @@ describe('context notifications', () => {
       enableServerModel();
       mockNotificationParsing({
         answer: () => ({}),
-        contextParse: () => ({ isOrderUpdate: true, store: 'Wolt Market Batumi', status: 'accepted', confidence: 0.9 }),
+        contextParse: () => ({ isOrderUpdate: true, store: 'Wolt Market Lisbon', status: 'accepted', confidence: 0.9 }),
       });
 
       // The acceptance comes 14 seconds before the bank's payment, which names another payee.
@@ -193,13 +193,13 @@ describe('context notifications', () => {
         secret,
         body: woltNotification({
           title: 'The staff has seen your order',
-          body: 'A human being has seen your order at Wolt Market Batumi',
+          body: 'A human being has seen your order at Wolt Market Lisbon',
         }),
       });
       expect(acceptance.body.response).toMatchObject({ outcome: 'held', notify: false });
       const payment = await pay({ secret, amount: '46.04', merchant: 'Wolt Market' });
 
-      await until(async () => (await reload({ id: payment.id })).note === 'Wolt Market Batumi order from Wolt', {
+      await until(async () => (await reload({ id: payment.id })).note === 'Wolt Market Lisbon order from Wolt', {
         timeout: 10_000,
         interval: 200,
       });
@@ -214,7 +214,7 @@ describe('context notifications', () => {
         secret,
         body: woltNotification({
           title: 'Order arriving!',
-          body: 'Your order from Wolt Market Batumi is arriving now!',
+          body: 'Your order from Wolt Market Lisbon is arriving now!',
         }),
       });
       expect(arriving.body.response).toMatchObject({ outcome: 'ignored', reason: 'contextRepeat' });

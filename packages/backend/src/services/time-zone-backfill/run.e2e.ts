@@ -17,10 +17,11 @@ const GHOST_FROM = new Date('2030-01-01T00:00:00.000Z');
 
 const groups = (expected: { early: number; late: number }): BackfillGroup[] => [
   { key: 'early', zone: 'Asia/Bangkok', windows: [{ from: null, to: CUT }], expectedRows: expected.early },
-  { key: 'late', zone: 'Asia/Tbilisi', windows: [{ from: CUT, to: null }], expectedRows: expected.late },
+  { key: 'late', zone: 'Asia/Dubai', windows: [{ from: CUT, to: null }], expectedRows: expected.late },
 ];
 
 const importWindow = () => ({
+  displayZone: 'Asia/Dubai',
   importCreatedFrom: new Date(Date.now() - 3_600_000),
   importCreatedTo: new Date(Date.now() + 3_600_000),
 });
@@ -58,13 +59,13 @@ const seed = async () => {
     time: '2026-03-11T02:00:00.000Z',
   });
   const foreignExpense = await create({ accountId: foreign.id, time: '2026-03-13T03:00:00.000Z', amount: 30 });
-  // Late group: 00:30Z is 03:30 on the sheet, 23:30Z the evening before in Tbilisi.
+  // Late group: 00:30Z is 03:30 on the sheet, 23:30Z the evening before in the late zone.
   const late = await create({ accountId: base.id, time: '2026-09-20T00:30:00.000Z' });
   // Already zoned: never touched.
   const zoned = await create({
     accountId: base.id,
     time: '2026-03-12T11:00:00.000Z',
-    timeZone: 'Asia/Tbilisi',
+    timeZone: 'Asia/Dubai',
   });
 
   return { base, foreign, other, early, income, transfer, foreignExpense, late, zoned };
@@ -156,7 +157,7 @@ describe('time zone backfill', () => {
     expect(time(data.late.tx.id)).toBe('2026-09-19T23:30:00.000Z');
     expect(after.get(data.early.tx.id)!.timeZone).toBe('Asia/Bangkok');
     expect(after.get(data.early.tx.id)!.utcOffsetMinutes).toBe(420);
-    expect(after.get(data.late.tx.id)!.timeZone).toBe('Asia/Tbilisi');
+    expect(after.get(data.late.tx.id)!.timeZone).toBe('Asia/Dubai');
     expect(after.get(data.late.tx.id)!.utcOffsetMinutes).toBe(240);
 
     // Both transfer legs carry the same instant and zone.
@@ -174,7 +175,7 @@ describe('time zone backfill', () => {
 
     // The row that already had a zone is left alone.
     expect(after.get(data.zoned.tx.id)!.time).toEqual(before.get(data.zoned.tx.id)!.time);
-    expect(after.get(data.zoned.tx.id)!.timeZone).toBe('Asia/Tbilisi');
+    expect(after.get(data.zoned.tx.id)!.timeZone).toBe('Asia/Dubai');
 
     // The base account's history is the running total with each row on its new UTC day.
     const baseTransactions = await Transactions.findAll({ where: { accountId: data.base.id } });
@@ -218,8 +219,8 @@ describe('time zone backfill', () => {
       apply: false,
       groups: [
         { key: 'early', zone: 'Asia/Bangkok', windows: [{ from: null, to: CUT }], expectedRows: 5 },
-        { key: 'late', zone: 'Asia/Tbilisi', windows: [{ from: CUT, to: GHOST_FROM }], expectedRows: 1 },
-        { key: 'ghost', zone: 'Asia/Tbilisi', windows: [{ from: GHOST_FROM, to: null }], expectedRows: 1 },
+        { key: 'late', zone: 'Asia/Dubai', windows: [{ from: CUT, to: GHOST_FROM }], expectedRows: 1 },
+        { key: 'ghost', zone: 'Asia/Dubai', windows: [{ from: GHOST_FROM, to: null }], expectedRows: 1 },
       ],
       ...importWindow(),
     });
@@ -234,6 +235,7 @@ describe('time zone backfill', () => {
     const report = await runTimeZoneBackfill({
       apply: false,
       groups: groups({ early: 5, late: 1 }),
+      displayZone: 'Asia/Dubai',
       importCreatedFrom: new Date('2020-01-01'),
       importCreatedTo: new Date('2020-01-02'),
     });

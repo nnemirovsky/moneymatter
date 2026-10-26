@@ -13,7 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { notificationLimits, notificationTimings } from './constants';
 import * as notificationProcessing from './process-notification';
 
-const CARD = 'TBC Visa';
+const CARD = 'Example Visa';
 const BASE = global.BASE_CURRENCY_CODE;
 
 const DEFAULT_TIMINGS = { ...notificationTimings };
@@ -33,7 +33,7 @@ const notification = (overrides: Record<string, unknown> = {}) => ({
 const walletPayment = (overrides: Record<string, unknown> = {}) => ({
   kind: 'walletTransaction',
   amount: '47.00',
-  merchant: 'Cafe Heart of Batumi',
+  merchant: 'Cafe Heart of Lisbon',
   card: CARD,
   source: 'apple-pay',
   idempotencyKey: `key-${randomUUID()}`,
@@ -139,7 +139,7 @@ describe('POST /ingest/event', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.response).toMatchObject({ outcome: 'logged', notify: true });
-      expect(res.body.response.summary).toMatch(/^Logged 47\.00 [A-Z]{3} at Cafe Heart of Batumi → /);
+      expect(res.body.response.summary).toMatch(/^Logged 47\.00 [A-Z]{3} at Cafe Heart of Lisbon → /);
       expect(await helpers.getTransactions({ raw: true })).toHaveLength(1);
 
       const [stored] = await storedRequests();
@@ -347,12 +347,12 @@ describe('POST /ingest/event', () => {
 
       const res = await send({
         secret,
-        body: notification({ time: hourAgoWithOffset({ offsetMinutes: 240 }), timeZone: 'Asia/Tbilisi' }),
+        body: notification({ time: hourAgoWithOffset({ offsetMinutes: 240 }), timeZone: 'Asia/Dubai' }),
       });
 
       expect(res.body.response.outcome).toBe('logged');
       const [tx] = await helpers.getTransactions({ raw: true });
-      expect(tx).toMatchObject({ timeZone: 'Asia/Tbilisi', utcOffsetMinutes: 240 });
+      expect(tx).toMatchObject({ timeZone: 'Asia/Dubai', utcOffsetMinutes: 240 });
     });
 
     it('keeps the offset alone when the setting zone differs', async () => {
@@ -376,12 +376,12 @@ describe('POST /ingest/event', () => {
 
     it('records the setting zone for a blank time', async () => {
       const { secret } = await setUpWithCard();
-      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Tbilisi' } });
+      await helpers.patchUserSettings({ raw: true, patch: { timeZone: 'Asia/Dubai' } });
 
       await send({ secret, body: notification() });
 
       const [tx] = await helpers.getTransactions({ raw: true });
-      expect(tx).toMatchObject({ timeZone: 'Asia/Tbilisi', utcOffsetMinutes: 240 });
+      expect(tx).toMatchObject({ timeZone: 'Asia/Dubai', utcOffsetMinutes: 240 });
     });
   });
 
@@ -446,7 +446,7 @@ describe('POST /ingest/event', () => {
     it('creates no source for a messaging notification that was dropped', async () => {
       const secret = await setUp();
 
-      await send({ secret, body: notification({ app: 'Messages', title: 'TBC', body: 'Nothing to see' }) });
+      await send({ secret, body: notification({ app: 'Messages', title: 'Example', body: 'Nothing to see' }) });
 
       expect(await helpers.listNotificationSources({ raw: true })).toEqual([]);
     });
@@ -598,17 +598,17 @@ describe('POST /ingest/event', () => {
     it('records the app on first sight in the mode its app starts in', async () => {
       const secret = await setUp();
 
-      await send({ secret, body: notification({ app: 'TBC Bank', bundleId: 'ge.tbconline.TBC-ipad' }) });
+      await send({ secret, body: notification({ app: 'Example Bank', bundleId: 'com.example.bank' }) });
       await send({
         secret,
-        body: notification({ app: 'Wallet', bundleId: 'com.apple.Passbook', title: 'TBC Bank', body: 'GEL 12.00' }),
+        body: notification({ app: 'Wallet', bundleId: 'com.apple.Passbook', title: 'Example Bank', body: 'GEL 12.00' }),
       });
       await send({ secret, body: notification({ app: 'Unknown Pay', bundleId: 'pl.unknown.pay', body: 'GEL 9.00' }) });
 
       const sources = await helpers.listNotificationSources({ raw: true });
       const modes = Object.fromEntries(sources.map((source) => [source.bundleId, source.mode]));
       expect(modes).toEqual({
-        'ge.tbconline.TBC-ipad': 'auto',
+        'com.example.bank': 'auto',
         'com.apple.Passbook': 'auto',
         'pl.unknown.pay': 'pending',
       });
@@ -617,7 +617,7 @@ describe('POST /ingest/event', () => {
     it('starts the apps the shortcut names by display name in the mode their name earns', async () => {
       const secret = await setUp();
 
-      for (const app of ['Wallet', 'Кошелёк', 'TBC Bank', 'bcc.kz', 'Telegram', 'Ledger Wallet']) {
+      for (const app of ['Wallet', 'Кошелёк', 'Example Bank', 'bcc.kz', 'Telegram', 'Ledger Wallet']) {
         await send({ secret, body: notification({ app, title: app, subtitle: '', body: 'GEL 9.00' }) });
       }
 
@@ -626,7 +626,7 @@ describe('POST /ingest/event', () => {
       // Wallet under its English and its Russian name is one source.
       expect(modes).toEqual({
         Wallet: 'auto',
-        'TBC Bank': 'auto',
+        'Example Bank': 'auto',
         'bcc.kz': 'auto',
         Telegram: 'pending',
         'Ledger Wallet': 'pending',
@@ -638,7 +638,7 @@ describe('POST /ingest/event', () => {
 
       await send({
         secret,
-        body: notification({ app: 'Messages', bundleId: 'com.apple.MobileSMS', title: 'TBC', body: 'GEL 12.00' }),
+        body: notification({ app: 'Messages', bundleId: 'com.apple.MobileSMS', title: 'Example', body: 'GEL 12.00' }),
       });
       await send({
         secret,
@@ -646,7 +646,7 @@ describe('POST /ingest/event', () => {
       });
 
       const sources = await helpers.listNotificationSources({ raw: true });
-      expect(sources.map((source) => source.sender).toSorted()).toEqual(['Mum', 'TBC']);
+      expect(sources.map((source) => source.sender).toSorted()).toEqual(['Example', 'Mum']);
       expect(sources.every((source) => source.conversational && source.mode === 'pending')).toBe(true);
     });
   });

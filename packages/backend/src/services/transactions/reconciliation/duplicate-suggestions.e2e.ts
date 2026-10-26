@@ -427,7 +427,7 @@ describe('Duplicate suggestions', () => {
         secret,
         body: {
           amount: '47.00',
-          merchant: 'Cafe Heart of Batumi',
+          merchant: 'Cafe Heart of Lisbon',
           card: SYNC_CARD,
           source: 'apple-pay',
           idempotencyKey: `key-${randomUUID()}`,
@@ -446,7 +446,7 @@ describe('Duplicate suggestions', () => {
       await syncAccount({
         connectionId,
         accountId,
-        transactions: [booking({ cents: 5200, counterName: 'SPAR BATUMI' })],
+        transactions: [booking({ cents: 5200, counterName: 'SPAR LISBON' })],
       });
 
       const [suggestion] = await waitForOpenSuggestions({ count: 1 });
@@ -468,7 +468,7 @@ describe('Duplicate suggestions', () => {
       await syncAccount({
         connectionId,
         accountId,
-        transactions: [booking({ cents: 300000, counterName: 'SPAR BATUMI' })],
+        transactions: [booking({ cents: 300000, counterName: 'SPAR LISBON' })],
       });
       await helpers.sleep(1500);
 

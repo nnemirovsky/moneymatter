@@ -41,12 +41,12 @@ const makeRequest = (overrides: Partial<CardPaymentRequestDto> = {}): CardPaymen
   status: 'parked',
   reason: 'unknownCard',
   summary: null,
-  cardLabel: 'TBC Visa',
+  cardLabel: 'Example Visa',
   cardLastDigits: null,
   accountGuessId: null,
   aiRetryAt: null,
   aiAlternatives: [],
-  merchant: 'Cafe Heart of Batumi',
+  merchant: 'Cafe Heart of Lisbon',
   amountText: '47,00 GEL',
   time: '2026-10-18T10:00:00.000Z',
   transactionId: null,
@@ -99,9 +99,9 @@ describe('WaitingPayments', () => {
     const { wrapper } = await mountWaiting({ waiting: [makeRequest()] });
 
     const row = rows(wrapper)[0]!;
-    expect(row.get('[data-testid="payment-request-merchant"]').text()).toBe('Cafe Heart of Batumi');
+    expect(row.get('[data-testid="payment-request-merchant"]').text()).toBe('Cafe Heart of Lisbon');
     expect(row.get('[data-testid="payment-request-amount"]').text()).toBe('47,00 GEL');
-    expect(row.get('[data-testid="payment-request-card"]').text()).toBe('TBC Visa');
+    expect(row.get('[data-testid="payment-request-card"]').text()).toBe('Example Visa');
     expect(row.get('[data-testid="payment-request-time"]').text()).toContain('2026');
     expect(row.get('[data-testid="payment-request-reason"]').text()).toBe('The card is not linked to an account.');
   });
@@ -171,7 +171,7 @@ describe('WaitingPayments', () => {
 
   describe('notifications', () => {
     const notification = (overrides: Partial<CardPaymentRequestDto> = {}) =>
-      makeRequest({ pipeline: 'notification', cardLabel: 'TBC CARD', reason: 'unknownAccount', ...overrides });
+      makeRequest({ pipeline: 'notification', cardLabel: 'EXAMPLE CARD', reason: 'unknownAccount', ...overrides });
 
     it('says whether a request came from a Wallet tap or from a notification', async () => {
       const { wrapper } = await mountWaiting({
@@ -277,7 +277,7 @@ describe('WaitingPayments', () => {
       await wrapper.get('[data-testid="waiting-payment-dismiss"]').trigger('click');
       expect(mockDismiss).not.toHaveBeenCalled();
       expect(wrapper.get('[data-testid="alert-dialog"]').text()).toContain(
-        'The payment at Cafe Heart of Batumi will not be logged.',
+        'The payment at Cafe Heart of Lisbon will not be logged.',
       );
 
       await wrapper.get('[data-testid="alert-confirm"]').trigger('click');

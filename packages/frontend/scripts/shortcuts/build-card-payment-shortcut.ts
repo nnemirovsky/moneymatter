@@ -31,7 +31,7 @@ const UNREADABLE_CODE_ERROR =
   'The MoneyMatter setup code could not be read. Generate a new one on the iOS Automation page and add the shortcut again.';
 // To the second: two identical taps inside one minute are two payments, not a retry.
 export const KEY_TIME_FORMAT = "yyyy-MM-dd'T'HH:mm:ssZZZZZ";
-// Apple's date formatter prints the IANA zone ID (`Asia/Tbilisi`) for `VV`.
+// Apple's date formatter prints the IANA zone ID (`Asia/Dubai`) for `VV`.
 export const TIME_ZONE_FORMAT = 'VV';
 const SOURCE = 'apple-pay';
 

@@ -8,7 +8,7 @@ const amazon = { hints: ['amazon'], excludes: ['prime', 'kindle', 'audible', 'mu
 describe('matchesService', () => {
   it('matches the payee and the merchant as a bank prints it', () => {
     expect(matchesService({ texts: ['Wolt'], ...wolt })).toBe(true);
-    expect(matchesService({ texts: [null, 'WOLT.COM TBILISI'], ...wolt })).toBe(true);
+    expect(matchesService({ texts: [null, 'WOLT.COM LISBON'], ...wolt })).toBe(true);
   });
 
   it('does not match another business or part of a word', () => {
@@ -22,10 +22,8 @@ describe('matchesService', () => {
   });
 
   it('matches a hint with punctuation', () => {
-    expect(matchesService({ texts: ['BOLT.EU/F/Tbilisi'], hints: ['bolt food', 'bolt.eu/f'], excludes: [] })).toBe(
-      true,
-    );
-    expect(matchesService({ texts: ['BOLT.EU/R/Tbilisi'], hints: ['bolt food', 'bolt.eu/f'], excludes: [] })).toBe(
+    expect(matchesService({ texts: ['BOLT.EU/F/Lisbon'], hints: ['bolt food', 'bolt.eu/f'], excludes: [] })).toBe(true);
+    expect(matchesService({ texts: ['BOLT.EU/R/Lisbon'], hints: ['bolt food', 'bolt.eu/f'], excludes: [] })).toBe(
       false,
     );
   });
