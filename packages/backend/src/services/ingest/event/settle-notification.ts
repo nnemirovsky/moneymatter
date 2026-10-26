@@ -11,7 +11,7 @@ import { findConversionPartner } from '../conversion/find-conversion-partner';
 import { absorbParkedTwin } from '../twins/absorb-parked-twin';
 import { findJoinedTwins, findParkedTwins, joinedSlots, probeOf, TWIN_PARK_REASONS } from '../twins/find-parked-twins';
 import { lockTwins } from '../twins/lock-twins';
-import type { AiRetryState } from './ai-transient';
+import { readAiRetry, type AiRetryState } from './ai-transient';
 import type { StoredParse } from './stored-parse';
 
 /**
@@ -140,7 +140,8 @@ const parkForAiQuotaImpl = async ({
   const row = await IngestRequests.findOne({ where: { id: requestId }, lock: true });
   if (!row || !(row.status === 'received' || (row.status === 'parked' && row.reason === 'aiQuotaWait'))) return false;
 
-  const first = row.status === 'received';
+  // Only the first park tells the owner; the automatic tries that follow keep the retry state in the payload.
+  const first = !readAiRetry({ payload: row.payload });
   await row.update({
     status: 'parked',
     reason: 'aiQuotaWait',

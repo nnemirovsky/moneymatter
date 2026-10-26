@@ -27,6 +27,7 @@ const INGEST_ATTENTION_REASONS = [
   'aiUnavailable',
   'aiCapReached',
   'aiLimitReached',
+  'aiQuotaWait',
 ];
 
 /**

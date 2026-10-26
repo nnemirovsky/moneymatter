@@ -147,6 +147,24 @@ describe('parseBankPushByRules', () => {
     expect(read({ body })).toBeNull();
   });
 
+  it('does not take a word that is not an ISO currency code for a currency', () => {
+    expect(read({ body: 'Purchase 25.00 FOR\nStreaming Co' })).toBeNull();
+    expect(read({ body: 'Purchase for 25.00\nStreaming Co' })).toBeNull();
+    expect(read({ body: 'Purchase ABC 25.00\nStreaming Co' })).toBeNull();
+  });
+
+  it('takes the currency from a symbol and ignores a code written before it', () => {
+    const payment = read({ body: 'Purchase EUR $25.00\nStreaming Co' })?.classified.payment;
+
+    expect(payment?.currencyCode).toBeNull();
+  });
+
+  it('does not join the digits of a time with the amount after it', () => {
+    const payment = read({ body: 'Purchase 09:15 125.00 USD\nStreaming Co' })?.classified.payment;
+
+    expect(payment).toMatchObject({ amount: '125', currencyCode: 'USD' });
+  });
+
   it('does not read the digits of a masked card as an amount', () => {
     const payment = read({ body: 'Purchase 5.00 EUR\nCard *4321\nKiosk 7' })?.classified.payment;
 

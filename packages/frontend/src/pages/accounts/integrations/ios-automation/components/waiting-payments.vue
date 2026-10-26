@@ -39,7 +39,7 @@
             "
             :disabled="isBusy"
             data-testid="waiting-payment-retry"
-            @click="retry(request)"
+            @click="retry({ request })"
           >
             {{ $t(`${LABEL_ROOT}.${needsApproval({ request }) ? 'approve' : 'retry'}`) }}
           </Button>
@@ -53,7 +53,7 @@
             "
             :disabled="isBusy"
             data-testid="waiting-payment-parse-with"
-            @click="retry(request, connection.id)"
+            @click="retry({ request, aiConnectionId: connection.id })"
           >
             {{ $t(`${LABEL_ROOT}.parseWith`, { connection: connection.name }) }}
           </Button>
@@ -245,7 +245,7 @@ const { mutateAsync: dismissRequest, isPending: isDismissing } = useInvalidating
 
 const isBusy = computed(() => isRetrying.value || isDismissing.value);
 
-const retry = async (request: CardPaymentRequestDto, aiConnectionId?: string) => {
+const retry = async ({ request, aiConnectionId }: { request: CardPaymentRequestDto; aiConnectionId?: string }) => {
   try {
     await retryRequest({ request, aiConnectionId });
   } catch {

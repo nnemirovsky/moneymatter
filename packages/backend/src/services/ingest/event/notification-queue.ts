@@ -118,6 +118,10 @@ export const enqueueNotificationProcessing = async ({ requestId }: { requestId: 
   )) as { attempts: number }[];
   if (!updated) throw new Error(`Ingest request ${requestId} does not exist.`);
 
+  // A try that waits for the AI model is replaced by this one, so two chains of retries never run on one request.
+  const earlier = await notificationIngestQueue.getJob(`${requestId}-${updated.attempts - 1}`);
+  if (earlier && (await earlier.isDelayed())) await earlier.remove();
+
   await notificationIngestQueue.add(
     'process-notification',
     { requestId },

@@ -55,7 +55,7 @@ export const readResetAt = ({ cause, now = new Date() }: { cause: Error; now?: D
 /**
  * When the job runs again after the `attempt`-th transient failure (1-based): the reset time the provider reported,
  * kept between a minute and a day and a half from now, else the next step of `schedule`. `null` once the schedule is
- * spent, and the request waits for the owner.
+ * spent, whatever the provider says, and the request waits for the owner.
  */
 export const nextAiRetryAt = ({
   attempt,
@@ -68,6 +68,8 @@ export const nextAiRetryAt = ({
   schedule: readonly number[];
   now?: Date;
 }): Date | null => {
+  if (attempt > schedule.length) return null;
+
   if (resetAt) {
     const wait = resetAt.getTime() - now.getTime();
     // A reset a few seconds away is about to pass: wait a minute, which is also what a past time becomes.

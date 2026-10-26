@@ -1,6 +1,7 @@
 import { until } from '@common/helpers';
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import IngestRequests from '@models/ingest-requests.model';
+import { DOMAIN_EVENTS, eventBus } from '@services/common/event-bus';
 import { RateLimitService } from '@services/common/rate-limit.service';
 import * as helpers from '@tests/helpers';
 import { enableServerModel, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
@@ -12,6 +13,7 @@ import { HttpResponse, http } from 'msw';
 import { randomUUID } from 'node:crypto';
 
 import { notificationTimings } from './constants';
+import { notificationIngestQueue } from './notification-queue';
 
 const DEFAULT_TIMINGS = { ...notificationTimings, aiRetryScheduleMs: [...notificationTimings.aiRetryScheduleMs] };
 const TEST_TIMEOUT_MS = 60_000;
@@ -246,6 +248,50 @@ describe('a notification while the AI model is out of reach', () => {
       expect(retried).toMatchObject({ outcome: 'parked', reason: 'aiQuotaWait' });
       expect((retried as { summary: string }).summary).toContain('the AI quota of MoneyMatter AI is used up');
       expect((retried as { summary: string }).summary).not.toContain('could not process');
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'keeps one pending try when the owner retries by hand, and restarts the schedule',
+    async () => {
+      notificationTimings.aiRetryScheduleMs = [3_600_000, 3_600_000];
+      serveModel();
+      const { secret } = await setUp();
+      await sendPush({ secret });
+      const waiting = await onlyRequest();
+      expect(await notificationIngestQueue.getDelayedCount()).toBe(1);
+
+      const retried = await helpers.retryCardPaymentRequest({ id: waiting.id, raw: true });
+
+      expect(retried).toMatchObject({ outcome: 'parked', reason: 'aiQuotaWait' });
+      expect(await notificationIngestQueue.getDelayedCount()).toBe(1);
+      expect((await onlyRequest()).payload.aiRetry).toMatchObject({ count: 1 });
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'tells the owner once, not at every automatic try',
+    async () => {
+      notificationTimings.aiRetryScheduleMs = [300, 300, 300];
+      serveModel();
+      const parked: string[] = [];
+      const listener = ({ reason }: { reason: string }) => parked.push(reason);
+      eventBus.on(DOMAIN_EVENTS.INGEST_REQUEST_PARKED, listener);
+      try {
+        const { secret } = await setUp();
+        await sendPush({ secret });
+
+        await until(async () => ((await onlyRequest()).payload.aiRetry as { count: number } | undefined)?.count === 3, {
+          timeout: 50_000,
+          interval: 250,
+        });
+      } finally {
+        eventBus.off(DOMAIN_EVENTS.INGEST_REQUEST_PARKED, listener);
+      }
+
+      expect(parked.filter((reason) => reason === 'aiQuotaWait')).toHaveLength(1);
     },
     TEST_TIMEOUT_MS,
   );

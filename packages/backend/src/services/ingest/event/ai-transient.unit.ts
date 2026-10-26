@@ -60,8 +60,8 @@ describe('nextAiRetryAt', () => {
     const resetAt = new Date('2026-01-15T14:00:00Z');
 
     expect(nextAiRetryAt({ attempt: 1, resetAt, schedule: SCHEDULE, now: NOW })).toEqual(resetAt);
-    // Even when the schedule is spent: the provider says when to come back.
-    expect(nextAiRetryAt({ attempt: 9, resetAt, schedule: SCHEDULE, now: NOW })).toEqual(resetAt);
+    // Once the schedule is spent the tries stop, whatever the provider says.
+    expect(nextAiRetryAt({ attempt: 4, resetAt, schedule: SCHEDULE, now: NOW })).toBeNull();
   });
 
   it('waits at least a minute for a reset that is about to pass or has passed', () => {

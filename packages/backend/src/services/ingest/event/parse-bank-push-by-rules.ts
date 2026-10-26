@@ -10,7 +10,9 @@ export interface RulesPayment {
   symbol: string | null;
 }
 
-const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+const escapeRegExp = ({ value }: { value: string }) => value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+
+const KNOWN_CURRENCY_CODES: ReadonlySet<string> = new Set(Intl.supportedValuesOf('currency'));
 
 const MAX_TEXT_LENGTH = 400;
 const MAX_LINES = 8;
@@ -48,7 +50,7 @@ const TIME = /\b\d{1,2}:\d{2}(?::\d{2})?\b/gu;
 
 /** A signed amount with a currency code or symbol on either side. */
 const MONEY =
-  /([-+−–])?[ \u00a0]*(?:(?<![A-Za-z])([A-Za-z]{3})(?![A-Za-z])[ \u00a0]*)?([$€£¥₴₽₾₺₹])?[ \u00a0]*(\d[\d .,'\u00a0\u202f]*\d|\d)(?:[ \u00a0]*(?<![A-Za-z])([A-Z]{3})(?![A-Za-z]))?/gu;
+  /([-+−–])?[ \u00a0]*(?:(?<![A-Za-z])([A-Z]{3})(?![A-Za-z])[ \u00a0]*)?([$€£¥₴₽₾₺₹])?[ \u00a0]*(\d[\d .,'\u00a0\u202f]*\d|\d)(?:[ \u00a0]*(?<![A-Za-z])([A-Z]{3})(?![A-Za-z]))?/gu;
 
 interface Found {
   amount: string;
@@ -73,8 +75,10 @@ const linesOf = ({ text }: { text: NotificationText }): string[] => {
 };
 
 /** The amounts a line carries (with a currency), and the line without them. */
-const findAmounts = ({ line }: { line: string }): Found[] => {
+const findAmounts = ({ line: original }: { line: string }): Found[] => {
   const found: Found[] = [];
+  // A date or a time sits next to an amount in some layouts; its digits are never part of the number.
+  const line = original.replace(DATE, ' | ').replace(TIME, ' | ');
   const rest = line.replace(
     MONEY,
     (
@@ -85,7 +89,9 @@ const findAmounts = ({ line }: { line: string }): Found[] => {
       digits: string,
       after: string | undefined,
     ) => {
-      const code = (after ?? before ?? '').toUpperCase() || null;
+      // A code is a known ISO code written in capitals; a symbol in front of the number settles the currency by itself.
+      const written = after ?? (symbol ? undefined : before);
+      const code = written && KNOWN_CURRENCY_CODES.has(written) ? written : null;
       const parsed = parseAmount({ input: `${code ?? ''} ${symbol ?? ''}${digits}`.trim() });
       if (!parsed.ok || (!parsed.currencyCode && !parsed.symbol && !code && !symbol)) return token;
 
@@ -243,7 +249,7 @@ export const parseBankPushByRules = ({
     bankNames
       .reduce(
         (acc, name) =>
-          acc.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(name)}(?![\\p{L}\\p{N}])`, 'giu'), ' '),
+          acc.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp({ value: name })}(?![\\p{L}\\p{N}])`, 'giu'), ' '),
         piece,
       )
       .replace(/\s+/gu, ' ')
