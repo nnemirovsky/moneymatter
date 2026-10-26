@@ -30,7 +30,7 @@ const wordsPattern = ({ words }: { words: string }): RegExp =>
 /** Words (several languages) of a message that is not a plain card payment: a refusal, a hold, a transfer, a fee. */
 const NOT_PLAIN_PAYMENT = wordsPattern({
   words:
-    'declin\\p{L}*|refus\\p{L}*|reject\\p{L}*|fail\\p{L}*|insufficient|limit|code|otp|hold|pending|authori[sz]\\p{L}*|reserv\\p{L}*|transfer\\p{L}*|exchange\\p{L}*|conver\\p{L}*|cashback|bonus|fee|commission|installment|loan|overdraft|reversal|cancel\\p{L}*|unsuccess\\p{L}*|revers\\p{L}*|return\\p{L}*|error|not completed|deni\\p{L}*|block\\p{L}*|void\\p{L}*|suspend\\p{L}*|unauthori[sz]\\p{L}*|attempt\\p{L}*|due|request\\p{L}*|upcoming|scheduled|expected|will|tomorrow|invoice|bill|statement|not|no|не|ні|нет|remind\\p{L}*|from|to|ошибк\\p{L}*|не прошл\\p{L}*|не прош\\p{L}*|не вдал\\p{L}*|помилк\\p{L}*|від|от|до|отказ\\p{L}*|отклон\\p{L}*|недостаточно|лимит|код|блокир\\p{L}*|перевод\\p{L}*|обмен\\p{L}*|конверт\\p{L}*|комисс\\p{L}*|кэшбэк|бонус|кредит\\p{L}*|відмов\\p{L}*|відхил\\p{L}*|недостатньо|ліміт|переказ\\p{L}*|обмін\\p{L}*|комісі\\p{L}*|кешбек',
+    'declin\\p{L}*|refus\\p{L}*|reject\\p{L}*|fail\\p{L}*|insufficient|limit|code|otp|hold|pending|authori[sz]\\p{L}*|reserv\\p{L}*|transfer\\p{L}*|exchange\\p{L}*|conver\\p{L}*|cashback|bonus|fee|commission|installment|loan|overdraft|reversal|cancel\\p{L}*|unsuccess\\p{L}*|revers\\p{L}*|return\\p{L}*|error|not completed|deni\\p{L}*|скасов\\p{L}*|отмен\\p{L}*|заблок\\p{L}*|холд|резерв\\p{L}*|зарезерв\\p{L}*|неусп\\p{L}*|held|pre-?auth\\p{L}*|revert\\p{L}*|chargeback|account|a/c|рахунок|рахунк\\p{L}*|счет|счёт|block\\p{L}*|void\\p{L}*|suspend\\p{L}*|unauthori[sz]\\p{L}*|attempt\\p{L}*|due|request\\p{L}*|upcoming|scheduled|expected|will|tomorrow|invoice|bill|statement|not|no|не|ні|нет|remind\\p{L}*|from|to|ошибк\\p{L}*|не прошл\\p{L}*|не прош\\p{L}*|не вдал\\p{L}*|помилк\\p{L}*|від|от|до|отказ\\p{L}*|отклон\\p{L}*|недостаточно|лимит|код|блокир\\p{L}*|перевод\\p{L}*|обмен\\p{L}*|конверт\\p{L}*|комисс\\p{L}*|кэшбэк|бонус|кредит\\p{L}*|відмов\\p{L}*|відхил\\p{L}*|недостатньо|ліміт|переказ\\p{L}*|обмін\\p{L}*|комісі\\p{L}*|кешбек',
 });
 
 const DEBIT_WORDS = wordsPattern({
@@ -47,7 +47,7 @@ const BALANCE_WORDS = wordsPattern({ words: 'balance|bal|avail\\p{L}*|остат
 
 /** A masked card number or "ending 1234": the digits are the card's, not an amount. */
 const CARD_MASK =
-  /(?:[*•·x×]+[  ]?|(?:ending|ends|card|карт\p{L}*|№|#)[  ]*(?:in|on|на)?[  ]*[*•·x×]*[  ]?)(\d{4,8})\b/iu;
+  /(?:(?<![\p{L}\p{N}])[*•·x×]+[ \u00a0]?|(?:ending|ends|card|карт\p{L}*)[ \u00a0]*(?:in|on|на)?[ \u00a0]*[*•·x×#№]*[ \u00a0]?)(\d{4,8})\b/iu;
 
 /** The word "card" alone on a line of words ("Card payment") names no merchant. */
 const CARD_WORD = wordsPattern({ words: 'card|карта|карт\\p{L}*' });
@@ -114,9 +114,16 @@ const findAmounts = ({ line: original }: { line: string }): Found[] | null => {
       // Doubt, left to the AI: a space inside the digits (a store number may be joined to the amount), a lone separator
       // before exactly three digits ("1.250" is one and a quarter or twelve hundred and fifty), a code on each side.
       const followedByNumber = after !== undefined && /^[ \u00a0]*\d/u.test(line.slice(offset + token.length));
+      // A symbol on each side, a symbol after the number, a symbol with a code beside it, or a number in front of a symbol
+      // amount all leave the currency or the amount in doubt.
+      const symbolTrouble =
+        /^[ \u00a0]*[$€£¥₴₽₾₺₹]/u.test(line.slice(offset + token.length)) ||
+        (symbol !== undefined && (before !== undefined || after !== undefined)) ||
+        (symbol !== undefined && /\d[ \u00a0]*$/u.test(line.slice(0, offset)));
       const bothCodes = before && after && KNOWN_CURRENCY_CODES.has(before) && KNOWN_CURRENCY_CODES.has(after);
       if (
         followedByNumber ||
+        symbolTrouble ||
         /[ \u00a0\u202f]/u.test(digits) ||
         /^\d+[.,]\d{3}$/u.test(digits) ||
         (bothCodes && before !== after)
@@ -190,17 +197,23 @@ const readLine = ({ line }: { line: string }): LineReading | null => {
   if (!amounts) return null;
   rest = amounts[0]?.rest ?? rest;
 
+  // "Credit card" and "debit card" name a card, not a direction.
+  rest = rest.replace(CARD_KIND, ' | ');
+
   let card: LineReading['card'] = null;
   const mask = CARD_MASK.exec(rest);
   if (mask) {
     const before = rest.slice(0, mask.index);
     const network = CARD_NETWORK.exec(before);
+    // A word in front of the digits that is no card network ("Gold Card *1234") is a card label, which the AI reads.
+    const lead = before
+      .replace(globally({ pattern: DEBIT_WORDS }), ' ')
+      .replace(globally({ pattern: CREDIT_WORDS }), ' ');
+    if (!network && /[\p{L}\p{N}][ \u00a0]*$/u.test(lead)) return null;
     card = { digits: mask[1]!, name: network ? network[0].trim() : null };
     rest = `${network ? before.slice(0, network.index) : before} | ${rest.slice(mask.index + mask[0].length)}`;
   }
 
-  // "Credit card" and "debit card" name a card, not a direction.
-  rest = rest.replace(CARD_KIND, ' | ');
   // A card's own label ("Gold Card") is the AI's to read, with the card of the account it belongs to.
   if (CARD_LABEL.test(rest)) return null;
 
@@ -286,7 +299,7 @@ export const parseBankPushByRules = ({
   direction ??= signed;
   if (!direction) return null;
 
-  // A piece that ends in a colon is a bank's own label ("Deposit Money:"), and one that is a card's name is the AI's to read.
+  // A piece that ends in a colon is a bank's own label ("Deposit Money:"), which the AI reads.
   // The bank's own name (the app's name, or its first word) is not the merchant, wherever it stands in the text.
   const bankNames = [
     (appName ?? '').trim(),
@@ -305,7 +318,6 @@ export const parseBankPushByRules = ({
   );
   const named = [...new Set(withoutBrand.filter((piece) => /\p{L}/u.test(piece)))];
   if (named.some((piece) => /:\s*$/u.test(piece))) return null;
-  if (named.some((piece) => /(?:^| )card$/iu.test(piece))) return null;
   if (named.length > 1) return null;
   // A short name, not a sentence: banks print a merchant in capitals or title case, so a word that starts in lower case,
   // a preposition, closing punctuation or many words mean the text says more than a merchant.

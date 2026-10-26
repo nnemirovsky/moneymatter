@@ -153,10 +153,8 @@ describe('parseBankPushByRules', () => {
     expect(read({ body: 'Purchase ABC 25.00\nStreaming Co' })).toBeNull();
   });
 
-  it('takes the currency from a symbol and ignores a code written before it', () => {
-    const payment = read({ body: 'Purchase EUR $25.00\nStreaming Co' })?.classified.payment;
-
-    expect(payment?.currencyCode).toBeNull();
+  it('leaves to the AI an amount with both a symbol and a code', () => {
+    expect(read({ body: 'Purchase EUR $25.00\nStreaming Co' })).toBeNull();
   });
 
   it('does not join the digits of a time with the amount after it', () => {
@@ -244,6 +242,26 @@ describe('parseBankPushByRules', () => {
     ).toMatchObject({
       amount: '-10',
     });
+  });
+
+  it('leaves to the AI a word that is an ISO code next to a symbol amount, a symbol after the number, and a number in front of a symbol', () => {
+    expect(read({ body: 'Purchase $25.00 Top\nShop Blue' })).toBeNull();
+    expect(read({ body: 'Purchase 25.00$\nShop Blue' })).toBeNull();
+    expect(read({ body: 'Purchase 1234 $25.00 Shop Blue' })).toBeNull();
+  });
+
+  it('does not let "credit card" with a mask read as income, nor a merchant ending in x as a card', () => {
+    expect(read({ body: 'Credit card *1234\n$25.00 Amazon' })).toBeNull();
+    expect(read({ body: 'Purchase 25.00 USD\nGold Card *1234' })).toBeNull();
+    expect(read({ body: 'Purchase 25.00 USD\nSTORE 1234' })?.classified.payment).toMatchObject({
+      merchant: 'STORE 1234',
+      cardLastDigits: null,
+    });
+  });
+
+  it('leaves to the AI a cancelled or reserved payment in Cyrillic, and a payment from an account', () => {
+    expect(read({ body: 'Purchase 25.00 USD\nShop Blue Скасовано' })).toBeNull();
+    expect(read({ body: 'Purchase 25.00 USD from account 1234 Shop Blue' })).toBeNull();
   });
 
   it('does not read the digits of a masked card as an amount', () => {
