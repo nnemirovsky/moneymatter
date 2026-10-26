@@ -186,6 +186,7 @@ const WAITING_REASONS: ReadonlyArray<NonNullable<CardPaymentRequestDto['reason']
   'aiUnavailable',
   'aiCapReached',
   'aiLimitReached',
+  'aiQuotaWait',
   'ownTransfer',
   'lowConfidence',
   'holdReleased',

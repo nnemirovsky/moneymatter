@@ -50,6 +50,7 @@ export const UNCLASSIFIED_PARK_REASONS: readonly NotificationParkReason[] = [
   'aiUnavailable',
   'aiCapReached',
   'aiLimitReached',
+  'aiQuotaWait',
 ];
 
 /** The reasons that need the owner's word before the payment is logged, so a retry must say `force`. */

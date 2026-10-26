@@ -243,6 +243,8 @@ export const NOTIFICATION_PARK_REASONS = [
   'aiUnavailable',
   'aiCapReached',
   'aiLimitReached',
+  /** The model is out of reach (a used-up quota, a rate limit, an overload); the request is retried by itself. */
+  'aiQuotaWait',
   'ownTransfer',
   'lowConfidence',
   /** The model read an amount the notification does not print. */
@@ -309,6 +311,10 @@ export interface CardPaymentRequestDto {
   amountText: string | null;
   /** The payment time the client sent, else the time the server received the request. */
   time: string;
+  /** For a notification waiting on the AI model (`aiQuotaWait`): when the next automatic try is due, if one is. */
+  aiRetryAt: string | null;
+  /** For that notification: the owner's other AI connections it could be read with now. */
+  aiAlternatives: { id: string; name: string }[];
   transactionId: RecordId | null;
   createdAt: string;
 }
@@ -343,6 +349,11 @@ export interface RetryCardPaymentRequestPayload {
    * retrying such a request answers 409 with the park reason.
    */
   force?: boolean;
+  /**
+   * For a notification waiting on the AI model: read it with this AI connection of the owner instead of the feature's
+   * own one. The choice is explicit and stays with that request.
+   */
+  aiConnectionId?: string;
 }
 
 /** A card label payments are waiting on, with how many. */

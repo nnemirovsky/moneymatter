@@ -35,6 +35,8 @@ const makeRequest = (overrides: Partial<CardPaymentRequestDto>): CardPaymentRequ
   cardLabel: 'TBC Visa',
   cardLastDigits: null,
   accountGuessId: null,
+  aiRetryAt: null,
+  aiAlternatives: [],
   merchant: 'Cafe',
   amountText: '47,00 GEL',
   time: '2026-10-18T10:00:00.000Z',

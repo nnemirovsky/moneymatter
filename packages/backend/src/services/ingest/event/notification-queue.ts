@@ -56,6 +56,11 @@ export const notificationIngestWorker = new Worker<NotificationJobData>(
   queueName,
   async (job: Job<NotificationJobData>, token?: string) => {
     const result = await notificationProcessing.processNotification({ requestId: job.data.requestId });
+    // The AI model is out of reach: the job is put back to run at the time the request names, without an attempt.
+    if (typeof result === 'object') {
+      await job.moveToDelayed(result.retryAt.getTime(), token);
+      throw new DelayedError();
+    }
     if (result !== 'locked') return;
 
     // A base-currency change holds the user's lock. The job goes back to the delayed set without

@@ -373,6 +373,8 @@ describe('hasInboxCard', () => {
     cardLabel: null,
     cardLastDigits: null,
     accountGuessId: null,
+    aiRetryAt: null,
+    aiAlternatives: [],
     merchant: 'Wolt',
     amountText: '43.60 GEL',
     time: '2026-10-18T10:00:00.000Z',

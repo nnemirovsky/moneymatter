@@ -7,7 +7,7 @@ import * as helpers from '@tests/helpers';
 import { enableServerModel, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
 import { approveCardAsIs, confirmCardOf } from '@tests/helpers/ingest-cards';
 import * as ingestHelpers from '@tests/helpers/ingest-tokens';
-import { mockNotificationParsing } from '@tests/helpers/notification-ai';
+import { mockNotificationParsing, useAiOnlyNotificationParsing } from '@tests/helpers/notification-ai';
 import { randomUUID } from 'node:crypto';
 
 import { notificationTimings } from './constants';
@@ -63,6 +63,7 @@ const aliasesOf = async ({ payeeId }: { payeeId: string }) =>
 
 describe('payee resolution of a notification', () => {
   useSelfHostWithoutServerAiKeys();
+  useAiOnlyNotificationParsing();
 
   beforeEach(async () => {
     enableServerModel();

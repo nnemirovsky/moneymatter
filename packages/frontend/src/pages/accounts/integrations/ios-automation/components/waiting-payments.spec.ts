@@ -44,6 +44,8 @@ const makeRequest = (overrides: Partial<CardPaymentRequestDto> = {}): CardPaymen
   cardLabel: 'TBC Visa',
   cardLastDigits: null,
   accountGuessId: null,
+  aiRetryAt: null,
+  aiAlternatives: [],
   merchant: 'Cafe Heart of Batumi',
   amountText: '47,00 GEL',
   time: '2026-10-18T10:00:00.000Z',
@@ -102,6 +104,47 @@ describe('WaitingPayments', () => {
     expect(row.get('[data-testid="payment-request-card"]').text()).toBe('TBC Visa');
     expect(row.get('[data-testid="payment-request-time"]').text()).toContain('2026');
     expect(row.get('[data-testid="payment-request-reason"]').text()).toBe('The card is not linked to an account.');
+  });
+
+  describe('a notification waiting on the AI model', () => {
+    const waitingOnAi = (overrides: Partial<CardPaymentRequestDto> = {}) =>
+      makeRequest({
+        pipeline: 'notification',
+        reason: 'aiQuotaWait',
+        summary: 'Waiting: the AI quota of Work Claude is used up. Retrying automatically (next try about 06:30).',
+        aiRetryAt: '2026-10-18T06:30:00.000Z',
+        aiAlternatives: [
+          { id: 'conn-a', name: 'Home Gemini' },
+          { id: 'conn-b', name: 'Spare key' },
+        ],
+        ...overrides,
+      });
+
+    it("says why it waits with the server's line, not the generic one", async () => {
+      const { wrapper } = await mountWaiting({ waiting: [waitingOnAi()] });
+
+      expect(rows(wrapper)[0]!.get('[data-testid="payment-request-reason"]').text()).toBe(
+        'Waiting: the AI quota of Work Claude is used up. Retrying automatically (next try about 06:30).',
+      );
+    });
+
+    it('offers each other connection as an explicit action and retries with the chosen one', async () => {
+      const { wrapper } = await mountWaiting({ waiting: [waitingOnAi()] });
+
+      const buttons = wrapper.findAll('[data-testid="waiting-payment-parse-with"]');
+      expect(buttons.map((button) => button.text())).toEqual(['Parse with Home Gemini', 'Parse with Spare key']);
+
+      await buttons[1]!.trigger('click');
+      await flushPromises();
+
+      expect(mockRetry).toHaveBeenCalledWith({ id: 'request-1', aiConnectionId: 'conn-b' });
+    });
+
+    it('offers no action when the owner has no other connection', async () => {
+      const { wrapper } = await mountWaiting({ waiting: [waitingOnAi({ aiAlternatives: [] })] });
+
+      expect(wrapper.find('[data-testid="waiting-payment-parse-with"]').exists()).toBe(false);
+    });
   });
 
   it('lists an interrupted payment like any other', async () => {

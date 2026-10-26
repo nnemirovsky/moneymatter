@@ -1,14 +1,15 @@
 import { AI_FEATURE, hasServerAiEntitlement, type NotificationParkReason } from '@bt/shared/types';
-import { AI_MAX_OUTPUT_TOKENS, aiCallGuards, createAIClient } from '@services/ai';
+import { AI_MAX_OUTPUT_TOKENS, aiCallGuards, classifyAiCallFailure, createAIClient } from '@services/ai';
 import { isWithinAiAllowance } from '@services/ai/ai-allowance';
 import { createShortIds } from '@services/ai/short-ids';
 import { trackAiUsage } from '@services/ai/track-ai-usage';
 import { getEntitlementsByUserId } from '@services/entitlements/resolve-entitlements.service';
 import { resolveAiExtractionFailure } from '@services/import-export/core/ai-extraction-failure';
-import { markConnectionValid } from '@services/user-settings/ai-connections';
+import { getConnectionInfos, markConnectionValid } from '@services/user-settings/ai-connections';
 import { Output, generateText } from 'ai';
 
 import { takeIngestAiCall } from './ai-daily-limit';
+import { AiTransientError, isAiTransientKind, readResetAt } from './ai-transient';
 import {
   type ClassifiedNotification,
   type NotificationParseOutput,
@@ -47,6 +48,19 @@ const describeMissingClient = async ({ userId }: { userId: number }): Promise<Ai
   return 'aiUnavailable';
 };
 
+/** The name the owner gave the AI connection, else a plain name for the included model. */
+const connectionNameOf = async ({
+  userId,
+  connectionId,
+}: {
+  userId: number;
+  connectionId: string | null;
+}): Promise<string> => {
+  if (!connectionId) return 'MoneyMatter AI';
+
+  return (await getConnectionInfos({ userId })).find((info) => info.id === connectionId)?.name ?? 'AI';
+};
+
 /**
  * Reads one notification with the `notificationParsing` model.
  *
@@ -66,14 +80,21 @@ export const parseNotificationWithAi = async ({
   source,
   candidates,
   nonZeroCurrencies,
+  pinnedConnectionId,
 }: {
   userId: number;
   text: NotificationText;
   source: PromptNotificationSource;
   candidates: readonly PayeeCandidate[];
   nonZeroCurrencies: readonly string[];
+  /** The owner chose this connection for this notification (not the feature's own one): the call runs on it. */
+  pinnedConnectionId?: string | null;
 }): Promise<NotificationAiResult> => {
-  const aiClient = await createAIClient({ userId, feature: AI_FEATURE.notificationParsing });
+  const aiClient = await createAIClient({
+    userId,
+    feature: AI_FEATURE.notificationParsing,
+    ...(pinnedConnectionId && { pinnedConnectionId }),
+  });
   if (!aiClient) return { status: 'unavailable', reason: await describeMissingClient({ userId }) };
 
   if (!(await takeIngestAiCall({ userId }))) return { status: 'unavailable', reason: 'aiLimitReached' };
@@ -113,6 +134,18 @@ export const parseNotificationWithAi = async ({
       error,
       logPrefix: '[Notification Parse]',
     });
+    // A used-up quota, a rate limit or an overloaded provider passes: the request waits and is read later.
+    const { kind, cause } = classifyAiCallFailure({ error });
+    if (isAiTransientKind(kind)) {
+      throw new AiTransientError({
+        kind,
+        resetAt: readResetAt({ cause }),
+        connectionId: aiClient.connectionId ?? null,
+        connectionName: await connectionNameOf({ userId, connectionId: aiClient.connectionId ?? null }),
+        cause,
+      });
+    }
+
     throw new Error(failure.error.message, { cause: error });
   }
 

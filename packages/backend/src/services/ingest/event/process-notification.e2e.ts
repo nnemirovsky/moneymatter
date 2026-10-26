@@ -10,7 +10,7 @@ import { buildLockKey } from '@services/currencies/base-currency-lock';
 import * as helpers from '@tests/helpers';
 import { enableServerModel, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
 import * as ingestHelpers from '@tests/helpers/ingest-tokens';
-import { mockNotificationParsing } from '@tests/helpers/notification-ai';
+import { mockNotificationParsing, useAiOnlyNotificationParsing } from '@tests/helpers/notification-ai';
 import { getLunchFlowBalanceMock, getLunchFlowTransactionsMock } from '@tests/mocks/lunchflow/mock-api';
 import { addHours, startOfDay, subDays } from 'date-fns';
 import { randomUUID } from 'node:crypto';
@@ -115,6 +115,7 @@ const seedRateDay = async ({ daysAgo, ratesPerUsd }: { daysAgo: number; ratesPer
 
 describe('process notification', () => {
   useSelfHostWithoutServerAiKeys();
+  useAiOnlyNotificationParsing();
 
   beforeEach(async () => {
     // Long enough for a categorization that has no model to answer under load; a hanging one is not tested here.
@@ -485,7 +486,7 @@ describe('process notification', () => {
     describe('when processing fails', () => {
       it('parks as processingFailed after every attempt, and a retry enqueues the next attempt and logs it', async () => {
         notificationTimings.waitBudgetMs = 60_000;
-        mockNotificationParsing({ answer: () => 'fail' });
+        mockNotificationParsing({ answer: () => 'garbage' });
         const { secret } = await setUp();
 
         const parked = await send({ secret, body: push() });

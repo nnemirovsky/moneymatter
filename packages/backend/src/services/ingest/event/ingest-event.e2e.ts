@@ -7,6 +7,7 @@ import { RateLimitService } from '@services/common/rate-limit.service';
 import { buildLockKey } from '@services/currencies/base-currency-lock';
 import * as helpers from '@tests/helpers';
 import * as ingestHelpers from '@tests/helpers/ingest-tokens';
+import { useAiOnlyNotificationParsing } from '@tests/helpers/notification-ai';
 import { randomUUID } from 'node:crypto';
 
 import { notificationLimits, notificationTimings } from './constants';
@@ -82,6 +83,7 @@ afterEach(async () => {
 });
 
 describe('POST /ingest/event', () => {
+  useAiOnlyNotificationParsing();
   describe('kind', () => {
     it.each([
       ['no kind', { kind: undefined }],

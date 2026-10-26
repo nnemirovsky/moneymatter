@@ -54,7 +54,9 @@ const prepareNotificationRetryImpl = async ({
 
   // Back to `received` under the row lock: of two concurrent retries the second finds a request
   // that is not waiting any more. The stored text and reading stay, so the job starts from them.
-  await row.update({ status: 'received', reason: null, summary: null });
+  // A new try by hand starts the automatic schedule over if the model is still out of reach.
+  const { aiRetry: _spent, ...payload } = row.payload;
+  await row.update({ status: 'received', reason: null, summary: null, payload });
 
   return { kind: 'ready' };
 };

@@ -197,6 +197,8 @@
             "description": "Every payment the shortcut sent has been logged."
           },
           "unknownMerchant": "No merchant",
+          "parseWith": "Parse with {connection}",
+          "parseWithAria": "Parse the payment at {name} with {connection}",
           "unknownAmount": "No amount",
           "unknownCard": "No card",
           "reasons": {
@@ -211,6 +213,7 @@
             "aiUnavailable": "No AI model is available to read this notification. Retry once one is set up.",
             "aiCapReached": "The monthly AI limit is reached. Retry after it resets or once you raise it.",
             "aiLimitReached": "The daily limit for reading notifications is reached. Retry tomorrow.",
+            "aiQuotaWait": "The AI model is out of reach right now. MoneyMatter retries automatically.",
             "ownTransfer": "This looks like a transfer between your own accounts. Log it anyway, or settle it in the inbox.",
             "lowConfidence": "MoneyMatter is not sure this is a payment. Log it if it is, or dismiss it.",
             "holdReleased": "A hold and its release cancelled each other out, so nothing was logged.",

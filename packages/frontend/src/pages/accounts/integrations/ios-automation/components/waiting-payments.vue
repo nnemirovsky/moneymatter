@@ -44,6 +44,20 @@
             {{ $t(`${LABEL_ROOT}.${needsApproval({ request }) ? 'approve' : 'retry'}`) }}
           </Button>
           <Button
+            v-for="connection in request.aiAlternatives"
+            :key="connection.id"
+            variant="outline"
+            size="sm"
+            :aria-label="
+              $t(`${LABEL_ROOT}.parseWithAria`, { connection: connection.name, name: merchantName({ request }) })
+            "
+            :disabled="isBusy"
+            data-testid="waiting-payment-parse-with"
+            @click="retry(request, connection.id)"
+          >
+            {{ $t(`${LABEL_ROOT}.parseWith`, { connection: connection.name }) }}
+          </Button>
+          <Button
             variant="soft-destructive"
             size="sm"
             :aria-label="$t(`${LABEL_ROOT}.dismissAria`, { name: merchantName({ request }) })"
@@ -202,8 +216,12 @@ const merchantName = ({ request }: { request: CardPaymentRequestDto }) =>
   request.merchant ?? t(`${LABEL_ROOT}.unknownMerchant`);
 
 const { mutateAsync: retryRequest, isPending: isRetrying } = useInvalidatingMutation({
-  mutationFn: (request: CardPaymentRequestDto) =>
-    retryCardPaymentRequest({ id: request.id, ...(needsApproval({ request }) && { force: true }) }),
+  mutationFn: ({ request, aiConnectionId }: { request: CardPaymentRequestDto; aiConnectionId?: string }) =>
+    retryCardPaymentRequest({
+      id: request.id,
+      ...(needsApproval({ request }) && { force: true }),
+      ...(aiConnectionId && { aiConnectionId }),
+    }),
   invalidateKeys: [
     VUE_QUERY_CACHE_KEYS.cardPaymentRequests,
     VUE_QUERY_CACHE_KEYS.unlinkedCards,
@@ -227,9 +245,9 @@ const { mutateAsync: dismissRequest, isPending: isDismissing } = useInvalidating
 
 const isBusy = computed(() => isRetrying.value || isDismissing.value);
 
-const retry = async (request: CardPaymentRequestDto) => {
+const retry = async (request: CardPaymentRequestDto, aiConnectionId?: string) => {
   try {
-    await retryRequest(request);
+    await retryRequest({ request, aiConnectionId });
   } catch {
     // useInvalidatingMutation already told the user what failed.
   }
