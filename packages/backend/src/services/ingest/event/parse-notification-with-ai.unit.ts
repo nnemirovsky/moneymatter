@@ -285,8 +285,29 @@ describe('parseNotificationWithAi', () => {
   });
 
   it('runs on the connection the owner chose for this notification', async () => {
-    answerWith(fixture('tbc-ka-debit').answer);
-    const { title, subtitle, body, appName, bundleId } = fixture('tbc-ka-debit');
+    answerWith({
+      kind: 'debit',
+      stage: 'payment',
+      isOwnAccountTransfer: false,
+      amount: '12.50',
+      currency: 'EUR',
+      originalAmount: null,
+      originalCurrency: null,
+      merchant: 'Example Shop',
+      payee: null,
+      cardName: null,
+      cardLastDigits: null,
+      balanceAfter: null,
+      occurredAt: null,
+      confidence: 0.95,
+    });
+    const [title, subtitle, body, appName, bundleId] = [
+      'Example Bank',
+      '',
+      'Purchase 12.50 EUR at Example Shop',
+      'Example Bank',
+      null,
+    ];
 
     await parseNotificationWithAi({
       userId: 7,

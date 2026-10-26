@@ -86,13 +86,13 @@ describe('formatNextTry', () => {
   it('shows the clock time in the owner zone when it is today, and the day with it when it is not', () => {
     const today = formatNextTry({
       at: new Date('2026-01-15T14:30:00Z'),
-      timeZone: 'Asia/Tbilisi',
+      timeZone: 'Europe/Berlin',
       locale: 'en',
       now: NOW,
     });
     const later = formatNextTry({
       at: new Date('2026-01-16T14:30:00Z'),
-      timeZone: 'Asia/Tbilisi',
+      timeZone: 'Europe/Berlin',
       locale: 'en',
       now: NOW,
     });
