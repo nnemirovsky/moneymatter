@@ -97,8 +97,8 @@ describe('formatNextTry', () => {
       now: NOW,
     });
 
-    expect(today.replace(/\u202f/gu, ' ')).toBe('06:30 PM');
-    expect(later.replace(/\u202f/gu, ' ')).toBe('Jan 16, 06:30 PM');
+    expect(today.replace(/\u202f/gu, ' ')).toBe('03:30 PM');
+    expect(later.replace(/\u202f/gu, ' ')).toBe('Jan 16, 03:30 PM');
   });
 });
 

@@ -74,6 +74,16 @@ const run = ({
   });
 };
 
+const apiError = ({ status, headers }: { status: number; headers?: Record<string, string> }) =>
+  new APICallError({
+    message: 'limit',
+    url: 'https://example.test',
+    requestBodyValues: {},
+    statusCode: status,
+    responseHeaders: headers,
+    isRetryable: status >= 500,
+  });
+
 const answerWith = (output: NotificationParseOutput) =>
   generateTextMock.mockResolvedValue({ output, usage: { inputTokens: 100, outputTokens: 20 } });
 
@@ -221,16 +231,6 @@ describe('parseNotificationWithAi', () => {
   });
 
   describe('while the model is out of reach', () => {
-    const apiError = ({ status, headers }: { status: number; headers?: Record<string, string> }) =>
-      new APICallError({
-        message: 'limit',
-        url: 'https://example.test',
-        requestBodyValues: {},
-        statusCode: status,
-        responseHeaders: headers,
-        isRetryable: status >= 500,
-      });
-
     const caught = async () => {
       let thrown: unknown;
       await run().catch((error: unknown) => {
