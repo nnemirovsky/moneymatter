@@ -5,10 +5,11 @@ import { isWithinAiAllowance } from '@services/ai/ai-allowance';
 import { trackAiUsage } from '@services/ai/track-ai-usage';
 import { getEntitlementsByUserId } from '@services/entitlements/resolve-entitlements.service';
 import { resolveAiExtractionFailure } from '@services/import-export/core/ai-extraction-failure';
-import { markConnectionValid } from '@services/user-settings/ai-connections';
-import { generateText } from 'ai';
+import { getConnectionInfos, markConnectionValid } from '@services/user-settings/ai-connections';
+import { APICallError, generateText } from 'ai';
 
 import { takeIngestAiCall } from './ai-daily-limit';
+import { AiTransientError } from './ai-transient';
 import type { NotificationParseOutput } from './classify-notification';
 import { notificationFixtures } from './fixtures/notifications';
 import { parseNotificationWithAi } from './parse-notification-with-ai';
@@ -21,13 +22,19 @@ jest.mock('ai', () => ({
 jest.mock('@services/ai', () => ({
   createAIClient: jest.fn(),
   aiCallGuards: jest.fn(() => ({ abortSignal: undefined, maxRetries: 0 })),
+  classifyAiCallFailure: (
+    jest.requireActual('@services/ai/ai-error-classifiers') as typeof import('@services/ai/ai-error-classifiers')
+  ).classifyAiCallFailure,
   AI_MAX_OUTPUT_TOKENS: 1000,
 }));
 jest.mock('@services/ai/ai-allowance', () => ({ isWithinAiAllowance: jest.fn() }));
 jest.mock('@services/ai/track-ai-usage', () => ({ trackAiUsage: jest.fn() }));
 jest.mock('@services/entitlements/resolve-entitlements.service', () => ({ getEntitlementsByUserId: jest.fn() }));
 jest.mock('@services/import-export/core/ai-extraction-failure', () => ({ resolveAiExtractionFailure: jest.fn() }));
-jest.mock('@services/user-settings/ai-connections', () => ({ markConnectionValid: jest.fn() }));
+jest.mock('@services/user-settings/ai-connections', () => ({
+  markConnectionValid: jest.fn(),
+  getConnectionInfos: jest.fn(),
+}));
 jest.mock('./ai-daily-limit', () => ({ takeIngestAiCall: jest.fn() }));
 
 const mocked = <T>(fn: unknown) => fn as jest.Mock<(...args: never[]) => T>;
@@ -39,6 +46,7 @@ const takeCallMock = mocked<Promise<boolean>>(takeIngestAiCall);
 const failureMock = mocked<Promise<unknown>>(resolveAiExtractionFailure);
 const trackUsageMock = mocked<Promise<void>>(trackAiUsage);
 const markValidMock = mocked<Promise<void>>(markConnectionValid);
+const connectionInfosMock = mocked<Promise<unknown>>(getConnectionInfos);
 
 const PAYEE_ID = '22222222-2222-4222-8222-222222222222';
 const aiClient = {
@@ -71,6 +79,7 @@ const answerWith = (output: NotificationParseOutput) =>
 
 beforeEach(() => {
   jest.resetAllMocks();
+  connectionInfosMock.mockResolvedValue([{ id: 'connection-1', name: 'Work key' }]);
   mocked<{ abortSignal: undefined; maxRetries: number }>(aiCallGuards).mockReturnValue({
     abortSignal: undefined,
     maxRetries: 0,
@@ -209,6 +218,86 @@ describe('parseNotificationWithAi', () => {
     });
     expect(trackUsageMock).not.toHaveBeenCalled();
     expect(markValidMock).not.toHaveBeenCalled();
+  });
+
+  describe('while the model is out of reach', () => {
+    const apiError = ({ status, headers }: { status: number; headers?: Record<string, string> }) =>
+      new APICallError({
+        message: 'limit',
+        url: 'https://example.test',
+        requestBodyValues: {},
+        statusCode: status,
+        responseHeaders: headers,
+        isRetryable: status >= 500,
+      });
+
+    const caught = async () => {
+      let thrown: unknown;
+      await run().catch((error: unknown) => {
+        thrown = error;
+      });
+
+      return thrown;
+    };
+
+    it.each([
+      [429, 'rate-limited'],
+      [503, 'temporary'],
+    ])('throws a transient error for a %s, naming the connection and what was asked', async (status, kind) => {
+      const cause = apiError({ status, headers: status === 429 ? { 'retry-after': '120' } : undefined });
+      generateTextMock.mockRejectedValue(cause);
+      failureMock.mockResolvedValue({ error: { code: 'RATE_LIMITED', message: 'limit' }, cause });
+
+      const thrown = await caught();
+
+      expect(thrown).toBeInstanceOf(AiTransientError);
+      expect((thrown as AiTransientError).params).toMatchObject({
+        kind,
+        connectionId: 'connection-1',
+        connectionName: 'Work key',
+      });
+      expect((thrown as AiTransientError).params.resetAt !== null).toBe(status === 429);
+      expect(trackUsageMock).not.toHaveBeenCalled();
+    });
+
+    it('names the included model when no connection answered', async () => {
+      createAIClientMock.mockResolvedValue({ ...aiClient, connectionId: undefined, usingUserKey: false });
+      const cause = apiError({ status: 429 });
+      generateTextMock.mockRejectedValue(cause);
+      failureMock.mockResolvedValue({ error: { code: 'RATE_LIMITED', message: 'limit' }, cause });
+
+      expect(((await caught()) as AiTransientError).params).toMatchObject({
+        connectionId: null,
+        connectionName: 'MoneyMatter AI',
+      });
+    });
+
+    it('does not take a rejected key for a passing failure', async () => {
+      const cause = apiError({ status: 401 });
+      generateTextMock.mockRejectedValue(cause);
+      failureMock.mockResolvedValue({ error: { code: 'AI_ERROR', message: 'Key rejected.' }, cause });
+
+      const thrown = await caught();
+
+      expect(thrown).not.toBeInstanceOf(AiTransientError);
+      expect((thrown as Error).message).toBe('Key rejected.');
+    });
+  });
+
+  it('runs on the connection the owner chose for this notification', async () => {
+    answerWith(fixture('tbc-ka-debit').answer);
+    const { title, subtitle, body, appName, bundleId } = fixture('tbc-ka-debit');
+
+    await parseNotificationWithAi({
+      userId: 7,
+      text: { title, subtitle, body, raw: null },
+      source: { appName, bundleId, sender: null },
+      candidates: [],
+      nonZeroCurrencies: [],
+      pinnedConnectionId: 'connection-2',
+    });
+
+    expect(createAIClientMock).toHaveBeenCalledWith(expect.objectContaining({ pinnedConnectionId: 'connection-2' }));
   });
 
   it('does not mark a connection valid when the answer came from the server model', async () => {
