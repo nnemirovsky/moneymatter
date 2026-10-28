@@ -1,7 +1,7 @@
 import type { ChatCardField } from '@bt/shared/types';
 import { describe, expect, it } from 'vitest';
 
-import { buildCardRows } from './card-diff';
+import { buildCardRows, hasOldValue } from './card-diff';
 import { buildCard } from './card-test-fixtures';
 
 const field = (overrides: Partial<ChatCardField> & { path: string }): ChatCardField => ({
@@ -103,6 +103,33 @@ describe('buildCardRows', () => {
     expect(account.field.value).toBe('a2');
   });
 
+  it('tells a field that fills in an empty value from one that replaces a real value', () => {
+    const card = buildCard({
+      kind: 'update',
+      entity: 'transaction',
+      target: [field({ path: 'note', value: '' }), field({ path: 'amount', value: 25 })],
+      fields: [
+        field({ path: 'note', value: 'Lunch', before: '' }),
+        field({ path: 'amount', value: 30, before: 25 }),
+        field({ path: 'tagIds', value: ['t1'], before: [] }),
+        field({ path: 'description', value: 'x', before: null }),
+      ],
+    });
+
+    expect(buildCardRows({ card }).map((row) => [row.field.path, row.tone])).toEqual([
+      ['note', 'added'],
+      ['amount', 'changed'],
+      ['tagIds', 'added'],
+      ['description', 'added'],
+    ]);
+  });
+
+  it('counts an old retention of "never" as a real value', () => {
+    expect(hasOldValue({ field: field({ path: 'retentionDays', value: 30, before: null }) })).toBe(true);
+    expect(hasOldValue({ field: field({ path: 'note', value: 'x', before: null }) })).toBe(false);
+    expect(hasOldValue({ field: field({ path: 'amount', value: 30 }) })).toBe(false);
+  });
+
   it('shows the record plainly when nothing changes, as a delete card does', () => {
     const card = buildCard({ kind: 'delete', entity: 'transaction', target, fields: [] });
 
@@ -149,7 +176,7 @@ describe('buildCardRows', () => {
 
     expect(rows.map((row) => [row.field.path, row.tone])).toEqual([
       ['name', 'normal'],
-      ['parentId', 'changed'],
+      ['parentId', 'added'],
     ]);
   });
 
