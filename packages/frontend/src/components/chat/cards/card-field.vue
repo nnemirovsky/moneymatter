@@ -46,8 +46,15 @@ const partsOf = ({ value, current = false }: { value: unknown; current?: boolean
 
 const label = computed(() => keyText({ key: props.field.labelKey }) ?? props.field.path);
 const valueParts = computed(() => partsOf({ value: props.field.value, current: true }));
+// An old value that was empty has nothing to strike through: the highlight says the field is new.
+const hadOldValue = computed(() => {
+  const { before } = props.field;
+  if (before === undefined) return false;
+  if (before === null && props.field.path === 'retentionDays') return true;
+  return !(before === null || before === '' || (Array.isArray(before) && before.length === 0));
+});
 const beforeText = computed(() =>
-  props.field.before === undefined
+  !hadOldValue.value
     ? null
     : partsOf({ value: props.field.before })
         .map((part) => part.text)

@@ -93,6 +93,23 @@ describe('CardField', () => {
       expect(mountField({ field: note }).attributes('data-tone')).toBe('normal');
     });
 
+    it.each([[null], [''], [[]]])('shows no "was" line when the old value was empty (%j)', (before) => {
+      const wrapper = mountField({ field: { ...note, before }, tone: 'changed' });
+
+      expect(wrapper.find('[data-testid="field-before"]').exists()).toBe(false);
+      expect(wrapper.find('s').exists()).toBe(false);
+      expect(wrapper.attributes('data-tone')).toBe('changed');
+    });
+
+    it('still shows an old retention of "never", which is a value and not an empty one', () => {
+      const wrapper = mountField({
+        field: buildField({ path: 'retentionDays', value: 30, before: null, display: { kind: 'text' } }),
+        tone: 'changed',
+      });
+
+      expect(wrapper.get('[data-testid="field-before"]').text()).toContain('Never deleted');
+    });
+
     it('shows the old value struck through after "was"', () => {
       const wrapper = mountField({ field: { ...note, before: 'Dinner' }, tone: 'changed' });
 

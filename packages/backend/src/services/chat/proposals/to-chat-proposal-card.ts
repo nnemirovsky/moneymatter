@@ -58,12 +58,36 @@ const nonZeroCountsOf = ({ counts }: { counts: Record<string, number> | undefine
 const LOG_INGEST_REQUEST_TOOL_NAME = 'log_ingest_request';
 
 /**
+ * The tool of the card that confirms a payment the automation logged. It always targets such a payment, so its
+ * title and its argument naming the record come from the tool, and a card stored before the preview carried the
+ * marker reads the same as a new one.
+ */
+const CONFIRM_INGEST_PAYMENT_TOOL_NAME = 'confirm_ingest_payment';
+
+/** The argument that names the target record of a tool whose target is not a policy `targetFields` entry. */
+const namesRecordOf = ({
+  row,
+  path,
+  targetFields,
+}: {
+  row: Pick<ChatProposalRow, 'toolName'>;
+  path: string;
+  targetFields: string[];
+}) => targetFields.includes(path) || (row.toolName === CONFIRM_INGEST_PAYMENT_TOOL_NAME && path === 'transactionId');
+
+/**
  * An update of a transaction the automation wrote and the owner has not confirmed yet adds details to it, so it is
  * not titled as an edit of something the owner kept.
  */
-const titleOf = ({ row }: { row: Pick<ChatProposalRow, 'cardKind' | 'entity' | 'preview'> }): ChatCardTitle => ({
+const titleOf = ({
+  row,
+}: {
+  row: Pick<ChatProposalRow, 'cardKind' | 'entity' | 'preview' | 'toolName'>;
+}): ChatCardTitle => ({
   key:
-    row.cardKind === 'update' && row.entity === 'transaction' && row.preview?.automationCreated
+    row.cardKind === 'update' &&
+    row.entity === 'transaction' &&
+    (row.preview?.automationCreated || row.toolName === CONFIRM_INGEST_PAYMENT_TOOL_NAME)
       ? CHAT_CARD_ADD_DETAILS_TITLE_KEY
       : chatCardTitleKey({ kind: row.cardKind }),
   params: { entity: row.entity },
@@ -215,7 +239,7 @@ export function toChatProposalCard({
         CHAT_TOOL_FIELD_LABEL_KEYS[row.toolName]?.[path] ?? CHAT_FIELD_LABEL_KEYS[path] ?? `chat.fields.${path}`,
       value,
       ...describeField({ key: path, value, node: properties?.[path], entityKind: policy?.entityFields[path] }),
-      ...(policy?.targetFields.includes(path) ? { namesRecord: true as const } : {}),
+      ...(namesRecordOf({ row, path, targetFields: policy?.targetFields ?? [] }) ? { namesRecord: true as const } : {}),
       ...(rowBefore && path in rowBefore && !isSameValue({ a: rowBefore[path], b: value })
         ? { before: rowBefore[path] }
         : {}),
