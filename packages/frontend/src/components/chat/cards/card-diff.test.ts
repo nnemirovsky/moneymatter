@@ -11,8 +11,23 @@ const field = (overrides: Partial<ChatCardField> & { path: string }): ChatCardFi
   ...overrides,
 });
 
-const entityField = ({ path, kind, id }: { path: string; kind: 'transaction' | 'account' | 'payee'; id: string }) =>
-  field({ path, value: id, display: { kind: 'entity', entity: { kind, id, label: '' } } });
+const entityField = ({
+  path,
+  kind,
+  id,
+  namesRecord,
+}: {
+  path: string;
+  kind: 'transaction' | 'account' | 'payee' | 'category';
+  id: string;
+  namesRecord?: true;
+}) =>
+  field({
+    path,
+    value: id,
+    display: { kind: 'entity', entity: { kind, id, label: '' } },
+    ...(namesRecord ? { namesRecord } : {}),
+  });
 
 const target = [
   field({ path: 'amount', value: 25 }),
@@ -28,7 +43,7 @@ describe('buildCardRows', () => {
       entity: 'transaction',
       target,
       fields: [
-        entityField({ path: 'transactionId', kind: 'transaction', id: 't1' }),
+        entityField({ path: 'transactionId', kind: 'transaction', id: 't1', namesRecord: true }),
         field({ path: 'amount', value: 30, before: 25 }),
       ],
     });
@@ -51,7 +66,7 @@ describe('buildCardRows', () => {
       entity: 'transaction',
       target,
       fields: [
-        entityField({ path: 'transactionId', kind: 'transaction', id: 't1' }),
+        entityField({ path: 'transactionId', kind: 'transaction', id: 't1', namesRecord: true }),
         field({ path: 'amount', value: 30, before: 25 }),
       ],
     });
@@ -103,6 +118,73 @@ describe('buildCardRows', () => {
     });
 
     expect(buildCardRows({ card }).map((row) => row.tone)).toEqual(['normal', 'changed']);
+  });
+
+  it('keeps an argument of the same kind as the record that is not the one naming it', () => {
+    const card = buildCard({
+      kind: 'delete',
+      entity: 'category',
+      target: [field({ path: 'name', value: 'Food' })],
+      fields: [
+        entityField({ path: 'categoryId', kind: 'category', id: 'c1', namesRecord: true }),
+        entityField({ path: 'replaceWithCategoryId', kind: 'category', id: 'c2' }),
+      ],
+    });
+
+    expect(buildCardRows({ card }).map((row) => row.field.path)).toEqual(['name', 'replaceWithCategoryId']);
+  });
+
+  it('keeps a new parent of the same kind, even when it is the only change', () => {
+    const card = buildCard({
+      kind: 'update',
+      entity: 'category',
+      target: [field({ path: 'name', value: 'Food' })],
+      fields: [
+        entityField({ path: 'categoryId', kind: 'category', id: 'c1', namesRecord: true }),
+        { ...entityField({ path: 'parentId', kind: 'category', id: 'c9' }), before: null },
+      ],
+    });
+
+    const rows = buildCardRows({ card });
+
+    expect(rows.map((row) => [row.field.path, row.tone])).toEqual([
+      ['name', 'normal'],
+      ['parentId', 'changed'],
+    ]);
+  });
+
+  it('shows a changed amount in the currency of the record, which the card argument does not carry', () => {
+    const card = buildCard({
+      kind: 'update',
+      entity: 'transaction',
+      target: [field({ path: 'amount', value: 28.1, display: { kind: 'money', currencyCode: 'GEL' } })],
+      fields: [field({ path: 'amount', value: 30, before: 28.1, display: { kind: 'money' } })],
+    });
+
+    const [row] = buildCardRows({ card });
+
+    expect(row!.field.display?.currencyCode).toBe('GEL');
+    expect(row!.source).toBe('card');
+  });
+
+  it('leaves the currency to the card when it moves the transaction to another account', () => {
+    const card = buildCard({
+      kind: 'update',
+      entity: 'transaction',
+      target: [field({ path: 'amount', value: 28.1, display: { kind: 'money', currencyCode: 'GEL' } })],
+      fields: [
+        field({ path: 'amount', value: 30, before: 28.1, display: { kind: 'money' } }),
+        entityField({ path: 'accountId', kind: 'account', id: 'a2' }),
+      ],
+    });
+
+    expect(buildCardRows({ card })[0]!.field.display?.currencyCode).toBeUndefined();
+  });
+
+  it('marks the rows that come from the target record rather than from the card', () => {
+    const card = buildCard({ kind: 'update', entity: 'transaction', target, fields: [] });
+
+    expect(buildCardRows({ card }).every((row) => row.source === 'target')).toBe(true);
   });
 
   it('does not treat the id of another kind of record as the record itself', () => {

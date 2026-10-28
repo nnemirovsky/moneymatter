@@ -154,6 +154,13 @@ describe('toChatProposalCard', () => {
       expect(card.stale?.reasonKey).toBe('chat.cards.stale.targetChanged');
     });
   });
+  it('marks the argument that names the target record, and no other', () => {
+    const card = toChatProposalCard({ row: row(), parents: [] });
+
+    expect(card.fields.find((field) => field.path === 'accountId')?.namesRecord).toBe(true);
+    expect(card.fields.find((field) => field.path === 'name')).not.toHaveProperty('namesRecord');
+  });
+
   describe('the title of an update to a transaction', () => {
     const updateRow = (overrides: Record<string, unknown> = {}) =>
       row({

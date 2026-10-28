@@ -495,7 +495,7 @@ const summaryText = computed(() => {
           :field="row.field"
           :tone="row.tone"
           :lookups="lookups"
-          :currency-code="currencyOf({ path: row.field.path })"
+          :currency-code="row.source === 'target' ? null : currencyOf({ path: row.field.path })"
           :depends-on="card.dependsOn"
           :disabled="!isOpen || isBusy"
           @choose="chooseAlternative({ path: row.field.path, value: $event })"

@@ -109,10 +109,10 @@ const alternatives = computed(() =>
               :category-id="part.entity.id"
               data-testid="field-logo"
             />
-            <RouterLink v-if="part.to" :to="part.to" class="text-primary-text min-w-0 hover:underline">{{
+            <RouterLink v-if="part.to" :to="part.to" class="text-primary-text min-w-0 truncate hover:underline">{{
               part.text
             }}</RouterLink>
-            <span v-else class="min-w-0">{{ part.text }}</span>
+            <span v-else class="min-w-0 truncate">{{ part.text }}</span>
             <CurrencyChip v-if="part.note" :code="part.note" data-testid="field-note" />
           </span>
         </template>

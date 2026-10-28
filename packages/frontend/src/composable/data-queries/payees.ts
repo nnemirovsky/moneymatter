@@ -89,9 +89,11 @@ export const resetMissingPayeeAttempts = () => missingPayeeAttempts.clear();
  *
  * The lookup is persisted and trusted until something invalidates it, but payees are also created where the
  * page does not see it (an ingest job that finishes after the approval, a sync, another device). A screen that
- * shows rows names the payee ids it uses in `referencedIds`: one the lookup does not hold makes it refetch,
- * so a row never stays blank over a payee that exists. An id that is still missing afterwards (not created
- * yet, or deleted) is looked for again a few times, never in a loop.
+ * shows rows names the payee ids it uses in `referencedIds`: one the lookup does not hold makes it refetch, so a
+ * row does not stay blank over one of the caller's own payees that exists. The lookup holds the caller's payees
+ * only, so a screen leaves out ids of another owner's namespace (a shared account's rows). An id that is still
+ * missing afterwards (not created yet, or deleted) is looked for again, at most 3 times, each at least 10 seconds
+ * after the last and only when the ids or the lookup change again: nothing polls.
  */
 export const usePayeeLookup = ({
   referencedIds,

@@ -215,6 +215,7 @@ export function toChatProposalCard({
         CHAT_TOOL_FIELD_LABEL_KEYS[row.toolName]?.[path] ?? CHAT_FIELD_LABEL_KEYS[path] ?? `chat.fields.${path}`,
       value,
       ...describeField({ key: path, value, node: properties?.[path], entityKind: policy?.entityFields[path] }),
+      ...(policy?.targetFields.includes(path) ? { namesRecord: true as const } : {}),
       ...(rowBefore && path in rowBefore && !isSameValue({ a: rowBefore[path], b: value })
         ? { before: rowBefore[path] }
         : {}),

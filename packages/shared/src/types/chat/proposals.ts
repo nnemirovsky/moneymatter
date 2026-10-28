@@ -96,6 +96,8 @@ export interface ChatCardField {
   display?: ChatFieldDisplay;
   /** Update cards: the value before the change. */
   before?: unknown;
+  /** The argument that only names the record an update or delete acts on (a policy's target field). */
+  namesRecord?: true;
   editable: null | ChatFieldEditable;
   uncertain?: { reason: ChatUncertaintyReason; alternatives?: unknown[] };
 }

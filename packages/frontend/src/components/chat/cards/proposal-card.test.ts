@@ -1122,7 +1122,9 @@ describe('ProposalCard', () => {
         card: buildCard({
           kind: 'delete',
           toolName: 'delete_transaction',
-          fields: [buildField({ path: 'id', value: 'tx-1', display: { kind: 'text' } })],
+          fields: [
+            { ...buildField({ path: 'id', value: 'tx-1', display: { kind: 'text' } }), namesRecord: true as const },
+          ],
           target,
         }),
       });
@@ -1171,11 +1173,14 @@ describe('ProposalCard', () => {
           kind: 'update',
           toolName: 'update_transaction',
           fields: [
-            buildField({
-              path: 'transactionId',
-              value: 'tx-1',
-              display: { kind: 'entity', entity: { kind: 'transaction', id: 'tx-1', label: '' } },
-            }),
+            {
+              ...buildField({
+                path: 'transactionId',
+                value: 'tx-1',
+                display: { kind: 'entity', entity: { kind: 'transaction', id: 'tx-1', label: '' } },
+              }),
+              namesRecord: true as const,
+            },
             buildField({ path: 'amount', value: 30, before: 28.1, display: { kind: 'money', currencyCode: 'GEL' } }),
           ],
           target,
