@@ -21,6 +21,12 @@ export type ChatCardKind = (typeof CHAT_CARD_KINDS)[number];
 /** The i18n key of a card's title; the entity name goes in as the `entity` param. */
 export const chatCardTitleKey = ({ kind }: { kind: ChatCardKind }): string => `chat.cards.title.${kind}`;
 
+/**
+ * The title of an update card that completes a transaction the automation just wrote (a payment it ingested,
+ * still waiting for the owner): the card fills in details rather than editing something the owner kept.
+ */
+export const CHAT_CARD_ADD_DETAILS_TITLE_KEY = 'chat.cards.title.addDetails';
+
 export type ChatCardDanger = 'none' | 'destructive' | 'highImpact';
 
 export type ChatConfirmationMode = 'none' | 'confirm' | 'typed';
@@ -126,6 +132,8 @@ export interface ChatProposalPreview {
   affected?: ChatCardAffected;
   /** Related counts, such as the transactions an account holds. */
   counts?: Record<string, number>;
+  /** The target is a transaction the automation wrote that the owner has not confirmed yet. */
+  automationCreated?: boolean;
   /** What the resolver wants the user to see before approving, such as the transfer twin a delete also removes. */
   warnings?: ChatCardWarning[];
   /**

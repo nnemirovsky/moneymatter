@@ -50,15 +50,16 @@ describe('CardField', () => {
       expect(wrapper.text()).toContain('Cloudflare');
     });
 
-    it('shows the account logo and its currency, muted, beside the account name', () => {
+    it('shows the account logo and its currency as a pill right after the account name', () => {
       const wrapper = mountField({
         field: entityField({ path: 'accountId', kind: 'account', id: 'acc-1' }),
         lookups: lookups(),
       });
 
       expect(wrapper.get('[data-logo="account"]').attributes('data-name')).toBe('Main card');
-      expect(wrapper.get('[data-testid="field-note"]').text()).toBe('· USD');
-      expect(wrapper.get('[data-testid="field-note"]').classes()).toContain('text-muted-foreground');
+      expect(wrapper.get('[data-testid="field-note"]').text()).toBe('USD');
+      expect(wrapper.get('[data-testid="field-note"]').classes()).toContain('border');
+      expect(wrapper.get('[data-testid="field-note"]').classes()).not.toContain('ml-auto');
     });
 
     it('shows the category icon beside the category name', () => {
@@ -81,13 +82,14 @@ describe('CardField', () => {
   describe('tone', () => {
     const note = buildField({ path: 'note', value: 'Lunch', display: { kind: 'text' } });
 
-    it('highlights a changed field and keeps the unchanged one quiet', () => {
+    it('highlights a changed field and leaves the others in normal text', () => {
       const changed = mountField({ field: note, tone: 'changed' });
-      const quiet = mountField({ field: note, tone: 'unchanged' });
+      const quiet = mountField({ field: note, tone: 'normal' });
 
       expect(changed.attributes('data-tone')).toBe('changed');
       expect(changed.classes()).toContain('bg-primary/10');
-      expect(quiet.get('[data-testid="field-value"]').classes()).toContain('text-muted-foreground');
+      expect(quiet.classes()).not.toContain('bg-primary/10');
+      expect(quiet.get('[data-testid="field-value"]').classes()).not.toContain('text-muted-foreground');
       expect(mountField({ field: note }).attributes('data-tone')).toBe('normal');
     });
 

@@ -24,7 +24,7 @@
           v-if="!item._isOutOfWallet && item.id === defaultAccountId"
           class="text-primary-text size-3.5 shrink-0 fill-current"
         />
-        <span v-if="!item._isOutOfWallet" :class="CURRENCY_CHIP_CLASSES">{{ item.currencyCode }}</span>
+        <CurrencyChip v-if="!item._isOutOfWallet" class="ml-auto" :code="item.currencyCode" />
       </span>
     </template>
 
@@ -36,7 +36,7 @@
           v-if="!item._isOutOfWallet && item.id === defaultAccountId"
           class="text-primary-text size-3.5 shrink-0 fill-current"
         />
-        <span v-if="!item._isOutOfWallet" :class="CURRENCY_CHIP_CLASSES">{{ item.currencyCode }}</span>
+        <CurrencyChip v-if="!item._isOutOfWallet" class="ml-auto" :code="item.currencyCode" />
       </span>
     </template>
 
@@ -55,6 +55,7 @@
 </template>
 
 <script setup lang="ts">
+import CurrencyChip from '@/components/common/currency-chip.vue';
 import AccountOptionRow from '@/components/dialogs/manage-transaction/components/account-option-row.vue';
 import SelectField from '@/components/fields/select-field.vue';
 import { OUT_OF_WALLET_ACCOUNT_MOCK } from '@/common/const';
@@ -68,8 +69,6 @@ import { useI18n } from 'vue-i18n';
 type AccountOption = AccountModel & { _isOutOfWallet?: boolean; _isNone?: boolean };
 
 const SEARCH_KEYS: ['name', 'currencyCode'] = ['name', 'currencyCode'];
-const CURRENCY_CHIP_CLASSES =
-  'border-border text-muted-foreground ml-auto shrink-0 rounded-[5px] border px-1.5 py-px text-[10.5px] font-bold tracking-wider tabular-nums';
 
 const props = withDefaults(
   defineProps<{

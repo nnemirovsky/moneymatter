@@ -154,6 +154,46 @@ describe('toChatProposalCard', () => {
       expect(card.stale?.reasonKey).toBe('chat.cards.stale.targetChanged');
     });
   });
+  describe('the title of an update to a transaction', () => {
+    const updateRow = (overrides: Record<string, unknown> = {}) =>
+      row({
+        toolName: 'update_transaction',
+        cardKind: 'update',
+        entity: 'transaction',
+        args: { transactionId: ID, note: 'Lunch' },
+        ...overrides,
+      });
+
+    it('says update for a transaction the owner kept', () => {
+      const card = toChatProposalCard({ row: updateRow(), parents: [] });
+
+      expect(card.title).toEqual({ key: 'chat.cards.title.update', params: { entity: 'transaction' } });
+    });
+
+    it('says add details for a transaction the automation wrote and the owner has not confirmed', () => {
+      const card = toChatProposalCard({
+        row: updateRow({ preview: { before: { id: ID, note: '' }, automationCreated: true } }),
+        parents: [],
+      });
+
+      expect(card.title).toEqual({ key: 'chat.cards.title.addDetails', params: { entity: 'transaction' } });
+    });
+
+    it('keeps the update title for other kinds of card and other entities', () => {
+      const account = toChatProposalCard({
+        row: row({ preview: { before: { id: ID }, automationCreated: true } }),
+        parents: [],
+      });
+      const remove = toChatProposalCard({
+        row: updateRow({ cardKind: 'delete', preview: { before: { id: ID }, automationCreated: true } }),
+        parents: [],
+      });
+
+      expect(account.title.key).toBe('chat.cards.title.update');
+      expect(remove.title.key).toBe('chat.cards.title.delete');
+    });
+  });
+
   describe('a parked payment waiting for its account', () => {
     const ingestRow = ({ args = {}, reason = 'unknownAccount' }: { args?: Record<string, unknown>; reason?: string }) =>
       row({

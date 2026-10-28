@@ -47,6 +47,7 @@ import VentureEventLinks from '@models/venture/venture-event-links.model';
 import VentureEvents from '@models/venture/venture-events.model';
 import VenturePlatforms from '@models/venture/venture-platforms.model';
 import { countCategoryTransactions } from '@services/categories/count-category-transactions';
+import { isUnconfirmedIngest } from '@services/ingest/ingest-markers';
 import { canUserAccessResource } from '@services/sharing/auth/can-user-access-resource.service';
 import { getSubscriptionTagIds } from '@services/subscriptions/subscription-tags';
 import { Op, type Model, type ModelStatic, type WhereOptions } from 'sequelize';
@@ -74,6 +75,8 @@ export interface LoadedEntity {
    * then the other leg, which the service reads by `transferId` and updates or deletes with it.
    */
   legs?: Transactions[];
+  /** The row is a transaction the ingest pipeline wrote that still waits for the owner's decision. */
+  automationCreated?: boolean;
 }
 
 /**
@@ -198,7 +201,7 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
         : [];
     const hasPortfolioTransfer = record.transferNature === TRANSACTION_TRANSFER_NATURE.transfer_to_portfolio;
 
-    return loaded({
+    const withRelated = loaded({
       record,
       related: {
         counts: nonZero({
@@ -217,6 +220,10 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
         ...(twins.length > 0 ? { legs: [record, ...twins] } : {}),
       },
     });
+
+    return isUnconfirmedIngest({ externalData: record.externalData })
+      ? { ...withRelated, automationCreated: true }
+      : withRelated;
   },
 
   account: owned({

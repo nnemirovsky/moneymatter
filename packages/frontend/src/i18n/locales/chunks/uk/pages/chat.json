@@ -324,6 +324,7 @@
       "title": {
         "create": "Створити: {entity}",
         "update": "Оновити: {entity}",
+        "addDetails": "Додати деталі: {entity}",
         "delete": "Видалити: {entity}",
         "bulk": "Масова зміна: {entity}",
         "merge": "Об'єднати: {entity}",

@@ -65,10 +65,8 @@
       <template v-else-if="column.id === TABLE_COLUMN.account">
         <div class="flex items-center gap-1.5">
           <AccountLogo v-if="accountFrom" :account="accountFrom" class="size-5 shrink-0" />
-          <span class="max-w-36 truncate">{{ accountFrom?.name }}</span>
-          <span v-if="accountFrom?.currencyCode" class="text-muted-foreground shrink-0" data-testid="account-currency">
-            · {{ accountFrom.currencyCode }}
-          </span>
+          <span class="max-w-36 min-w-0 truncate">{{ accountFrom?.name }}</span>
+          <CurrencyChip v-if="accountFrom?.currencyCode" :code="accountFrom.currencyCode" />
           <template v-if="isTwoLegTransferRow">
             <ArrowRightIcon :size="13" class="shrink-0 opacity-60" />
             <AccountLogo
@@ -76,14 +74,11 @@
               :account="transferDestinationAccount"
               class="size-5 shrink-0"
             />
-            <span class="max-w-36 truncate">{{ transferDestinationName }}</span>
-            <span
+            <span class="max-w-36 min-w-0 truncate">{{ transferDestinationName }}</span>
+            <CurrencyChip
               v-if="transferDestinationAccount?.currencyCode"
-              class="text-muted-foreground shrink-0"
-              data-testid="account-currency"
-            >
-              · {{ transferDestinationAccount.currencyCode }}
-            </span>
+              :code="transferDestinationAccount.currencyCode"
+            />
           </template>
           <template v-else-if="isOutOfWalletTransfer">
             <ArrowRightIcon :size="13" class="shrink-0 opacity-60" />
@@ -244,6 +239,7 @@
 <script lang="ts" setup>
 import AccountLogo from '@/components/common/account-logo.vue';
 import BrandLogo from '@/components/common/brand-logo.vue';
+import CurrencyChip from '@/components/common/currency-chip.vue';
 import { toEntityLogoDisplayProps } from '@/components/common/logo-selection';
 import CategoryCircle from '@/components/common/category-circle.vue';
 import ResponsiveTooltip from '@/components/common/responsive-tooltip.vue';

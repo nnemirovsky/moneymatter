@@ -324,6 +324,7 @@
       "title": {
         "create": "Create {entity}",
         "update": "Update {entity}",
+        "addDetails": "Add details to {entity}",
         "delete": "Delete {entity}",
         "bulk": "Bulk change: {entity}",
         "merge": "Merge {entity}",

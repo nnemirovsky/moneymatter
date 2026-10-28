@@ -2,6 +2,7 @@
 import AccountLogo from '@/components/common/account-logo.vue';
 import BrandLogo from '@/components/common/brand-logo.vue';
 import CategoryCircle from '@/components/common/category-circle.vue';
+import CurrencyChip from '@/components/common/currency-chip.vue';
 import { toEntityLogoDisplayProps } from '@/components/common/logo-selection';
 import { Button } from '@/components/lib/ui/button';
 import { cn } from '@/lib/utils';
@@ -23,7 +24,7 @@ const props = defineProps<{
   dependsOn: ChatCardDependency[];
   /** The alternatives are not offered while the card cannot be changed. */
   disabled?: boolean;
-  /** `changed` marks a field the card changes, `unchanged` one that only identifies the record. */
+  /** `changed` marks a field the card changes; it is highlighted. */
   tone?: CardRowTone;
 }>();
 
@@ -86,10 +87,7 @@ const alternatives = computed(() =>
   >
     <div class="flex items-baseline justify-between gap-3">
       <dt class="text-muted-foreground shrink-0 text-xs">{{ label }}</dt>
-      <dd
-        :class="cn('min-w-0 text-right text-sm wrap-anywhere', tone === 'unchanged' && 'text-muted-foreground')"
-        data-testid="field-value"
-      >
+      <dd class="min-w-0 text-right text-sm wrap-anywhere" data-testid="field-value">
         <template v-for="(part, index) in valueParts" :key="index">
           <template v-if="index > 0">, </template>
           <span class="inline-flex max-w-full items-center justify-end gap-1.5 align-middle">
@@ -111,18 +109,11 @@ const alternatives = computed(() =>
               :category-id="part.entity.id"
               data-testid="field-logo"
             />
-            <RouterLink
-              v-if="part.to"
-              :to="part.to"
-              :class="
-                cn('min-w-0 hover:underline', tone === 'unchanged' ? 'text-muted-foreground' : 'text-primary-text')
-              "
-              >{{ part.text }}</RouterLink
-            >
+            <RouterLink v-if="part.to" :to="part.to" class="text-primary-text min-w-0 hover:underline">{{
+              part.text
+            }}</RouterLink>
             <span v-else class="min-w-0">{{ part.text }}</span>
-            <span v-if="part.note" class="text-muted-foreground shrink-0" data-testid="field-note"
-              >· {{ part.note }}</span
-            >
+            <CurrencyChip v-if="part.note" :code="part.note" data-testid="field-note" />
           </span>
         </template>
       </dd>

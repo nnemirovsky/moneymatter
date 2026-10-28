@@ -22,7 +22,7 @@ const target = [
 ];
 
 describe('buildCardRows', () => {
-  it('shows each field of an update once: the changed one with its old value, the rest quiet', () => {
+  it('shows each field of an update once: the changed one with its old value, the rest as they are', () => {
     const card = buildCard({
       kind: 'update',
       entity: 'transaction',
@@ -37,9 +37,9 @@ describe('buildCardRows', () => {
 
     expect(rows.map((row) => [row.field.path, row.tone])).toEqual([
       ['amount', 'changed'],
-      ['time', 'unchanged'],
-      ['payeeId', 'unchanged'],
-      ['accountId', 'unchanged'],
+      ['time', 'normal'],
+      ['payeeId', 'normal'],
+      ['accountId', 'normal'],
     ]);
     expect(rows[0]!.field.value).toBe(30);
     expect(rows[0]!.field.before).toBe(25);

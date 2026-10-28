@@ -1143,7 +1143,29 @@ describe('ProposalCard', () => {
       expect(wrapper.find('[data-testid="card-target"]').exists()).toBe(false);
     });
 
-    it('lists an update as one list: the changed field with what it replaces, the others quiet, each once', () => {
+    it('titles a card that completes an automation-written transaction "Add details", not "Update"', () => {
+      const completing = mountCard({
+        card: buildCard({
+          kind: 'update',
+          toolName: 'update_transaction',
+          title: { key: 'chat.cards.title.addDetails', params: { entity: 'transaction' } },
+          target,
+        }),
+      });
+      const editing = mountCard({
+        card: buildCard({
+          kind: 'update',
+          toolName: 'update_transaction',
+          title: { key: 'chat.cards.title.update', params: { entity: 'transaction' } },
+          target,
+        }),
+      });
+
+      expect(completing.get('h3').text()).toContain('Add details to transaction');
+      expect(editing.get('h3').text()).toContain('Update transaction');
+    });
+
+    it('lists an update as one list: the changed field with what it replaces, the others as they are, each once', () => {
       const wrapper = mountCard({
         card: buildCard({
           kind: 'update',
@@ -1161,12 +1183,7 @@ describe('ProposalCard', () => {
       });
 
       const rows = wrapper.findAll('[data-tone]');
-      expect(rows.map((row) => row.attributes('data-tone'))).toEqual([
-        'changed',
-        'unchanged',
-        'unchanged',
-        'unchanged',
-      ]);
+      expect(rows.map((row) => row.attributes('data-tone'))).toEqual(['changed', 'normal', 'normal', 'normal']);
       expect(rows[0]!.text()).toContain('30.00');
       expect(rows[0]!.find('[data-testid="field-before"]').text()).toContain('was');
       expect(rows[0]!.find('s').text()).toContain('28.10');
