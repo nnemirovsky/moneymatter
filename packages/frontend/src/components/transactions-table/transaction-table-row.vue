@@ -66,6 +66,9 @@
         <div class="flex items-center gap-1.5">
           <AccountLogo v-if="accountFrom" :account="accountFrom" class="size-5 shrink-0" />
           <span class="max-w-36 truncate">{{ accountFrom?.name }}</span>
+          <span v-if="accountFrom?.currencyCode" class="text-muted-foreground shrink-0" data-testid="account-currency">
+            · {{ accountFrom.currencyCode }}
+          </span>
           <template v-if="isTwoLegTransferRow">
             <ArrowRightIcon :size="13" class="shrink-0 opacity-60" />
             <AccountLogo
@@ -74,6 +77,13 @@
               class="size-5 shrink-0"
             />
             <span class="max-w-36 truncate">{{ transferDestinationName }}</span>
+            <span
+              v-if="transferDestinationAccount?.currencyCode"
+              class="text-muted-foreground shrink-0"
+              data-testid="account-currency"
+            >
+              · {{ transferDestinationAccount.currencyCode }}
+            </span>
           </template>
           <template v-else-if="isOutOfWalletTransfer">
             <ArrowRightIcon :size="13" class="shrink-0 opacity-60" />
