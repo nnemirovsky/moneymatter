@@ -1,27 +1,106 @@
-import type { ChatCardDependency, ChatCardField } from '@bt/shared/types';
+import type { AccountModel, ChatCardDependency, ChatCardField } from '@bt/shared/types';
 import { RouterLinkStub, mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 
+import type { CardRowTone } from './card-diff';
 import CardField from './card-field.vue';
-import { buildField, buildLookups, createChatI18n } from './card-test-fixtures';
+import { LOGO_STUBS, buildField, buildLookups, createChatI18n } from './card-test-fixtures';
+import type { CardLookups } from './use-card-lookups';
 
 const mountField = ({
   field,
   currencyCode = null,
   dependsOn = [],
   names = {},
+  lookups,
+  tone,
 }: {
   field: ChatCardField;
+  lookups?: CardLookups;
+  tone?: CardRowTone;
   currencyCode?: string | null;
   dependsOn?: ChatCardDependency[];
   names?: Record<string, string>;
 }) =>
   mount(CardField, {
-    props: { field, currencyCode, dependsOn, lookups: buildLookups({ names }) },
-    global: { plugins: [createChatI18n()], stubs: { RouterLink: RouterLinkStub } },
+    props: { field, currencyCode, dependsOn, tone, lookups: lookups ?? buildLookups({ names }) },
+    global: { plugins: [createChatI18n()], stubs: { RouterLink: RouterLinkStub, ...LOGO_STUBS } },
   });
 
 describe('CardField', () => {
+  describe('logos and currency', () => {
+    const entityField = ({ path, kind, id }: { path: string; kind: 'payee' | 'account' | 'category'; id: string }) =>
+      buildField({ path, value: id, display: { kind: 'entity', entity: { kind, id, label: '' } } });
+    const account = { id: 'acc-1', name: 'Main card', currencyCode: 'USD' } as unknown as AccountModel;
+    const lookups = () =>
+      buildLookups({
+        names: { 'payee:p1': 'Cloudflare', 'account:acc-1': 'Main card', 'category:c1': 'Hosting' },
+        currencies: { 'acc-1': 'USD' },
+        accounts: [account],
+        payees: { p1: { id: 'p1', name: 'Cloudflare' } },
+      });
+
+    it('shows the payee logo beside the payee name', () => {
+      const wrapper = mountField({
+        field: entityField({ path: 'payeeId', kind: 'payee', id: 'p1' }),
+        lookups: lookups(),
+      });
+
+      expect(wrapper.get('[data-logo="payee"]').attributes('data-name')).toBe('Cloudflare');
+      expect(wrapper.text()).toContain('Cloudflare');
+    });
+
+    it('shows the account logo and its currency as a pill right after the account name', () => {
+      const wrapper = mountField({
+        field: entityField({ path: 'accountId', kind: 'account', id: 'acc-1' }),
+        lookups: lookups(),
+      });
+
+      expect(wrapper.get('[data-logo="account"]').attributes('data-name')).toBe('Main card');
+      expect(wrapper.get('[data-testid="field-note"]').text()).toBe('USD');
+      expect(wrapper.get('[data-testid="field-note"]').classes()).toContain('border');
+      expect(wrapper.get('[data-testid="field-note"]').classes()).not.toContain('ml-auto');
+    });
+
+    it('shows the category icon beside the category name', () => {
+      const wrapper = mountField({
+        field: entityField({ path: 'categoryId', kind: 'category', id: 'c1' }),
+        lookups: lookups(),
+      });
+
+      expect(wrapper.get('[data-logo="category"]').attributes('data-name')).toBe('c1');
+    });
+
+    it('draws no logo for a record the app cannot name, nor a currency for an unknown account', () => {
+      const wrapper = mountField({ field: entityField({ path: 'accountId', kind: 'account', id: 'ghost' }) });
+
+      expect(wrapper.find('[data-logo]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="field-note"]').exists()).toBe(false);
+    });
+  });
+
+  describe('tone', () => {
+    const note = buildField({ path: 'note', value: 'Lunch', display: { kind: 'text' } });
+
+    it('highlights a changed field and leaves the others in normal text', () => {
+      const changed = mountField({ field: note, tone: 'changed' });
+      const quiet = mountField({ field: note, tone: 'normal' });
+
+      expect(changed.attributes('data-tone')).toBe('changed');
+      expect(changed.classes()).toContain('bg-primary/10');
+      expect(quiet.classes()).not.toContain('bg-primary/10');
+      expect(quiet.get('[data-testid="field-value"]').classes()).not.toContain('text-muted-foreground');
+      expect(mountField({ field: note }).attributes('data-tone')).toBe('normal');
+    });
+
+    it('shows the old value struck through after "was"', () => {
+      const wrapper = mountField({ field: { ...note, before: 'Dinner' }, tone: 'changed' });
+
+      expect(wrapper.get('[data-testid="field-before"]').text()).toBe('was Dinner');
+      expect(wrapper.get('[data-testid="field-before"] s').text()).toBe('Dinner');
+    });
+  });
+
   it('shows the translated label and the value', () => {
     const wrapper = mountField({ field: buildField({ path: 'note', value: 'Lunch', display: { kind: 'text' } }) });
 
@@ -145,7 +224,7 @@ describe('CardField', () => {
     });
 
     expect(wrapper.get('[data-testid="field-value"]').text()).toBe('No rules');
-    expect(wrapper.get('[data-testid="field-before"]').text()).toBe('Was Note contains “spotify”');
+    expect(wrapper.get('[data-testid="field-before"]').text()).toBe('was Note contains “spotify”');
   });
 
   it('names every option of a list of presets', () => {
@@ -195,7 +274,7 @@ describe('CardField', () => {
       field: buildField({ path: 'note', value: 'Dinner', before: 'Lunch', display: { kind: 'text' } }),
     });
 
-    expect(wrapper.find('[data-testid="field-before"]').text()).toContain('Was Lunch');
+    expect(wrapper.find('[data-testid="field-before"]').text()).toContain('was Lunch');
     expect(wrapper.find('[data-testid="field-value"]').text()).toBe('Dinner');
   });
 
@@ -211,12 +290,12 @@ describe('CardField', () => {
 
     expect(wrapper.text()).toContain('Chat history kept (days)');
     expect(wrapper.find('[data-testid="field-value"]').text()).toBe('Never deleted');
-    expect(wrapper.find('[data-testid="field-before"]').text()).toContain('Was 30');
+    expect(wrapper.find('[data-testid="field-before"]').text()).toContain('was 30');
     expect(
       mountField({ field: buildField({ path: 'retentionDays', value: 7, before: null, display: { kind: 'text' } }) })
         .find('[data-testid="field-before"]')
         .text(),
-    ).toContain('Was Never deleted');
+    ).toContain('was Never deleted');
   });
 
   it('does not show a before value when there is none', () => {
@@ -277,7 +356,7 @@ describe('CardField', () => {
           lookups: buildLookups({ names }),
           disabled: true,
         },
-        global: { plugins: [createChatI18n()], stubs: { RouterLink: RouterLinkStub } },
+        global: { plugins: [createChatI18n()], stubs: { RouterLink: RouterLinkStub, ...LOGO_STUBS } },
       });
 
       expect(wrapper.find('[data-testid="alternative"]').attributes('disabled')).toBeDefined();

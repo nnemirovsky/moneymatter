@@ -54,6 +54,7 @@ export const resolveEntityPreview: PreviewResolver = async ({ userId, args, poli
     preview: {
       before: entity.row,
       ...(Object.keys(entity.counts).length > 0 ? { counts: entity.counts } : {}),
+      ...(entity.automationCreated ? { automationCreated: true } : {}),
       ...(twins.length > 0
         ? {
             affected: transactionsAffected({ rows: await keepVisibleRows({ userId, rows: legs }), count: legs.length }),

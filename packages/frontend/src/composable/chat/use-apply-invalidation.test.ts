@@ -39,6 +39,21 @@ describe('planInvalidation', () => {
     });
   });
 
+  it('refreshes the payee lookups with the transactions, since a change may have created the payee', () => {
+    const plan = planInvalidation({ kinds: ['transaction'] });
+
+    expect(plan.all).toBe(false);
+    if (plan.all) return;
+    expect(plan.keys).toEqual(
+      expect.arrayContaining([
+        VUE_QUERY_CACHE_KEYS.payeesLookup,
+        VUE_QUERY_CACHE_KEYS.payeesList,
+        VUE_QUERY_CACHE_KEYS.payeeById,
+      ]),
+    );
+    expect(matchesInvalidationPlan({ plan, queryKey: VUE_QUERY_CACHE_KEYS.payeesLookup })).toBe(true);
+  });
+
   it('joins the targets of several entities without repeating one', () => {
     const plan = planInvalidation({ kinds: ['transaction', 'account', 'portfolio'] });
 

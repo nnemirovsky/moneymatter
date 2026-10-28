@@ -339,6 +339,8 @@ import { useTransactionsDisplay } from '@/components/transactions-list/use-trans
 import { usePayeeLookup } from '@/composable/data-queries/payees';
 import { type MatchingTransactions, useBulkTransactionActions } from '@/composable/use-bulk-transaction-actions';
 import { cn } from '@/lib/utils';
+import { useAccountsStore } from '@/stores/accounts';
+import { useUserStore } from '@/stores/user';
 import {
   SORT_DIRECTIONS,
   TRANSACTION_SORT_FIELD,
@@ -346,6 +348,7 @@ import {
   type UpdateTransactionBody,
 } from '@bt/shared/types';
 import { useVirtualizer } from '@tanstack/vue-virtual';
+import { storeToRefs } from 'pinia';
 import { useElementSize, useEventListener } from '@vueuse/core';
 import {
   ArrowDownIcon,
@@ -432,8 +435,18 @@ const {
 const columnCount = computed(() => props.visibleColumns.length + 2);
 
 // Payee name + logo: transactions carry only payeeId; resolve from the full
-// payee lookup so any payee resolves, not just the truncated top-50 dropdown list.
-const { byId: payeeById } = usePayeeLookup();
+// payee lookup so any payee resolves, not just the truncated top-50 dropdown list. The rows name the payees
+// they show, so a payee created since the lookup was loaded (an ingest job, another device) is fetched, not blank.
+// A row on an account shared with the caller carries a payee of the account owner, which the caller's own lookup
+// never holds, so only rows on the caller's accounts are watched.
+const { accountsRecord } = storeToRefs(useAccountsStore());
+const { user: currentUser } = storeToRefs(useUserStore());
+const { byId: payeeById } = usePayeeLookup({
+  referencedIds: () =>
+    displayTransactions.value
+      .filter((tx) => accountsRecord.value[tx.accountId]?.userId === currentUser.value?.id)
+      .map((tx) => tx.payeeId),
+});
 
 // Transaction detail dialog; transfer_to_loan rows route to the loan dialog instead
 const {

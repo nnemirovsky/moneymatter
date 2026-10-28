@@ -1,4 +1,5 @@
 import {
+  CHAT_CARD_ADD_DETAILS_TITLE_KEY,
   CHAT_FIELD_LABEL_KEYS,
   CHAT_TOOL_FIELD_LABEL_KEYS,
   chatCardTitleKey,
@@ -56,8 +57,15 @@ const nonZeroCountsOf = ({ counts }: { counts: Record<string, number> | undefine
 /** The tool of the card a parked notification payment gets. */
 const LOG_INGEST_REQUEST_TOOL_NAME = 'log_ingest_request';
 
-const titleOf = ({ row }: { row: Pick<ChatProposalRow, 'cardKind' | 'entity'> }): ChatCardTitle => ({
-  key: chatCardTitleKey({ kind: row.cardKind }),
+/**
+ * An update of a transaction the automation wrote and the owner has not confirmed yet adds details to it, so it is
+ * not titled as an edit of something the owner kept.
+ */
+const titleOf = ({ row }: { row: Pick<ChatProposalRow, 'cardKind' | 'entity' | 'preview'> }): ChatCardTitle => ({
+  key:
+    row.cardKind === 'update' && row.entity === 'transaction' && row.preview?.automationCreated
+      ? CHAT_CARD_ADD_DETAILS_TITLE_KEY
+      : chatCardTitleKey({ kind: row.cardKind }),
   params: { entity: row.entity },
 });
 
@@ -207,6 +215,7 @@ export function toChatProposalCard({
         CHAT_TOOL_FIELD_LABEL_KEYS[row.toolName]?.[path] ?? CHAT_FIELD_LABEL_KEYS[path] ?? `chat.fields.${path}`,
       value,
       ...describeField({ key: path, value, node: properties?.[path], entityKind: policy?.entityFields[path] }),
+      ...(policy?.targetFields.includes(path) ? { namesRecord: true as const } : {}),
       ...(rowBefore && path in rowBefore && !isSameValue({ a: rowBefore[path], b: value })
         ? { before: rowBefore[path] }
         : {}),

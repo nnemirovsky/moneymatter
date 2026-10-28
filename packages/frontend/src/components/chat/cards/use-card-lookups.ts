@@ -1,3 +1,4 @@
+import type { PayeeWithStats } from '@/api/payees';
 import type { FormattedCategory } from '@/common/types';
 import { usePayeesByIds } from '@/composable/data-queries/payees';
 import { useAccountsStore } from '@/stores/accounts';
@@ -15,6 +16,10 @@ export interface CardLookups {
   /** The display name of a record the app already holds; `null` when it is not known. */
   entityName: (params: { kind: ChatEntityKind; id: string }) => string | null;
   accountCurrency: (params: { id: string }) => string | null;
+  /** The account, for its logo; `null` when the app does not hold it. */
+  account: (params: { id: string }) => AccountModel | null;
+  /** The payee, for its logo; `null` until it has been read. */
+  payee: (params: { id: string }) => PayeeWithStats | null;
   baseCurrencyCode: () => string | null;
   accounts: () => AccountModel[];
   categories: () => FormattedCategory[];
@@ -71,6 +76,8 @@ export const useCardLookups = ({ card }: { card: MaybeRefOrGetter<ChatProposalCa
   return {
     entityName,
     accountCurrency: ({ id }) => accountsRecord.value[id]?.currencyCode ?? null,
+    account: ({ id }) => accountsRecord.value[id] ?? null,
+    payee: ({ id }) => payees.value.get(id) ?? null,
     baseCurrencyCode: () => baseCurrency.value?.currencyCode ?? null,
     accounts: () => systemAccounts.value,
     categories: () => formattedCategories.value,

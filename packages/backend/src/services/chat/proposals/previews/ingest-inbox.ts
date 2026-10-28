@@ -61,6 +61,7 @@ export const resolveConfirmIngestPayment: PreviewResolver = async ({ userId, arg
 
   return {
     preview: {
+      automationCreated: true,
       before: {
         ...serializeRow({ row: tx }),
         ...(correction && {

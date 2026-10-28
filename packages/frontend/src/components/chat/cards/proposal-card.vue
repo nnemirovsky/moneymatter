@@ -47,6 +47,7 @@ import {
   parentRevisionsOf,
   requirementOfChain,
 } from './card-chain';
+import { buildCardRows } from './card-diff';
 import { buildEditedArgs, cardArgsOf, moneyCurrencyOf, replaceArg } from './card-values';
 import ProposalCardDanger from './proposal-card-danger.vue';
 import { useCardFieldText } from './use-card-field-text';
@@ -73,6 +74,8 @@ const { keyText, titleText, entityLabel } = useChatText();
 const { addSuccessNotification } = useNotificationCenter();
 const actions = useChatCardActions();
 const lookups = useCardLookups({ card: () => props.card });
+// One list for an update: the record it targets and the card's own fields, each field once.
+const rows = computed(() => buildCardRows({ card: props.card }));
 const { valueParts } = useCardFieldText();
 
 const KIND_ICONS: Record<ChatCardKind, Component> = {
@@ -472,25 +475,6 @@ const summaryText = computed(() => {
         @update:typed="typed = $event"
       />
 
-      <section
-        v-if="card.target && card.target.length > 0 && !card.ingestRequest"
-        class="bg-muted/40 flex flex-col gap-1 rounded-md px-1 py-1.5"
-        data-testid="card-target"
-      >
-        <p class="text-muted-foreground px-2 text-xs font-medium">{{ $t('chat.cards.target.title') }}</p>
-        <dl class="flex flex-col gap-0.5">
-          <CardField
-            v-for="field in card.target"
-            :key="field.path"
-            :field="field"
-            :lookups="lookups"
-            :currency-code="null"
-            :depends-on="card.dependsOn"
-            disabled
-          />
-        </dl>
-      </section>
-
       <IngestRequestBody
         v-if="!isEditing && card.ingestRequest"
         :payment="card.ingestRequest"
@@ -506,14 +490,15 @@ const summaryText = computed(() => {
       />
       <dl v-else-if="!isEditing" class="flex flex-col gap-0.5">
         <CardField
-          v-for="field in card.fields"
-          :key="field.path"
-          :field="field"
+          v-for="row in rows"
+          :key="row.field.path"
+          :field="row.field"
+          :tone="row.tone"
           :lookups="lookups"
-          :currency-code="currencyOf({ path: field.path })"
+          :currency-code="row.source === 'target' ? null : currencyOf({ path: row.field.path })"
           :depends-on="card.dependsOn"
           :disabled="!isOpen || isBusy"
-          @choose="chooseAlternative({ path: field.path, value: $event })"
+          @choose="chooseAlternative({ path: row.field.path, value: $event })"
         />
       </dl>
       <div v-else class="flex flex-col gap-3">
