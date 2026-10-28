@@ -1191,7 +1191,8 @@ describe('ProposalCard', () => {
       expect(rows.map((row) => row.attributes('data-tone'))).toEqual(['changed', 'normal', 'normal', 'normal']);
       expect(rows[0]!.text()).toContain('30.00');
       expect(rows[0]!.find('[data-testid="field-before"]').text()).toContain('was');
-      expect(rows[0]!.find('s').text()).toContain('28.10');
+      expect(rows[0]!.find('[data-testid="field-before"]').text()).toContain('28.10');
+      expect(rows[0]!.find('s').exists()).toBe(false);
       expect(wrapper.findAll('[data-testid="field-value"]')).toHaveLength(4);
       expect(wrapper.text()).not.toContain('Transaction');
     });

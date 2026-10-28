@@ -8,7 +8,7 @@ import { Button } from '@/components/lib/ui/button';
 import { cn } from '@/lib/utils';
 import type { ChatCardDependency, ChatCardField, ChatUncertaintyReason } from '@bt/shared/types';
 import { TriangleAlertIcon } from '@lucide/vue';
-import type { CardRowTone } from './card-diff';
+import { type CardRowTone, hasOldValue } from './card-diff';
 import { computed } from 'vue';
 
 import { useChatText } from '../chat-text';
@@ -24,7 +24,7 @@ const props = defineProps<{
   dependsOn: ChatCardDependency[];
   /** The alternatives are not offered while the card cannot be changed. */
   disabled?: boolean;
-  /** `changed` marks a field the card changes; it is highlighted. */
+  /** `changed` marks a field that replaces a value, `added` one that fills in an empty one; both are tinted. */
   tone?: CardRowTone;
 }>();
 
@@ -46,15 +46,9 @@ const partsOf = ({ value, current = false }: { value: unknown; current?: boolean
 
 const label = computed(() => keyText({ key: props.field.labelKey }) ?? props.field.path);
 const valueParts = computed(() => partsOf({ value: props.field.value, current: true }));
-// An old value that was empty has nothing to strike through: the highlight says the field is new.
-const hadOldValue = computed(() => {
-  const { before } = props.field;
-  if (before === undefined) return false;
-  if (before === null && props.field.path === 'retentionDays') return true;
-  return !(before === null || before === '' || (Array.isArray(before) && before.length === 0));
-});
+// An old value that was empty has nothing to show: the green highlight says the field is new.
 const beforeText = computed(() =>
-  !hadOldValue.value
+  !hasOldValue({ field: props.field })
     ? null
     : partsOf({ value: props.field.before })
         .map((part) => part.text)
@@ -88,6 +82,7 @@ const alternatives = computed(() =>
       cn(
         'flex flex-col gap-1 rounded-md px-2 py-1.5',
         tone === 'changed' && 'bg-primary/10',
+        tone === 'added' && 'bg-success/10 dark:bg-success/40',
         field.uncertain && 'bg-warning/10 ring-warning/30 ring-1',
       )
     "
@@ -126,17 +121,13 @@ const alternatives = computed(() =>
       </dd>
     </div>
 
-    <i18n-t
+    <p
       v-if="beforeText !== null"
-      keypath="chat.cards.fieldBefore"
-      tag="p"
       class="text-muted-foreground text-right text-xs wrap-anywhere"
       data-testid="field-before"
     >
-      <template #value
-        ><s>{{ beforeText }}</s></template
-      >
-    </i18n-t>
+      {{ $t('chat.cards.fieldBefore', { value: beforeText }) }}
+    </p>
 
     <template v-if="field.uncertain">
       <p class="text-warning-text flex items-center justify-end gap-1.5 text-xs">

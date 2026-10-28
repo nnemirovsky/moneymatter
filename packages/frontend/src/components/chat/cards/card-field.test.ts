@@ -94,11 +94,11 @@ describe('CardField', () => {
     });
 
     it.each([[null], [''], [[]]])('shows no "was" line when the old value was empty (%j)', (before) => {
-      const wrapper = mountField({ field: { ...note, before }, tone: 'changed' });
+      const wrapper = mountField({ field: { ...note, before }, tone: 'added' });
 
       expect(wrapper.find('[data-testid="field-before"]').exists()).toBe(false);
       expect(wrapper.find('s').exists()).toBe(false);
-      expect(wrapper.attributes('data-tone')).toBe('changed');
+      expect(wrapper.attributes('data-tone')).toBe('added');
     });
 
     it('still shows an old retention of "never", which is a value and not an empty one', () => {
@@ -110,11 +110,24 @@ describe('CardField', () => {
       expect(wrapper.get('[data-testid="field-before"]').text()).toContain('Never deleted');
     });
 
-    it('shows the old value struck through after "was"', () => {
+    it('shows the old value as plain muted text after "was", never struck through', () => {
       const wrapper = mountField({ field: { ...note, before: 'Dinner' }, tone: 'changed' });
 
       expect(wrapper.get('[data-testid="field-before"]').text()).toBe('was Dinner');
-      expect(wrapper.get('[data-testid="field-before"] s').text()).toBe('Dinner');
+      expect(wrapper.get('[data-testid="field-before"]').classes()).toContain('text-muted-foreground');
+      expect(wrapper.find('s').exists()).toBe(false);
+      expect(wrapper.find('.line-through').exists()).toBe(false);
+    });
+
+    it('tints an added field green and a changed one in the primary tint, so they tell apart', () => {
+      const added = mountField({ field: { ...note, before: '' }, tone: 'added' });
+      const changed = mountField({ field: { ...note, before: 'Dinner' }, tone: 'changed' });
+
+      expect(added.classes()).toContain('bg-success/10');
+      expect(added.classes()).toContain('dark:bg-success/40');
+      expect(added.classes()).not.toContain('bg-primary/10');
+      expect(changed.classes()).toContain('bg-primary/10');
+      expect(changed.classes()).not.toContain('bg-success/10');
     });
   });
 

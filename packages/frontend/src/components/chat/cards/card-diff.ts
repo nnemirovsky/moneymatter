@@ -1,7 +1,19 @@
 import type { ChatCardField, ChatProposalCard } from '@bt/shared/types';
 
-/** How a row of the card reads: a `changed` field is what the card changes (it carries the value it replaces); the rest are shown as they are. */
-export type CardRowTone = 'normal' | 'changed';
+/**
+ * How a row of the card reads: an `added` field fills in something that was empty, a `changed` one replaces a real
+ * value (and carries it); the rest are shown as they are.
+ */
+export type CardRowTone = 'normal' | 'changed' | 'added';
+
+/** Whether the field replaces a real value; an old value that was empty (or a null that means nothing) does not. */
+export const hasOldValue = ({ field }: { field: ChatCardField }): boolean => {
+  const { before } = field;
+  if (before === undefined) return false;
+  // A retention of null is a choice ("never"), not an empty value.
+  if (before === null && field.path === 'retentionDays') return true;
+  return !(before === null || before === '' || (Array.isArray(before) && before.length === 0));
+};
 
 export interface CardRow {
   field: ChatCardField;
@@ -22,8 +34,10 @@ const keyOf = ({ field }: { field: ChatCardField }) => field.path.split('.').at(
  * its record plainly, and a card without a target (a create) shows its fields.
  */
 export const buildCardRows = ({ card }: { card: ChatProposalCard }): CardRow[] => {
-  const toneOf = ({ field }: { field: ChatCardField }): CardRowTone =>
-    field.before !== undefined ? 'changed' : 'normal';
+  const toneOf = ({ field }: { field: ChatCardField }): CardRowTone => {
+    if (field.before === undefined) return 'normal';
+    return hasOldValue({ field }) ? 'changed' : 'added';
+  };
   const target = card.target ?? [];
 
   if (target.length === 0 || card.ingestRequest) {
