@@ -11,6 +11,10 @@ import type { CardLookups } from './use-card-lookups';
 interface CardValuePart {
   text: string;
   to?: ReturnType<typeof chatEntityRoute>;
+  /** The record this part names, for its logo; only a record the app holds is given. */
+  entity?: { kind: ChatEntityKind; id: string };
+  /** What goes quietly beside the name: an account's currency. */
+  note?: string;
 }
 
 const LOOKS_LIKE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -66,7 +70,15 @@ export const useCardFieldText = () => {
       const unknown = current && !name && !written && NAMED_FROM_APP_LISTS.has(kind) && LOOKS_LIKE_ID.test(String(id));
       if (unknown) return { text: t('chat.cards.noValue') };
 
-      return { text: name ?? written ?? entityLabel({ kind }), ...(to && !(written && !name) ? { to } : {}) };
+      const hasLogo = name !== null && (kind === 'payee' || kind === 'account' || kind === 'category');
+      const currency = kind === 'account' && name !== null ? lookups.accountCurrency({ id: String(id) }) : null;
+
+      return {
+        text: name ?? written ?? entityLabel({ kind }),
+        ...(to && !(written && !name) ? { to } : {}),
+        ...(hasLogo ? { entity: { kind, id: String(id) } } : {}),
+        ...(currency ? { note: currency } : {}),
+      };
     });
 
     return hidden > 0 ? [...parts, { text: t('chat.cards.affected.more', { count: hidden }) }] : parts;

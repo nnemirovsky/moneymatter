@@ -21,7 +21,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, h } from 'vue';
 
 import CardFieldEditor from './card-field-editor.vue';
-import { buildCard, buildField, buildLookups, createChatI18n } from './card-test-fixtures';
+import { LOGO_STUBS, buildCard, buildField, buildLookups, createChatI18n } from './card-test-fixtures';
 import ProposalCard from './proposal-card.vue';
 
 vi.mock('@/api/chat', () => ({
@@ -84,6 +84,7 @@ vi.mock('@/components/common/responsive-alert-dialog.vue', async () => {
 });
 
 const HEAVY_STUBS = {
+  ...LOGO_STUBS,
   RouterLink: RouterLinkStub,
   AccountSelectField: true,
   CategorySelectField: true,
@@ -475,7 +476,7 @@ describe('ProposalCard', () => {
       const wrapper = mountCard({ card });
 
       expect(wrapper.text()).toContain('Update transaction');
-      expect(wrapper.find('[data-testid="field-before"]').text()).toContain('Was Lunch');
+      expect(wrapper.find('[data-testid="field-before"]').text()).toContain('was Lunch');
       expect(wrapper.find('[data-testid="field-value"]').text()).toBe('Dinner');
     });
   });
@@ -899,7 +900,7 @@ describe('ProposalCard', () => {
       expect(body.exists()).toBe(true);
       expect(toggle.attributes('aria-controls')).toBe(body.attributes('id'));
       expect(wrapper.find('[data-testid="card-summary"]').exists()).toBe(false);
-      expect(wrapper.find('[data-testid="card-target"]').text()).toContain('Nord Coffee');
+      expect(wrapper.find('[data-testid="card-body"]').text()).toContain('Nord Coffee');
 
       await toggle.trigger('click');
 
@@ -1126,8 +1127,9 @@ describe('ProposalCard', () => {
         }),
       });
 
-      const block = wrapper.find('[data-testid="card-target"]');
-      expect(block.exists()).toBe(true);
+      const block = wrapper.find('[data-testid="card-body"]');
+      expect(wrapper.find('[data-testid="card-target"]').exists()).toBe(false);
+      expect(wrapper.text()).not.toContain('The record this changes');
       expect(block.text()).toContain('28.10');
       expect(block.text()).toContain('GEL');
       expect(block.text()).toContain('Oct 19, 2026');
@@ -1135,10 +1137,41 @@ describe('ProposalCard', () => {
       expect(block.text()).toContain('Main card');
     });
 
-    it('shows no such block on a card that targets nothing', () => {
+    it('shows no separate block and no row naming the record, on a card that targets nothing either', () => {
       const wrapper = mountCard({ card: buildCard() });
 
       expect(wrapper.find('[data-testid="card-target"]').exists()).toBe(false);
+    });
+
+    it('lists an update as one list: the changed field with what it replaces, the others quiet, each once', () => {
+      const wrapper = mountCard({
+        card: buildCard({
+          kind: 'update',
+          toolName: 'update_transaction',
+          fields: [
+            buildField({
+              path: 'transactionId',
+              value: 'tx-1',
+              display: { kind: 'entity', entity: { kind: 'transaction', id: 'tx-1', label: '' } },
+            }),
+            buildField({ path: 'amount', value: 30, before: 28.1, display: { kind: 'money', currencyCode: 'GEL' } }),
+          ],
+          target,
+        }),
+      });
+
+      const rows = wrapper.findAll('[data-tone]');
+      expect(rows.map((row) => row.attributes('data-tone'))).toEqual([
+        'changed',
+        'unchanged',
+        'unchanged',
+        'unchanged',
+      ]);
+      expect(rows[0]!.text()).toContain('30.00');
+      expect(rows[0]!.find('[data-testid="field-before"]').text()).toContain('was');
+      expect(rows[0]!.find('s').text()).toContain('28.10');
+      expect(wrapper.findAll('[data-testid="field-value"]')).toHaveLength(4);
+      expect(wrapper.text()).not.toContain('Transaction');
     });
   });
 });

@@ -370,7 +370,7 @@
         "details": "Details",
         "hideDetails": "Hide details"
       },
-      "fieldBefore": "Was {value}",
+      "fieldBefore": "was {value}",
       "fromCard": "From the card “{title}”",
       "yes": "Yes",
       "no": "No",
@@ -583,9 +583,6 @@
           "context": "Context only",
           "pending": "waiting for approval"
         }
-      },
-      "target": {
-        "title": "The record this changes"
       },
       "ingestAlreadyConfirmed": "This payment is already confirmed.",
       "ingestRequestSettled": "This payment is not waiting any more.",

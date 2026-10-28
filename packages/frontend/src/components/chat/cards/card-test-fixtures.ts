@@ -1,8 +1,27 @@
 import enChat from '@/i18n/locales/chunks/en/pages/chat.json';
 import type { AccountModel, ChatCardField, ChatProposalCard } from '@bt/shared/types';
+import { defineComponent, h } from 'vue';
 import { createI18n } from 'vue-i18n';
 
 import type { CardLookups } from './use-card-lookups';
+
+const logoStub = ({ kind }: { kind: string }) =>
+  defineComponent({
+    props: {
+      name: { type: String, default: '' },
+      account: { type: Object, default: null },
+      categoryId: { type: String, default: '' },
+    },
+    setup: (props) => () =>
+      h('i', { 'data-logo': kind, 'data-name': props.name || props.account?.name || props.categoryId }),
+  });
+
+/** The logos a card draws beside a record, as markers a test can read; the real ones need the app's stores. */
+export const LOGO_STUBS = {
+  BrandLogo: logoStub({ kind: 'payee' }),
+  AccountLogo: logoStub({ kind: 'account' }),
+  CategoryCircle: logoStub({ kind: 'category' }),
+};
 
 /** A pending create card; `overrides` change any part of it. */
 export const buildCard = (overrides: Partial<ChatProposalCard> = {}): ChatProposalCard => ({
@@ -41,14 +60,18 @@ export const buildLookups = ({
   currencies = {},
   baseCurrencyCode = 'USD',
   accounts = [],
+  payees = {},
 }: {
   names?: Record<string, string>;
   currencies?: Record<string, string>;
   baseCurrencyCode?: string | null;
   accounts?: AccountModel[];
+  payees?: Record<string, { id: string; name: string }>;
 } = {}): CardLookups => ({
   entityName: ({ kind, id }) => names[`${kind}:${id}`] ?? null,
   accountCurrency: ({ id }) => currencies[id] ?? null,
+  account: ({ id }) => accounts.find((account) => String(account.id) === id) ?? null,
+  payee: ({ id }) => (payees[id] as never) ?? null,
   baseCurrencyCode: () => baseCurrencyCode,
   accounts: () => accounts,
   categories: () => [],

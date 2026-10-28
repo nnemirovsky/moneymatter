@@ -370,7 +370,7 @@
         "details": "Деталі",
         "hideDetails": "Сховати деталі"
       },
-      "fieldBefore": "Було {value}",
+      "fieldBefore": "було {value}",
       "fromCard": "З картки «{title}»",
       "yes": "Так",
       "no": "Ні",
@@ -583,9 +583,6 @@
           "context": "Лише контекст",
           "pending": "в очікуванні підтвердження"
         }
-      },
-      "target": {
-        "title": "Запис, який змінюється"
       },
       "ingestAlreadyConfirmed": "Цей платіж уже підтверджено.",
       "ingestRequestSettled": "Цей платіж більше не очікує.",
