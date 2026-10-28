@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useAccountPayees, usePayeeLookup, usePayees } from '@/composable/data-queries/payees';
+import { useAccountPayees, usePayee, usePayeeLookup, usePayees } from '@/composable/data-queries/payees';
 import * as Popover from '@/components/lib/ui/popover';
 import { ScrollArea } from '@/components/lib/ui/scroll-area';
 import { Button } from '@/components/lib/ui/button';
@@ -119,11 +119,23 @@ const createLabel = computed(() => {
 // (e.g. editing a transaction whose payee is rarely used). On a shared account the
 // payee lives in the owner's namespace, which the caller's lookup doesn't hold, so
 // resolve from the owner-scoped list there.
-const { byId: payeeLookupById } = usePayeeLookup();
+const { byId: payeeLookupById, isSuccess: isLookupLoaded } = usePayeeLookup({
+  referencedIds: () => (props.ownerScoped ? [] : [props.modelValue]),
+});
+// A payee the lookup does not hold (created since it loaded, or not in the caller's namespace) is read on its own,
+// so the field names what the transaction has instead of offering "Select a payee" over a payee that exists.
+const isMissingFromLookup = computed(
+  () =>
+    !props.ownerScoped && !!props.modelValue && isLookupLoaded.value && !payeeLookupById.value.has(props.modelValue),
+);
+const { data: fetchedPayee } = usePayee({
+  id: () => props.modelValue ?? undefined,
+  enabled: isMissingFromLookup,
+});
 const selectedPayee = computed(() => {
   if (!props.modelValue) return null;
   if (props.ownerScoped) return ownerFetch.list.value.find((p) => p.id === props.modelValue) ?? null;
-  return payeeLookupById.value.get(props.modelValue) ?? null;
+  return payeeLookupById.value.get(props.modelValue) ?? fetchedPayee.value ?? null;
 });
 
 const selectedLabel = computed(() => selectedPayee.value?.name ?? '');

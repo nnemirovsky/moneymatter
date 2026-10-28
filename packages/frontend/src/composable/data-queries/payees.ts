@@ -74,12 +74,28 @@ export const usePayees = ({
   return { ...query, list };
 };
 
+/** How long a payee id missing from the lookup waits before the next refetch may look for it again. */
+const MISSING_PAYEE_RETRY_MS = 10_000;
+const MISSING_PAYEE_MAX_ATTEMPTS = 3;
+// Shared by every lookup consumer on the page, so a table of rows and a popover do not each refetch for one id.
+const missingPayeeAttempts = new Map<string, { at: number; count: number }>();
+
+export const resetMissingPayeeAttempts = () => missingPayeeAttempts.clear();
+
 /**
  * Full id → name/logo lookup for every payee (no stats, no pagination). Backs
  * beneficiary-column resolution in transaction tables, where `usePayees` would
  * miss payees past its top-50 cutoff.
+ *
+ * The lookup is persisted and trusted until something invalidates it, but payees are also created where the
+ * page does not see it (an ingest job that finishes after the approval, a sync, another device). A screen that
+ * shows rows names the payee ids it uses in `referencedIds`: one the lookup does not hold makes it refetch,
+ * so a row never stays blank over a payee that exists. An id that is still missing afterwards (not created
+ * yet, or deleted) is looked for again a few times, never in a loop.
  */
-export const usePayeeLookup = () => {
+export const usePayeeLookup = ({
+  referencedIds,
+}: { referencedIds?: MaybeRefOrGetter<ReadonlyArray<string | null | undefined>> } = {}) => {
   const query = useQuery({
     queryKey: VUE_QUERY_CACHE_KEYS.payeesLookup,
     queryFn: loadPayeeLookup,
@@ -100,6 +116,35 @@ export const usePayeeLookup = () => {
   const nameById = computed<Record<string, string>>(() =>
     Object.fromEntries(list.value.map((payee) => [payee.id, payee.name])),
   );
+
+  if (referencedIds) {
+    watch(
+      [() => toValue(referencedIds), byId, query.isSuccess, query.isFetching],
+      () => {
+        if (!query.isSuccess.value || query.isFetching.value) return;
+
+        const now = Date.now();
+        const wanted = new Set<string>();
+        for (const id of toValue(referencedIds)) {
+          if (!id) continue;
+          if (byId.value.has(id)) {
+            missingPayeeAttempts.delete(id);
+            continue;
+          }
+          const attempt = missingPayeeAttempts.get(id);
+          if (!attempt || (attempt.count < MISSING_PAYEE_MAX_ATTEMPTS && now - attempt.at >= MISSING_PAYEE_RETRY_MS)) {
+            wanted.add(id);
+          }
+        }
+        if (wanted.size === 0) return;
+
+        for (const id of wanted)
+          missingPayeeAttempts.set(id, { at: now, count: (missingPayeeAttempts.get(id)?.count ?? 0) + 1 });
+        void query.refetch();
+      },
+      { immediate: true },
+    );
+  }
 
   return { ...query, list, byId, nameById };
 };

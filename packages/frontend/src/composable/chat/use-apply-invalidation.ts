@@ -15,7 +15,12 @@ type InvalidationPlan = { all: true } | { all: false; prefixes: string[]; keys: 
 const { transactionChange, securityPriceChange, ventureChange, bankConnectionChange, currencies, notifications } =
   VUE_QUERY_GLOBAL_PREFIXES;
 
-const TRANSACTIONS: InvalidationTarget = { prefixes: [transactionChange] };
+// A change to a transaction may also have created its payee (a card, an ingest approval), which no transaction
+// query carries, so the payee lookups are refreshed along with the transactions.
+const TRANSACTIONS: InvalidationTarget = {
+  prefixes: [transactionChange],
+  keys: [VUE_QUERY_CACHE_KEYS.payeesLookup, VUE_QUERY_CACHE_KEYS.payeesList, VUE_QUERY_CACHE_KEYS.payeeById],
+};
 const PORTFOLIOS: InvalidationTarget = { prefixes: [securityPriceChange, transactionChange] };
 const VENTURE: InvalidationTarget = { prefixes: [ventureChange] };
 
