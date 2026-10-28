@@ -186,6 +186,17 @@ describe('toChatProposalCard', () => {
       expect(card.title).toEqual({ key: 'chat.cards.title.addDetails', params: { entity: 'transaction' } });
     });
 
+    it('titles a stored confirm card "add details" without the preview marker, and leaves out its record id', () => {
+      const card = toChatProposalCard({
+        row: updateRow({ toolName: 'confirm_ingest_payment', args: { transactionId: ID, note: 'Domain' } }),
+        parents: [],
+      });
+
+      expect(card.title.key).toBe('chat.cards.title.addDetails');
+      expect(card.fields.find((field) => field.path === 'transactionId')?.namesRecord).toBe(true);
+      expect(card.fields.find((field) => field.path === 'note')).not.toHaveProperty('namesRecord');
+    });
+
     it('keeps the update title for other kinds of card and other entities', () => {
       const account = toChatProposalCard({
         row: row({ preview: { before: { id: ID }, automationCreated: true } }),
