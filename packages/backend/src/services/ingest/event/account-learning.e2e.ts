@@ -1,6 +1,7 @@
 import type { ChatProposalCard, RecordId } from '@bt/shared/types';
 import { until } from '@common/helpers';
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
+import Accounts from '@models/accounts.model';
 import CardAccountMappings from '@models/card-account-mappings.model';
 import ChatProposals from '@models/chat-proposals.model';
 import IngestRequests from '@models/ingest-requests.model';
@@ -495,6 +496,40 @@ describe('which account a parked notification payment goes to', () => {
       expect((await approve({ card: cleared })).statusCode).toBe(200);
 
       expect(await noteOf({ requestId: first.body.response.requestId })).toBeNull();
+    });
+  });
+  describe('the accounts the source landed payments on before', () => {
+    it('logs a payment on the account the same digits and currency landed on, though the card has no link, and gives a notice with no merchant no payee', async () => {
+      mockNotificationParsing({ answer: () => credit() });
+      const { secret } = await setUp();
+      const first = await send({ secret });
+      const requestId = first.body.response.requestId as RecordId;
+      const card = await waitForCard();
+      const bereke = (await Accounts.findOne({ where: { name: 'Bereke' } }))!;
+      await pickAccount({ card, accountId: bereke.id });
+      const fresh = await helpers.refreshChatProposal({ proposalId: card.id, raw: true });
+      expect((await approve({ card: fresh })).statusCode).toBe(200);
+      await waitUntilLogged({ requestId });
+
+      // The owner removed the card link; the history still says where these digits go.
+      await CardAccountMappings.destroy({ where: {} });
+      mockNotificationParsing({ answer: () => ({ ...credit(), merchant: null }) });
+      const second = await send({ secret });
+
+      expect(second.body.response.outcome).toBe('logged');
+      const logged = await waitUntilLogged({ requestId: second.body.response.requestId });
+      expect(logged.accountId).toBe(bereke.id);
+      expect(logged.payeeId).toBeNull();
+      expect(logged.note ?? '').toBe('');
+    });
+
+    it('still waits for the owner when the digits were never seen', async () => {
+      mockNotificationParsing({ answer: () => credit({ cardLastDigits: '4321' }) });
+      const { secret } = await setUp();
+
+      const res = await send({ secret });
+
+      expect(res.body.response).toMatchObject({ outcome: 'parked', reason: 'unknownAccount' });
     });
   });
 });
