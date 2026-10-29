@@ -367,18 +367,21 @@ describe('which account a parked notification payment goes to', () => {
     const expectBothLoggedAwaitingConfirmation = async ({
       ids,
       accountId,
+      approved = 0,
     }: {
       ids: RecordId[];
       accountId: RecordId;
+      /** How many of the payments the owner approved on their card: those need no confirm card. */
+      approved?: number;
     }) => {
       const transactions: Transactions[] = [];
       for (const requestId of ids) transactions.push(await waitUntilLogged({ requestId }));
 
       expect(transactions.map((transaction) => transaction.accountId)).toEqual([accountId, accountId]);
       expect(await waitingRequests()).toBe(0);
-      // Each payment has its own confirm card, still open: nothing was confirmed for the owner.
-      const confirms = await waitForCards({ toolName: CONFIRM, count: 2 });
-      expect(confirms.map((card) => card.status)).toEqual(['pending', 'pending']);
+      // Each payment the owner did not approve has its own confirm card, still open: nothing was confirmed for them.
+      const confirms = await waitForCards({ toolName: CONFIRM, count: 2 - approved });
+      expect(confirms.map((card) => card.status)).toEqual(Array.from({ length: 2 - approved }, () => 'pending'));
     };
 
     it('logs the others too when one is approved on an account, each for its own OK', async () => {
@@ -388,7 +391,7 @@ describe('which account a parked notification payment goes to', () => {
 
       expect((await approve({ card: firstCard! })).statusCode).toBe(200);
 
-      await expectBothLoggedAwaitingConfirmation({ ids, accountId: bank.id });
+      await expectBothLoggedAwaitingConfirmation({ ids, accountId: bank.id, approved: 1 });
       const requestCards = await inboxCards({ toolName: LOG_REQUEST });
       expect(requestCards.map((card) => card.status).toSorted()).toEqual(['applied', 'rejected']);
       expect(await CardAccountMappings.count()).toBe(1);

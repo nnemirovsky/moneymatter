@@ -44,6 +44,7 @@
       "conditions": "Умови",
       "confirmOverpay": "Підтвердити переплату",
       "counterAccountId": "Рахунок другої сторони",
+      "counterAmount": "Сума другої сторони",
       "createTransaction": "Створити транзакцію",
       "creditLimit": "Кредитний ліміт",
       "currencies": "Валюти",

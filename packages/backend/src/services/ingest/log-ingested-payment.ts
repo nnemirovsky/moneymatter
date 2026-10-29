@@ -68,6 +68,8 @@ interface LogIngestedPaymentParams {
    * picks it (the payee's usual note, else none; the merchant for a row without a payee).
    */
   noteOverride?: string | null;
+  /** The owner approved this payment on its card, so the row needs no confirm card. */
+  confirmed?: boolean;
 }
 
 /**
@@ -177,6 +179,7 @@ export const logIngestedPayment = async ({
   balanceAfter = null,
   cardLastDigits = null,
   noteOverride,
+  confirmed = false,
 }: LogIngestedPaymentParams): Promise<{ transactionId: RecordId }> => {
   const source: IngestSourceEntry = {
     requestId,
@@ -224,7 +227,7 @@ export const logIngestedPayment = async ({
         ingest: {
           requestId,
           pipeline,
-          unconfirmed: true,
+          ...(!confirmed && { unconfirmed: true }),
           systemNote: noteOverride === undefined ? (note ?? '') : '',
           sources: [source],
           ...(createdPayeeId && { createdPayeeId }),

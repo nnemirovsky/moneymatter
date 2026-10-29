@@ -10,6 +10,7 @@ import { withTransaction } from '@services/common/with-transaction';
 
 import { isWaitingRequest } from '../card-payment/process-ingest-request';
 import { readUserLocale } from '../card-payment/read-user-locale';
+import { joinCounterLeg } from '../conversion/join-counter-leg';
 import { settleConversion } from '../conversion/settle-conversion';
 import { absorbParkedTwin } from '../twins/absorb-parked-twin';
 import { findJoinedTwins, findParkedTwins, joinedSlots, probeOf, TWIN_PARK_REASONS } from '../twins/find-parked-twins';
@@ -40,6 +41,7 @@ export const approveParkedRequest = withTransaction(
     requestId,
     accountId,
     counterAccountId,
+    counterAmount,
     direction,
     note,
   }: {
@@ -48,6 +50,11 @@ export const approveParkedRequest = withTransaction(
     accountId?: RecordId;
     /** For one side of a currency exchange only: the account the other side is logged on. */
     counterAccountId?: RecordId;
+    /**
+     * With `counterAccountId` on a notice that has no other side: what the other account takes, in its currency. Required
+     * when that currency differs from the notice's, else it defaults to the notice's amount.
+     */
+    counterAmount?: number;
     direction?: 'debit' | 'credit';
     /** The note the owner wrote on the card; `''` logs the payment without one. */
     note?: string;
@@ -64,11 +71,23 @@ export const approveParkedRequest = withTransaction(
     const stored = readStoredParse({ value: row.parsed });
     if (!stored?.payment) throw new ConflictError({ message: t({ key: 'ingest.requestNotWaiting' }) });
 
+    // A lone notice logged as a transfer gets the other side the owner named.
+    const reading = stored as typeof stored & { payment: NonNullable<typeof stored.payment> };
+    const joinedReading = await joinCounterLeg({
+      userId,
+      row,
+      stored: reading,
+      accountId,
+      counterAccountId,
+      counterAmount,
+      direction,
+    });
+
     // One side of a currency exchange is approved with the other: both are logged and then linked as a transfer.
     const conversion = await settleConversion({
       userId,
       row,
-      stored: stored as typeof stored & { payment: NonNullable<typeof stored.payment> },
+      stored: joinedReading ?? reading,
       accountId,
       counterAccountId,
       note,

@@ -53,6 +53,8 @@ export interface PaymentOverride {
   note: string | null;
   /** The time the exchange the payment is a side of was placed at (see `placeConversionTime`); `null` keeps the notice's. */
   time?: Date | null;
+  /** The owner approved the request on its card: the row is logged confirmed. */
+  approved?: boolean;
 }
 
 /**
@@ -314,6 +316,7 @@ const logNotificationPaymentImpl = async ({
     slot,
     balanceAfter,
     cardLastDigits: payment.cardLastDigits,
+    ...(override?.approved && { confirmed: true }),
     ...(override?.note != null && { noteOverride: override.note.trim() || null }),
   });
 

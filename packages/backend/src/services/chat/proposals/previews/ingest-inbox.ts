@@ -1,4 +1,5 @@
 import { matchAmountGate, type ChatCardWarning, type RecordId } from '@bt/shared/types';
+import Accounts from '@models/accounts.model';
 import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
 import { findOneTransaction } from '@models/transactions-query';
@@ -145,6 +146,37 @@ const conversionOf = async ({
   };
 };
 
+/**
+ * The other side the owner named for a lone notice (`counterAccountId`, `counterAmount`): the account, what it takes and its
+ * currency. The amount is the notice's own when both accounts hold the same currency and none was given; null when it is still missing.
+ */
+const counterOf = async ({
+  userId,
+  payment,
+  args,
+}: {
+  userId: number;
+  payment: StoredPayment;
+  args: Record<string, unknown>;
+}) => {
+  if (typeof args.counterAccountId !== 'string') return null;
+
+  const account = await Accounts.findOne({
+    where: { id: args.counterAccountId, userId },
+    attributes: ['id', 'currencyCode'],
+  });
+  if (!account) return null;
+
+  const given = typeof args.counterAmount === 'number' && args.counterAmount > 0 ? args.counterAmount : null;
+  const sameCurrency = payment.currencyCode === account.currencyCode;
+
+  return {
+    accountId: account.id,
+    currencyCode: account.currencyCode,
+    amount: given ?? (sameCurrency ? Number(payment.amount) : null),
+  };
+};
+
 /** The card of a parked notification payment: what was read, and why it waits. */
 export const resolveIngestRequest: PreviewResolver = async ({ userId, args, lock }) => {
   const request = await IngestRequests.findOne({
@@ -191,6 +223,7 @@ export const resolveIngestRequest: PreviewResolver = async ({ userId, args, lock
   const conversion = payment ? await conversionOf({ request, payment, args }) : null;
 
   const unusual = conversion?.rateUnusual === true;
+  const counter = conversion || !payment ? null : await counterOf({ userId, payment, args });
 
   return {
     preview: {
@@ -200,6 +233,7 @@ export const resolveIngestRequest: PreviewResolver = async ({ userId, args, lock
         alsoWaiting,
         alsoSeenIn,
         ...(conversion && { conversion }),
+        ...(counter && { counter }),
         name: payment?.merchant ?? null,
         sourceName: sourceAppName({ source, payload: request.payload }),
         summary: request.summary,

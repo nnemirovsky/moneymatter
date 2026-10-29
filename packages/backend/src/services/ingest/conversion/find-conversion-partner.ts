@@ -98,10 +98,13 @@ export const findConversionPartner = async ({
   payment?: StoredPayment;
 }): Promise<ConversionPartner | null> => {
   const leg = legOf({ request, payment });
-  if (!leg || !hasNoMerchant(leg.payment) || !request.sourceId) return null;
+  if (!leg) return null;
 
+  // A side that joined by the owner's word (a lone notice logged as a transfer) is the other side whatever the notice names.
   const joined = await findJoinedConversionLeg({ userId: request.userId, requestId: request.id });
   if (joined) return { request: joined, joined: true };
+
+  if (!hasNoMerchant(leg.payment) || !request.sourceId) return null;
 
   const { userId, sourceId } = request;
   const matches = await findCandidates({ userId, sourceId, requestId: request.id, leg });

@@ -63,6 +63,8 @@ const prepareNotificationRetryImpl = async ({
     status: 'received',
     reason: null,
     summary: null,
+    // A forced retry is the owner's yes on the payment: the row it logs has been seen by them.
+    ...(force && row.parsed && { parsed: { ...row.parsed, approved: true } }),
     payload: aiConnectionId ? { ...payload, aiPin: aiConnectionId } : payload,
   });
 

@@ -592,7 +592,7 @@
     },
     {
       "name": "log_ingest_request",
-      "description": "Log a payment that an iOS Automation notification parked for the owner (unknown account, possible own-account transfer, doubtful reading). Requires finance:write scope."
+      "description": "Log a payment that an iOS Automation notification parked for the owner (unknown account, possible own-account transfer, doubtful reading). With counterAccountId (and counterAmount when the currencies differ) it is logged as a transfer, the other side created at the notice time. Requires finance:write scope."
     },
     {
       "name": "set_notification_source",

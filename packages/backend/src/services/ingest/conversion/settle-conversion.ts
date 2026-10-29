@@ -157,6 +157,7 @@ export const settleConversion = async ({
     const parsed = {
       ...leg.stored,
       accountOverrideId: legAccountId,
+      approved: true,
       conversion: { partnerRequestId: otherId },
       ...(legNote !== undefined && { noteOverride: legNote }),
       ...(placedAt && { timeOverride: placedAt.toISOString() }),

@@ -28,6 +28,8 @@ export interface StoredParse {
   attached?: boolean;
   /** For a payment parked on `unknownAccount`: the only account in its currency, to pre-fill the inbox card. */
   accountGuessId?: RecordId | null;
+  /** The owner approved this request on its card (or by hand): the row it logs is theirs and needs no confirm card. */
+  approved?: boolean;
   /** The account the owner chose on the inbox card of a parked payment; the job logs the payment there. */
   accountOverrideId?: RecordId;
   /** The direction the owner chose on that card, when it differs from what the text said. */
