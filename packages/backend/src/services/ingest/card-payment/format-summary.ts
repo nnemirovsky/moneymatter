@@ -41,6 +41,13 @@ export type CardPaymentSummary =
       nextTry: string | null;
     }
   | {
+      /** The balance a notification stated does not match the account: a transaction may be missing. */
+      type: 'notificationParked';
+      reason: 'balanceGap';
+      payment: SummaryAmount;
+      account: string;
+    }
+  | {
       /** A payment that was read and waits for the owner: an unknown account, an own transfer, a doubtful read. */
       type: 'notificationParked';
       reason: 'needsOk';
@@ -152,6 +159,13 @@ export const formatSummary = ({ summary, locale }: { summary: CardPaymentSummary
         return t({
           key: `ingest.summary.${key}${summary.nextTry ? '' : 'Stopped'}`,
           variables: { connection: summary.connection, time: summary.nextTry ?? '' },
+          locale,
+        });
+      }
+      if (summary.reason === 'balanceGap') {
+        return t({
+          key: 'ingest.summary.balanceGap',
+          variables: { amount: formatAmount({ value: summary.payment, locale }), account: summary.account },
           locale,
         });
       }

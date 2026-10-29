@@ -730,6 +730,7 @@
       "notificationLogged": "Notification logged",
       "parkedNotification": "Needs your OK in MoneyMatter: {{summary}}",
       "parkedNotificationAt": "at {{merchant}}",
+      "balanceGap": "Balance of {{account}} is off by {{amount}}: log the missing transaction?",
       "sourceNotApproved": "Not logged yet: approve \"{{source}}\" as a payment source in MoneyMatter",
       "aiUnavailable": "Not logged yet: add an AI model in MoneyMatter so it can read this notification",
       "aiCapReached": "Not logged yet: this month's AI allowance is used up; retry it in MoneyMatter later",

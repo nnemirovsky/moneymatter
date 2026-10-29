@@ -1,6 +1,7 @@
 import type { RecordId } from '@bt/shared/types';
 import { logger } from '@js/utils/logger';
 
+import { proposeBalanceGap } from './balance-gap/propose-balance-gap';
 import { applyHeldContexts } from './context/apply-held-contexts';
 import { suggestShortBalanceCorrection } from './corrections/suggest-short-balance-correction';
 import { judgeAfterCommit } from './dedup/judge-after-commit';
@@ -15,6 +16,7 @@ import { suggestNoteAfterCommit } from './note/suggest-note-after-commit';
  * - a short per-currency balance: which other balance of the card most likely paid;
  * - a currency conversion: the other leg of an own-account conversion, to link as a transfer;
  * - the AI judge: another row of the account that probably records the same payment;
+ * - a stated balance that does not match the account: the transaction that would explain the difference;
  * - the note: when the payee's past notes are mixed, the one the AI picks for this payment;
  * - the context: a merchant-app notification that waited for a payment gets its turn.
  */
@@ -35,6 +37,12 @@ export const afterPaymentLogged = async ({
     await suggestConversionPair({ userId, transactionId });
   } catch (error) {
     logger.error({ message: 'Failed to look for a currency-conversion pair', error: error as Error });
+  }
+
+  try {
+    await proposeBalanceGap({ userId, transactionId });
+  } catch (error) {
+    logger.error({ message: 'Failed to look at the stated balance of a logged payment', error: error as Error });
   }
 
   try {
