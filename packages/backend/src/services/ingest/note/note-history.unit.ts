@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { localHour, offsetMinutesOf, suggestNoteFromHistory } from './note-history';
+import { historyNoteOf, localHour, offsetMinutesOf, suggestNoteFromHistory } from './note-history';
 
 const LISBON = 4 * 60;
 
@@ -127,5 +127,23 @@ describe('localHour', () => {
   it('places a UTC time in the local day', () => {
     expect(localHour({ time: new Date('2026-10-21T08:38:10Z'), offsetMinutes: LISBON })).toBe(12);
     expect(localHour({ time: new Date('2026-10-21T22:30:00Z'), offsetMinutes: LISBON })).toBe(2);
+  });
+});
+
+describe('historyNoteOf', () => {
+  it('keeps the note of an ordinary payment', () => {
+    expect(historyNoteOf({ note: 'Breakfast', externalData: null })).toBe('Breakfast');
+    expect(historyNoteOf({ note: 'Breakfast', externalData: { ingest: { context: { noteApplied: false } } } })).toBe(
+      'Breakfast',
+    );
+  });
+
+  it('drops a note a context notification wrote', () => {
+    expect(
+      historyNoteOf({
+        note: 'Example Bakery order from ExampleApp',
+        externalData: { ingest: { context: { noteApplied: true } } },
+      }),
+    ).toBeNull();
   });
 });

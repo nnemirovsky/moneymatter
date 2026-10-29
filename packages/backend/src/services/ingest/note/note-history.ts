@@ -7,6 +7,22 @@ interface NoteHistoryRow {
   time: Date;
 }
 
+/**
+ * The note of a past payment as history, which is none for a note a context notification wrote ("<store> order from
+ * <service>"): it names one order's venue, so it says nothing of the next payment to the same payee.
+ */
+export const historyNoteOf = ({
+  note,
+  externalData,
+}: {
+  note: string | null;
+  externalData: Record<string, unknown> | null;
+}): string | null => {
+  const context = (externalData as { ingest?: { context?: { noteApplied?: boolean } } } | null)?.ingest?.context;
+
+  return context?.noteApplied === true ? null : note;
+};
+
 /** A note the owner wrote before, with the payments it was on (newest first). */
 export interface NoteCandidate {
   note: string;
