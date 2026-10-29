@@ -29,18 +29,18 @@ const seedRateDay = async () => {
   const day = subDays(startOfDay(new Date()), 6);
   SEEDED_DATES.push(day);
   paymentDay = format(day, 'yyyy-MM-dd');
-  await helpers.seedUsdExchangeRates({ date: day, ratesPerUsd: { GEL: 2 } });
+  await helpers.seedUsdExchangeRates({ date: day, ratesPerUsd: { CHF: 2 } });
 
   return addSeconds(day, 8 * 3600 + 38 * 60 + 10);
 };
 
 const setUp = async () => {
-  await helpers.addUserCurrencies({ currencyCodes: ['GEL'] });
+  await helpers.addUserCurrencies({ currencyCodes: ['CHF'] });
   const tapAt = await seedRateDay();
   const gel = await helpers.createAccount({
     payload: helpers.buildAccountPayload({
-      name: 'Example GEL',
-      currencyCode: 'GEL',
+      name: 'Example CHF',
+      currencyCode: 'CHF',
       initialBalance: 1000,
     }),
     raw: true,
@@ -161,7 +161,7 @@ describe('the real Blue Cofee tap and Example push', () => {
     { label: 'after both taps', pushFirst: false },
     { label: 'before the taps', pushFirst: true },
   ])('the Example push $label', ({ pushFirst }) => {
-    it('is the twin of the tap: one payment of 48.00 GEL, with the push parsed from its first lines only', async () => {
+    it('is the twin of the tap: one payment of 48.00 CHF, with the push parsed from its first lines only', async () => {
       mockNotificationParsing({
         answer: () => ({
           ...blueCoffeeTap.bankPushAnswer,
@@ -180,7 +180,7 @@ describe('the real Blue Cofee tap and Example push', () => {
         expect(res.body.response.outcome).toBe('attached');
       }
 
-      // The cashback (0.24 GEL) and the piggy bank (11.80 GEL) lines make no transaction of their own.
+      // The cashback (0.24 CHF) and the piggy bank (11.80 CHF) lines make no transaction of their own.
       const rows = await allRows();
       expect(rows).toHaveLength(1);
       const row = rows[0]!;

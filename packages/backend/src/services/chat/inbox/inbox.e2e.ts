@@ -53,11 +53,11 @@ const resetLimits = async () => {
   await RateLimitService.resetRateLimit(`ingest-ai:d:${id}`);
 };
 
-/** A day with pinned rates (1 USD = 2 GEL = 1 EUR = 4 AED), so every converted amount is exact. */
+/** A day with pinned rates (1 USD = 2 CHF = 1 EUR = 4 AED), so every converted amount is exact. */
 const seedRateDay = async ({ eurPerUsd = 1 }: { eurPerUsd?: number } = {}) => {
   const day = subDays(startOfDay(new Date()), 6);
   SEEDED_DATES.push(day);
-  await helpers.seedUsdExchangeRates({ date: day, ratesPerUsd: { AED: 4, GEL: 2, EUR: eurPerUsd } });
+  await helpers.seedUsdExchangeRates({ date: day, ratesPerUsd: { AED: 4, CHF: 2, EUR: eurPerUsd } });
 
   return addMinutes(day, 14 * 60 + 38);
 };
@@ -222,7 +222,7 @@ const answerFor = ({ prompt }: { prompt: string }) =>
     ? {
         kind: 'credit' as const,
         amount: '778.50',
-        currency: 'GEL',
+        currency: 'CHF',
         merchant: 'Deposit Money',
         cardName: 'EXAMPLE CARD',
       }
@@ -413,9 +413,9 @@ describe('Automation inbox', () => {
     });
 
     it('updates the card of the first source when a second source of the payment arrives, and adds no second card', async () => {
-      await helpers.addUserCurrencies({ currencyCodes: ['GEL'] });
+      await helpers.addUserCurrencies({ currencyCodes: ['CHF'] });
       const noon = await seedRateDay();
-      const gel = await account({ name: 'Example GEL', currencyCode: 'GEL' });
+      const gel = await account({ name: 'Example CHF', currencyCode: 'CHF' });
       await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id }, raw: true });
       const { secret } = await ingestHelpers.createTestIngestToken();
 
@@ -431,7 +431,7 @@ describe('Automation inbox', () => {
       expect(tap.body.response.outcome).toBe('logged');
       const first = await waitForCard({ toolName: CONFIRM });
 
-      const second = await wallet({ secret, card: CARD, body: 'GEL 29.41', time: noon.toISOString() });
+      const second = await wallet({ secret, card: CARD, body: 'CHF 29.41', time: noon.toISOString() });
       expect(second.body.response.outcome).toBe('attached');
 
       await until(async () => (await cardById({ id: first.id })).revision > first.revision, {
@@ -445,12 +445,12 @@ describe('Automation inbox', () => {
     });
 
     describe('the short-balance correction', () => {
-      /** The owner's multi-currency card: GEL is the default account with a short balance, USD holds the money. */
+      /** The owner's multi-currency card: CHF is the default account with a short balance, USD holds the money. */
       const setUpShortCard = async ({ withEur = false }: { withEur?: boolean } = {}) => {
-        await helpers.addUserCurrencies({ currencyCodes: ['GEL', 'USD', ...(withEur ? ['EUR'] : [])] });
+        await helpers.addUserCurrencies({ currencyCodes: ['CHF', 'USD', ...(withEur ? ['EUR'] : [])] });
         // With EUR at 1.6 per USD the EUR estimate (23.53) differs from the suggested USD one (14.7).
         const noon = await seedRateDay(withEur ? { eurPerUsd: 1.6 } : {});
-        const gel = await account({ name: 'Example GEL', currencyCode: 'GEL', initialBalance: 10 });
+        const gel = await account({ name: 'Example CHF', currencyCode: 'CHF', initialBalance: 10 });
         const usd = await account({ name: 'Example USD', currencyCode: 'USD', initialBalance: 500 });
         await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id }, raw: true });
         await helpers.createCardMapping({
@@ -491,7 +491,7 @@ describe('Automation inbox', () => {
         expect(approved.statusCode).toBe(200);
         const tx = (await Transactions.findOne({ where: { accountId: usd.id } }))!;
         expect(tx.amount.toNumber()).toBe(14.7);
-        expect(tx.originalCurrencyCode).toBe('GEL');
+        expect(tx.originalCurrencyCode).toBe('CHF');
         expect(tx.originalAmount!.toNumber()).toBe(29.41);
         expect(await balanceOf({ id: gel.id })).toBe(10);
         expect(await balanceOf({ id: usd.id })).toBe(500 - 14.7);
@@ -907,13 +907,13 @@ describe('Automation inbox', () => {
       judge: () => ({ matches: [{ id: 'c1', confidence: 0.95, reason: 'Same shop and amount, a minute apart.' }] }),
     };
 
-    /** A GEL account linked to the card, a hand-typed row and a Wallet payment the judge calls its duplicate. */
+    /** A CHF account linked to the card, a hand-typed row and a Wallet payment the judge calls its duplicate. */
     const raiseSuggestion = async () => {
       enableServerModel();
       mockNotificationParsing({ answer: () => ({}), ...JUDGED });
-      await helpers.addUserCurrencies({ currencyCodes: ['GEL'] });
+      await helpers.addUserCurrencies({ currencyCodes: ['CHF'] });
       const noon = await seedRateDay();
-      const gel = await account({ name: 'Example GEL', currencyCode: 'GEL' });
+      const gel = await account({ name: 'Example CHF', currencyCode: 'CHF' });
       await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id }, raw: true });
       const { secret } = await ingestHelpers.createTestIngestToken();
       const [typed] = await helpers.createTransaction({
@@ -995,15 +995,15 @@ describe('Automation inbox', () => {
 
   describe('the card of a currency-conversion pair', () => {
     const TRANSFER_OUT = 'Money Transfer: 300.00 USD\nEXAMPLE CARD\n20/10/2026';
-    const DEPOSIT_IN = 'Deposit Money: 778.50 GEL\nEXAMPLE CARD\n20/10/2026';
+    const DEPOSIT_IN = 'Deposit Money: 778.50 CHF\nEXAMPLE CARD\n20/10/2026';
     const raisePair = async () => {
       enableServerModel();
       mockNotificationParsing({ answer: answerFor });
-      await helpers.addUserCurrencies({ currencyCodes: ['GEL', 'USD'] });
+      await helpers.addUserCurrencies({ currencyCodes: ['CHF', 'USD'] });
       const day = subDays(startOfDay(new Date()), 6);
       SEEDED_DATES.push(day);
-      await helpers.seedUsdExchangeRates({ date: day, ratesPerUsd: { AED: 4, GEL: 2.6 } });
-      const gel = await account({ name: 'Example GEL', currencyCode: 'GEL' });
+      await helpers.seedUsdExchangeRates({ date: day, ratesPerUsd: { AED: 4, CHF: 2.6 } });
+      const gel = await account({ name: 'Example CHF', currencyCode: 'CHF' });
       const usd = await account({ name: 'Example USD', currencyCode: 'USD' });
       await helpers.createCardMapping({ payload: { cardLabel: 'EXAMPLE CARD', accountId: gel.id }, raw: true });
       await helpers.createCardMapping({

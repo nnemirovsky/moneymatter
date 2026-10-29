@@ -33,7 +33,7 @@ const JUDGED = {
 const seedRateDay = async ({ daysBack }: { daysBack: number }) => {
   const day = subDays(startOfDay(new Date()), daysBack);
   SEEDED_DATES.push(day);
-  await helpers.seedUsdExchangeRates({ date: day, ratesPerUsd: { AED: 4, EUR: 2, GEL: 2, UAH: 8 } });
+  await helpers.seedUsdExchangeRates({ date: day, ratesPerUsd: { AED: 4, EUR: 2, CHF: 2, UAH: 8 } });
 
   return day;
 };
@@ -110,14 +110,14 @@ describe('Duplicate suggestions', () => {
   });
 
   describe('on a manual account', () => {
-    /** A GEL account linked to the card, a hand-typed row and a Wallet payment the judge calls its duplicate. */
+    /** A CHF account linked to the card, a hand-typed row and a Wallet payment the judge calls its duplicate. */
     const raiseSuggestion = async () => {
       mockNotificationParsing({ answer: () => ({}), ...JUDGED });
-      await helpers.addUserCurrencies({ currencyCodes: ['GEL'] });
+      await helpers.addUserCurrencies({ currencyCodes: ['CHF'] });
       const day = await seedRateDay({ daysBack: 6 });
       const noon = addMinutes(day, 14 * 60 + 38);
       const gel = await helpers.createAccount({
-        payload: helpers.buildAccountPayload({ name: 'TBC GEL', currencyCode: 'GEL', initialBalance: 1000 }),
+        payload: helpers.buildAccountPayload({ name: 'TBC CHF', currencyCode: 'CHF', initialBalance: 1000 }),
         raw: true,
       });
       await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id }, raw: true });
@@ -286,10 +286,10 @@ describe('Duplicate suggestions', () => {
     describe('the judge at ingest', () => {
       it('raises a suggestion for two ingest rows and merges nothing', async () => {
         mockNotificationParsing({ answer: () => ({}), ...JUDGED });
-        await helpers.addUserCurrencies({ currencyCodes: ['GEL'] });
+        await helpers.addUserCurrencies({ currencyCodes: ['CHF'] });
         const noon = addMinutes(await seedRateDay({ daysBack: 6 }), 14 * 60 + 38);
         const gel = await helpers.createAccount({
-          payload: helpers.buildAccountPayload({ name: 'TBC GEL', currencyCode: 'GEL', initialBalance: 1000 }),
+          payload: helpers.buildAccountPayload({ name: 'TBC CHF', currencyCode: 'CHF', initialBalance: 1000 }),
           raw: true,
         });
         await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id }, raw: true });
@@ -324,10 +324,10 @@ describe('Duplicate suggestions', () => {
     it('raises a suggestion for an imported row next to an ingest row, and merges nothing', async () => {
       const judgePrompts: string[] = [];
       mockNotificationParsing({ answer: () => ({}), judgePrompts, ...JUDGED });
-      await helpers.addUserCurrencies({ currencyCodes: ['GEL'] });
+      await helpers.addUserCurrencies({ currencyCodes: ['CHF'] });
       const noon = addMinutes(await seedRateDay({ daysBack: 6 }), 14 * 60 + 38);
       const gel = await helpers.createAccount({
-        payload: helpers.buildAccountPayload({ name: 'TBC GEL', currencyCode: 'GEL', initialBalance: 1000 }),
+        payload: helpers.buildAccountPayload({ name: 'TBC CHF', currencyCode: 'CHF', initialBalance: 1000 }),
         raw: true,
       });
       await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id }, raw: true });

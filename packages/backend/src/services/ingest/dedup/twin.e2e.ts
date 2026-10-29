@@ -30,14 +30,14 @@ const SEEDED_DATES: Date[] = [];
 let paymentDay = '';
 
 /**
- * A day with pinned rates (1 USD = 2 GEL = 4 AED), so every converted amount is exact. Returns the
+ * A day with pinned rates (1 USD = 2 CHF = 4 AED), so every converted amount is exact. Returns the
  * moment of the Wallet notification, 14:38 UTC; the bank's push reads 18:40 on the wall two minutes later (UTC+4).
  */
 const seedRateDay = async () => {
   const day = subDays(startOfDay(new Date()), RATE_DAYS_AGO);
   SEEDED_DATES.push(day);
   paymentDay = format(day, 'yyyy-MM-dd');
-  await helpers.seedUsdExchangeRates({ date: day, ratesPerUsd: { AED: 4, GEL: 2 } });
+  await helpers.seedUsdExchangeRates({ date: day, ratesPerUsd: { AED: 4, CHF: 2 } });
 
   return addMinutes(day, 14 * 60 + 38);
 };
@@ -54,17 +54,17 @@ const answerFor = ({ prompt }: { prompt: string }) =>
     : {
         kind: 'debit' as const,
         amount: '29.41',
-        currency: 'GEL',
+        currency: 'CHF',
         merchant: 'WOLT.COM LISBON',
         cardLastDigits: '0000',
         payee: WOLT_PAYEE,
       };
 
 const setUp = async ({ withUsd = false, holdsUsd = false }: { withUsd?: boolean; holdsUsd?: boolean } = {}) => {
-  await helpers.addUserCurrencies({ currencyCodes: withUsd || holdsUsd ? ['GEL', 'USD'] : ['GEL'] });
+  await helpers.addUserCurrencies({ currencyCodes: withUsd || holdsUsd ? ['CHF', 'USD'] : ['CHF'] });
   const noon = await seedRateDay();
   const gel = await helpers.createAccount({
-    payload: helpers.buildAccountPayload({ name: 'Example GEL', currencyCode: 'GEL', initialBalance: 1000 }),
+    payload: helpers.buildAccountPayload({ name: 'Example CHF', currencyCode: 'CHF', initialBalance: 1000 }),
     raw: true,
   });
   await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id, lastDigits: '0000' }, raw: true });
@@ -94,7 +94,7 @@ const sendSource = ({
   secret,
   noon,
   source,
-  bogBody = 'Purchase 29.41 GEL, WOLT.COM LISBON, card *0000',
+  bogBody = 'Purchase 29.41 CHF, WOLT.COM LISBON, card *0000',
 }: {
   secret: string;
   noon: Date;
@@ -212,10 +212,10 @@ describe('twin and settlement rules', () => {
         } else if (source === 'tap') {
           // The tap answers like a repeat.
           expect(res.body.response).toMatchObject({ outcome: 'logged', duplicate: true });
-          expect(res.body.response.summary).toMatch(/^Already logged 29\.41 GEL at /);
+          expect(res.body.response.summary).toMatch(/^Already logged 29\.41 CHF at /);
         } else {
           expect(res.body.response.outcome).toBe('attached');
-          expect(res.body.response.summary).toMatch(/^Already logged 29\.41 GEL at /);
+          expect(res.body.response.summary).toMatch(/^Already logged 29\.41 CHF at /);
         }
       }
 
@@ -276,7 +276,7 @@ describe('twin and settlement rules', () => {
       expect(row!.time.toISOString()).toBe(new Date(noon.getTime() + 2 * 60_000).toISOString());
       expect(bankSource!.occurredAt).toBe(row!.time.toISOString());
 
-      // GEL and USD both hold money, so the total in GEL is not the GEL account's balance.
+      // CHF and USD both hold money, so the total in CHF is not the CHF account's balance.
       expect(bankSource!.balanceAfter).toMatchObject({ amount: '3816.41', authoritative: false });
     });
   });
@@ -359,7 +359,7 @@ describe('twin and settlement rules', () => {
   describe('what is not the same payment', () => {
     it('keeps another shop with the same amount apart', async () => {
       mockNotificationParsing({
-        answer: () => ({ kind: 'debit', amount: '29.41', currency: 'GEL', merchant: 'Glovo', cardLastDigits: '0000' }),
+        answer: () => ({ kind: 'debit', amount: '29.41', currency: 'CHF', merchant: 'Glovo', cardLastDigits: '0000' }),
       });
       const { secret, noon } = await setUp();
 
@@ -416,7 +416,7 @@ describe('twin and settlement rules', () => {
         answer: () => ({
           kind: 'debit',
           amount: '20.50',
-          currency: 'GEL',
+          currency: 'CHF',
           originalAmount: '10.00',
           originalCurrency: 'USD',
           merchant: 'WOLT.COM LISBON',
@@ -426,7 +426,7 @@ describe('twin and settlement rules', () => {
       });
       const { gel, secret, noon } = await setUp({ holdsUsd: true });
 
-      // The tap relays what the card was charged: 10 USD, converted at the day's rate (1 USD = 2 GEL).
+      // The tap relays what the card was charged: 10 USD, converted at the day's rate (1 USD = 2 CHF).
       const tap = await ingestHelpers.postCardPayment({
         secret,
         body: {
@@ -445,7 +445,7 @@ describe('twin and settlement rules', () => {
         secret,
         noon,
         source: 'bog',
-        bogBody: 'Purchase 20.50 GEL (10.00 USD), WOLT.COM LISBON, card *0000',
+        bogBody: 'Purchase 20.50 CHF (10.00 USD), WOLT.COM LISBON, card *0000',
       });
       expect(bank.body.response.outcome).toBe('attached');
 
@@ -466,7 +466,7 @@ describe('twin and settlement rules', () => {
         answer: () => ({
           kind: 'debit',
           amount: '29.41',
-          currency: 'GEL',
+          currency: 'CHF',
           merchant: 'Wolt Georgia',
           cardLastDigits: '0000',
         }),
@@ -492,7 +492,7 @@ describe('twin and settlement rules', () => {
       kind: 'debit' as const,
       stage,
       amount: '29.41',
-      currency: 'GEL',
+      currency: 'CHF',
       merchant,
       cardLastDigits: '0000',
       payee: WOLT_PAYEE,
@@ -519,16 +519,16 @@ describe('twin and settlement rules', () => {
       });
       const { secret, noon } = await setUp();
 
-      await sendBank({ secret, noon, seconds: 0, body: 'Hold 29.41 GEL, Wolt, card *0000' });
+      await sendBank({ secret, noon, seconds: 0, body: 'Hold 29.41 CHF, Wolt, card *0000' });
       const settlement = await sendBank({
         secret,
         noon,
         seconds: 2 * 24 * 3600,
-        body: 'Settled 29.41 GEL, Wolt, card *0000',
+        body: 'Settled 29.41 CHF, Wolt, card *0000',
       });
 
       expect(settlement.body.response.outcome).toBe('attached');
-      expect(settlement.body.response.summary).toMatch(/^Already logged 29\.41 GEL at Wolt/);
+      expect(settlement.body.response.summary).toMatch(/^Already logged 29\.41 CHF at Wolt/);
 
       const rows = await allRows();
       expect(rows).toHaveLength(1);
@@ -547,12 +547,12 @@ describe('twin and settlement rules', () => {
       });
       const { secret, noon } = await setUp();
 
-      await sendBank({ secret, noon, seconds: 0, body: 'Hold 29.41 GEL, Wolt, card *0000' });
+      await sendBank({ secret, noon, seconds: 0, body: 'Hold 29.41 CHF, Wolt, card *0000' });
       const settlement = await sendBank({
         secret,
         noon,
         seconds: 2 * 24 * 3600,
-        body: 'Settled 29.41 GEL, Bolt Food, card *0000',
+        body: 'Settled 29.41 CHF, Bolt Food, card *0000',
       });
 
       expect(settlement.body.response.outcome).toBe('logged');

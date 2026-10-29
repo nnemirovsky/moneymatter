@@ -18,7 +18,7 @@ const baseOutput = (overrides: Partial<NotificationParseOutput> = {}): Notificat
   stage: 'payment',
   isOwnAccountTransfer: false,
   amount: '43.60',
-  currency: 'GEL',
+  currency: 'CHF',
   originalAmount: null,
   originalCurrency: null,
   merchant: 'WOLT.COM LISBON',
@@ -110,7 +110,7 @@ describe('amounts', () => {
   });
 
   it('takes the currency out of an amount written with a code when the model gave none', () => {
-    expect(paymentOf({ amount: '43.60 GEL', currency: null }).currencyCode).toBe('GEL');
+    expect(paymentOf({ amount: '43.60 CHF', currency: null }).currencyCode).toBe('CHF');
   });
 
   it.each(['abc', '', '0', '0.00', '-5', null])('parks a payment whose amount is %p, with nothing to log', (amount) => {
@@ -122,7 +122,7 @@ describe('amounts', () => {
   });
 
   it.each([
-    ['gel', 'GEL'],
+    ['chf', 'CHF'],
     [' usd ', 'USD'],
     ['€', null],
     ['EURO', null],
@@ -136,7 +136,7 @@ describe('amounts', () => {
       originalAmount: '41.8',
       originalCurrencyCode: 'USD',
     });
-    expect(paymentOf({ originalAmount: '41.80', originalCurrency: 'GEL' })).toMatchObject({
+    expect(paymentOf({ originalAmount: '41.80', originalCurrency: 'CHF' })).toMatchObject({
       originalAmount: null,
       originalCurrencyCode: null,
     });
@@ -237,7 +237,7 @@ describe('payee choice', () => {
   });
 });
 
-const balance = (amount: string, currency: string | null = 'GEL') => ({
+const balance = (amount: string, currency: string | null = 'CHF') => ({
   amount,
   currency,
   scopeHint: 'total' as const,
@@ -247,7 +247,7 @@ describe('balanceAfter', () => {
   it('reads the amount, the currency and the scope', () => {
     expect(paymentOf({ balanceAfter: balance('3,040.15') }).balanceAfter).toEqual({
       amount: '3040.15',
-      currencyCode: 'GEL',
+      currencyCode: 'CHF',
       scopeHint: 'total',
     });
   });
@@ -259,9 +259,9 @@ describe('balanceAfter', () => {
   });
 
   it('takes the currency out of the amount text when the model gave none', () => {
-    expect(paymentOf({ balanceAfter: balance('410.55 GEL', null) }).balanceAfter).toMatchObject({
+    expect(paymentOf({ balanceAfter: balance('410.55 CHF', null) }).balanceAfter).toMatchObject({
       amount: '410.55',
-      currencyCode: 'GEL',
+      currencyCode: 'CHF',
     });
   });
 
@@ -305,26 +305,26 @@ describe('verbatim checks against the notification text', () => {
   };
 
   it('keeps card digits the text prints, after a mask or on their own', () => {
-    expect(digitsOf({ body: 'Purchase 43.60 GEL, WOLT.COM LISBON, card *1258', cardLastDigits: '1258' })).toBe('1258');
-    expect(digitsOf({ body: 'Card •1258: 43.60 GEL at Wolt', cardLastDigits: '1258' })).toBe('1258');
-    expect(digitsOf({ body: 'VISA **** 1258 purchase 43.60 GEL Wolt', cardLastDigits: '*1258' })).toBe('1258');
-    expect(digitsOf({ body: 'Card ending 1258, 43.60 GEL, Wolt', cardLastDigits: '1258' })).toBe('1258');
+    expect(digitsOf({ body: 'Purchase 43.60 CHF, WOLT.COM LISBON, card *1258', cardLastDigits: '1258' })).toBe('1258');
+    expect(digitsOf({ body: 'Card •1258: 43.60 CHF at Wolt', cardLastDigits: '1258' })).toBe('1258');
+    expect(digitsOf({ body: 'VISA **** 1258 purchase 43.60 CHF Wolt', cardLastDigits: '*1258' })).toBe('1258');
+    expect(digitsOf({ body: 'Card ending 1258, 43.60 CHF, Wolt', cardLastDigits: '1258' })).toBe('1258');
   });
 
   it('drops card digits the text does not print', () => {
-    expect(digitsOf({ body: 'Purchase 43.60 GEL, WOLT.COM LISBON', cardLastDigits: '1258' })).toBeNull();
+    expect(digitsOf({ body: 'Purchase 43.60 CHF, WOLT.COM LISBON', cardLastDigits: '1258' })).toBeNull();
   });
 
   it('drops card digits that only appear inside a phone number, a balance, a date or a reference', () => {
-    expect(digitsOf({ body: 'Purchase 43.60 GEL Wolt. Questions: +995 577 1258', cardLastDigits: '1258' })).toBeNull();
-    expect(digitsOf({ body: 'Purchase 43.60 GEL Wolt. Call 0322551258', cardLastDigits: '1258' })).toBeNull();
-    expect(digitsOf({ body: 'Purchase 43.60 GEL Wolt. Balance: 1258.40 GEL', cardLastDigits: '1258' })).toBeNull();
-    expect(digitsOf({ body: 'Purchase 43.60 GEL Wolt. Balance 1 258,40 GEL', cardLastDigits: '1258' })).toBeNull();
-    expect(digitsOf({ body: 'Purchase 43.60 GEL Wolt, ref 99412587', cardLastDigits: '1258' })).toBeNull();
+    expect(digitsOf({ body: 'Purchase 43.60 CHF Wolt. Questions: +995 577 1258', cardLastDigits: '1258' })).toBeNull();
+    expect(digitsOf({ body: 'Purchase 43.60 CHF Wolt. Call 0322551258', cardLastDigits: '1258' })).toBeNull();
+    expect(digitsOf({ body: 'Purchase 43.60 CHF Wolt. Balance: 1258.40 CHF', cardLastDigits: '1258' })).toBeNull();
+    expect(digitsOf({ body: 'Purchase 43.60 CHF Wolt. Balance 1 258,40 CHF', cardLastDigits: '1258' })).toBeNull();
+    expect(digitsOf({ body: 'Purchase 43.60 CHF Wolt, ref 99412587', cardLastDigits: '1258' })).toBeNull();
   });
 
   it('logs a payment whose amount the text prints, whatever its separators', () => {
-    expect(classifyWithText({ body: 'Purchase 43.60 GEL, Wolt' }).verdict).toBe('payment');
+    expect(classifyWithText({ body: 'Purchase 43.60 CHF, Wolt' }).verdict).toBe('payment');
     expect(
       classifyWithText({ body: 'Списание 3 000,00 RUB, Salary', amount: '3000.00', currency: 'RUB' }).verdict,
     ).toBe('payment');
@@ -334,14 +334,14 @@ describe('verbatim checks against the notification text', () => {
     expect(classifyWithText({ body: 'Paid 1.234,50 EUR at Store', amount: '1234.50', currency: 'EUR' }).verdict).toBe(
       'payment',
     );
-    expect(classifyWithText({ body: 'Paid GEL48 at Blue', amount: '48' }).verdict).toBe('payment');
+    expect(classifyWithText({ body: 'Paid CHF48 at Blue', amount: '48' }).verdict).toBe('payment');
     expect(classifyWithText({ body: 'Card *1258 3 000,00 RUB, Salary', amount: '3000', currency: 'RUB' }).verdict).toBe(
       'payment',
     );
   });
 
   it('parks a payment whose amount the text does not print, keeping what was read', () => {
-    const result = classifyWithText({ body: 'Purchase 43.60 GEL, Wolt. Balance 1200.00 GEL', amount: '436.00' });
+    const result = classifyWithText({ body: 'Purchase 43.60 CHF, Wolt. Balance 1200.00 CHF', amount: '436.00' });
 
     expect(result).toMatchObject({ verdict: 'park', reason: 'unverifiedParse', payment: { amount: '436' } });
   });
@@ -396,7 +396,7 @@ describe('the fixtures', () => {
     expect(result.verdict === 'payment' && result.payment).toMatchObject({
       amount: '12.5',
       currencyCode: 'USD',
-      balanceAfter: { amount: '3040.15', currencyCode: 'GEL', scopeHint: 'total' },
+      balanceAfter: { amount: '3040.15', currencyCode: 'CHF', scopeHint: 'total' },
     });
   });
 });
