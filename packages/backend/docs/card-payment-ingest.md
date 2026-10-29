@@ -380,6 +380,8 @@ Some multi-currency cards debit the whole amount from another currency's balance
 
 ### Conversion pair
 
+A single notice that holds both sides of an exchange (exactly two amounts in two different currencies, with a printed rate that matches their ratio or exchange wording; `parseConversionNotice`) is parked as `unknownAccount` with the money that left, and the money that arrived is a second request that joins it as `conversionLeg` with the same source and received time. The card, the history check and the approval are then the pairing's. A transfer created or linked elsewhere emits `TRANSFER_LOGGED`; a waiting exchange card whose two amounts and currencies equal its legs, or an `ownTransfer` park whose amount equals a leg, within a day, is dismissed as `resolvedElsewhere` and its card closes. The same event withdraws an open short-balance suggestion when the transfer into the account (within 10 minutes of the payment) brings `ingest.balanceBefore` up to the payment, and a suggestion is not made when such a transfer is already there.
+
 When money leaves one of the user's accounts and arrives in another within an hour (`conversionPairWindowMs`) at an amount within 3% of the day's rate (`conversionRateTolerance`), `suggestConversionPair` stores `externalData.ingestTransferSuggestion` on the legs and the inbox posts a card. Approve is `PUT /transactions/link` with the expense and income ids, dismiss is `POST /transactions/transfer-recommendations/dismiss`. A status text with no amount ("you initiated a transfer for conversion") never reaches this: it is dropped by the amount gate.
 
 ### Automation inbox
