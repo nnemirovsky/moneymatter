@@ -34,7 +34,7 @@ const timeOf = ({ noon, seconds }: { noon: Date; seconds: number }) =>
 const setUp = async () => {
   await helpers.addUserCurrencies({ currencyCodes: ['CHF'] });
   const noon = await seedRateDay();
-  const gel = await helpers.createAccount({
+  const chf = await helpers.createAccount({
     payload: helpers.buildAccountPayload({ name: 'Example CHF', currencyCode: 'CHF', initialBalance: 1000 }),
     raw: true,
   });
@@ -42,9 +42,9 @@ const setUp = async () => {
     payload: helpers.buildAccountPayload({ name: 'Cash CHF', currencyCode: 'CHF', initialBalance: 1000 }),
     raw: true,
   });
-  await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id }, raw: true });
+  await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: chf.id }, raw: true });
 
-  return { gel, other, noon, secret: (await ingestHelpers.createTestIngestToken()).secret };
+  return { chf, other, noon, secret: (await ingestHelpers.createTestIngestToken()).secret };
 };
 
 const manualRow = ({ accountId, amount, time }: { accountId: RecordId; amount: number; time: string }) =>
@@ -112,8 +112,8 @@ describe('the AI duplicate judge', () => {
         judgePrompts,
         judge: () => ({ matches: [{ id: 'c1', confidence: 0.95, reason: 'Same shop and amount a minute apart.' }] }),
       });
-      const { gel, noon, secret } = await setUp();
-      const [typed] = await manualRow({ accountId: gel.id, amount: 29.41, time: timeOf({ noon, seconds: -60 }) });
+      const { chf, noon, secret } = await setUp();
+      const [typed] = await manualRow({ accountId: chf.id, amount: 29.41, time: timeOf({ noon, seconds: -60 }) });
 
       const res = await walletPayment({ secret, noon });
 
@@ -132,7 +132,7 @@ describe('the AI duplicate judge', () => {
       const suggestions = await helpers.listDuplicateSuggestions({ raw: true });
       expect(suggestions).toHaveLength(1);
       expect(suggestions[0]).toMatchObject({
-        accountId: gel.id,
+        accountId: chf.id,
         confidence: 0.95,
         reason: 'Same shop and amount a minute apart.',
         trigger: 'ingest',
@@ -144,7 +144,7 @@ describe('the AI duplicate judge', () => {
       expect(sides).toEqual(sides.toSorted());
       expect(suggestions[0]!.transactionSlots.concat(suggestions[0]!.candidateSlots)).toEqual(['wallet-notification']);
 
-      expect((await helpers.getAccount({ id: gel.id, raw: true })).currentBalance).toBeCloseTo(1000 - 29.41 - 29.41, 2);
+      expect((await helpers.getAccount({ id: chf.id, raw: true })).currentBalance).toBeCloseTo(1000 - 29.41 - 29.41, 2);
     });
 
     it('also counts a match at exactly 0.6', async () => {
@@ -152,8 +152,8 @@ describe('the AI duplicate judge', () => {
         answer: () => ({}),
         judge: () => ({ matches: [{ id: 'c1', confidence: 0.6, reason: null }] }),
       });
-      const { gel, noon, secret } = await setUp();
-      await manualRow({ accountId: gel.id, amount: 29.41, time: timeOf({ noon, seconds: -60 }) });
+      const { chf, noon, secret } = await setUp();
+      await manualRow({ accountId: chf.id, amount: 29.41, time: timeOf({ noon, seconds: -60 }) });
 
       await walletPayment({ secret, noon });
 
@@ -186,8 +186,8 @@ describe('the AI duplicate judge', () => {
         judgePrompts,
         judge: () => ({ matches: [{ id: 'c1', confidence: 0.3, reason: 'Probably another purchase.' }] }),
       });
-      const { gel, noon, secret } = await setUp();
-      await manualRow({ accountId: gel.id, amount: 29.41, time: timeOf({ noon, seconds: -60 }) });
+      const { chf, noon, secret } = await setUp();
+      await manualRow({ accountId: chf.id, amount: 29.41, time: timeOf({ noon, seconds: -60 }) });
 
       const res = await walletPayment({ secret, noon });
 
@@ -201,8 +201,8 @@ describe('the AI duplicate judge', () => {
         answer: () => ({}),
         judge: () => ({ matches: [{ id: 'c9', confidence: 0.99, reason: 'invented' }] }),
       });
-      const { gel, noon, secret } = await setUp();
-      await manualRow({ accountId: gel.id, amount: 29.41, time: timeOf({ noon, seconds: -60 }) });
+      const { chf, noon, secret } = await setUp();
+      await manualRow({ accountId: chf.id, amount: 29.41, time: timeOf({ noon, seconds: -60 }) });
 
       await walletPayment({ secret, noon });
 
@@ -252,9 +252,9 @@ describe('the AI duplicate judge', () => {
         judgePrompts,
         judge: () => ({ matches: [{ id: 'c1', confidence: 0.95, reason: null }] }),
       });
-      const { gel, noon, secret } = await setUp();
-      await manualRow({ accountId: gel.id, amount: 80, time: timeOf({ noon, seconds: -60 }) });
-      await manualRow({ accountId: gel.id, amount: 29.41, time: timeOf({ noon, seconds: -73 * 3600 }) });
+      const { chf, noon, secret } = await setUp();
+      await manualRow({ accountId: chf.id, amount: 80, time: timeOf({ noon, seconds: -60 }) });
+      await manualRow({ accountId: chf.id, amount: 29.41, time: timeOf({ noon, seconds: -73 * 3600 }) });
 
       await walletPayment({ secret, noon });
 
@@ -268,10 +268,10 @@ describe('the AI duplicate judge', () => {
         judgePrompts,
         judge: () => ({ matches: [{ id: 'c1', confidence: 0.95, reason: null }] }),
       });
-      const { gel, noon, secret } = await setUp();
+      const { chf, noon, secret } = await setUp();
       await helpers.createTransaction({
         payload: helpers.buildTransactionPayload({
-          accountId: gel.id,
+          accountId: chf.id,
           amount: 29.41,
           time: timeOf({ noon, seconds: -60 }),
           transactionType: 'income' as never,
@@ -289,8 +289,8 @@ describe('the AI duplicate judge', () => {
     it('leaves the logged row in place when the call fails', async () => {
       const judgePrompts: string[] = [];
       mockNotificationParsing({ answer: () => ({}), judgePrompts, judge: () => 'fail' });
-      const { gel, noon, secret } = await setUp();
-      await manualRow({ accountId: gel.id, amount: 29.41, time: timeOf({ noon, seconds: -60 }) });
+      const { chf, noon, secret } = await setUp();
+      await manualRow({ accountId: chf.id, amount: 29.41, time: timeOf({ noon, seconds: -60 }) });
 
       const res = await walletPayment({ secret, noon });
 
@@ -308,8 +308,8 @@ describe('the AI duplicate judge', () => {
 
     it('raises nothing when the model answers nothing usable', async () => {
       mockNotificationParsing({ answer: () => ({}) });
-      const { gel, noon, secret } = await setUp();
-      await manualRow({ accountId: gel.id, amount: 29.41, time: timeOf({ noon, seconds: -60 }) });
+      const { chf, noon, secret } = await setUp();
+      await manualRow({ accountId: chf.id, amount: 29.41, time: timeOf({ noon, seconds: -60 }) });
 
       const res = await walletPayment({ secret, noon });
 
@@ -325,8 +325,8 @@ describe('the AI duplicate judge', () => {
         judge: () => ({ matches: [{ id: 'c1', confidence: 0.95, reason: null }] }),
       });
       process.env.INGEST_AI_DAILY_LIMIT = '0';
-      const { gel, noon, secret } = await setUp();
-      await manualRow({ accountId: gel.id, amount: 29.41, time: timeOf({ noon, seconds: -60 }) });
+      const { chf, noon, secret } = await setUp();
+      await manualRow({ accountId: chf.id, amount: 29.41, time: timeOf({ noon, seconds: -60 }) });
 
       const res = await walletPayment({ secret, noon });
 
@@ -343,8 +343,8 @@ describe('the AI duplicate judge', () => {
         judgePrompts,
         judge: () => ({ matches: [{ id: 'c1', confidence: 0.95, reason: null }] }),
       });
-      const { gel, noon, secret } = await setUp();
-      await manualRow({ accountId: gel.id, amount: 29.41, time: timeOf({ noon, seconds: -60 }) });
+      const { chf, noon, secret } = await setUp();
+      await manualRow({ accountId: chf.id, amount: 29.41, time: timeOf({ noon, seconds: -60 }) });
 
       const res = await walletPayment({ secret, noon });
 
@@ -364,8 +364,8 @@ describe('the AI duplicate judge', () => {
         answer: () => ({}),
         judge: () => ({ matches: [{ id: 'c1', confidence: 0.95, reason: null }] }),
       });
-      const { gel, noon, secret } = await setUp();
-      await manualRow({ accountId: gel.id, amount: 29.41, time: timeOf({ noon, seconds: -60 }) });
+      const { chf, noon, secret } = await setUp();
+      await manualRow({ accountId: chf.id, amount: 29.41, time: timeOf({ noon, seconds: -60 }) });
       await walletPayment({ secret, noon });
 
       const [suggestion] = await DuplicateSuggestions.findAll();

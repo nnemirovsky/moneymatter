@@ -37,7 +37,7 @@ const seedRateDay = async () => {
 const setUp = async () => {
   await helpers.addUserCurrencies({ currencyCodes: ['CHF'] });
   const tapAt = await seedRateDay();
-  const gel = await helpers.createAccount({
+  const chf = await helpers.createAccount({
     payload: helpers.buildAccountPayload({
       name: 'Example CHF',
       currencyCode: 'CHF',
@@ -48,14 +48,14 @@ const setUp = async () => {
   await helpers.createCardMapping({
     payload: {
       cardLabel: blueCoffeeTap.tap.card,
-      accountId: gel.id,
+      accountId: chf.id,
       lastDigits: '0000',
     },
     raw: true,
   });
   const { secret } = await ingestHelpers.createTestIngestToken();
 
-  return { gel, secret, tapAt };
+  return { chf, secret, tapAt };
 };
 
 const tap = ({
@@ -169,7 +169,7 @@ describe('the real Blue Cofee tap and Example push', () => {
           payee: { candidateId: null, newName: 'Blue Cofee Company' },
         }),
       });
-      const { gel, secret, tapAt } = await setUp();
+      const { chf, secret, tapAt } = await setUp();
       const pushAt = addSeconds(tapAt, 14);
 
       if (pushFirst) await push({ secret, at: pushAt });
@@ -184,7 +184,7 @@ describe('the real Blue Cofee tap and Example push', () => {
       const rows = await allRows();
       expect(rows).toHaveLength(1);
       const row = rows[0]!;
-      expect(row.accountId).toBe(gel.id);
+      expect(row.accountId).toBe(chf.id);
       expect(row.amount.toNumber()).toBe(48);
       expect((row.externalData.ingest as { cardLastDigits?: string }).cardLastDigits).toBe('0000');
 
@@ -210,7 +210,7 @@ describe('the real Blue Cofee tap and Example push', () => {
         expect(row.time.toISOString()).toBe(bank.occurredAt);
       }
 
-      expect((await helpers.getAccount({ id: gel.id, raw: true })).currentBalance).toBe(1000 - 48);
+      expect((await helpers.getAccount({ id: chf.id, raw: true })).currentBalance).toBe(1000 - 48);
       expect(await IngestRequests.count()).toBe(3);
       expect(new Set((await IngestRequests.findAll()).map((request) => request.transactionId))).toEqual(
         new Set([row.id]),

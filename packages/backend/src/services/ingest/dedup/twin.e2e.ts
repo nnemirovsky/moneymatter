@@ -63,11 +63,11 @@ const answerFor = ({ prompt }: { prompt: string }) =>
 const setUp = async ({ withUsd = false, holdsUsd = false }: { withUsd?: boolean; holdsUsd?: boolean } = {}) => {
   await helpers.addUserCurrencies({ currencyCodes: withUsd || holdsUsd ? ['CHF', 'USD'] : ['CHF'] });
   const noon = await seedRateDay();
-  const gel = await helpers.createAccount({
+  const chf = await helpers.createAccount({
     payload: helpers.buildAccountPayload({ name: 'Example CHF', currencyCode: 'CHF', initialBalance: 1000 }),
     raw: true,
   });
-  await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id, lastDigits: '0000' }, raw: true });
+  await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: chf.id, lastDigits: '0000' }, raw: true });
 
   let usd: { id: RecordId } | null = null;
   if (withUsd) {
@@ -83,7 +83,7 @@ const setUp = async ({ withUsd = false, holdsUsd = false }: { withUsd?: boolean;
 
   const { secret } = await ingestHelpers.createTestIngestToken();
 
-  return { gel, usd, secret, noon };
+  return { chf, usd, secret, noon };
 };
 
 const timeOf = ({ noon, seconds }: { noon: Date; seconds: number }) =>
@@ -200,7 +200,7 @@ describe('twin and settlement rules', () => {
       { order: ['bog', 'push', 'tap', 'wallet'] },
     ])('gives one row with every source for $order', async ({ order }) => {
       mockNotificationParsing({ answer: answerFor });
-      const { gel, secret, noon } = await setUp();
+      const { chf, secret, noon } = await setUp();
 
       for (const [index, source] of order.entries()) {
         const res = await sendSource({ secret, noon, source });
@@ -223,7 +223,7 @@ describe('twin and settlement rules', () => {
       expect(rows).toHaveLength(1);
 
       const row = rows[0]!;
-      expect(row).toMatchObject({ accountId: gel.id, transactionType: TRANSACTION_TYPES.expense });
+      expect(row).toMatchObject({ accountId: chf.id, transactionType: TRANSACTION_TYPES.expense });
       expect(row.amount.toNumber()).toBe(29.41);
       expect(
         sourcesOf({ row })
@@ -247,7 +247,7 @@ describe('twin and settlement rules', () => {
       await approveCardAsIs({ card: await confirmCardOf({ transactionId: row.id }) });
       expect(await aliasesOfWolt()).toContain('wolt com lisbon');
 
-      const account = await helpers.getAccount({ id: gel.id, raw: true });
+      const account = await helpers.getAccount({ id: chf.id, raw: true });
       expect(account.currentBalance).toBe(1000 - 29.41);
 
       const requests = await IngestRequests.findAll();
@@ -393,10 +393,10 @@ describe('twin and settlement rules', () => {
     });
 
     it('does not absorb a row the owner typed by hand', async () => {
-      const { gel, secret, noon } = await setUp();
+      const { chf, secret, noon } = await setUp();
       await helpers.createTransaction({
         payload: helpers.buildTransactionPayload({
-          accountId: gel.id,
+          accountId: chf.id,
           amount: 29.41,
           time: timeOf({ noon, seconds: -60 }),
         }),
@@ -424,7 +424,7 @@ describe('twin and settlement rules', () => {
           payee: WOLT_PAYEE,
         }),
       });
-      const { gel, secret, noon } = await setUp({ holdsUsd: true });
+      const { chf, secret, noon } = await setUp({ holdsUsd: true });
 
       // The tap relays what the card was charged: 10 USD, converted at the day's rate (1 USD = 2 CHF).
       const tap = await ingestHelpers.postCardPayment({
@@ -455,7 +455,7 @@ describe('twin and settlement rules', () => {
       expect(rows[0]!.originalAmount!.toNumber()).toBe(10);
       expect(rows[0]!.originalCurrencyCode).toBe('USD');
 
-      const account = await helpers.getAccount({ id: gel.id, raw: true });
+      const account = await helpers.getAccount({ id: chf.id, raw: true });
       expect(account.currentBalance).toBe(1000 - 20.5);
     });
   });

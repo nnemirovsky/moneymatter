@@ -116,16 +116,16 @@ describe('Duplicate suggestions', () => {
       await helpers.addUserCurrencies({ currencyCodes: ['CHF'] });
       const day = await seedRateDay({ daysBack: 6 });
       const noon = addMinutes(day, 14 * 60 + 38);
-      const gel = await helpers.createAccount({
-        payload: helpers.buildAccountPayload({ name: 'TBC CHF', currencyCode: 'CHF', initialBalance: 1000 }),
+      const chf = await helpers.createAccount({
+        payload: helpers.buildAccountPayload({ name: 'Example Bank CHF', currencyCode: 'CHF', initialBalance: 1000 }),
         raw: true,
       });
-      await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id }, raw: true });
+      await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: chf.id }, raw: true });
       const { secret } = await ingestHelpers.createTestIngestToken();
 
       const [typed] = await helpers.createTransaction({
         payload: helpers.buildTransactionPayload({
-          accountId: gel.id,
+          accountId: chf.id,
           amount: 29.41,
           time: timeOf({ noon, seconds: -60 }),
         }),
@@ -150,7 +150,7 @@ describe('Duplicate suggestions', () => {
       const ingestId = suggestion!.transaction.id === typed!.id ? suggestion!.candidate.id : suggestion!.transaction.id;
 
       return {
-        gel,
+        chf,
         noon,
         secret,
         typedId: typed!.id as RecordId,
@@ -161,7 +161,7 @@ describe('Duplicate suggestions', () => {
 
     describe('dismiss', () => {
       it('keeps the pair as dismissed, off the list, and counts nothing against the books', async () => {
-        const { gel, suggestion } = await raiseSuggestion();
+        const { chf, suggestion } = await raiseSuggestion();
 
         const res = await helpers.dismissDuplicateSuggestion({ id: suggestion.id });
 
@@ -174,7 +174,7 @@ describe('Duplicate suggestions', () => {
         expect(stored!.resolvedAt).toBeInstanceOf(Date);
         // Both rows are still on the books and the balance is untouched.
         expect(await Transactions.count()).toBe(2);
-        expect((await helpers.getAccount({ id: gel.id, raw: true })).currentBalance).toBeCloseTo(1000 - 29.41 * 2, 2);
+        expect((await helpers.getAccount({ id: chf.id, raw: true })).currentBalance).toBeCloseTo(1000 - 29.41 * 2, 2);
       });
 
       it('is harmless a second time', async () => {
@@ -188,14 +188,14 @@ describe('Duplicate suggestions', () => {
       });
 
       it('never lets a rescan raise the dismissed pair again', async () => {
-        const { gel, ingestId, suggestion } = await raiseSuggestion();
+        const { chf, ingestId, suggestion } = await raiseSuggestion();
         await helpers.dismissDuplicateSuggestion({ id: suggestion.id });
 
         // The scan that follows a sync reads the same two rows; the stored verdict keeps the pair out.
         const { userId } = (await Transactions.findByPk(ingestId))!;
         eventBus.emit(DOMAIN_EVENTS.TRANSACTIONS_SYNCED, {
           userId,
-          accountId: gel.id,
+          accountId: chf.id,
           transactionIds: [ingestId, suggestion.transaction.id, suggestion.candidate.id],
         });
         await helpers.sleep(1500);
@@ -270,9 +270,9 @@ describe('Duplicate suggestions', () => {
       });
 
       it('leaves a suggestion open when an unrelated transaction is deleted', async () => {
-        const { gel } = await raiseSuggestion();
+        const { chf } = await raiseSuggestion();
         const [other] = await helpers.createTransaction({
-          payload: helpers.buildTransactionPayload({ accountId: gel.id, amount: 5 }),
+          payload: helpers.buildTransactionPayload({ accountId: chf.id, amount: 5 }),
           raw: true,
         });
 
@@ -288,11 +288,11 @@ describe('Duplicate suggestions', () => {
         mockNotificationParsing({ answer: () => ({}), ...JUDGED });
         await helpers.addUserCurrencies({ currencyCodes: ['CHF'] });
         const noon = addMinutes(await seedRateDay({ daysBack: 6 }), 14 * 60 + 38);
-        const gel = await helpers.createAccount({
-          payload: helpers.buildAccountPayload({ name: 'TBC CHF', currencyCode: 'CHF', initialBalance: 1000 }),
+        const chf = await helpers.createAccount({
+          payload: helpers.buildAccountPayload({ name: 'Example Bank CHF', currencyCode: 'CHF', initialBalance: 1000 }),
           raw: true,
         });
-        await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id }, raw: true });
+        await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: chf.id }, raw: true });
         const { secret } = await ingestHelpers.createTestIngestToken();
         const tap = ({ seconds }: { seconds: number }) =>
           ingestHelpers.postCardPayment({
@@ -326,11 +326,11 @@ describe('Duplicate suggestions', () => {
       mockNotificationParsing({ answer: () => ({}), judgePrompts, ...JUDGED });
       await helpers.addUserCurrencies({ currencyCodes: ['CHF'] });
       const noon = addMinutes(await seedRateDay({ daysBack: 6 }), 14 * 60 + 38);
-      const gel = await helpers.createAccount({
-        payload: helpers.buildAccountPayload({ name: 'TBC CHF', currencyCode: 'CHF', initialBalance: 1000 }),
+      const chf = await helpers.createAccount({
+        payload: helpers.buildAccountPayload({ name: 'Example Bank CHF', currencyCode: 'CHF', initialBalance: 1000 }),
         raw: true,
       });
-      await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id }, raw: true });
+      await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: chf.id }, raw: true });
       const { secret } = await ingestHelpers.createTestIngestToken();
 
       const logged = await ingestHelpers.postCardPayment({
@@ -347,7 +347,7 @@ describe('Duplicate suggestions', () => {
 
       const summary: StatementImportSummary = await helpers.statementExecuteImportAndWait({
         payload: {
-          accountId: gel.id,
+          accountId: chf.id,
           transactions: [
             {
               date: `${timeOf({ noon, seconds: 120 }).slice(0, 10)} ${timeOf({ noon, seconds: 120 }).slice(11, 19)}`,
@@ -363,7 +363,7 @@ describe('Duplicate suggestions', () => {
       expect(summary.imported).toBe(1);
 
       const [suggestion] = await waitForOpenSuggestions({ count: 1 });
-      expect(suggestion).toMatchObject({ trigger: 'scan', confidence: 0.95, accountId: gel.id });
+      expect(suggestion).toMatchObject({ trigger: 'scan', confidence: 0.95, accountId: chf.id });
       expect(suggestion!.suggestedSurvivorId).toBe(summary.newTransactionIds[0]);
       expect(judgePrompts.at(-1)).toContain('DUPLICATE JUDGE');
       expect(await Transactions.count()).toBe(2);
@@ -372,15 +372,15 @@ describe('Duplicate suggestions', () => {
     it('asks nothing when the account holds no ingest row', async () => {
       const judgePrompts: string[] = [];
       mockNotificationParsing({ answer: () => ({}), judgePrompts, ...JUDGED });
-      const gel = await helpers.createAccount({ raw: true });
+      const chf = await helpers.createAccount({ raw: true });
       await helpers.createTransaction({
-        payload: helpers.buildTransactionPayload({ accountId: gel.id, amount: 29.41 }),
+        payload: helpers.buildTransactionPayload({ accountId: chf.id, amount: 29.41 }),
         raw: true,
       });
 
       const summary = await helpers.statementExecuteImportAndWait({
         payload: {
-          accountId: gel.id,
+          accountId: chf.id,
           transactions: [
             {
               date: new Date().toISOString().slice(0, 10) + ' 10:00:00',
@@ -402,7 +402,7 @@ describe('Duplicate suggestions', () => {
   });
 
   describe('the scan after a bank sync', () => {
-    const SYNC_CARD = 'TBC Visa';
+    const SYNC_CARD = 'Example Visa';
 
     /** A bank account holding one real row (a sync into an empty one is an initial pull), linked to the card. */
     const bankAccountWithPlan = async () => {

@@ -415,8 +415,8 @@ describe('Automation inbox', () => {
     it('updates the card of the first source when a second source of the payment arrives, and adds no second card', async () => {
       await helpers.addUserCurrencies({ currencyCodes: ['CHF'] });
       const noon = await seedRateDay();
-      const gel = await account({ name: 'Example CHF', currencyCode: 'CHF' });
-      await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id }, raw: true });
+      const chf = await account({ name: 'Example CHF', currencyCode: 'CHF' });
+      await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: chf.id }, raw: true });
       const { secret } = await ingestHelpers.createTestIngestToken();
 
       const tap = await ingestHelpers.postCardPayment({
@@ -450,9 +450,9 @@ describe('Automation inbox', () => {
         await helpers.addUserCurrencies({ currencyCodes: ['CHF', 'USD', ...(withEur ? ['EUR'] : [])] });
         // With EUR at 1.6 per USD the EUR estimate (23.53) differs from the suggested USD one (14.7).
         const noon = await seedRateDay(withEur ? { eurPerUsd: 1.6 } : {});
-        const gel = await account({ name: 'Example CHF', currencyCode: 'CHF', initialBalance: 10 });
+        const chf = await account({ name: 'Example CHF', currencyCode: 'CHF', initialBalance: 10 });
         const usd = await account({ name: 'Example USD', currencyCode: 'USD', initialBalance: 500 });
-        await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id }, raw: true });
+        await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: chf.id }, raw: true });
         await helpers.createCardMapping({
           payload: { cardLabel: CARD, accountId: usd.id, currencyCode: 'USD' },
           raw: true,
@@ -468,7 +468,7 @@ describe('Automation inbox', () => {
         await wallet({ secret, card: CARD, body: woltOnlinePayment.wallet.body, time: noon.toISOString() });
         const card = await waitForCard({ toolName: CONFIRM });
 
-        return { gel, usd, eur: eur!, card: card! };
+        return { chf, usd, eur: eur!, card: card! };
       };
 
       it('is part of the one card: the suggested account and its estimate come pre-filled', async () => {
@@ -483,8 +483,8 @@ describe('Automation inbox', () => {
       });
 
       it('moves the payment to the suggested account on approve and confirms it', async () => {
-        const { gel, usd, card } = await setUpShortCard();
-        expect(await balanceOf({ id: gel.id })).toBe(10 - 29.41);
+        const { chf, usd, card } = await setUpShortCard();
+        expect(await balanceOf({ id: chf.id })).toBe(10 - 29.41);
 
         const approved = await approve({ card });
 
@@ -493,13 +493,13 @@ describe('Automation inbox', () => {
         expect(tx.amount.toNumber()).toBe(14.7);
         expect(tx.originalCurrencyCode).toBe('CHF');
         expect(tx.originalAmount!.toNumber()).toBe(29.41);
-        expect(await balanceOf({ id: gel.id })).toBe(10);
+        expect(await balanceOf({ id: chf.id })).toBe(10);
         expect(await balanceOf({ id: usd.id })).toBe(500 - 14.7);
         expect(await unconfirmedIds()).toEqual([]);
       });
 
       it('keeps the payment where it was logged when the owner picks that account on the card', async () => {
-        const { gel, card } = await setUpShortCard();
+        const { chf, card } = await setUpShortCard();
 
         const edited = await helpers.editChatProposal({
           proposalId: card.id,
@@ -507,7 +507,7 @@ describe('Automation inbox', () => {
             revision: card.revision,
             args: {
               ...card.fields.reduce((acc, field) => ({ ...acc, [field.path]: field.value }), {}),
-              accountId: gel.id,
+              accountId: chf.id,
             },
           },
           raw: true,
@@ -515,14 +515,14 @@ describe('Automation inbox', () => {
         const approved = await approve({ card: edited });
 
         expect(approved.statusCode).toBe(200);
-        expect((await Transactions.findOne())!.accountId).toBe(gel.id);
+        expect((await Transactions.findOne())!.accountId).toBe(chf.id);
         expect((await Transactions.findOne())!.amount.toNumber()).toBe(29.41);
-        expect(await balanceOf({ id: gel.id })).toBe(10 - 29.41);
+        expect(await balanceOf({ id: chf.id })).toBe(10 - 29.41);
         expect(await unconfirmedIds()).toEqual([]);
       });
 
       it('applies the amount the owner entered when keeping the account the payment was logged to', async () => {
-        const { gel, card } = await setUpShortCard();
+        const { chf, card } = await setUpShortCard();
 
         const edited = await helpers.editChatProposal({
           proposalId: card.id,
@@ -530,7 +530,7 @@ describe('Automation inbox', () => {
             revision: card.revision,
             args: {
               ...card.fields.reduce((acc, field) => ({ ...acc, [field.path]: field.value }), {}),
-              accountId: gel.id,
+              accountId: chf.id,
               amount: 30,
             },
           },
@@ -540,9 +540,9 @@ describe('Automation inbox', () => {
 
         expect(approved.statusCode).toBe(200);
         const tx = (await Transactions.findOne())!;
-        expect(tx.accountId).toBe(gel.id);
+        expect(tx.accountId).toBe(chf.id);
         expect(tx.amount.toNumber()).toBe(30);
-        expect(await balanceOf({ id: gel.id })).toBe(10 - 30);
+        expect(await balanceOf({ id: chf.id })).toBe(10 - 30);
         expect(await unconfirmedIds()).toEqual([]);
       });
 
@@ -913,12 +913,12 @@ describe('Automation inbox', () => {
       mockNotificationParsing({ answer: () => ({}), ...JUDGED });
       await helpers.addUserCurrencies({ currencyCodes: ['CHF'] });
       const noon = await seedRateDay();
-      const gel = await account({ name: 'Example CHF', currencyCode: 'CHF' });
-      await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id }, raw: true });
+      const chf = await account({ name: 'Example CHF', currencyCode: 'CHF' });
+      await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: chf.id }, raw: true });
       const { secret } = await ingestHelpers.createTestIngestToken();
       const [typed] = await helpers.createTransaction({
         payload: helpers.buildTransactionPayload({
-          accountId: gel.id,
+          accountId: chf.id,
           amount: 29.41,
           time: new Date(noon.getTime() - 60_000).toISOString(),
         }),
@@ -932,7 +932,7 @@ describe('Automation inbox', () => {
       const requestRow = (await IngestRequests.findByPk(res.body.response.requestId))!;
 
       return {
-        gel,
+        chf,
         typedId: typed!.id as RecordId,
         ingestId: requestRow.transactionId!,
         card: card,
@@ -1003,9 +1003,9 @@ describe('Automation inbox', () => {
       const day = subDays(startOfDay(new Date()), 6);
       SEEDED_DATES.push(day);
       await helpers.seedUsdExchangeRates({ date: day, ratesPerUsd: { AED: 4, CHF: 2.6 } });
-      const gel = await account({ name: 'Example CHF', currencyCode: 'CHF' });
+      const chf = await account({ name: 'Example CHF', currencyCode: 'CHF' });
       const usd = await account({ name: 'Example USD', currencyCode: 'USD' });
-      await helpers.createCardMapping({ payload: { cardLabel: 'EXAMPLE CARD', accountId: gel.id }, raw: true });
+      await helpers.createCardMapping({ payload: { cardLabel: 'EXAMPLE CARD', accountId: chf.id }, raw: true });
       await helpers.createCardMapping({
         payload: { cardLabel: 'EXAMPLE CARD', accountId: usd.id, currencyCode: 'USD' },
         raw: true,
@@ -1029,7 +1029,7 @@ describe('Automation inbox', () => {
       await push(6, DEPOSIT_IN);
       const card = await waitForCard({ toolName: LINK });
       const expense = (await Transactions.findOne({ where: { accountId: usd.id } }))!;
-      const income = (await Transactions.findOne({ where: { accountId: gel.id } }))!;
+      const income = (await Transactions.findOne({ where: { accountId: chf.id } }))!;
 
       return { card: card, expense, income };
     };
