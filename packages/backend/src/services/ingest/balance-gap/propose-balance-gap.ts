@@ -12,8 +12,14 @@ import { parkNotification } from '../event/settle-notification';
 import { readStoredParse, toStoredPayment, type StoredParse } from '../event/stored-parse';
 import { ingestMarkersOf } from '../ingest-markers';
 import { findBalanceGap } from './find-balance-gap';
+import { pickSettlement } from './find-settlement';
+import { loadSettlementCandidates } from './load-settlement-candidates';
+import { proposeSettlement } from './propose-settlement';
 
 const GAP_SUFFIX = ':gap';
+
+/** A settlement moves a balance by cents: a gap above one cent is looked at as one. */
+const CENT = Money.fromDecimal('0.01');
 const FINGERPRINT_MAX_LENGTH = 64;
 
 /**
@@ -61,8 +67,31 @@ export const proposeBalanceGap = async ({
   });
   if (later.length) return null;
 
-  const gap = findBalanceGap({ stated: Money.fromDecimal(balance.amount), held: account.currentBalance });
+  const stated = Money.fromDecimal(balance.amount);
+  const gap = findBalanceGap({ stated, held: account.currentBalance, tolerance: CENT });
   if (!gap) return null;
+
+  // A foreign-currency payment that settled at another amount than its hold is the likelier cause of a small gap.
+  const settlement = pickSettlement({
+    gap,
+    at: transaction.time,
+    candidates: await loadSettlementCandidates({
+      userId,
+      accountId: account.id,
+      currencyCode: account.currencyCode,
+      at: transaction.time,
+      excludeId: transaction.id,
+    }),
+  });
+  if (settlement) {
+    if (!settlement.candidate.proposed) {
+      await proposeSettlement({ userId, settlement });
+    }
+
+    return null;
+  }
+
+  if (!findBalanceGap({ stated, held: account.currentBalance })) return null;
 
   if (await hasWaitingGap({ userId, sourceId: request.sourceId, accountId: account.id })) return null;
 

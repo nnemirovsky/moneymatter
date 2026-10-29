@@ -40,6 +40,11 @@ export interface IngestMarkers {
     categoryApplied: boolean;
     guess: boolean;
   };
+  /**
+   * A foreign-currency payment whose amount may have settled differently from the hold amount the notice stated: the
+   * correction proposed to the owner once a later balance said so.
+   */
+  settlement?: { status: 'proposed'; from: number; to: number };
   /** A payee the payment's merchant created when the payment was logged. */
   createdPayeeId?: RecordId;
 }
