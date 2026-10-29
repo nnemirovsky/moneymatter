@@ -19,7 +19,7 @@ describe('IosAutomationIcon', () => {
     mockIcons.mockReset();
   });
 
-  it('splits the square diagonally: Shortcuts top-left, Wallet bottom-right', async () => {
+  it('splits the square diagonally: Shortcuts clipped to the top-left over a whole Wallet, with no line between', async () => {
     mockIcons.mockResolvedValue({
       shortcuts: 'https://cdn.example.com/s.jpg',
       wallet: 'https://cdn.example.com/w.jpg',
@@ -32,7 +32,8 @@ describe('IosAutomationIcon', () => {
     expect(shortcuts.get('img').attributes('src')).toBe('https://cdn.example.com/s.jpg');
     expect(wallet.get('img').attributes('src')).toBe('https://cdn.example.com/w.jpg');
     expect(shortcuts.attributes('style')).toContain('polygon(0 0, 100% 0, 0 100%)');
-    expect(wallet.attributes('style')).toContain('polygon(100% 0, 100% 100%, 0 100%)');
+    expect(wallet.attributes('style') ?? '').not.toContain('polygon');
+    expect(wrapper.find('line').exists()).toBe(false);
   });
 
   it('draws its own icon for a half the server found none for', async () => {
