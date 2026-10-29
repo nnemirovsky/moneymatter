@@ -32,6 +32,8 @@ export interface StoredParse {
   accountOverrideId?: RecordId;
   /** The direction the owner chose on that card, when it differs from what the text said. */
   directionOverride?: 'debit' | 'credit';
+  /** For a request that proposes the transaction a stated balance says is missing: the account whose balance did not match. */
+  balanceGapAccountId?: RecordId;
   /** The time an exchange was placed at, when it differs from the notice's own (see `placeConversionTime`). */
   timeOverride?: string;
   /** The note the owner wrote on that card; an empty one is no note. Absent, the pipeline picks the note. */

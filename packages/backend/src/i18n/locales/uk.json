@@ -736,6 +736,7 @@
       "notificationLogged": "Сповіщення записано",
       "parkedNotification": "Потрібне ваше підтвердження в MoneyMatter: {{summary}}",
       "parkedNotificationAt": "— {{merchant}}",
+      "balanceGap": "Баланс рахунку {{account}} відрізняється на {{amount}}: записати відсутню транзакцію?",
       "sourceNotApproved": "Ще не записано: підтвердьте «{{source}}» як джерело платежів у MoneyMatter",
       "aiUnavailable": "Ще не записано: додайте AI-модель у MoneyMatter, щоб прочитати це сповіщення",
       "aiCapReached": "Ще не записано: ліміт AI на цей місяць вичерпано; повторіть у MoneyMatter пізніше",
