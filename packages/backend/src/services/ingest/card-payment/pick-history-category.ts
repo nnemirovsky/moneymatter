@@ -15,7 +15,7 @@ const HISTORY_CATEGORY_MONTHS = 12;
  * (a payment retried weeks after it was made also sees what the user logged since), and not the
  * user's default category: that one is what an uncategorized row carries, so it says nothing
  * about the payee. Split parents are left out as well, their category is derived from their
- * splits, and so is `excludeTransactionId`: a payment just logged is not its own history.
+ * splits, and so are the rows whose category a context notification chose (it names one order's venue), and so is `excludeTransactionId`: a payment just logged is not its own history.
  */
 export const rankHistoryCategories = async ({
   ownerUserId,
@@ -45,9 +45,13 @@ export const rankHistoryCategories = async ({
       categoryId: { [Op.ne]: defaultCategoryId },
       time: { [Op.gte]: subMonths(asOf, HISTORY_CATEGORY_MONTHS) },
       ...(excludeTransactionId && { id: { [Op.ne]: excludeTransactionId } }),
-      [Op.and]: literal(
-        `NOT EXISTS (SELECT 1 FROM "TransactionSplits" WHERE "TransactionSplits"."transactionId" = "Transactions"."id")`,
-      ),
+      [Op.and]: [
+        literal(
+          `NOT EXISTS (SELECT 1 FROM "TransactionSplits" WHERE "TransactionSplits"."transactionId" = "Transactions"."id")`,
+        ),
+        // A category a context notification chose fits that order's venue, not the payee's next payment.
+        literal(`COALESCE("Transactions"."externalData" #>> '{ingest,context,categoryApplied}', 'false') <> 'true'`),
+      ],
     },
     attributes: ['payeeId', 'categoryId'],
     group: ['payeeId', 'categoryId'],

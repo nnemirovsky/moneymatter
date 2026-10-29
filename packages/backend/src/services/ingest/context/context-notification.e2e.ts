@@ -971,6 +971,51 @@ describe('context notifications', () => {
   });
 
   describe('the note of a payment to a service', () => {
+    it('gives the next order of the service neither the venue nor the category of the one before', async () => {
+      await helpers.addCustomCategory({ name: 'Bar, cafe', raw: true });
+      const cafe = (await helpers.getCategoriesList()).find((category) => category.name === 'Bar, cafe')!;
+      enableServerModel();
+      mockNotificationParsing({
+        answer: () => ({}),
+        contextCategory: ({ prompt }) => ({
+          categoryId: prompt
+            .split('\n')
+            .find((line) => line.endsWith('|Bar, cafe'))!
+            .split('|')[0]!,
+          confidence: 0.9,
+        }),
+      });
+      const { secret } = await setUp();
+      const first = await pay({ secret });
+      await send({ secret, body: accepted({ store: 'Example Bakery' }) });
+      expect((await reload({ id: first.id })).categoryId).toBe(cafe.id);
+      await approveCardAsIs({ card: await confirmCardOf({ transactionId: first.id }) });
+      await waitForIngestIdle();
+
+      const second = await pay({ secret, amount: '15.60' });
+      await waitForIngestIdle();
+
+      const next = await reload({ id: second.id });
+      expect(next.note ?? '').toBe('');
+      expect(next.categoryId).not.toBe(cafe.id);
+    });
+
+    it("gives a context that arrives before the next order's payment to that payment, never to the one before", async () => {
+      const { secret } = await setUp();
+      const first = await pay({ secret });
+      await send({ secret, body: accepted({ store: 'Example Bakery' }) });
+      const held = await send({ secret, body: accepted({ store: 'Example Grocer' }) });
+      expect(held.body.response).toMatchObject({ outcome: 'held' });
+
+      const second = await pay({ secret, amount: '15.60' });
+
+      await until(async () => (await reload({ id: second.id })).note === 'Example Grocer order from Wolt', {
+        timeout: 15_000,
+        interval: 150,
+      });
+      expect((await reload({ id: first.id })).note).toBe('Example Bakery order from Wolt');
+    });
+
     it('never takes the venue of an earlier order from the history of notes, whoever picks the note', async () => {
       enableServerModel();
       const notePickPrompts: string[] = [];
