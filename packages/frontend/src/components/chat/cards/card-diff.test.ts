@@ -124,6 +124,27 @@ describe('buildCardRows', () => {
     ]);
   });
 
+  it('leaves a field the card keeps as it was untinted, an empty note staying empty included', () => {
+    const card = buildCard({
+      kind: 'update',
+      entity: 'transaction',
+      target: [field({ path: 'note', value: null }), field({ path: 'amount', value: 25 })],
+      fields: [
+        field({ path: 'note', value: '', before: null }),
+        field({ path: 'amount', value: 25, before: 25 }),
+        field({ path: 'tagIds', value: [], before: [] }),
+        field({ path: 'categoryId', value: 'c1', before: 'c1' }),
+      ],
+    });
+
+    expect(buildCardRows({ card }).map((row) => [row.field.path, row.tone])).toEqual([
+      ['note', 'normal'],
+      ['amount', 'normal'],
+      ['tagIds', 'normal'],
+      ['categoryId', 'normal'],
+    ]);
+  });
+
   it('counts an old retention of "never" as a real value', () => {
     expect(hasOldValue({ field: field({ path: 'retentionDays', value: 30, before: null }) })).toBe(true);
     expect(hasOldValue({ field: field({ path: 'note', value: 'x', before: null }) })).toBe(false);
