@@ -17,8 +17,8 @@ const LOG_REQUEST = 'log_ingest_request';
 const DEFAULT_TIMINGS = { ...notificationTimings };
 const SEEDED_DATES: Date[] = [];
 
-/** One notice that holds both sides of an exchange: 100 USD sold, 90 EUR bought, the rate and a date (no time). */
-const CONVERSION = 'Conversion:\n100.00 USD\n90.00 EUR\nRate: 0.9\n15/01/2026';
+/** One notice that holds both sides of an exchange: 100 USD sold, 90 EUR bought and the rate (no time). */
+const CONVERSION = 'Currency exchange: sold 100.00 USD, bought 90.00 EUR at 0.9';
 
 const setUp = async () => {
   await helpers.addUserCurrencies({ currencyCodes: ['EUR', 'USD'] });

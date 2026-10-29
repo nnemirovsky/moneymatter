@@ -6,8 +6,11 @@ const read = ({ body, title = 'Example Bank', raw = null }: { body: string; titl
   parseConversionNotice({ text: { title, subtitle: '', body, raw } });
 
 describe('parseConversionNotice', () => {
-  it('reads both sides of an exchange from a notice with the rate and a date, by line', () => {
-    const result = read({ body: 'x', raw: 'Example Bank\nConversion:\n100.00 USD\n90.00 EUR\nRate: 0.9\n15/01/2026' });
+  it('reads both sides of an exchange from a notice with the rate, by line', () => {
+    const result = read({
+      body: 'x',
+      raw: 'Example Bank\nCurrency exchange\nSold 100.00 USD\nBought 90.00 EUR\nRate 0.9',
+    });
 
     expect(result).toMatchObject({
       debit: { kind: 'debit', amount: '100', currencyCode: 'USD', merchant: null, occurredAt: null },
@@ -15,8 +18,15 @@ describe('parseConversionNotice', () => {
     });
   });
 
+  it('reads a notice worded as an arrow between the two amounts', () => {
+    expect(read({ body: 'Exchanged 100.00 USD → 90.00 EUR' })).toMatchObject({
+      debit: { kind: 'debit', amount: '100', currencyCode: 'USD' },
+      credit: { kind: 'credit', amount: '90', currencyCode: 'EUR' },
+    });
+  });
+
   it('reads the same notice with its line breaks collapsed', () => {
-    expect(read({ body: 'Conversion: 100.00 USD 90.00 EUR Rate: 0.9 15/01/2026' })).toMatchObject({
+    expect(read({ body: 'Currency exchange: sold 100.00 USD, bought 90.00 EUR at 0.9' })).toMatchObject({
       debit: { amount: '100', currencyCode: 'USD' },
       credit: { amount: '90', currencyCode: 'EUR' },
     });
