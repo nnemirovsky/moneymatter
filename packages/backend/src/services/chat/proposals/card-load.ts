@@ -3,6 +3,7 @@ import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
 import { t } from '@i18n/index';
 import ChatProposals from '@models/chat-proposals.model';
 
+import { withNotificationSources } from './card-sources';
 import { toChatProposalCard } from './to-chat-proposal-card';
 
 /**
@@ -36,7 +37,11 @@ export async function buildCards({
   const extra = missing.length > 0 ? await ChatProposals.findAll({ where: { id: missing, userId } }) : [];
   const byId = new Map([...rows, ...extra].map((row) => [row.id as string, row]));
 
-  return rows.map((row) => toChatProposalCard({ row, parents: row.dependsOn.flatMap((id) => byId.get(id) ?? []) }));
+  const cards = rows.map((row) =>
+    toChatProposalCard({ row, parents: row.dependsOn.flatMap((id) => byId.get(id) ?? []) }),
+  );
+
+  return withNotificationSources({ userId, rows, cards });
 }
 
 /** The current cards for `ids`, in that order; an id that is not the caller's card is left out. */

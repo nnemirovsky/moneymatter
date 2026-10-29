@@ -1,3 +1,4 @@
+import type { NotificationSourceDisplay } from '../ingest/ingest-event';
 import type { ChatEntityKind, ChatEntityRef } from './fields';
 import type { ChatPageContext } from './messages';
 import type { ChatTableColumn, ChatTableRow } from './visuals';
@@ -223,6 +224,11 @@ export interface ChatIngestConversion {
 
 export interface ChatProposalCard {
   id: string;
+  /**
+   * The notification source a card of the Automation inbox is about (a parked payment's source, or the source an
+   * update asks to approve), so the card shows it with its app icon. Read with the card, so a later icon shows.
+   */
+  source?: NotificationSourceDisplay;
   status: ChatProposalStatus;
   /** Sent back on approve, with the parents' revisions. */
   revision: number;

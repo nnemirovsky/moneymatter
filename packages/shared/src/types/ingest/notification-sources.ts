@@ -59,7 +59,7 @@ export type NotificationDropReason = (typeof NOTIFICATION_DROP_REASONS)[number];
 /** `NotificationSources.counters`: how often each drop reason fired. A missing key is zero. */
 export type NotificationSourceCounters = Partial<Record<NotificationDropReason, number>>;
 
-interface AppIdentity {
+export interface AppIdentity {
   bundleId?: string | null;
   appName?: string | null;
 }
@@ -184,4 +184,25 @@ export const getDefaultSourceMode = ({ bundleId, appName }: AppIdentity): Notifi
   if (isContextApp({ bundleId, appName })) return 'context';
 
   return isKnownBankApp({ bundleId, appName }) ? 'auto' : 'pending';
+};
+
+/** A neutral glyph for an Apple app that is not on the App Store, so there is no icon to look up (and no Apple artwork to ship). */
+export type BuiltInAppGlyph = 'messages' | 'wallet';
+
+const MESSAGES_BUNDLE_ID = 'com.apple.mobilesms';
+const MESSAGES_APP_NAMES: ReadonlySet<string> = new Set(['messages', 'imessage', 'сообщения', 'повідомлення']);
+
+/**
+ * The glyph of a built-in Apple app that has no App Store listing (Messages, Wallet): a bundle id decides when
+ * there is one, else the display name. Mail is on the App Store, so it has an icon to look up and no glyph.
+ */
+export const getBuiltInAppGlyph = ({ bundleId, appName }: AppIdentity): BuiltInAppGlyph | null => {
+  if (isWalletApp({ bundleId, appName })) return 'wallet';
+
+  const bundle = nonEmpty({ value: bundleId });
+  if (bundle) return bundle === MESSAGES_BUNDLE_ID ? 'messages' : null;
+
+  const name = nonEmpty({ value: appName });
+
+  return name !== null && MESSAGES_APP_NAMES.has(name) ? 'messages' : null;
 };

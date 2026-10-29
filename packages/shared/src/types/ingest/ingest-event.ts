@@ -83,6 +83,19 @@ export type WalletEventResponse = CardPaymentResponse & { notify: boolean };
 
 export type IngestEventResponse = NotificationEventResponse | WalletEventResponse;
 
+/**
+ * How a notification source is shown: the sender first (for a messaging or mail app), then the app in a pill with
+ * its icon; an app with no sender is just its icon and name. A source with no icon shows a glyph or a letter.
+ */
+export interface NotificationSourceDisplay {
+  appName: string | null;
+  bundleId: string | null;
+  /** The notification title of a messaging or mail app; `null` for every other app. */
+  sender: string | null;
+  /** The app's icon on the App Store; `null` when none was found. */
+  iconUrl: string | null;
+}
+
 /** A notification source as `GET /user/settings/notification-sources` lists it. */
 export interface NotificationSourceDto {
   id: RecordId;
@@ -90,6 +103,8 @@ export interface NotificationSourceDto {
   bundleId: string | null;
   /** The notification title of a messaging or mail app; `null` for every other app. */
   sender: string | null;
+  /** The app's icon on the App Store, resolved by the server; `null` when none was found (or none is known yet). */
+  iconUrl: string | null;
   conversational: boolean;
   mode: NotificationSourceMode;
   defaultAccountId: RecordId | null;
