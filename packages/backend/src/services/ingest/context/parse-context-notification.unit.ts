@@ -24,6 +24,19 @@ describe('parseContextNotification', () => {
     });
   });
 
+  it('reads an order the venue has seen as the first stage, with its venue', () => {
+    expect(
+      read({ title: 'Order update', body: 'Someone in the kitchen has seen your order at Example Bakery' }),
+    ).toEqual({
+      store: 'Example Bakery',
+      status: 'accepted',
+    });
+    expect(read({ body: 'The kitchen has opened your order from Pizza Planet!' })).toEqual({
+      store: 'Pizza Planet',
+      status: 'accepted',
+    });
+  });
+
   it('keeps a dot inside a store name', () => {
     expect(read({ body: 'Mr. Coffee has accepted your order!' })).toEqual({ store: 'Mr. Coffee', status: 'accepted' });
   });

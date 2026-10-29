@@ -54,6 +54,7 @@ export const runContextModel = async <Schema extends z.ZodType>({
 
     return { status: 'ok', output: result.output as z.infer<Schema> };
   } catch (error) {
+    logger.warn(`Context model call ${name} failed`, { error: (error as Error).message });
     try {
       await resolveAiExtractionFailure({ userId, aiClient, error, logPrefix: `[Context ${name}]` });
     } catch (failure) {
