@@ -525,6 +525,30 @@ describe('buildChatToolkit', () => {
       ]);
     });
 
+    it('refuses a card on another account than the one the user tapped, and creates nothing', async () => {
+      const { toolkit, events } = setup({
+        runOverrides: { pickedRecords: [{ kind: 'account', id: P1, label: 'Wallet (USD)' }] },
+      });
+
+      const result = await call({ toolkit, name: 'create_transaction', input: transaction({ accountId: ACCOUNT }) });
+
+      expect(result.isError).toBe(true);
+      expect(result.text).toContain(`Wallet (USD) (account id ${P1})`);
+      expect(createSpy()).not.toHaveBeenCalled();
+      expect(cardsIn({ events })).toEqual([]);
+    });
+
+    it('lets a card on the account the user tapped through', async () => {
+      const { toolkit, events } = setup({
+        runOverrides: { pickedRecords: [{ kind: 'account', id: ACCOUNT, label: 'Wallet (USD)' }] },
+      });
+
+      const result = await call({ toolkit, name: 'create_transaction', input: transaction({ accountId: ACCOUNT }) });
+
+      expect(result.isError).toBe(false);
+      expect(cardsIn({ events })).toHaveLength(1);
+    });
+
     it('builds the card from the policy, the arguments and the schema', async () => {
       const { toolkit, events } = setup();
 
@@ -1034,6 +1058,48 @@ describe('buildChatToolkit', () => {
       question: 'Which account?',
       options: [{ label: 'Cash' }, { label: 'Card' }],
     };
+
+    it('keeps the record an option stands for in the question it shows', async () => {
+      const { toolkit, events } = setup();
+
+      await call({
+        toolkit,
+        name: 'ask_clarification',
+        input: {
+          question: 'Which account?',
+          options: [
+            { label: 'Cash', record: { kind: 'account', id: ACCOUNT } },
+            { label: 'Card', record: { kind: 'account', id: P1 } },
+          ],
+        },
+      });
+
+      const part = events.flatMap((event) =>
+        event.type === 'part.started' && event.part.type === 'clarification' ? [event.part] : [],
+      )[0]!;
+      expect(part.options).toEqual([
+        { id: 'o1', label: 'Cash', record: { kind: 'account', id: ACCOUNT } },
+        { id: 'o2', label: 'Card', record: { kind: 'account', id: P1 } },
+      ]);
+    });
+
+    it('refuses an option whose record has a kind a question cannot pick', async () => {
+      const { toolkit } = setup();
+
+      const result = await call({
+        toolkit,
+        name: 'ask_clarification',
+        input: {
+          question: 'Which?',
+          options: [
+            { label: 'A', record: { kind: 'userSettings', id: 'x' } },
+            { label: 'B', record: { kind: 'account', id: P1 } },
+          ],
+        },
+      });
+
+      expect(result.isError).toBe(true);
+    });
 
     it('shows the question, marks the run as waiting and signals the runner', async () => {
       const onAwaitingClarification = jest.fn();

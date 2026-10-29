@@ -6,6 +6,7 @@ import {
   type ChatMessagePart,
   type ChatMessageRole,
   type ChatMessageStatus,
+  type ChatProposalResult,
   type ChatProposalStatus,
   type ChatToolCallPart,
   type ChatVisualSpec,
@@ -32,6 +33,7 @@ const RECENT_ASSISTANT_TURNS = 2;
 const TOOL_ARGS_CHARS = 200;
 /** The arguments of a recent card the model is shown, so it describes the card as it is and not as it remembers it. */
 const PROPOSAL_ARGS_CHARS = 600;
+const PROPOSAL_RESULT_CHARS = 600;
 
 /** `min(0.6 × the model's context window, 120k)` tokens. */
 export function historyBudgetTokens({ contextWindow }: { contextWindow: number | null }): number {
@@ -65,6 +67,8 @@ export interface HistoryProposal {
   statusReason: string | null;
   /** The card's current arguments; shown to the model only for the card a comment is about. */
   args?: Record<string, unknown>;
+  /** What the approval produced; shown for the cards of recent turns, so an answer reports the outcome and not the intent. */
+  result?: ChatProposalResult | null;
 }
 
 type Wrap = UntrustedWrapper['wrap'];
@@ -126,9 +130,12 @@ function renderUserText({ message, ctx }: { message: HistoryMessage; ctx: Render
       }
       case 'clarificationAnswer': {
         const clarification = ctx.clarifications.get(part.clarificationId);
-        const labels = part.optionIds.map(
-          (id) => clarification?.options.find((option) => option.id === id)?.label ?? id,
-        );
+        const labels = part.optionIds.map((id) => {
+          const option = clarification?.options.find((candidate) => candidate.id === id);
+          if (!option) return id;
+          // The id of the record the user tapped, so the card the model writes next names that record.
+          return option.record ? `${option.label} (${option.record.kind} id ${option.record.id})` : option.label;
+        });
         const answer = [...labels, ...(part.freeText ? [part.freeText] : [])].join(', ');
         blocks.push(
           clarification ? `Answer to your question "${clarification.question}": ${answer}` : `Answer: ${answer}`,
@@ -257,6 +264,19 @@ function renderAssistant({
           lines.push(
             'its arguments:',
             ctx.wrap({ kind: 'toolResult', text: JSON.stringify(proposal.args).slice(0, PROPOSAL_ARGS_CHARS) }),
+          );
+        }
+        // What the approval did, as the handler reported it: the records it created and its own output.
+        if (proposal && recent && proposal.status === 'applied') {
+          lines.push(
+            'its result (what happened, which is not always what the arguments asked for):',
+            ctx.wrap({
+              kind: 'toolResult',
+              text: JSON.stringify(proposal.result ?? { refs: [], output: 'no result was recorded' }).slice(
+                0,
+                PROPOSAL_RESULT_CHARS,
+              ),
+            }),
           );
         }
         break;
@@ -395,7 +415,7 @@ export async function loadHistoryMessages({
     }),
     ChatProposals.findAll({
       where: { threadId, userId },
-      attributes: ['id', 'toolName', 'status', 'statusReason', 'args'],
+      attributes: ['id', 'toolName', 'status', 'statusReason', 'args', 'result'],
       raw: true,
     }),
   ]);

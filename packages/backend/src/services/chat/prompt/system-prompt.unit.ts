@@ -44,6 +44,22 @@ describe('buildSystemPrompt', () => {
       expect(prompt).toMatch(/amounts, currencies, direction and time are facts/);
     });
 
+    it('logs a notice the user calls a transfer or conversion with the counter account and amount, never refusing', () => {
+      expect(prompt).toMatch(/counterAccountId[^.]*counterAmount/);
+      expect(prompt).toMatch(/Never tell the user that a notice cannot be logged as a transfer or a conversion/);
+      expect(prompt).toMatch(/never put the exchange in a note/i);
+    });
+
+    it('has the options of a question about a record carry that record, and the next card use it', () => {
+      expect(prompt).toMatch(/give each option its "record"/);
+      expect(prompt).toMatch(/a card with another id is refused/);
+    });
+
+    it('reports an applied card from its result and not from its arguments', () => {
+      expect(prompt).toMatch(/report what they produced from their "result" lines, not from the arguments/);
+      expect(prompt).toMatch(/Never describe an outcome the result does not show/);
+    });
+
     it('takes the time of a transaction from its source, not from the clock', () => {
       expect(prompt).toMatch(/time comes from its source/i);
       expect(prompt).toMatch(/use the notice's time/i);

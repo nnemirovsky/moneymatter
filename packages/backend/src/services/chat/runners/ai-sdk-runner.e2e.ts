@@ -300,6 +300,64 @@ describe('AI SDK chat runner', () => {
     expect(history.at(-1)).toContain('Cash');
   });
 
+  it('hands the model the id of the account the user tapped, and refuses a card on another one', async () => {
+    const wallet = await helpers.createAccount({ raw: true });
+    const savings = await helpers.createAccount({ raw: true });
+    const { script, threadId } = await arrange({
+      turns: [
+        {
+          toolCalls: [
+            {
+              id: 'call_ask',
+              name: 'ask_clarification',
+              arguments: {
+                question: 'Which account?',
+                options: [
+                  { label: 'Wallet', record: { kind: 'account', id: wallet.id } },
+                  { label: 'Savings', record: { kind: 'account', id: savings.id } },
+                ],
+              },
+            },
+          ],
+        },
+        { toolCalls: [{ id: 'call_find', name: 'find_capabilities', arguments: { query: 'create transaction' } }] },
+        // The model writes the other account's id than the one that was tapped.
+        {
+          toolCalls: [
+            { id: 'call_wrong', name: 'create_transaction', arguments: transactionArgs({ accountId: savings.id }) },
+          ],
+        },
+        {
+          toolCalls: [
+            { id: 'call_right', name: 'create_transaction', arguments: transactionArgs({ accountId: wallet.id }) },
+          ],
+        },
+        { text: 'Proposed.' },
+      ],
+    });
+
+    const first = await send({ threadId, payload: { text: 'Log the taxi' } });
+    const clarification = partsOfType({ parts: first.message.parts, type: 'clarification' })[0]!;
+    expect(clarification.options.map((option) => option.record)).toEqual([
+      { kind: 'account', id: wallet.id },
+      { kind: 'account', id: savings.id },
+    ]);
+    const walletOption = clarification.options.find((option) => option.label === 'Wallet')!;
+
+    await send({
+      threadId,
+      payload: { text: '', clarificationAnswer: { clarificationId: clarification.id, optionIds: [walletOption.id] } },
+    });
+
+    // The answer reaches the model with the id, and the card on the other account was refused.
+    const history = JSON.stringify(script.requests[1]!.messages);
+    expect(history).toContain(`Wallet (account id ${wallet.id})`);
+    expect(toolMessages({ body: script.requests[3]! }).join('\n')).toContain(`account id ${wallet.id}`);
+    const cards = await ChatProposals.findAll({ where: { threadId } });
+    expect(cards).toHaveLength(1);
+    expect(cards[0]!.args.accountId).toBe(wallet.id);
+  });
+
   it('ends a run that keeps calling tools at the step limit, with a notice', async () => {
     const turns: ChatScriptTurn[] = Array.from({ length: 26 }, (_, index) => ({
       toolCalls: [{ id: `call_${index + 1}`, name: 'get_user_profile', arguments: {} }],

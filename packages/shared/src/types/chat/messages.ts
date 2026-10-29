@@ -88,9 +88,20 @@ export interface ChatProposalPart {
   proposalId: string;
 }
 
+/** The kinds of record a clarification option can stand for. */
+export const CHAT_PICKABLE_RECORD_KINDS = ['account', 'category', 'payee', 'tag', 'transaction'] as const;
+
+export type ChatPickableRecordKind = (typeof CHAT_PICKABLE_RECORD_KINDS)[number];
+
 export interface ChatClarificationOption {
   id: string;
   label: string;
+  /**
+   * The record this option stands for, when picking it picks a record (an account, a category, a payee). The
+   * answer is handed back to the model with this id, and a card that then uses another record of that kind
+   * is refused, so the card cannot name a different record than the one the user tapped.
+   */
+  record?: { kind: ChatPickableRecordKind; id: string };
 }
 
 export interface ChatClarificationPart {

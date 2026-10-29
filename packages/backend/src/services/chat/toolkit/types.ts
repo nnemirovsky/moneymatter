@@ -2,6 +2,7 @@ import type { ChatPageContext, ChatRunEvent, ChatSource, ChatToolCallPart } from
 import type Users from '@models/users.model';
 
 import type { ToolCatalogEntry, ToolInvokeExtra } from '../../mcp/tool-catalog';
+import type { PickedRecord } from '../prompt/picked-records';
 import type { ChatTextPolicy } from '../prompt/text-policy';
 import type { AnalysisOutput } from '../sandbox/run-sandboxed-analysis';
 import type { ChatRunLimits } from './limits';
@@ -54,6 +55,8 @@ export interface ChatToolkitRun {
    * cards), so the common write tools are offered from the first step instead of being found first.
    */
   preloadWrites?: boolean;
+  /** The records the user picked in their answer to the model's last question (the message this run answers). */
+  pickedRecords?: PickedRecord[];
   /** The attachments of the user message this run answers. */
   attachments: Array<{ id: string; fileName: string }>;
   /** Writes one event to the run's stream. */
