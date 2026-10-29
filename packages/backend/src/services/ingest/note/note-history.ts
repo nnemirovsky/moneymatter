@@ -7,6 +7,25 @@ interface NoteHistoryRow {
   time: Date;
 }
 
+/**
+ * The note of a past payment as history, which is none for a payment the owner has not confirmed (its note is the
+ * pipeline's) and for a note a context notification wrote ("<store> order from
+ * <service>"): it names one order's venue, so it says nothing of the next payment to the same payee.
+ */
+export const historyNoteOf = ({
+  note,
+  externalData,
+}: {
+  note: string | null;
+  externalData: Record<string, unknown> | null;
+}): string | null => {
+  const ingest = (externalData as { ingest?: { unconfirmed?: boolean; context?: { noteApplied?: boolean } } } | null)
+    ?.ingest;
+
+  // A row the owner has not confirmed carries the pipeline's note, not one they wrote.
+  return ingest?.unconfirmed === true || ingest?.context?.noteApplied === true ? null : note;
+};
+
 /** A note the owner wrote before, with the payments it was on (newest first). */
 export interface NoteCandidate {
   note: string;

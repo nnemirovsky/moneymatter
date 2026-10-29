@@ -192,7 +192,7 @@ describe('context notifications', () => {
       const acceptance = await send({
         secret,
         body: woltNotification({
-          title: 'The staff has seen your order',
+          title: 'Order update',
           body: 'A human being has seen your order at Wolt Market Lisbon',
         }),
       });
@@ -937,6 +937,154 @@ describe('context notifications', () => {
       const res = await helpers.createContextSource({ payload: { appName: '  ' } });
 
       expect(res.statusCode).toBe(422);
+    });
+  });
+  describe('an order the venue has seen', () => {
+    const seen = ({ store = 'Example Bakery' }: { store?: string } = {}) =>
+      woltNotification({
+        title: 'Order update',
+        body: `Someone in the kitchen has seen your order at ${store}`,
+      });
+
+    it('is read by the rules, without a model, and gives the payment its venue', async () => {
+      const { secret } = await setUp();
+      const tx = await pay({ secret });
+
+      const res = await send({ secret, body: seen() });
+
+      expect(res.body.response).toMatchObject({ outcome: 'enriched' });
+      expect((await reload({ id: tx.id })).note).toBe('Example Bakery order from Wolt');
+    });
+
+    it('waits for the payment that follows it', async () => {
+      const { secret } = await setUp();
+      const res = await send({ secret, body: seen() });
+      expect(res.body.response).toMatchObject({ outcome: 'held' });
+
+      const tx = await pay({ secret });
+
+      await until(async () => (await reload({ id: tx.id })).note === 'Example Bakery order from Wolt', {
+        timeout: 15_000,
+        interval: 150,
+      });
+    });
+  });
+
+  describe('the note of a payment to a service', () => {
+    it('gives the next order of the service neither the venue nor the category of the one before', async () => {
+      await helpers.addCustomCategory({ name: 'Bar, cafe', raw: true });
+      const cafe = (await helpers.getCategoriesList()).find((category) => category.name === 'Bar, cafe')!;
+      enableServerModel();
+      mockNotificationParsing({
+        answer: () => ({}),
+        contextCategory: ({ prompt }) => ({
+          categoryId: prompt
+            .split('\n')
+            .find((line) => line.endsWith('|Bar, cafe'))!
+            .split('|')[0]!,
+          confidence: 0.9,
+        }),
+      });
+      const { secret } = await setUp();
+      const first = await pay({ secret });
+      await send({ secret, body: accepted({ store: 'Example Bakery' }) });
+      expect((await reload({ id: first.id })).categoryId).toBe(cafe.id);
+      await approveCardAsIs({ card: await confirmCardOf({ transactionId: first.id }) });
+      await waitForIngestIdle();
+
+      const second = await pay({ secret, amount: '15.60' });
+      await waitForIngestIdle();
+
+      const next = await reload({ id: second.id });
+      expect(next.note ?? '').toBe('');
+      expect(next.categoryId).not.toBe(cafe.id);
+    });
+
+    it('never gives a later payment the context that is already on a payment, whatever stage of that order arrives', async () => {
+      const { secret } = await setUp();
+      const first = await pay({ secret });
+      await send({ secret, body: accepted({ store: 'Example Bakery' }) });
+      expect((await reload({ id: first.id })).note).toBe('Example Bakery order from Wolt');
+
+      const second = await pay({ secret, amount: '15.60' });
+      const repeat = await send({ secret, body: accepted({ store: 'Example Bakery' }) });
+      const delivered = await send({
+        secret,
+        body: woltNotification({
+          title: 'Delivered',
+          body: 'Your order from Example Bakery has been delivered. Enjoy!',
+        }),
+      });
+      await waitForIngestIdle();
+
+      expect(['ignored', 'duplicate']).toContain(repeat.body.response.outcome);
+      expect(delivered.body.response).toMatchObject({ outcome: 'ignored' });
+      expect((await reload({ id: second.id })).note ?? '').toBe('');
+      expect((await reload({ id: first.id })).note).toBe('Example Bakery order from Wolt');
+    });
+
+    it('gives no venue to a payment when the earlier order is enriched but still unconfirmed', async () => {
+      enableServerModel();
+      const notePickPrompts: string[] = [];
+      mockNotificationParsing({
+        answer: () => ({}),
+        notePickPrompts,
+        notePick: ({ prompt }) => ({
+          candidateId: /(n\d+)\|Example Bakery order from Wolt\|/.exec(prompt)?.[1] ?? null,
+        }),
+      });
+      const { secret } = await setUp();
+      const first = await pay({ secret });
+      await send({ secret, body: accepted({ store: 'Example Bakery' }) });
+      expect((await reload({ id: first.id })).note).toBe('Example Bakery order from Wolt');
+      // The row counts as history even while it waits for the owner (as on a system account).
+      await Transactions.update({ isPlanned: false }, { where: { id: first.id } });
+
+      const second = await pay({ secret, amount: '15.60' });
+      await waitForIngestIdle();
+
+      expect((await reload({ id: second.id })).note ?? '').toBe('');
+      expect(notePickPrompts).toEqual([]);
+    });
+
+    it("gives a context that arrives before the next order's payment to that payment, never to the one before", async () => {
+      const { secret } = await setUp();
+      const first = await pay({ secret });
+      await send({ secret, body: accepted({ store: 'Example Bakery' }) });
+      const held = await send({ secret, body: accepted({ store: 'Example Grocer' }) });
+      expect(held.body.response).toMatchObject({ outcome: 'held' });
+
+      const second = await pay({ secret, amount: '15.60' });
+
+      await until(async () => (await reload({ id: second.id })).note === 'Example Grocer order from Wolt', {
+        timeout: 15_000,
+        interval: 150,
+      });
+      expect((await reload({ id: first.id })).note).toBe('Example Bakery order from Wolt');
+    });
+
+    it('never takes the venue of an earlier order from the history of notes, whoever picks the note', async () => {
+      enableServerModel();
+      const notePickPrompts: string[] = [];
+      mockNotificationParsing({
+        answer: () => ({}),
+        notePickPrompts,
+        notePick: ({ prompt }) => ({
+          candidateId: /(n\d+)\|Example Bakery order from Wolt\|/.exec(prompt)?.[1] ?? null,
+        }),
+      });
+      const { secret } = await setUp();
+      const first = await pay({ secret });
+      await send({ secret, body: accepted({ store: 'Example Bakery' }) });
+      expect((await reload({ id: first.id })).note).toBe('Example Bakery order from Wolt');
+      await approveCardAsIs({ card: await confirmCardOf({ transactionId: first.id }) });
+      await waitForIngestIdle();
+
+      const second = await pay({ secret, amount: '33.10' });
+      await waitForIngestIdle();
+
+      expect((await reload({ id: second.id })).note ?? '').toBe('');
+      expect(notePickPrompts).toEqual([]);
     });
   });
 });

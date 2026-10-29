@@ -23,6 +23,8 @@ interface ContextRule {
 const CONTEXT_RULES: readonly ContextRule[] = [
   { pattern: /^(?:.*?[—–]\s+)?(.+?) (?:has|have) accepted your order/iu, status: 'accepted' },
   { pattern: /^(?:.*?[—–]\s+)?(.+?) (?:has|have) (?:confirmed|received) your order/iu, status: 'accepted' },
+  // The venue has opened the order: the first sign of it, ahead of the acceptance, so it waits for its payment like one.
+  { pattern: /(?:has|have) (?:seen|viewed|opened|noticed) your order (?:at|from|in) (.+)$/iu, status: 'accepted' },
   {
     pattern: /^(?:.*?[—–]\s+)?(.+?) (?:has|have) (?:cancelled|canceled|rejected|declined) your order/iu,
     status: 'cancelled',

@@ -6,7 +6,7 @@ import { findTransactions } from '@models/transactions-query';
 import { subMonths } from 'date-fns';
 import { Op } from 'sequelize';
 
-import { type NoteSuggestion, offsetMinutesOf, suggestNoteFromHistory } from './note-history';
+import { historyNoteOf, type NoteSuggestion, offsetMinutesOf, suggestNoteFromHistory } from './note-history';
 
 const HISTORY_MONTHS = 12;
 const HISTORY_ROWS = 50;
@@ -56,14 +56,18 @@ export const loadNoteSuggestion = async ({
         time: { [Op.gte]: subMonths(time, HISTORY_MONTHS) },
         ...(excludeTransactionId && { id: { [Op.ne]: excludeTransactionId } }),
       },
-      attributes: ['id', 'note', 'amount', 'time'],
+      attributes: ['id', 'note', 'amount', 'time', 'externalData'],
       order: [['time', 'DESC']],
     }),
   ]);
   if (!payee) return { kind: 'none' };
 
   return suggestNoteFromHistory({
-    history: rows.map((row) => ({ note: row.note, amount: row.amount.toNumber(), time: row.time })),
+    history: rows.map((row) => ({
+      note: historyNoteOf({ note: row.note, externalData: row.externalData }),
+      amount: row.amount.toNumber(),
+      time: row.time,
+    })),
     time,
     offsetMinutes,
     excludedNames: [
