@@ -70,7 +70,7 @@ const run = ({
     text: { title, subtitle, body, raw: null },
     source: { appName, bundleId, sender: null },
     candidates: candidates as never,
-    nonZeroCurrencies: ['GEL', 'USD'],
+    nonZeroCurrencies: ['CHF', 'USD'],
   });
 };
 
@@ -115,10 +115,10 @@ describe('parseNotificationWithAi', () => {
         verdict: 'payment',
         payment: {
           amount: '43.6',
-          currencyCode: 'GEL',
+          currencyCode: 'CHF',
           merchant: 'WOLT.COM LISBON',
           payee: { type: 'candidate', payeeId: PAYEE_ID },
-          balanceAfter: { amount: '1204.3', currencyCode: 'GEL' },
+          balanceAfter: { amount: '1204.3', currencyCode: 'CHF' },
         },
       },
     });
@@ -141,7 +141,7 @@ describe('parseNotificationWithAi', () => {
     expect(call.prompt).toContain('WOLT.COM LISBON, 20/10/2026');
     expect(call.prompt).toContain('p1|Wolt|WOLT.COM LISBON');
     expect(call.prompt).not.toContain(PAYEE_ID);
-    expect(call.prompt).toContain('The user holds money at this bank in: GEL, USD.');
+    expect(call.prompt).toContain('The user holds money at this bank in: CHF, USD.');
     expect(call.system).toContain('untrusted');
     expect(call).not.toHaveProperty('tools');
   });

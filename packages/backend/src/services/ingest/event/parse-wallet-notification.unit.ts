@@ -19,7 +19,7 @@ describe('app recognition', () => {
       appName: 'Wallet',
       title: 'Example Visa',
       subtitle: 'Wolt',
-      body: 'GEL 43.60',
+      body: 'CHF 43.60',
     });
 
     expect(result?.classified.payment.merchant).toBe('Wolt');
@@ -32,7 +32,7 @@ describe('app recognition', () => {
         appName: 'Wallet',
         title: 'Example Visa',
         subtitle: 'Wolt',
-        body: 'GEL 43.60',
+        body: 'CHF 43.60',
       }),
     ).toBeNull();
   });
@@ -53,7 +53,7 @@ describe('parseWalletNotification', () => {
           kind: 'debit',
           stage: 'payment',
           amount: '43.6',
-          currencyCode: 'GEL',
+          currencyCode: 'CHF',
           originalAmount: null,
           originalCurrencyCode: null,
           merchant: 'Wolt',
@@ -67,13 +67,13 @@ describe('parseWalletNotification', () => {
     });
   });
 
-  it('reads the online Wolt payment of the owner phone: card as the title, merchant as the subtitle, GEL before the number', () => {
+  it('reads the online Wolt payment of the owner phone: card as the title, merchant as the subtitle, CHF before the number', () => {
     const result = parse({ fixture: walletFixtures.woltOnline });
 
     expect(result?.classified.payment).toMatchObject({
       kind: 'debit',
       amount: '29.41',
-      currencyCode: 'GEL',
+      currencyCode: 'CHF',
       merchant: 'Wolt',
       cardName: 'Example Bank',
     });
@@ -103,8 +103,8 @@ describe('parseWalletNotification', () => {
 
   it.each([
     ['a blank merchant', { subtitle: '  ' }],
-    ['a negative amount', { body: '-GEL 5.00' }],
-    ['a zero amount', { body: 'GEL 0.00' }],
+    ['a negative amount', { body: '-CHF 5.00' }],
+    ['a zero amount', { body: 'CHF 0.00' }],
     ['an empty body', { body: '' }],
   ])('returns null for %s', (_, override) => {
     expect(
@@ -113,7 +113,7 @@ describe('parseWalletNotification', () => {
         appName: 'Wallet',
         title: 'Example Bank',
         subtitle: 'Wolt',
-        body: 'GEL 43.60',
+        body: 'CHF 43.60',
         ...override,
       }),
     ).toBeNull();
@@ -126,14 +126,14 @@ describe('parseWalletNotification', () => {
         appName: 'Telegram',
         title: 'Anna',
         subtitle: 'Wolt',
-        body: 'GEL 43.60',
+        body: 'CHF 43.60',
       }),
     ).toBeNull();
   });
 
   it('has no card when the title is blank', () => {
     expect(
-      parseWalletNotification({ bundleId: WALLET_BUNDLE, appName: null, title: ' ', subtitle: 'Wolt', body: 'GEL 1' })
+      parseWalletNotification({ bundleId: WALLET_BUNDLE, appName: null, title: ' ', subtitle: 'Wolt', body: 'CHF 1' })
         ?.classified.payment.cardName,
     ).toBeNull();
   });
