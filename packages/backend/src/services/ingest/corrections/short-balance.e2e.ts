@@ -150,6 +150,64 @@ describe('short-balance correction', () => {
       });
     });
 
+    it('places an exchange told after the payment just before it, and withdraws the suggestion it covers', async () => {
+      enableServerModel();
+      mockNotificationParsing({ answer: () => ({}) });
+      const { gel, noon, secret } = await setUp();
+      await walletPayment({ secret, noon, amount: woltOnlinePayment.wallet.body });
+      const tx = (await Transactions.findOne({
+        where: { accountId: gel.id, transactionType: TRANSACTION_TYPES.expense },
+      }))!;
+      expect(await correctionOf({ transactionId: tx.id })).toMatchObject({ status: 'open' });
+
+      // The exchange notice carries no time and arrives two minutes after the payment's.
+      await ingestHelpers.postIngestEvent({
+        secret,
+        body: {
+          kind: 'notification',
+          app: 'Example Bank',
+          title: 'Example Bank',
+          subtitle: '',
+          body: 'Conversion:\n20.00 USD\n40.00 GEL\nRate: 2\n15/01/2026',
+          time: addMinutes(noon, 2).toISOString(),
+          idempotencyKey: `push-${randomUUID()}`,
+        },
+      });
+      const threads = (await helpers.listChatThreads({ raw: true })).threads.filter(
+        (thread) => thread.kind === 'automationInbox',
+      );
+      let card: { id: string; revision: number } | undefined;
+      await until(
+        async () => {
+          for (const thread of threads.length ? threads : (await helpers.listChatThreads({ raw: true })).threads) {
+            const found = Object.values(
+              (await helpers.getChatThread({ threadId: thread.id, limit: 100, raw: true })).cards,
+            ).find((entry) => entry.toolName === 'log_ingest_request' && entry.status === 'pending');
+            if (found) card = found;
+          }
+
+          return Boolean(card);
+        },
+        { timeout: 30_000, interval: 200 },
+      );
+      const fresh = await helpers.refreshChatProposal({ proposalId: card!.id, raw: true });
+      const approved = await helpers.approveChatProposal({
+        proposalId: fresh.id,
+        payload: { revision: fresh.revision },
+      });
+      expect(approved.statusCode).toBe(200);
+
+      await until(async () => (await correctionOf({ transactionId: tx.id }))?.status === 'dismissed', {
+        timeout: 30_000,
+        interval: 200,
+      });
+      const exchange = await Transactions.findAll({
+        where: { transferNature: TRANSACTION_TRANSFER_NATURE.common_transfer },
+      });
+      expect(exchange).toHaveLength(2);
+      for (const leg of exchange) expect(leg.time.toISOString()).toBe(addMinutes(tx.time, -1).toISOString());
+    });
+
     it('keeps the suggestion when the transfer is too small to cover the payment', async () => {
       const { gel, usd, noon, secret } = await setUp();
       await walletPayment({ secret, noon, amount: woltOnlinePayment.wallet.body });

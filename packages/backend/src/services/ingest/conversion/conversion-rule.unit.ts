@@ -113,3 +113,18 @@ describe('sidesOf and impliedRate', () => {
     expect(impliedRate({ debit: payment({ amount: '0' }), credit: payment({ amount: '10' }) })).toBeNull();
   });
 });
+
+describe('isConversionPair for notices of one second', () => {
+  const sameSecond = new Date('2026-01-15T07:25:42Z');
+
+  it.each([
+    ['money out first', debit({ time: sameSecond }), credit({ time: sameSecond })],
+    ['money in first', credit({ time: sameSecond }), debit({ time: sameSecond })],
+  ])('pairs a merchant-less debit and credit in two currencies, %s', (_label, left, right) => {
+    expect(isConversionPair({ left, right })).toBe(true);
+  });
+
+  it('does not pair two debits', () => {
+    expect(isConversionPair({ left: debit(), right: debit({ payment: { currencyCode: 'EUR' } }) })).toBe(false);
+  });
+});
