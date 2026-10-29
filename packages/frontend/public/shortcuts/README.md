@@ -85,3 +85,25 @@ iOS keeps no run history for Shortcuts automations, and the served Shortcut carr
 - After the fact: `sudo log collect --device-name "<iPhone name>" --last 2h --output iphone.logarchive`, then open the archive in Console.app or search it with `log show --archive iphone.logarchive --predicate 'process CONTAINS "shortcuts"'`.
 
 iOS keeps only a limited window of logs (hours to a day or two, depending on how busy the phone is), so collect them soon after the run in question. To trace a run on the iPhone itself, add actions to a personal copy of the Shortcut, never to the served file.
+
+### Without a cable: sysdiagnose
+
+When the phone is not near the Mac, a sysdiagnose captures the same system log on the phone:
+
+1. Start it: press and hold both volume buttons and the side button for about a second, until the phone vibrates. The power-off screen may appear at the same moment; tap Cancel, the capture keeps running. If the buttons are awkward, set Settings → Accessibility → Touch → AssistiveTouch → Single-Tap to **Analytics** and tap the floating button once.
+2. Wait about 10 minutes. In Settings → Privacy & Security → Analytics & Improvements → Analytics Data it first shows as `IN_PROGRESS_sysdiagnose_….tmp`, then as `sysdiagnose_<date>_<time>_iPhone-OS_iPhone_<build>.tar.gz` (search for `sysdiagnose`). The `stacks-….ips` file that appears right away is not it.
+3. Share the `.tar.gz` to the Mac (AirDrop, Files → iCloud Drive, or copy and paste through Universal Clipboard). It is a few hundred MB and holds the whole device log, so keep it private and delete it when done.
+4. Extract it into an empty folder and query the log archive inside:
+
+```sh
+tar -xzf sysdiagnose_*.tar.gz
+log show --archive sysdiagnose_*/system_logs.logarchive \
+  --start '2026-01-01 12:00:00' --end '2026-01-01 12:05:00' \
+  --predicate 'subsystem == "com.apple.shortcuts" OR process == "BackgroundShortcutRunner"' --style compact
+```
+
+Lines worth searching for: `Biome trigger fired` (a notification matched an automation), `Starting shortcut run` (the Shortcut started), and `Failed to enqueue trigger … due to rate-limiting` (iOS dropped the trigger).
+
+### Known iOS limit: notifications during a run are dropped
+
+iOS does not start a notification automation while an earlier run of the same automation is unfinished. A second notification that arrives during a run is dropped with `rate-limiting with timeout=1 and root cause: unfinished attempts in run history`, and it never reaches the server. This shows up when a bank posts two notifications in the same second, such as the two legs of a currency exchange: only the first is logged. Nothing in the Shortcut can recover the dropped one, so the server has to infer it (for example from a balance that no longer reconciles).
