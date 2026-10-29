@@ -651,6 +651,10 @@
       "description": "List in-app notifications (budget alerts, reminders, bank sync messages), newest first, with the total and the unread count; filter by status or type, or read one by id."
     },
     {
+      "name": "get_waiting_ingest_requests",
+      "description": "List the bank and card notifications parked in the Automation inbox, newest first: reason, time, direction, amount, currency, merchant, and the two sides of a currency exchange. Read it before logging one with log_ingest_request."
+    },
+    {
       "name": "mark_notifications_read",
       "description": "Mark one notification read, or all unread ones when no id is given. Works for read-only accounts. Requires finance:write scope."
     },

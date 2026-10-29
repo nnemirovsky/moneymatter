@@ -8,14 +8,17 @@ import { z } from 'zod';
 jest.mock('@services/ingest/confirm-ingested-payment', () => ({ confirmIngestedPayment: jest.fn() }));
 jest.mock('@services/ingest/event/approve-parked-request', () => ({ approveParkedRequest: jest.fn() }));
 jest.mock('@services/ingest', () => ({ updateNotificationSource: jest.fn() }));
+jest.mock('@services/ingest/list-waiting-requests', () => ({ listWaitingIngestRequests: jest.fn() }));
 jest.mock('@services/currencies/base-currency-lock', () => ({ isBaseCurrencyChangeLocked: jest.fn() }));
 
 import { isBaseCurrencyChangeLocked } from '@services/currencies/base-currency-lock';
 import { updateNotificationSource } from '@services/ingest';
 import { confirmIngestedPayment } from '@services/ingest/confirm-ingested-payment';
 import { approveParkedRequest } from '@services/ingest/event/approve-parked-request';
+import { listWaitingIngestRequests } from '@services/ingest/list-waiting-requests';
 
 import { registerConfirmIngestPayment } from './confirm-ingest-payment';
+import { registerGetWaitingIngestRequests } from './get-waiting-ingest-requests';
 import { registerLogIngestRequest } from './log-ingest-request';
 import { registerSetNotificationSource } from './set-notification-source';
 
@@ -166,5 +169,26 @@ describe('set_notification_source', () => {
     lockCheck.mockResolvedValue(true);
     updateSource.mockResolvedValue({ id: ID_1, mode: 'muted' } as never);
     await expect(call({ tool, args: { sourceId: ID_1, mode: 'muted' } })).resolves.toEqual({ id: ID_1, mode: 'muted' });
+  });
+});
+
+describe('get_waiting_ingest_requests', () => {
+  const tool = captureTools({ register: registerGetWaitingIngestRequests })[0]!;
+
+  it('is a read with no input, described so an agent reads it before logging a notice', () => {
+    expect(tool.name).toBe('get_waiting_ingest_requests');
+    expect(tool.config.inputSchema).toBeUndefined();
+    expect(tool.config.description).toMatch(/log_ingest_request/);
+    expect(tool.config.description).toMatch(/time/);
+  });
+
+  it('returns the waiting notices of the caller, read with the read scope only', async () => {
+    const views = [{ requestId: ID_1, direction: 'debit', amount: 120, currencyCode: 'USD' }];
+    jest.mocked(listWaitingIngestRequests).mockResolvedValue(views as never);
+
+    const result = parseToolResult({ result: await tool.handler(makeExtra({ scopes: ['finance:read'] })) });
+
+    expect(result).toEqual(views);
+    expect(listWaitingIngestRequests).toHaveBeenCalledWith({ userId: 42 });
   });
 });

@@ -30,6 +30,8 @@ const HISTORY_LOAD_LIMIT = 200;
 /** Assistant turns whose tool results are still shown; older ones keep only a note. */
 const RECENT_ASSISTANT_TURNS = 2;
 const TOOL_ARGS_CHARS = 200;
+/** The arguments of a recent card the model is shown, so it describes the card as it is and not as it remembers it. */
+const PROPOSAL_ARGS_CHARS = 600;
 
 /** `min(0.6 × the model's context window, 120k)` tokens. */
 export function historyBudgetTokens({ contextWindow }: { contextWindow: number | null }): number {
@@ -251,6 +253,12 @@ function renderAssistant({
             ? `proposal ${proposal.id} ${proposal.toolName}: ${proposal.status}${proposal.statusReason ? ` (${oneLine({ text: proposal.statusReason })})` : ''}`
             : `proposal ${part.proposalId}: unknown`,
         );
+        if (proposal && recent && proposal.args) {
+          lines.push(
+            'its arguments:',
+            ctx.wrap({ kind: 'toolResult', text: JSON.stringify(proposal.args).slice(0, PROPOSAL_ARGS_CHARS) }),
+          );
+        }
         break;
       }
       case 'clarification':

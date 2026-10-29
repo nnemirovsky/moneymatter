@@ -155,6 +155,7 @@ import { registerGetUserProfile } from './tools/get-user-profile';
 import { registerGetUserSettings } from './tools/get-user-settings';
 import { registerGetVehicles } from './tools/get-vehicles';
 import { registerGetVentureContributions } from './tools/get-venture-contributions';
+import { registerGetWaitingIngestRequests } from './tools/get-waiting-ingest-requests';
 import { registerIgnorePayeeName } from './tools/ignore-payee-name';
 import { registerKeepPendingAsBooked } from './tools/keep-pending-as-booked';
 import { registerLinkLoanPayments } from './tools/link-loan-payments';
@@ -362,6 +363,7 @@ export function registerAllTools(server: McpServer): void {
 
   // Notifications & settings
   registerGetNotifications(server);
+  registerGetWaitingIngestRequests(server);
   registerMarkNotificationsRead(server);
   registerDismissNotification(server);
   registerGetUserSettings(server);

@@ -21,6 +21,7 @@ import type { ChatTextPolicy } from '../prompt/text-policy';
 import type { ClarificationStop } from './clarification-stop';
 import { createCodexChatReader } from './codex-chat-reader';
 import { createEventQueue } from './event-queue';
+import { estimateStoppedUsage } from './stopped-usage';
 import type { CliChatOutcome } from './types';
 
 const PROVIDER = AI_PROVIDER.codex;
@@ -70,6 +71,8 @@ export async function runCodexChat({
       if (stdinParts.length === 0) stdinParts.push('Use the attached image(s) to answer.');
 
       const state = createCodexTurnState();
+      // What the CLI printed as model output, for the usage of a run that is ended before it can report its own.
+      const producedOutput: string[] = [];
       const reader = createCodexChatReader({ textPolicy, persist });
       const queue = createEventQueue();
 
@@ -103,6 +106,7 @@ export async function runCodexChat({
             if (event.type?.startsWith('item.')) guardCodexChatItem({ item: event.item });
 
             stop.noteOutput();
+            if (event.type === 'item.completed') producedOutput.push(line);
             recordCodexTurnEvent({ state, event });
             queue.push(() => reader.handle({ event }));
           },
@@ -121,7 +125,11 @@ export async function runCodexChat({
         if (stop.fired() && !signal.aborted) {
           await queue.drain().catch(() => undefined);
 
-          return { status: 'complete', stepCount: reader.stepCount() };
+          return {
+            status: 'complete',
+            stepCount: reader.stepCount(),
+            usage: estimateStoppedUsage({ prompt, producedOutput }),
+          };
         }
 
         throw error;

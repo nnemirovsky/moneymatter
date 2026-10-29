@@ -189,6 +189,67 @@ describe('buildHistoryMessages', () => {
     expect(lines).toContain('proposal p-pending update_account: pending');
   });
 
+  it('shows the arguments of a recent card, so an answer about it comes from the card and not from memory', () => {
+    const proposals: HistoryProposal[] = [
+      {
+        id: 'p-1',
+        toolName: 'create_transaction',
+        status: 'applied',
+        statusReason: null,
+        args: { amount: 120, transactionType: 'expense', currencyCode: 'EUR' },
+      },
+    ];
+
+    const result = build({
+      proposals,
+      messages: [
+        user({ id: 'u1', value: 'log it' }),
+        assistant({ id: 'a1', parts: [{ type: 'proposal' as const, id: 'part-1', proposalId: 'p-1' }] }),
+        user({ id: 'u2', value: 'what did you log?' }),
+      ],
+    });
+    const content = contentOf(result[1]);
+
+    expect(content).toContain('proposal p-1 create_transaction: applied');
+    expect(content).toContain('its arguments:');
+    expect(content).toContain('"amount":120');
+    expect(content).toContain('"transactionType":"expense"');
+  });
+
+  it('shows no arguments for a card of an older turn, and cuts a long one', () => {
+    const long: HistoryProposal = {
+      id: 'p-long',
+      toolName: 'create_transaction',
+      status: 'pending',
+      statusReason: null,
+      args: { note: 'x'.repeat(5000) },
+    };
+    const older: HistoryProposal = {
+      id: 'p-old',
+      toolName: 'create_transaction',
+      status: 'applied',
+      statusReason: null,
+      args: { note: 'secret old arguments' },
+    };
+
+    const result = build({
+      proposals: [long, older],
+      messages: [
+        user({ id: 'u1', value: 'one' }),
+        assistant({ id: 'a1', parts: [{ type: 'proposal' as const, id: 'part-o', proposalId: 'p-old' }] }),
+        user({ id: 'u2', value: 'two' }),
+        assistant({ id: 'a2', parts: [{ type: 'text' as const, id: 't2', text: 'ok' }] }),
+        user({ id: 'u3', value: 'three' }),
+        assistant({ id: 'a3', parts: [{ type: 'proposal' as const, id: 'part-l', proposalId: 'p-long' }] }),
+        user({ id: 'u4', value: 'four' }),
+      ],
+    });
+    const all = result.map((message) => contentOf(message)).join('\n');
+
+    expect(all).not.toContain('secret old arguments');
+    expect(all.length).toBeLessThan(2000);
+  });
+
   it('renders a visual as a one-line note, not its data', () => {
     const result = build({
       messages: [

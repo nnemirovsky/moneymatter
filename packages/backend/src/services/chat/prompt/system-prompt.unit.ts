@@ -35,6 +35,39 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('security prices');
   });
 
+  describe('rules for waiting notices, corrections and transfers', () => {
+    const prompt = buildSystemPrompt(params);
+
+    it('sends the model to the waiting notices first, and to log one with log_ingest_request', () => {
+      expect(prompt).toContain('get_waiting_ingest_requests');
+      expect(prompt).toContain('log_ingest_request');
+      expect(prompt).toMatch(/amounts, currencies, direction and time are facts/);
+    });
+
+    it('takes the time of a transaction from its source, not from the clock', () => {
+      expect(prompt).toMatch(/time comes from its source/i);
+      expect(prompt).toMatch(/use the notice's time/i);
+    });
+
+    it('makes the options of a direction question cover both directions', () => {
+      expect(prompt).toMatch(/both directions of a pair \(A to B and B to A\)/);
+    });
+
+    it('reads a short reply after a pending card as a correction of that card', () => {
+      expect(prompt).toMatch(/short reply right after you proposed a card that is still pending/i);
+      expect(prompt).toMatch(/Do not ask whether it is a correction or a new request/);
+    });
+
+    it('allows one card for the edit of a transfer, not one per leg', () => {
+      expect(prompt).toMatch(/never one card per leg/i);
+    });
+
+    it('has answers about cards come from their state and arguments, not from memory', () => {
+      expect(prompt).toMatch(/never from memory/i);
+      expect(prompt).toMatch(/pending, which are applied/i);
+    });
+  });
+
   it('has the role and the two modes, and never lets the model claim a change is done', () => {
     const prompt = buildSystemPrompt(params);
 
