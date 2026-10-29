@@ -30,6 +30,18 @@ vi.mock('@/api/ingest', () => ({
   deleteNotificationSource: mockDelete,
   createContextSource: mockCreate,
 }));
+// The picker has its own spec; here only whether a row opens it for its source matters.
+vi.mock('./choose-app-dialog.vue', async () => {
+  const { defineComponent } = await import('vue');
+
+  return {
+    default: defineComponent({
+      name: 'ChooseAppDialog',
+      props: { open: { type: Boolean, default: false }, source: { type: Object, default: null } },
+      setup: () => () => null,
+    }),
+  };
+});
 vi.mock('@/components/notification-center', () => ({
   NotificationType: { error: 'error' },
   useNotificationCenter: () => ({
@@ -87,6 +99,7 @@ const makeSource = (overrides: Partial<NotificationSourceDto> = {}): Notificatio
   appName: 'Example Bank',
   bundleId: null,
   iconUrl: null,
+  iconOverride: false,
   sender: null,
   conversational: false,
   mode: 'auto',
@@ -219,6 +232,19 @@ describe('NotificationSources', () => {
     const name = wrapper.get('[data-testid="notification-source-name"]');
     expect(name.text()).toBe('Example Notes');
     expect(name.find('img').exists()).toBe(true);
+  });
+
+  it('opens the app picker from a row, named for the source', async () => {
+    const { wrapper } = await mountSources({ sources: [makeSource({ appName: 'Example Notes' })] });
+
+    const button = wrapper.get('[data-testid="notification-source-choose-app"]');
+    expect(button.attributes('aria-label')).toBe('Choose the app of Example Notes');
+
+    await button.trigger('click');
+
+    expect(wrapper.getComponent({ name: 'ChooseAppDialog' }).props('source')).toMatchObject({
+      appName: 'Example Notes',
+    });
   });
 
   it('shows an empty state before the first notification', async () => {

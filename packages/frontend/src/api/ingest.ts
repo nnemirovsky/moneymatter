@@ -12,6 +12,8 @@ import type {
   CreateIngestTokenResponse,
   GateStrictnessDto,
   IngestTokenDto,
+  AppStoreSearchDto,
+  ChooseSourceAppPayload,
   IosAutomationIconsDto,
   NotificationSourceDto,
   RetryCardPaymentRequestPayload,
@@ -114,6 +116,27 @@ export const createCardPaymentSetupCode = async (
 
 export const getIosAutomationIcons = async (): Promise<IosAutomationIconsDto> => {
   return api.get('/user/settings/ios-automation-icons');
+};
+
+export const searchSourceApps = async ({
+  term,
+  storefront,
+}: {
+  term: string;
+  storefront?: string | null;
+}): Promise<AppStoreSearchDto> => {
+  return api.get('/user/settings/notification-sources/app-search', { term, ...(storefront ? { storefront } : {}) });
+};
+
+export const chooseSourceApp = async ({
+  id,
+  ...payload
+}: { id: NotificationSourceDto['id'] } & ChooseSourceAppPayload): Promise<NotificationSourceDto> => {
+  return api.put(`/user/settings/notification-sources/${id}/app`, payload);
+};
+
+export const resetSourceApp = async ({ id }: { id: NotificationSourceDto['id'] }): Promise<NotificationSourceDto> => {
+  return api.delete(`/user/settings/notification-sources/${id}/app`);
 };
 
 export const getNotificationSources = async (): Promise<NotificationSourceDto[]> => {

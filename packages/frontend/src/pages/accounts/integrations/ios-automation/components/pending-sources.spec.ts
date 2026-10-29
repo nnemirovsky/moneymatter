@@ -9,6 +9,18 @@ import PendingSources from './pending-sources.vue';
 const { mockGet, mockUpdate } = vi.hoisted(() => ({ mockGet: vi.fn(), mockUpdate: vi.fn() }));
 
 vi.mock('@/api/ingest', () => ({ getNotificationSources: mockGet, updateNotificationSource: mockUpdate }));
+// The picker has its own spec; here only whether a row opens it for its source matters.
+vi.mock('./choose-app-dialog.vue', async () => {
+  const { defineComponent } = await import('vue');
+
+  return {
+    default: defineComponent({
+      name: 'ChooseAppDialog',
+      props: { open: { type: Boolean, default: false }, source: { type: Object, default: null } },
+      setup: () => () => null,
+    }),
+  };
+});
 vi.mock('@/components/notification-center', () => ({
   NotificationType: { error: 'error' },
   useNotificationCenter: () => ({
@@ -23,6 +35,7 @@ const makeSource = (overrides: Partial<NotificationSourceDto> = {}): Notificatio
   appName: 'Messages',
   bundleId: null,
   iconUrl: null,
+  iconOverride: false,
   sender: 'Example',
   conversational: true,
   mode: 'pending',
@@ -69,6 +82,14 @@ describe('PendingSources', () => {
     });
 
     expect(wrapper.get('[data-testid="pending-source-name"]').text()).toBe('com.example.bank');
+  });
+
+  it('opens the app picker from a row', async () => {
+    const { wrapper } = await mountPending({ sources: [makeSource()] });
+
+    await wrapper.get('[data-testid="pending-source-choose-app"]').trigger('click');
+
+    expect(wrapper.getComponent({ name: 'ChooseAppDialog' }).props('open')).toBe(true);
   });
 
   it('renders nothing when no source waits', async () => {

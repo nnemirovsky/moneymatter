@@ -17,12 +17,25 @@
         data-testid="pending-source-row"
       >
         <div class="min-w-0 flex-1">
-          <NotificationSourceLabel
-            v-bind="sourceLabelOf({ source })"
-            :fallback="$t(`${LABEL_ROOT}.unknownApp`)"
-            class="font-medium"
-            data-testid="pending-source-name"
-          />
+          <div class="flex flex-wrap items-center gap-2">
+            <NotificationSourceLabel
+              v-bind="sourceLabelOf({ source })"
+              :fallback="$t(`${LABEL_ROOT}.unknownApp`)"
+              class="font-medium"
+              data-testid="pending-source-name"
+            />
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              class="text-muted-foreground -my-1"
+              :aria-label="$t(`${CHOOSE_APP_ROOT}.actionAria`, { name: getSourceName({ source, fallback: '' }) })"
+              :title="$t(`${CHOOSE_APP_ROOT}.action`)"
+              data-testid="pending-source-choose-app"
+              @click="chooseAppTarget = source"
+            >
+              <AppWindowIcon class="size-4" />
+            </Button>
+          </div>
           <p
             v-if="source.counters.noAmount"
             class="text-muted-foreground mt-1 text-sm"
@@ -66,6 +79,8 @@
       </li>
     </ul>
   </section>
+
+  <ChooseAppDialog :open="!!chooseAppTarget" :source="chooseAppTarget" @update:open="chooseAppTarget = null" />
 </template>
 
 <script setup lang="ts">
@@ -76,16 +91,21 @@ import { Button } from '@/components/lib/ui/button';
 import { Callout } from '@/components/lib/ui/callout';
 import { useInvalidatingMutation } from '@/composable/data-queries/use-invalidating-mutation';
 import type { NotificationSourceDto } from '@bt/shared/types';
+import { AppWindowIcon } from '@lucide/vue';
 import { useQuery } from '@tanstack/vue-query';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 import { getSourceName, sourceLabelOf } from '../notification-sources';
+import ChooseAppDialog from './choose-app-dialog.vue';
 
 defineOptions({
   name: 'settings-integrations-pending-sources',
 });
 
 const LABEL_ROOT = 'settings.integrations.iosAutomation.pending';
+const CHOOSE_APP_ROOT = 'settings.integrations.iosAutomation.sources.chooseApp';
+
+const chooseAppTarget = ref<NotificationSourceDto | null>(null);
 
 const { data, isError } = useQuery({
   queryKey: VUE_QUERY_CACHE_KEYS.notificationSources,
