@@ -200,7 +200,7 @@ export const resolveIngestRequest: PreviewResolver = async ({ userId, args, lock
         alsoWaiting,
         alsoSeenIn,
         ...(conversion && { conversion }),
-        name: payment?.merchant ?? describeSource({ source: null, payload: request.payload }),
+        name: payment?.merchant ?? null,
         sourceName: sourceAppName({ source, payload: request.payload }),
         summary: request.summary,
         willLearn,
