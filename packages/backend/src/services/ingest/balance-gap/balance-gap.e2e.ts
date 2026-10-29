@@ -150,7 +150,7 @@ describe('a balance that a foreign-currency settlement explains', () => {
     await resetLimits();
   });
 
-  const setUp = async ({ balance = '980.95' }: { balance?: string } = {}) => {
+  const setUp = async ({ balance = '975.78' }: { balance?: string } = {}) => {
     await helpers.addUserCurrencies({ currencyCodes: ['EUR', 'USD'] });
     const usd = await helpers.createAccount({
       payload: helpers.buildAccountPayload({ name: 'Example USD', currencyCode: 'USD', initialBalance: 1000 }),
@@ -162,9 +162,9 @@ describe('a balance that a foreign-currency settlement explains', () => {
         prompt.includes('Hold')
           ? {
               kind: 'debit',
-              amount: '9.17',
+              amount: '14.40',
               currency: 'USD',
-              originalAmount: '8.50',
+              originalAmount: '13.30',
               originalCurrency: 'EUR',
               merchant: 'Example Cafe',
               cardName: 'Example Bank',
@@ -188,32 +188,44 @@ describe('a balance that a foreign-currency settlement explains', () => {
 
   it('proposes the settled amount of the earlier payment instead of a missing transaction', async () => {
     const { secret, now } = await setUp();
-    await send({ secret, body: 'Hold 9.17 USD (8.50 EUR) at Example Cafe', time: addMs({ date: now, ms: -4 * DAY }) });
+    await send({
+      secret,
+      body: 'Hold 14.40 USD (13.30 EUR) at Example Cafe',
+      time: addMs({ date: now, ms: -4 * DAY }),
+    });
     await until(async () => (await Transactions.count()) === 1, { timeout: 30_000, interval: 200 });
     const payment = (await Transactions.findOne())!;
 
-    await send({ secret, body: 'Purchase 10.00 USD at Example Shop. Balance 980.95 USD', time: now });
+    await send({ secret, body: 'Purchase 10.00 USD at Example Shop. Balance 975.78 USD', time: now });
 
     await until(
       async () => (await ChatProposals.count({ where: { toolName: 'update_transaction', status: 'pending' } })) === 1,
       { timeout: 30_000, interval: 200 },
     );
     const card = (await ChatProposals.findOne({ where: { toolName: 'update_transaction' } }))!;
-    expect(card.args).toMatchObject({ id: payment.id, amount: 9.05 });
+    expect(card.args).toMatchObject({ id: payment.id, amount: 14.22 });
     expect(await gapRequests()).toHaveLength(0);
 
     const approved = await helpers.approveChatProposal({ proposalId: card.id, payload: { revision: card.revision } });
     expect(approved.statusCode).toBe(200);
-    expect((await Transactions.findByPk(payment.id))!.amount.toNumber()).toBe(9.05);
+    expect((await Transactions.findByPk(payment.id))!.amount.toNumber()).toBe(14.22);
   });
 
   it('proposes nothing when two payments could have settled', async () => {
-    const { secret, now } = await setUp({ balance: '971.78' });
-    await send({ secret, body: 'Hold 9.17 USD (8.50 EUR) at Example Cafe', time: addMs({ date: now, ms: -4 * DAY }) });
-    await send({ secret, body: 'Hold 9.17 USD (8.50 EUR) at Example Cafe!', time: addMs({ date: now, ms: -3 * DAY }) });
+    const { secret, now } = await setUp({ balance: '961.38' });
+    await send({
+      secret,
+      body: 'Hold 14.40 USD (13.30 EUR) at Example Cafe',
+      time: addMs({ date: now, ms: -4 * DAY }),
+    });
+    await send({
+      secret,
+      body: 'Hold 14.40 USD (13.30 EUR) at Example Cafe!',
+      time: addMs({ date: now, ms: -3 * DAY }),
+    });
     await until(async () => (await Transactions.count()) === 2, { timeout: 30_000, interval: 200 });
 
-    await send({ secret, body: 'Purchase 10.00 USD at Example Shop. Balance 971.78 USD', time: now });
+    await send({ secret, body: 'Purchase 10.00 USD at Example Shop. Balance 961.38 USD', time: now });
     await until(async () => (await Transactions.count()) === 3, { timeout: 30_000, interval: 200 });
     await new Promise((resolve) => setTimeout(resolve, 2500));
 
