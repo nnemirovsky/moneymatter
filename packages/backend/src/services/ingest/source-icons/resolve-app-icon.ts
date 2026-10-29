@@ -1,4 +1,4 @@
-import { type AppIdentity, getBuiltInAppGlyph } from '@bt/shared/types';
+import { type AppIdentity, getKnownBundleId } from '@bt/shared/types';
 
 import { lookupByBundleId, searchByName } from './app-store-lookup';
 
@@ -11,16 +11,15 @@ export interface ResolvedAppIcon {
 /**
  * The App Store icon of an app. With a bundle id the lookup API answers it exactly; without one (the shortcut sends
  * the display name only) the name is searched with a strict match. Storefronts are tried in order and the first hit
- * wins. Null when the app is a built-in one with no App Store listing, or when nothing matched.
+ * wins. Null when nothing matched.
  */
 export const resolveAppIcon = async ({
   appName,
   bundleId,
   storefronts,
 }: AppIdentity & { storefronts: string[] }): Promise<ResolvedAppIcon | null> => {
-  if (getBuiltInAppGlyph({ bundleId, appName })) return null;
-
-  const id = bundleId?.trim();
+  // Without a bundle id from the shortcut, a common app is looked up by the id the app knows it by.
+  const id = bundleId?.trim() || getKnownBundleId({ appName });
   if (id) {
     for (const storefront of storefronts) {
       const app = await lookupByBundleId({ bundleId: id, storefront });

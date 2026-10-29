@@ -51,6 +51,7 @@ import {
   listIngestTokensController,
   revokeIngestTokenController,
 } from '@controllers/ingest/ingest-tokens.controller';
+import { getIosAutomationIconsController } from '@controllers/ingest/ios-automation-icons.controller';
 import {
   createContextSourceController,
   deleteNotificationSourceController,
@@ -293,6 +294,8 @@ router.get('/settings/notification-sources', listNotificationSourcesController);
 router.post('/settings/notification-sources', createContextSourceController);
 router.patch('/settings/notification-sources/:id', updateNotificationSourceController);
 router.delete('/settings/notification-sources/:id', deleteNotificationSourceController);
+// The App Store icons the iOS Automation integration is drawn with (Shortcuts and Wallet).
+router.get('/settings/ios-automation-icons', getIosAutomationIconsController);
 
 // The setup code bundles the ingest URL, a freshly minted token and the stored Cloudflare Access
 // pair. It is shown once and never stored, so there is no GET. Demo users cannot mint credentials.

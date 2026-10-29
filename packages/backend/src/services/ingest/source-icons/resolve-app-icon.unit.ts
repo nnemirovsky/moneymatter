@@ -76,14 +76,26 @@ describe('resolveAppIcon', () => {
   });
 
   it.each([
-    ['Messages by name', { bundleId: null, appName: 'Messages' }],
-    ['Messages by bundle id', { bundleId: 'com.apple.MobileSMS', appName: null }],
-    ['Wallet by name', { bundleId: null, appName: 'Wallet' }],
-    ['Wallet by bundle id', { bundleId: 'com.apple.Passbook', appName: null }],
-  ])('does not look the built-in app up: %s', async (_label, app) => {
-    expect(await resolveAppIcon({ ...app, storefronts: ['us'] })).toBeNull();
-    expect(byBundle).not.toHaveBeenCalled();
+    ['Messages by name', { bundleId: null, appName: 'Messages' }, 'com.apple.MobileSMS'],
+    ['Wallet by name', { bundleId: null, appName: 'Wallet' }, 'com.apple.Passbook'],
+    ['Mail by name', { bundleId: null, appName: 'Mail' }, 'com.apple.mobilemail'],
+    ['Telegram by name', { bundleId: null, appName: ' telegram ' }, 'ph.telegra.Telegraph'],
+  ])('looks a common app up by the bundle id it is known by, not by a name search: %s', async (_label, app, id) => {
+    byBundle.mockResolvedValue(found({ bundleId: id }));
+
+    const icon = await resolveAppIcon({ ...app, storefronts: ['us'] });
+
+    expect(byBundle).toHaveBeenCalledWith({ bundleId: id, storefront: 'us' });
     expect(byName).not.toHaveBeenCalled();
+    expect(icon?.bundleId).toBe(id);
+  });
+
+  it('prefers the bundle id the shortcut sent over the one a name is known by', async () => {
+    byBundle.mockResolvedValue(found({ bundleId: 'com.example.chat' }));
+
+    await resolveAppIcon({ bundleId: 'com.example.chat', appName: 'Messages', storefronts: ['us'] });
+
+    expect(byBundle).toHaveBeenCalledWith({ bundleId: 'com.example.chat', storefront: 'us' });
   });
 
   it('does look Mail up, which is on the App Store', async () => {

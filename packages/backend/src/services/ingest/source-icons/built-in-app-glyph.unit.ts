@@ -1,4 +1,4 @@
-import { getBuiltInAppGlyph } from '@bt/shared/types';
+import { getBuiltInAppGlyph, getKnownBundleId } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
 
 describe('getBuiltInAppGlyph', () => {
@@ -20,5 +20,22 @@ describe('getBuiltInAppGlyph', () => {
 
   it('lets a bundle id decide over a name', () => {
     expect(getBuiltInAppGlyph({ bundleId: 'com.example.chat', appName: 'Messages' })).toBeNull();
+  });
+});
+
+describe('getKnownBundleId', () => {
+  it.each([
+    ['Mail', 'com.apple.mobilemail'],
+    [' MESSAGES ', 'com.apple.MobileSMS'],
+    ['Wallet', 'com.apple.Passbook'],
+    ['Gmail', 'com.google.Gmail'],
+    ['Shortcuts', 'com.apple.shortcuts'],
+  ])('knows %s', (appName, bundleId) => {
+    expect(getKnownBundleId({ appName })).toBe(bundleId);
+  });
+
+  it('knows nothing of an app that is not on the list', () => {
+    expect(getKnownBundleId({ appName: 'Example Notes' })).toBeNull();
+    expect(getKnownBundleId({ appName: null })).toBeNull();
   });
 });
