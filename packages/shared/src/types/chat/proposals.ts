@@ -191,6 +191,8 @@ export interface ChatIngestRequestSummary {
   willLearn: 'card' | 'sourceDefault' | null;
   /** How many other waiting payments the same choice logs too; each gets its own confirm card. */
   alsoWaiting: number;
+  /** For a lone notice the owner logs as a transfer: the account the other side goes on and what it takes (`null` while the amount is missing). */
+  counter?: { accountId: string; currencyCode: string; amount: number | null };
   /** Other sources that told of this same payment (Wallet and the bank); approving links their cards too. */
   alsoSeenIn: { sourceName: string | null; cardName: string | null; cardLastDigits: string | null }[];
   /**

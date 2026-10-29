@@ -44,6 +44,7 @@
       "conditions": "Conditions",
       "confirmOverpay": "Confirm the overpayment",
       "counterAccountId": "Other side account",
+      "counterAmount": "Other side amount",
       "createTransaction": "Create a transaction",
       "creditLimit": "Credit limit",
       "currencies": "Currencies",

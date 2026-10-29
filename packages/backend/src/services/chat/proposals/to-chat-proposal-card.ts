@@ -146,10 +146,23 @@ const ingestRequestOf = ({
     alsoWaiting: typeof before.alsoWaiting === 'number' ? before.alsoWaiting : 0,
     alsoSeenIn: alsoSeenInOf({ value: before.alsoSeenIn }),
     conversion: conversionOf({ value: before.conversion }),
+    counter: counterOf({ value: before.counter }),
   };
 };
 
 /** The currency exchange the payment is one side of, as the preview stored it. */
+const counterOf = ({ value }: { value: unknown }): ChatIngestRequestSummary['counter'] => {
+  if (!value || typeof value !== 'object') return undefined;
+  const counter = value as Record<string, unknown>;
+  if (typeof counter.accountId !== 'string' || typeof counter.currencyCode !== 'string') return undefined;
+
+  return {
+    accountId: counter.accountId,
+    currencyCode: counter.currencyCode,
+    amount: typeof counter.amount === 'number' ? counter.amount : null,
+  };
+};
+
 const conversionOf = ({ value }: { value: unknown }): ChatIngestRequestSummary['conversion'] => {
   if (!value || typeof value !== 'object') return null;
 

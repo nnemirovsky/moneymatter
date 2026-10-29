@@ -116,6 +116,7 @@ export const CHAT_FIELD_LABEL_KEYS: Readonly<Record<string, string>> = {
   config: 'chat.fields.config',
   confirmOverpay: 'chat.fields.confirmOverpay',
   counterAccountId: 'chat.fields.counterAccountId',
+  counterAmount: 'chat.fields.counterAmount',
   createTransaction: 'chat.fields.createTransaction',
   creditLimit: 'chat.fields.creditLimit',
   currencies: 'chat.fields.currencies',
