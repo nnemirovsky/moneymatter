@@ -12,7 +12,17 @@ export const hasOldValue = ({ field }: { field: ChatCardField }): boolean => {
   if (before === undefined) return false;
   // A retention of null is a choice ("never"), not an empty value.
   if (before === null && field.path === 'retentionDays') return true;
-  return !(before === null || before === '' || (Array.isArray(before) && before.length === 0));
+  return !isBlank({ value: before });
+};
+
+const isBlank = ({ value }: { value: unknown }) =>
+  value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
+
+/** Whether the card leaves the field as it was: the same value, or blank before and after (an empty note stays empty). */
+const isUnchanged = ({ field }: { field: ChatCardField }): boolean => {
+  if (field.path === 'retentionDays') return field.value === field.before;
+  if (isBlank({ value: field.value }) && isBlank({ value: field.before })) return true;
+  return JSON.stringify(field.value) === JSON.stringify(field.before);
 };
 
 export interface CardRow {
@@ -35,7 +45,7 @@ const keyOf = ({ field }: { field: ChatCardField }) => field.path.split('.').at(
  */
 export const buildCardRows = ({ card }: { card: ChatProposalCard }): CardRow[] => {
   const toneOf = ({ field }: { field: ChatCardField }): CardRowTone => {
-    if (field.before === undefined) return 'normal';
+    if (field.before === undefined || isUnchanged({ field })) return 'normal';
     return hasOldValue({ field }) ? 'changed' : 'added';
   };
   const target = card.target ?? [];
