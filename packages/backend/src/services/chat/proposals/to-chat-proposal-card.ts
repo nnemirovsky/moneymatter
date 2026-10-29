@@ -11,6 +11,7 @@ import {
 import type ChatProposals from '@models/chat-proposals.model';
 
 import { findToolCatalogEntry } from '../../mcp/tool-catalog';
+import { SET_NOTIFICATION_SOURCE_TOOL } from '../inbox/inbox-config';
 import { resolveToolPolicy } from '../policies';
 import { isSafeForApproveAll } from '../policies/safe-cards';
 import { getModelSchema } from '../toolkit/model-schema';
@@ -64,6 +65,15 @@ const LOG_INGEST_REQUEST_TOOL_NAME = 'log_ingest_request';
  */
 const CONFIRM_INGEST_PAYMENT_TOOL_NAME = 'confirm_ingest_payment';
 
+/**
+ * The argument naming the record of an inbox tool whose target is not a policy `targetFields` entry: the card shows the
+ * record itself (the payment, the source by its name), so the bare reference is not repeated as a row of its own.
+ */
+const RECORD_ARGUMENT_BY_TOOL: Record<string, string> = {
+  [CONFIRM_INGEST_PAYMENT_TOOL_NAME]: 'transactionId',
+  [SET_NOTIFICATION_SOURCE_TOOL]: 'sourceId',
+};
+
 /** The argument that names the target record of a tool whose target is not a policy `targetFields` entry. */
 const namesRecordOf = ({
   row,
@@ -73,7 +83,7 @@ const namesRecordOf = ({
   row: Pick<ChatProposalRow, 'toolName'>;
   path: string;
   targetFields: string[];
-}) => targetFields.includes(path) || (row.toolName === CONFIRM_INGEST_PAYMENT_TOOL_NAME && path === 'transactionId');
+}) => targetFields.includes(path) || RECORD_ARGUMENT_BY_TOOL[row.toolName] === path;
 
 /**
  * An update of a transaction the automation wrote and the owner has not confirmed yet adds details to it, so it is
