@@ -22,6 +22,7 @@ import type { ChatTextPolicy } from '../prompt/text-policy';
 import type { ClarificationStop } from './clarification-stop';
 import { type ClaudeChatEvent, createClaudeChatReader } from './claude-chat-reader';
 import { createEventQueue } from './event-queue';
+import { estimateStoppedUsage } from './stopped-usage';
 import type { CliChatOutcome } from './types';
 
 const PROVIDER = AI_PROVIDER.claudeCode;
@@ -68,6 +69,8 @@ export async function runClaudeChat({
       const guardTools = createClaudeChatToolGuard();
       const reader = createClaudeChatReader({ textPolicy, persist });
       const queue = createEventQueue();
+      // What the CLI printed as model output, for the usage of a run that is ended before it can report its own.
+      const producedOutput: string[] = [];
 
       try {
         const processResult = await runCliProcess({
@@ -91,6 +94,7 @@ export async function runClaudeChat({
 
             guardTools({ event });
             stop.noteOutput();
+            if (event.type === 'assistant') producedOutput.push(line);
             queue.push(() => reader.handle({ event }));
           },
         });
@@ -119,7 +123,11 @@ export async function runClaudeChat({
         if (stop.fired() && !signal.aborted) {
           await queue.drain().catch(() => undefined);
 
-          return { status: 'complete', stepCount: reader.stepCount() };
+          return {
+            status: 'complete',
+            stepCount: reader.stepCount(),
+            usage: estimateStoppedUsage({ prompt, producedOutput }),
+          };
         }
 
         throw error;

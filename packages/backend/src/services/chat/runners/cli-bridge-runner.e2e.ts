@@ -366,6 +366,8 @@ describe('CLI bridge chat runner', () => {
 
         expect(events.at(-1)).toMatchObject({ type: 'run.finished', status: 'complete' });
         expect(message.status).toBe('complete');
+        // The CLI was ended before it could report its tokens: the turn shows an estimate, not 0.
+        expect(message.usage?.inputTokens ?? 0).toBeGreaterThan(0);
         expect(partsOfType({ parts: message.parts, type: 'clarification' })).toHaveLength(1);
         expect(partsOfType({ parts: message.parts, type: 'proposal' })).toEqual([]);
         expect(partsOfType({ parts: message.parts, type: 'text' })).toEqual([]);

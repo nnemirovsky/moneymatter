@@ -27,6 +27,8 @@ export const CHAT_CORE_TOOL_REASONS: Readonly<Record<string, string>> = {
   get_pivot_report: 'Group any measure by any dimension without a custom analysis.',
   get_user_currencies: 'The currencies the user holds, for amounts and conversions.',
   get_subscriptions: 'Recurring payments, a frequent question and a frequent match target for imports.',
+  get_waiting_ingest_requests:
+    'The notifications waiting in the Automation inbox, which a request to log a payment or a conversion often means.',
 };
 
 export const CHAT_CORE_TOOLS: readonly string[] = Object.keys(CHAT_CORE_TOOL_REASONS);
