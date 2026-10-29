@@ -5,7 +5,13 @@ import { useAccountsStore } from '@/stores/accounts';
 import { useCategoriesStore } from '@/stores/categories/categories';
 import { useCurrenciesStore } from '@/stores/currencies';
 import { useTagsStore } from '@/stores/tags';
-import { type AccountModel, type ChatEntityKind, type ChatProposalCard, chatEntityRefKey } from '@bt/shared/types';
+import {
+  type AccountModel,
+  type ChatEntityKind,
+  type ChatProposalCard,
+  type NotificationSourceDisplay,
+  chatEntityRefKey,
+} from '@bt/shared/types';
 import { storeToRefs } from 'pinia';
 import { type MaybeRefOrGetter, computed, toValue } from 'vue';
 
@@ -20,6 +26,8 @@ export interface CardLookups {
   account: (params: { id: string }) => AccountModel | null;
   /** The payee, for its logo; `null` until it has been read. */
   payee: (params: { id: string }) => PayeeWithStats | null;
+  /** The notification source the card concerns, with its app icon; `null` when the card carries none. */
+  notificationSource: () => NotificationSourceDisplay | null;
   baseCurrencyCode: () => string | null;
   accounts: () => AccountModel[];
   categories: () => FormattedCategory[];
@@ -78,6 +86,7 @@ export const useCardLookups = ({ card }: { card: MaybeRefOrGetter<ChatProposalCa
     accountCurrency: ({ id }) => accountsRecord.value[id]?.currencyCode ?? null,
     account: ({ id }) => accountsRecord.value[id] ?? null,
     payee: ({ id }) => payees.value.get(id) ?? null,
+    notificationSource: () => toValue(card).source ?? null,
     baseCurrencyCode: () => baseCurrency.value?.currencyCode ?? null,
     accounts: () => systemAccounts.value,
     categories: () => formattedCategories.value,

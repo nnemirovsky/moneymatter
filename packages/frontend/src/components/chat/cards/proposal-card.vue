@@ -478,6 +478,7 @@ const summaryText = computed(() => {
       <IngestRequestBody
         v-if="!isEditing && card.ingestRequest"
         :payment="card.ingestRequest"
+        :source="card.source"
         :lookups="lookups"
         :account-id="ingestAccountId"
         :counter-account-id="ingestCounterAccountId"

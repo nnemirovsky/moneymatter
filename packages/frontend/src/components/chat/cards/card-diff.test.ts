@@ -18,7 +18,7 @@ const entityField = ({
   namesRecord,
 }: {
   path: string;
-  kind: 'transaction' | 'account' | 'payee' | 'category';
+  kind: 'transaction' | 'account' | 'payee' | 'category' | 'notificationSource';
   id: string;
   namesRecord?: true;
 }) =>
@@ -247,5 +247,34 @@ describe('buildCardRows', () => {
     });
 
     expect(buildCardRows({ card }).filter((row) => row.field.path === 'accountId')).toHaveLength(1);
+  });
+
+  it('shows the source a notification source card concerns from its naming argument, in place of the name text row', () => {
+    const card = buildCard({
+      kind: 'update',
+      entity: 'notificationSource',
+      source: { appName: 'Example Notes', bundleId: null, sender: 'ExampleSender', iconUrl: null },
+      target: [field({ path: 'name', value: 'Example Notes · ExampleSender' })],
+      fields: [
+        entityField({ path: 'sourceId', kind: 'notificationSource', id: 's1', namesRecord: true }),
+        field({ path: 'mode', value: 'approved', before: 'pending' }),
+      ],
+    });
+
+    expect(buildCardRows({ card }).map((row) => row.field.path)).toEqual(['sourceId', 'mode']);
+  });
+
+  it('keeps the name row of a notification source card that carries no source', () => {
+    const card = buildCard({
+      kind: 'update',
+      entity: 'notificationSource',
+      target: [field({ path: 'name', value: 'Example Notes' })],
+      fields: [
+        entityField({ path: 'sourceId', kind: 'notificationSource', id: 's1', namesRecord: true }),
+        field({ path: 'mode', value: 'approved', before: 'pending' }),
+      ],
+    });
+
+    expect(buildCardRows({ card }).map((row) => row.field.path)).toEqual(['name', 'mode']);
   });
 });

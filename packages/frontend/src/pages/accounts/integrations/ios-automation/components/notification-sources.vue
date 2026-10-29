@@ -26,16 +26,16 @@
       >
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2">
-            <span class="font-medium break-words" data-testid="notification-source-name">
-              {{ getSourceName({ source, fallback: $t(`${LABEL_ROOT}.unknownApp`) }) }}
-            </span>
+            <NotificationSourceLabel
+              v-bind="sourceLabelOf({ source })"
+              :fallback="$t(`${LABEL_ROOT}.unknownApp`)"
+              class="font-medium"
+              data-testid="notification-source-name"
+            />
             <StatusBadge :variant="MODE_VARIANTS[source.mode]" data-testid="notification-source-mode">
               {{ $t(`${LABEL_ROOT}.modes.${source.mode}`) }}
             </StatusBadge>
           </div>
-          <p v-if="source.sender" class="text-muted-foreground mt-1 text-sm break-words">
-            {{ $t(`${LABEL_ROOT}.sender`, { sender: source.sender }) }}
-          </p>
           <p
             v-if="source.mode === 'context'"
             class="text-muted-foreground mt-1 text-sm"
@@ -177,6 +177,7 @@ import {
   updateNotificationSource,
 } from '@/api/ingest';
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const/vue-query';
+import NotificationSourceLabel from '@/components/common/notification-source-label.vue';
 import ResponsiveAlertDialog from '@/components/common/responsive-alert-dialog.vue';
 import { Button } from '@/components/lib/ui/button';
 import { Callout } from '@/components/lib/ui/callout';
@@ -196,7 +197,7 @@ import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { getMappableAccounts } from '../ios-automation';
-import { getSourceName } from '../notification-sources';
+import { getSourceName, sourceLabelOf } from '../notification-sources';
 
 defineOptions({
   name: 'settings-integrations-notification-sources',

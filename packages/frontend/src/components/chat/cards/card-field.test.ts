@@ -499,4 +499,43 @@ describe('CardField', () => {
       expect(wrapper.find('[data-testid="alternative"]').text()).toBe('Category');
     });
   });
+
+  describe('a notification source', () => {
+    const sourceField = buildField({
+      path: 'sourceId',
+      value: 'src-1',
+      display: { kind: 'entity', entity: { kind: 'notificationSource', id: 'src-1', label: '' } },
+    });
+
+    it('is drawn as the sender, then the app with its icon in a pill, when the card carries the source', () => {
+      const wrapper = mountField({
+        field: sourceField,
+        lookups: buildLookups({
+          names: { 'notificationSource:src-1': 'Example Notes · ExampleSender' },
+          notificationSource: {
+            appName: 'Example Notes',
+            bundleId: null,
+            sender: 'ExampleSender',
+            iconUrl: 'https://cdn.example.com/icon.jpg',
+          },
+        }),
+      });
+
+      expect(wrapper.get('[data-testid="source-label-sender"]').text()).toBe('ExampleSender');
+      expect(wrapper.get('[data-testid="source-label-app"] img').attributes('src')).toBe(
+        'https://cdn.example.com/icon.jpg',
+      );
+      expect(wrapper.text()).not.toContain('·');
+    });
+
+    it('reads as the stored text when the card carries no source', () => {
+      const wrapper = mountField({
+        field: sourceField,
+        names: { 'notificationSource:src-1': 'Example Notes · ExampleSender' },
+      });
+
+      expect(wrapper.find('[data-testid="source-label"]').exists()).toBe(false);
+      expect(wrapper.text()).toContain('Example Notes · ExampleSender');
+    });
+  });
 });

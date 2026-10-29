@@ -1,5 +1,7 @@
 import type { ChatCardField, ChatProposalCard } from '@bt/shared/types';
 
+import { fieldEntityKind } from './card-values';
+
 /**
  * How a row of the card reads: an `added` field fills in something that was empty, a `changed` one replaces a real
  * value (and carries it); the rest are shown as they are.
@@ -52,6 +54,24 @@ export const buildCardRows = ({ card }: { card: ChatProposalCard }): CardRow[] =
 
   if (target.length === 0 || card.ingestRequest) {
     return card.fields.map((field) => ({ field, tone: toneOf({ field }), source: 'card' }));
+  }
+
+  // A source the card carries is drawn with its icon from the argument that names it, not from the text row.
+  if (card.source && card.entity === 'notificationSource') {
+    const named = card.fields.find(
+      (field) => field.namesRecord === true && fieldEntityKind({ field }) === 'notificationSource',
+    );
+    if (named) {
+      return [
+        { field: named, tone: 'normal', source: 'card' },
+        ...target
+          .filter((field) => keyOf({ field }) !== 'name')
+          .map((field): CardRow => ({ field, tone: 'normal', source: 'target' })),
+        ...card.fields
+          .filter((field) => field !== named)
+          .map((field): CardRow => ({ field, tone: toneOf({ field }), source: 'card' })),
+      ];
+    }
   }
 
   const fields = card.fields.filter((field) => field.namesRecord !== true);

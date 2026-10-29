@@ -70,7 +70,10 @@ export const useCardFieldText = () => {
       const unknown = current && !name && !written && NAMED_FROM_APP_LISTS.has(kind) && LOOKS_LIKE_ID.test(String(id));
       if (unknown) return { text: t('chat.cards.noValue') };
 
-      const hasLogo = name !== null && (kind === 'payee' || kind === 'account' || kind === 'category');
+      // The source the card carries is drawn with its app icon, whatever text names it.
+      const hasLogo =
+        (name !== null && (kind === 'payee' || kind === 'account' || kind === 'category')) ||
+        (kind === 'notificationSource' && lookups.notificationSource() !== null);
       const currency = kind === 'account' && name !== null ? lookups.accountCurrency({ id: String(id) }) : null;
 
       return {

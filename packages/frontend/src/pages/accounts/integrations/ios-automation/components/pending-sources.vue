@@ -17,12 +17,12 @@
         data-testid="pending-source-row"
       >
         <div class="min-w-0 flex-1">
-          <span class="font-medium break-words" data-testid="pending-source-name">
-            {{ getSourceName({ source, fallback: $t(`${LABEL_ROOT}.unknownApp`) }) }}
-          </span>
-          <p v-if="source.sender" class="text-muted-foreground mt-1 text-sm break-words">
-            {{ $t(`${LABEL_ROOT}.sender`, { sender: source.sender }) }}
-          </p>
+          <NotificationSourceLabel
+            v-bind="sourceLabelOf({ source })"
+            :fallback="$t(`${LABEL_ROOT}.unknownApp`)"
+            class="font-medium"
+            data-testid="pending-source-name"
+          />
           <p
             v-if="source.counters.noAmount"
             class="text-muted-foreground mt-1 text-sm"
@@ -71,6 +71,7 @@
 <script setup lang="ts">
 import { getNotificationSources, updateNotificationSource } from '@/api/ingest';
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const/vue-query';
+import NotificationSourceLabel from '@/components/common/notification-source-label.vue';
 import { Button } from '@/components/lib/ui/button';
 import { Callout } from '@/components/lib/ui/callout';
 import { useInvalidatingMutation } from '@/composable/data-queries/use-invalidating-mutation';
@@ -78,7 +79,7 @@ import type { NotificationSourceDto } from '@bt/shared/types';
 import { useQuery } from '@tanstack/vue-query';
 import { computed } from 'vue';
 
-import { getSourceName } from '../notification-sources';
+import { getSourceName, sourceLabelOf } from '../notification-sources';
 
 defineOptions({
   name: 'settings-integrations-pending-sources',
