@@ -1000,6 +1000,29 @@ describe('context notifications', () => {
       expect(next.categoryId).not.toBe(cafe.id);
     });
 
+    it('never gives a later payment the context that is already on a payment, whatever stage of that order arrives', async () => {
+      const { secret } = await setUp();
+      const first = await pay({ secret });
+      await send({ secret, body: accepted({ store: 'Example Bakery' }) });
+      expect((await reload({ id: first.id })).note).toBe('Example Bakery order from Wolt');
+
+      const second = await pay({ secret, amount: '15.60' });
+      const repeat = await send({ secret, body: accepted({ store: 'Example Bakery' }) });
+      const delivered = await send({
+        secret,
+        body: woltNotification({
+          title: 'Delivered',
+          body: 'Your order from Example Bakery has been delivered. Enjoy!',
+        }),
+      });
+      await waitForIngestIdle();
+
+      expect(['ignored', 'duplicate']).toContain(repeat.body.response.outcome);
+      expect(delivered.body.response).toMatchObject({ outcome: 'ignored' });
+      expect((await reload({ id: second.id })).note ?? '').toBe('');
+      expect((await reload({ id: first.id })).note).toBe('Example Bakery order from Wolt');
+    });
+
     it("gives a context that arrives before the next order's payment to that payment, never to the one before", async () => {
       const { secret } = await setUp();
       const first = await pay({ secret });
