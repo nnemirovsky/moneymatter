@@ -81,6 +81,9 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   'DELETE /api/v1/user/settings/notification-sources/:id',
   'POST /api/v1/user/settings/notification-sources',
   'PATCH /api/v1/user/settings/notification-sources/:id',
+  // The app a source is shown with is a name and an icon; no monetary data.
+  'PUT /api/v1/user/settings/notification-sources/:id/app',
+  'DELETE /api/v1/user/settings/notification-sources/:id/app',
   'DELETE /api/v1/user/settings/mcp/connected-apps/:clientId',
   'PATCH /api/v1/user/settings',
   'PATCH /api/v1/user/settings/card-mappings/:id',

@@ -85,4 +85,18 @@ describe('withNotificationSources', () => {
 
     expect(cards[0]).toEqual({ id: 1 });
   });
+
+  it('shows the app the owner chose, not the bundle id the shortcut sent', async () => {
+    findSources.mockResolvedValue([
+      { ...source, bundleId: 'com.example.other', resolvedBundleId: 'com.example.chosen', iconOverride: true },
+    ] as never);
+
+    const cards = await withNotificationSources({
+      userId: 1,
+      rows: [row('set_notification_source', { sourceId: 'src-1' })],
+      cards: [card(1)],
+    });
+
+    expect(cards[0]).toMatchObject({ source: { bundleId: 'com.example.chosen' } });
+  });
 });

@@ -51,6 +51,13 @@ export default class NotificationSources extends Model {
   @Column({ type: DataType.DATE, allowNull: true })
   iconCheckedAt!: Date | null;
 
+  /**
+   * The owner chose the app by hand: `iconUrl` and `resolvedBundleId` are theirs, and neither the automatic lookup
+   * nor a bundle id the shortcut later sends replaces them. Clearing it re-runs the lookup.
+   */
+  @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
+  iconOverride!: boolean;
+
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   conversational!: boolean;
 

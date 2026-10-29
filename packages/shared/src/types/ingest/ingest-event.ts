@@ -111,6 +111,8 @@ export interface NotificationSourceDto {
   sender: string | null;
   /** The app's icon on the App Store, resolved by the server; `null` when none was found (or none is known yet). */
   iconUrl: string | null;
+  /** The owner chose this source's app by hand; the automatic lookup never replaces it. */
+  iconOverride: boolean;
   conversational: boolean;
   mode: NotificationSourceMode;
   defaultAccountId: RecordId | null;
@@ -120,6 +122,77 @@ export interface NotificationSourceDto {
   /** Set on the answer of an edit: how many waiting payments of this source were put back through the pipeline. */
   releasedCount?: number;
 }
+
+/** One app of an App Store search, as the "Choose app" dialog lists it. */
+export interface AppStoreAppDto {
+  bundleId: string;
+  name: string;
+  /** The seller of the listing. */
+  developer: string | null;
+  iconUrl: string;
+}
+
+/** The answer of the app search: the storefront it searched (the one asked for, else the user's own) and its apps. */
+export interface AppStoreSearchDto {
+  storefront: string;
+  apps: AppStoreAppDto[];
+}
+
+export interface ChooseSourceAppPayload {
+  bundleId: string;
+  /** The storefront the app was found in; the server verifies the app there and takes its icon from the listing. */
+  storefront: string;
+}
+
+/** The App Store storefronts (lower-case country codes) the owner may search; one that is not here is refused. */
+export const APP_STORE_STOREFRONTS = [
+  'us',
+  'gb',
+  'ca',
+  'au',
+  'nz',
+  'ie',
+  'de',
+  'at',
+  'ch',
+  'fr',
+  'es',
+  'pt',
+  'it',
+  'nl',
+  'be',
+  'se',
+  'no',
+  'dk',
+  'fi',
+  'pl',
+  'cz',
+  'sk',
+  'hu',
+  'ro',
+  'bg',
+  'gr',
+  'tr',
+  'ua',
+  'kz',
+  'ge',
+  'am',
+  'az',
+  'uz',
+  'il',
+  'ae',
+  'sa',
+  'in',
+  'jp',
+  'kr',
+  'sg',
+  'hk',
+  'br',
+  'mx',
+  'ar',
+  'cl',
+  'za',
+] as const;
 
 /** The modes a user may set; `auto` is only ever the starting mode of Wallet and the known banks. */
 export const NOTIFICATION_SOURCE_USER_MODES = ['pending', 'approved', 'muted', 'context'] as const;

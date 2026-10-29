@@ -1,6 +1,7 @@
 import { setupServer } from 'msw/node';
 
 import { anthropicHandlers } from './anthropic/mock-api';
+import { appStoreHandlers } from './app-store/mock-api';
 import { enableBankingHandlers } from './enablebanking/mock-api';
 import { exchangeRatesHandlers } from './exchange-rates/use-mock-api';
 import { geminiHandlers } from './gemini/mock-api';
@@ -29,4 +30,5 @@ export const setupMswServer = () =>
     ...openAiCompatibleHandlers,
     ...modelsDevHandlers,
     ...webPushHandlers,
+    ...appStoreHandlers,
   );

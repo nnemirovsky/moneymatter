@@ -13,6 +13,8 @@ import type {
   CreateIngestTokenResponse,
   GateStrictnessDto,
   IngestTokenDto,
+  AppStoreSearchDto,
+  ChooseSourceAppPayload,
   NotificationSourceDto,
   SetAccessHeadersPayload,
   UnconfirmedCardPaymentDto,
@@ -269,6 +271,49 @@ export async function updateNotificationSource<R extends boolean | undefined = f
     method: 'patch',
     url: `/user/settings/notification-sources/${id}`,
     payload,
+    raw,
+  });
+}
+
+export async function searchSourceApps<R extends boolean | undefined = false>({
+  term,
+  storefront,
+  raw,
+}: {
+  term: string;
+  storefront?: string;
+  raw?: R;
+}) {
+  const query = new URLSearchParams({ term, ...(storefront ? { storefront } : {}) }).toString();
+
+  return makeRequest<AppStoreSearchDto, R>({
+    method: 'get',
+    url: `/user/settings/notification-sources/app-search?${query}`,
+    raw,
+  });
+}
+
+export async function chooseSourceApp<R extends boolean | undefined = false>({
+  id,
+  payload,
+  raw,
+}: {
+  id: string;
+  payload: ChooseSourceAppPayload | Record<string, unknown>;
+  raw?: R;
+}) {
+  return makeRequest<NotificationSourceDto, R>({
+    method: 'put',
+    url: `/user/settings/notification-sources/${id}/app`,
+    payload,
+    raw,
+  });
+}
+
+export async function resetSourceApp<R extends boolean | undefined = false>({ id, raw }: { id: string; raw?: R }) {
+  return makeRequest<NotificationSourceDto, R>({
+    method: 'delete',
+    url: `/user/settings/notification-sources/${id}/app`,
     raw,
   });
 }
