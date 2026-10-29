@@ -138,6 +138,10 @@ describe('historyNoteOf', () => {
     );
   });
 
+  it('drops the note of a payment the owner has not confirmed', () => {
+    expect(historyNoteOf({ note: 'Breakfast', externalData: { ingest: { unconfirmed: true } } })).toBeNull();
+  });
+
   it('drops a note a context notification wrote', () => {
     expect(
       historyNoteOf({

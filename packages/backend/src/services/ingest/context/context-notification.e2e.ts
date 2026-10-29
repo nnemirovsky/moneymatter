@@ -1023,6 +1023,30 @@ describe('context notifications', () => {
       expect((await reload({ id: first.id })).note).toBe('Example Bakery order from Wolt');
     });
 
+    it('gives no venue to a payment when the earlier order is enriched but still unconfirmed', async () => {
+      enableServerModel();
+      const notePickPrompts: string[] = [];
+      mockNotificationParsing({
+        answer: () => ({}),
+        notePickPrompts,
+        notePick: ({ prompt }) => ({
+          candidateId: /(n\d+)\|Example Bakery order from Wolt\|/.exec(prompt)?.[1] ?? null,
+        }),
+      });
+      const { secret } = await setUp();
+      const first = await pay({ secret });
+      await send({ secret, body: accepted({ store: 'Example Bakery' }) });
+      expect((await reload({ id: first.id })).note).toBe('Example Bakery order from Wolt');
+      // The row counts as history even while it waits for the owner (as on a system account).
+      await Transactions.update({ isPlanned: false }, { where: { id: first.id } });
+
+      const second = await pay({ secret, amount: '15.60' });
+      await waitForIngestIdle();
+
+      expect((await reload({ id: second.id })).note ?? '').toBe('');
+      expect(notePickPrompts).toEqual([]);
+    });
+
     it("gives a context that arrives before the next order's payment to that payment, never to the one before", async () => {
       const { secret } = await setUp();
       const first = await pay({ secret });
