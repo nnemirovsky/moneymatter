@@ -29,8 +29,8 @@ const isSplit = computed(() => Boolean(data.value) && Boolean(shortcutsUrl.value
 
 // The iOS Automation integration: Shortcuts in the top-left half and Wallet in the bottom-right half of one rounded
 // square. Each half falls back to its own drawing when its image is missing or does not load.
+// Wallet fills the whole square underneath and only Shortcuts is clipped, so the diagonal shows no seam.
 const TOP_LEFT = 'polygon(0 0, 100% 0, 0 100%)';
-const BOTTOM_RIGHT = 'polygon(100% 0, 100% 100%, 0 100%)';
 </script>
 
 <template>
@@ -40,6 +40,17 @@ const BOTTOM_RIGHT = 'polygon(100% 0, 100% 100%, 0 100%)';
     data-testid="ios-automation-icon"
     aria-hidden="true"
   >
+    <span class="absolute inset-0 bg-[#1c1c1e]" data-testid="ios-automation-wallet">
+      <img
+        v-if="walletUrl"
+        :src="walletUrl"
+        alt=""
+        class="size-full object-cover"
+        referrerpolicy="no-referrer"
+        @error="brokenWallet = true"
+      />
+      <WalletIcon v-else class="size-full" />
+    </span>
     <span class="absolute inset-0 bg-[#7b5cf0]" :style="{ clipPath: TOP_LEFT }" data-testid="ios-automation-shortcuts">
       <img
         v-if="shortcutsUrl"
@@ -51,29 +62,6 @@ const BOTTOM_RIGHT = 'polygon(100% 0, 100% 100%, 0 100%)';
       />
       <ShortcutsAppIcon v-else class="size-full" />
     </span>
-    <span class="absolute inset-0 bg-[#1c1c1e]" :style="{ clipPath: BOTTOM_RIGHT }" data-testid="ios-automation-wallet">
-      <img
-        v-if="walletUrl"
-        :src="walletUrl"
-        alt=""
-        class="size-full object-cover"
-        referrerpolicy="no-referrer"
-        @error="brokenWallet = true"
-      />
-      <WalletIcon v-else class="size-full" />
-    </span>
-    <svg viewBox="0 0 100 100" class="pointer-events-none absolute inset-0 size-full" preserveAspectRatio="none">
-      <line
-        x1="100"
-        y1="0"
-        x2="0"
-        y2="100"
-        stroke="white"
-        stroke-opacity="0.7"
-        stroke-width="1"
-        vector-effect="non-scaling-stroke"
-      />
-    </svg>
   </span>
   <WalletIcon v-else :class="$attrs.class as string" data-testid="ios-automation-icon-fallback" />
 </template>
