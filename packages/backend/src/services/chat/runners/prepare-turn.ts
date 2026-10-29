@@ -11,6 +11,7 @@ import type { ModelMessage } from 'ai';
 import { shouldPreloadWrites } from '../policies/core-tools';
 import { historyBudgetTokens, loadHistoryMessages } from '../prompt/history';
 import { renderPageContext, sanitizePageContext } from '../prompt/page-context';
+import { loadPickedRecords } from '../prompt/picked-records';
 import { buildSystemPrompt } from '../prompt/system-prompt';
 import { createUntrustedWrapper } from '../prompt/untrusted';
 import { buildChatToolkit } from '../toolkit/build-toolkit';
@@ -33,6 +34,7 @@ export async function prepareChatTurn({
 }): Promise<{ toolkit: ChatToolkit; system: string; messages: ModelMessage[] }> {
   const { runId, userId, threadId, messageId, userMessageId, aiClient, emit, textPolicy } = input;
 
+  const pickedRecords = await loadPickedRecords({ threadId, userId, userMessageId });
   const [user, attachments, settings, baseCurrency, profile, thread, proposalCount] = await Promise.all([
     Users.findByPk(userId, { attributes: ['id', 'username', 'authUserId', 'role'], rejectOnEmpty: true }),
     ChatAttachments.findAll({ where: { messageId: userMessageId, userId }, attributes: ['id', 'fileName'] }),
@@ -57,6 +59,7 @@ export async function prepareChatTurn({
       pageContext,
       // A picture of a receipt or a thread that already makes cards is a change coming: skip the extra step.
       preloadWrites: shouldPreloadWrites({ attachmentCount: attachments.length, proposalCount }),
+      pickedRecords,
       attachments: attachments.map(({ id, fileName }) => ({ id, fileName })),
       emit,
       textPolicy,

@@ -216,6 +216,96 @@ describe('buildHistoryMessages', () => {
     expect(content).toContain('"transactionType":"expense"');
   });
 
+  it('shows what an applied card produced, so an answer reports the outcome and not the intent', () => {
+    const proposals: HistoryProposal[] = [
+      {
+        id: 'p-1',
+        toolName: 'log_ingest_request',
+        status: 'applied',
+        statusReason: null,
+        args: { requestId: 'r1', counterAccountId: 'acc-2' },
+        result: { refs: [], output: { requestId: 'r1', queued: true } },
+      },
+    ];
+
+    const result = build({
+      proposals,
+      messages: [
+        user({ id: 'u1', value: 'log it' }),
+        assistant({ id: 'a1', parts: [{ type: 'proposal' as const, id: 'part-1', proposalId: 'p-1' }] }),
+        user({ id: 'u2', value: 'what happened?' }),
+      ],
+    });
+    const content = contentOf(result[1]);
+
+    expect(content).toContain('its result');
+    expect(content).toContain('"queued":true');
+    expect(content).toContain('"refs":[]');
+  });
+
+  it('shows the result of an applied card only, and not of a pending one or an older turn', () => {
+    const result = build({
+      proposals: [
+        { id: 'p-pending', toolName: 'create_tag', status: 'pending', statusReason: null, result: { refs: [] } },
+        {
+          id: 'p-old',
+          toolName: 'create_tag',
+          status: 'applied',
+          statusReason: null,
+          result: { refs: [{ kind: 'tag', id: 'old-secret-ref' }] },
+        },
+      ],
+      messages: [
+        user({ id: 'u1', value: 'one' }),
+        assistant({ id: 'a1', parts: [{ type: 'proposal' as const, id: 'part-o', proposalId: 'p-old' }] }),
+        user({ id: 'u2', value: 'two' }),
+        assistant({ id: 'a2', parts: [{ type: 'text' as const, id: 't2', text: 'ok' }] }),
+        user({ id: 'u3', value: 'three' }),
+        assistant({ id: 'a3', parts: [{ type: 'proposal' as const, id: 'part-p', proposalId: 'p-pending' }] }),
+        user({ id: 'u4', value: 'four' }),
+      ],
+    });
+    const all = result.map((message) => contentOf(message)).join('\n');
+
+    expect(all).not.toContain('old-secret-ref');
+    expect(all).not.toContain('its result');
+  });
+
+  it('hands the model the id of the record the user tapped with their answer', () => {
+    const result = build({
+      messages: [
+        user({ id: 'u1', value: 'log it' }),
+        assistant({
+          id: 'a1',
+          parts: [
+            {
+              type: 'clarification' as const,
+              id: 'q1',
+              question: 'Which account?',
+              options: [
+                { id: 'o1', label: 'Wallet (USD)', record: { kind: 'account', id: 'acc-wallet' } },
+                { id: 'o2', label: 'Savings (USD)', record: { kind: 'account', id: 'acc-savings' } },
+              ],
+              allowFreeText: false,
+              multiSelect: false,
+            },
+          ],
+        }),
+        {
+          id: 'u2',
+          role: 'user',
+          status: 'complete',
+          plainText: null,
+          parts: [{ type: 'clarificationAnswer', id: 'ans', clarificationId: 'q1', optionIds: ['o1'] }],
+        } as never,
+      ],
+    });
+
+    expect(contentOf(result[result.length - 1])).toContain(
+      'Answer to your question "Which account?": Wallet (USD) (account id acc-wallet)',
+    );
+  });
+
   it('shows no arguments for a card of an older turn, and cuts a long one', () => {
     const long: HistoryProposal = {
       id: 'p-long',

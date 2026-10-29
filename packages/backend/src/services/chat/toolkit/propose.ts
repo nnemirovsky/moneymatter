@@ -6,6 +6,7 @@ import { resolveToolPolicy } from '../policies';
 import { createProposal } from '../proposals/create-proposal';
 import { assertKnownRecords } from '../proposals/known-records';
 import { normalizeUserTimeArgs } from '../proposals/normalize-time-args';
+import { assertCardUsesPickedRecords } from '../proposals/picked-records';
 import { proposalRef, ToolInputError } from '../proposals/placeholders';
 import { assertNoTwinLegUpdate } from '../proposals/twin-leg-update';
 import { parseWriteInput } from './model-schema';
@@ -64,6 +65,12 @@ export async function proposeToolCall({
     if (!policy) throw new ToolInputError(`${entry.name} is not available in the chat`);
 
     await assertKnownRecords({ userId: ctx.run.user.id, policy, args });
+    // The card must use the record the user tapped when the model asked which one.
+    assertCardUsesPickedRecords({
+      picked: ctx.run.pickedRecords ?? [],
+      entityFields: policy.entityFields,
+      args,
+    });
     // One edit of a transfer leg changes both legs, so the same edit for the other leg is not a second card.
     if (entry.name === 'update_transaction') {
       await assertNoTwinLegUpdate({ userId: ctx.run.user.id, threadId: ctx.run.threadId, args });

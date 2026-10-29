@@ -1,4 +1,4 @@
-import { CHAT_CLARIFICATION_LIMITS } from '@bt/shared/types';
+import { CHAT_CLARIFICATION_LIMITS, CHAT_PICKABLE_RECORD_KINDS } from '@bt/shared/types';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 
@@ -25,6 +25,13 @@ export function createAskClarificationTool({ ctx }: { ctx: ChatToolContext }) {
             .object({
               id: z.string().min(1).max(40).optional(),
               label: z.string().trim().min(1).max(LIMITS.optionLabelMaxChars),
+              record: z
+                .object({ kind: z.enum(CHAT_PICKABLE_RECORD_KINDS), id: z.string().min(1).max(64) })
+                .strict()
+                .optional()
+                .describe(
+                  'When the option picks a record (an account, category, payee, tag or transaction), its kind and the id from the read tool. The answer comes back with this id, and a card that uses another record of that kind is refused.',
+                ),
             })
             .strict(),
         )
@@ -39,7 +46,11 @@ export function createAskClarificationTool({ ctx }: { ctx: ChatToolContext }) {
         throw new ToolInputError('Give at least two options, or allow free text');
       }
 
-      const options = args.options.map((option, index) => ({ id: option.id ?? `o${index + 1}`, label: option.label }));
+      const options = args.options.map((option, index) => ({
+        id: option.id ?? `o${index + 1}`,
+        label: option.label,
+        ...(option.record ? { record: option.record } : {}),
+      }));
       if (new Set(options.map((option) => option.id)).size !== options.length) {
         throw new ToolInputError('Option ids must be unique');
       }
