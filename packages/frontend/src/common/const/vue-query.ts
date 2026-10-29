@@ -277,6 +277,7 @@ export const VUE_QUERY_CACHE_KEYS = Object.freeze({
   cardPaymentAccessHeaders: ['card-payment', 'access-headers'] as const,
   cardPaymentShortcutFile: ['card-payment', 'shortcut-file'] as const,
   notificationSources: ['card-payment', 'notification-sources'] as const,
+  iosAutomationIcons: ['card-payment', 'ios-automation-icons'] as const,
   cardPaymentGateStrictness: ['card-payment', 'gate-strictness'] as const,
 
   // AI settings

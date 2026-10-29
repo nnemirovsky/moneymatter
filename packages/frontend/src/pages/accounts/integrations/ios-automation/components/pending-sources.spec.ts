@@ -60,8 +60,7 @@ describe('PendingSources', () => {
     const rows = wrapper.findAll('[data-testid="pending-source-row"]');
     expect(rows).toHaveLength(1);
     const name = rows[0]!.get('[data-testid="pending-source-name"]');
-    expect(name.get('[data-testid="source-label-sender"]').text()).toBe('Example');
-    expect(name.get('[data-testid="source-label-app"]').text()).toBe('Messages');
+    expect(name.text()).toBe('Messages: Example');
   });
 
   it('names a source by its bundle id when the app has no name', async () => {

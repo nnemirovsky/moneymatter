@@ -6,6 +6,10 @@ import { defineComponent, h, ref } from 'vue';
 import IosAutomation from './ios-automation-details.vue';
 import { createGlobalPlugins } from './test-support';
 
+vi.mock('@/components/common/ios-automation-icon.vue', () => ({
+  default: { template: '<span data-testid="ios-automation-icon" />' },
+}));
+
 const { mockCreateSetupCode, mockLogWaiting, mockConfig, mockAddError, mockPush } = vi.hoisted(() => ({
   mockCreateSetupCode: vi.fn(),
   mockLogWaiting: vi.fn(),

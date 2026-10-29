@@ -5,7 +5,7 @@
       class="focus-visible:ring-ring/40 flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded text-left focus-visible:ring-2 focus-visible:outline-none"
       @click="goToDetails"
     >
-      <WalletIcon class="size-7 shrink-0" />
+      <IosAutomationIcon class="size-7 shrink-0" />
 
       <span class="min-w-0">
         <span class="block truncate text-sm font-semibold">{{ $t('accounts.applePay.name') }}</span>
@@ -36,7 +36,7 @@ import UiButton from '@/components/lib/ui/button/Button.vue';
 import { DesktopOnlyTooltip } from '@/components/lib/ui/tooltip';
 import { ROUTES_NAMES } from '@/routes';
 import { Settings2Icon } from '@lucide/vue';
-import WalletIcon from '@/components/common/icons/wallet-icon.vue';
+import IosAutomationIcon from '@/components/common/ios-automation-icon.vue';
 import { useRouter } from 'vue-router';
 
 defineProps<{

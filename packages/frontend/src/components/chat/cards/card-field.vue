@@ -116,7 +116,6 @@ const alternatives = computed(() =>
               v-if="part.entity?.kind === 'notificationSource' && lookups.notificationSource()"
               v-bind="lookups.notificationSource()!"
               class="justify-end"
-              data-testid="field-source"
             />
             <RouterLink v-else-if="part.to" :to="part.to" class="text-primary-text min-w-0 truncate hover:underline">{{
               part.text

@@ -193,7 +193,7 @@ describe('NotificationSources', () => {
     });
   });
 
-  it('names a source by its sender first and its app, with the icon, in a pill', async () => {
+  it('names a source by its app icon, the app and the sender', async () => {
     const { wrapper } = await mountSources({
       sources: [
         makeSource({
@@ -206,18 +206,18 @@ describe('NotificationSources', () => {
     });
 
     const name = wrapper.get('[data-testid="notification-source-name"]');
-    expect(name.get('[data-testid="source-label-sender"]').text()).toBe('Example');
-    expect(name.get('[data-testid="source-label-app"] img').attributes('src')).toBe('https://cdn.example.com/icon.jpg');
+    expect(name.text()).toBe('Example Notes: Example');
+    expect(name.get('img').attributes('src')).toBe('https://cdn.example.com/icon.jpg');
     expect(wrapper.text()).not.toContain('From Example');
   });
 
-  it('names a source that is the app itself by its icon and name, with no pill', async () => {
+  it('names a source that is the app itself by its icon and name alone', async () => {
     const { wrapper } = await mountSources({
       sources: [makeSource({ appName: 'Example Notes', sender: null, iconUrl: 'https://cdn.example.com/icon.jpg' })],
     });
 
     const name = wrapper.get('[data-testid="notification-source-name"]');
-    expect(name.get('[data-testid="source-label-app"]').classes()).not.toContain('border');
+    expect(name.text()).toBe('Example Notes');
     expect(name.find('img').exists()).toBe(true);
   });
 

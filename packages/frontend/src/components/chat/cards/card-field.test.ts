@@ -507,7 +507,7 @@ describe('CardField', () => {
       display: { kind: 'entity', entity: { kind: 'notificationSource', id: 'src-1', label: '' } },
     });
 
-    it('is drawn as the sender, then the app with its icon in a pill, when the card carries the source', () => {
+    it('is drawn as the app icon, the app and the sender, when the card carries the source', () => {
       const wrapper = mountField({
         field: sourceField,
         lookups: buildLookups({
@@ -521,8 +521,8 @@ describe('CardField', () => {
         }),
       });
 
-      expect(wrapper.get('[data-testid="source-label-sender"]').text()).toBe('ExampleSender');
-      expect(wrapper.get('[data-testid="source-label-app"] img').attributes('src')).toBe(
+      expect(wrapper.get('[data-testid="source-label"]').text()).toBe('Example Notes: ExampleSender');
+      expect(wrapper.get('[data-testid="source-label"] img').attributes('src')).toBe(
         'https://cdn.example.com/icon.jpg',
       );
       expect(wrapper.text()).not.toContain('·');

@@ -9,25 +9,21 @@ const mountLabel = (props: Record<string, unknown>) =>
   mount(NotificationSourceLabel, { props: { appName: 'Example Notes', ...props } });
 
 describe('NotificationSourceLabel', () => {
-  it('reads sender first, then the app with its icon in the bordered pill', () => {
+  it('reads icon, app name, a colon and the sender, in plain text without a pill', () => {
     const wrapper = mountLabel({ sender: 'ExampleSender', iconUrl: ICON });
 
+    expect(wrapper.get('img').attributes('src')).toBe(ICON);
+    expect(wrapper.text()).toBe('Example Notes: ExampleSender');
+    expect(wrapper.get('[data-testid="source-label-app"]').text()).toBe('Example Notes');
     expect(wrapper.get('[data-testid="source-label-sender"]').text()).toBe('ExampleSender');
-    const pill = wrapper.get('[data-testid="source-label-app"]');
-    expect(pill.classes()).toContain('border');
-    expect(pill.text()).toBe('Example Notes');
-    expect(pill.get('img').attributes('src')).toBe(ICON);
-    // The sender comes before the pill.
-    expect(wrapper.text()).toBe('ExampleSenderExample Notes');
+    expect(wrapper.find('.border').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('·');
   });
 
-  it('shows the icon and the name without a pill when the source is the app itself', () => {
+  it('shows the icon and the name alone when the source is the app itself', () => {
     const wrapper = mountLabel({ sender: null, iconUrl: ICON });
 
-    const name = wrapper.get('[data-testid="source-label-app"]');
-    expect(name.text()).toBe('Example Notes');
-    expect(name.classes()).not.toContain('border');
+    expect(wrapper.text()).toBe('Example Notes');
     expect(wrapper.find('[data-testid="source-label-sender"]').exists()).toBe(false);
     expect(wrapper.getComponent(AppIcon).props('iconUrl')).toBe(ICON);
   });

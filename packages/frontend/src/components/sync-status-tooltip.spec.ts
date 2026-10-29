@@ -5,6 +5,10 @@ import { createI18n } from 'vue-i18n';
 
 import SyncStatusTooltip from './sync-status-tooltip.vue';
 
+vi.mock('@/components/common/ios-automation-icon.vue', () => ({
+  default: { template: '<span data-testid="ios-automation-icon" />' },
+}));
+
 vi.mock('@/composable/use-ai-allowance', () => ({ useAiAllowance: () => ({ showBadge: () => false }) }));
 vi.mock('@/routes/constants', () => ({
   ROUTES_NAMES: {

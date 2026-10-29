@@ -29,7 +29,7 @@ describe('AppIcon', () => {
     const wrapper = mount(AppIcon, { props: { appName, bundleId, iconUrl: null } });
 
     expect(wrapper.get('[data-testid="app-icon-fallback"]').attributes('data-glyph')).toBe(glyph);
-    expect(wrapper.find('svg').exists()).toBe(true);
+    expect(wrapper.element.tagName.toLowerCase()).toBe('svg');
   });
 
   it('falls back to the glyph when the image fails to load, and tries a new icon url again', async () => {

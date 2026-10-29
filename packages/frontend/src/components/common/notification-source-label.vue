@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import AppIcon from './app-icon.vue';
-import PillChip from './pill-chip.vue';
 
 defineProps<{
   appName: string | null;
@@ -13,19 +12,15 @@ defineProps<{
 </script>
 
 <template>
-  <!-- A source reads "<Sender> [<icon> App]": the sender first, then the app in the pill. One that is the app
-       itself, with no sender, is the icon and the name without a pill. -->
-  <span class="inline-flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5" data-testid="source-label">
-    <template v-if="sender">
-      <span class="break-words" data-testid="source-label-sender">{{ sender }}</span>
-      <PillChip data-testid="source-label-app">
-        <AppIcon :app-name="appName" :bundle-id="bundleId" :icon-url="iconUrl" :size="12" />
-        <span class="break-words">{{ appName || bundleId || fallback }}</span>
-      </PillChip>
-    </template>
-    <template v-else>
-      <AppIcon :app-name="appName" :bundle-id="bundleId" :icon-url="iconUrl" :size="16" />
-      <span class="break-words" data-testid="source-label-app">{{ appName || bundleId || fallback }}</span>
-    </template>
+  <!-- A source reads "<icon> Mail: Sender", in plain text; one that is the app itself is "<icon> App". -->
+  <span class="inline-flex min-w-0 items-center gap-1.5" data-testid="source-label">
+    <AppIcon :app-name="appName" :bundle-id="bundleId" :icon-url="iconUrl" :size="16" />
+    <span class="min-w-0 wrap-anywhere">
+      <span data-testid="source-label-app">{{ appName || bundleId || fallback }}</span>
+      <template v-if="sender">
+        <span aria-hidden="true">: </span>
+        <span data-testid="source-label-sender">{{ sender }}</span>
+      </template>
+    </span>
   </span>
 </template>

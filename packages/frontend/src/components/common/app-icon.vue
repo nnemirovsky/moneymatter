@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { cn } from '@/lib/utils';
 import { getBuiltInAppGlyph } from '@bt/shared/types';
-import { MessageCircleIcon, WalletIcon } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
+
+import { BUILT_IN_APP_ICONS } from './app-icons';
 
 const props = withDefaults(
   defineProps<{
@@ -43,20 +43,21 @@ const style = computed(() => ({ width: `${props.size}px`, height: `${props.size}
     data-testid="app-icon-image"
     @error="isBroken = true"
   />
+  <component
+    :is="BUILT_IN_APP_ICONS[glyph]"
+    v-else-if="glyph"
+    :style="style"
+    class="shrink-0"
+    :data-glyph="glyph"
+    data-testid="app-icon-fallback"
+  />
   <span
     v-else
     :style="style"
-    :class="
-      cn(
-        'bg-muted text-muted-foreground inline-flex shrink-0 items-center justify-center rounded-[22%] text-[9px] leading-none font-bold before:content-[attr(data-letter)]',
-      )
-    "
-    :data-glyph="glyph ?? 'monogram'"
-    :data-letter="glyph ? '' : monogram"
+    class="bg-muted text-muted-foreground inline-flex shrink-0 items-center justify-center rounded-[22%] text-[9px] leading-none font-bold before:content-[attr(data-letter)]"
+    data-glyph="monogram"
+    :data-letter="monogram"
     data-testid="app-icon-fallback"
     aria-hidden="true"
-  >
-    <MessageCircleIcon v-if="glyph === 'messages'" :size="Math.round(size * 0.7)" />
-    <WalletIcon v-else-if="glyph === 'wallet'" :size="Math.round(size * 0.7)" />
-  </span>
+  />
 </template>
