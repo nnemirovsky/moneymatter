@@ -23,6 +23,7 @@ import * as Transactions from '@models/transactions.model';
 import * as UsersCurrencies from '@models/users-currencies.model';
 import { calculateRefAmountOrNull } from '@services/calculate-ref-amount.service';
 import { DOMAIN_EVENTS, eventBus } from '@services/common/event-bus';
+import { runAfterCommit } from '@services/common/run-after-commit';
 import { assertCurrencyCodesVisible } from '@services/currencies/assert-currency-codes-visible';
 import { assertLoanPaymentAllowed } from '@services/loans/assert-loan-payment-allowed';
 import { applyPayeeCategorization } from '@services/payees/apply-categorization';
@@ -818,6 +819,13 @@ export const createTransaction = withTransaction(
           });
           if (appliedLocation) transactions[0]!.location = appliedLocation;
         }
+      }
+
+      if (isTwoLegTransfer(transferNature) && transactions.length === 2) {
+        const transactionIds = transactions.flatMap((tx) => (tx ? [tx.id] : []));
+        await runAfterCommit({
+          fn: () => eventBus.emit(DOMAIN_EVENTS.TRANSFER_LOGGED, { userId, transactionIds }),
+        });
       }
 
       return transactions;

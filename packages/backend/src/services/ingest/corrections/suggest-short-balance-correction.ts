@@ -19,6 +19,7 @@ import { findCardRows } from '../resolve-card-account';
 import { composeCorrection } from './compose-correction';
 import { correctionOf } from './read-ingest-suggestions';
 import { applyRanking, isBalanceShort, rankByCoverage, type ShortBalanceCandidate } from './short-balance-rule';
+import { findTopUps, isCoveredByTopUps } from './top-up-covers';
 
 const amountOf = ({ money, currencyCode }: { money: Money; currencyCode: string }) => ({
   amount: money.toNumber(),
@@ -33,6 +34,9 @@ const amountOf = ({ money, currencyCode }: { money: Money; currencyCode: string 
  *
  * - Only a debit logged to an account of a card (a per-currency row or the default row) qualifies, and
  *   only when the account held less than the payment before it (`ingest.balanceBefore`).
+ * - A transfer into the account within `TOP_UP_WINDOW_MS` of the payment that brings the balance up to the payment
+ *   means the bank paid from this account: no suggestion (and one made before the transfer landed is withdrawn by
+ *   `withdrawCoveredCorrections`).
  * - The candidates are the card's other accounts whose balance covers the payment converted at that
  *   day's rate. No covering account, no suggestion.
  * - The `duplicateMatching` connection ranks them and writes the one-line reason. Without a model
@@ -60,6 +64,10 @@ export const suggestShortBalanceCorrection = async ({
 
   const balanceBefore = Money.fromDecimal(ingest.balanceBefore.amount);
   if (!isBalanceShort({ balanceBefore, amount: transaction.amount })) return false;
+
+  // A transfer that topped the account up around the payment (a conversion booked a minute later) paid for it.
+  const topUps = await findTopUps({ userId, accountId: transaction.accountId, time: transaction.time });
+  if (isCoveredByTopUps({ balanceBefore, amount: transaction.amount, topUps })) return false;
 
   const cardLabel = (transaction.externalData?.cardPayment as { card?: string | null } | undefined)?.card ?? null;
   const rows = await findCardRows({ userId, cardLabel, lastDigits: ingest.cardLastDigits ?? null });

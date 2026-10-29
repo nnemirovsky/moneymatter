@@ -13,6 +13,8 @@ import { findTransactions, updateTransactions } from '@models/transactions-query
 import * as Transactions from '@models/transactions.model';
 import { withTransaction } from '@root/services/common/with-transaction';
 import { settleTransactionCards } from '@services/chat/inbox/inbox-resolution';
+import { DOMAIN_EVENTS, eventBus } from '@services/common/event-bus';
+import { runAfterCommit } from '@services/common/run-after-commit';
 import { assertTxWriteAccess } from '@services/sharing/auth/authorize-account-write.service';
 import { Op } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
@@ -58,10 +60,13 @@ export const linkTransactions = withTransaction(
     userId,
     ids,
     ignoreBaseTxTypeValidation,
+    announce = true,
   }: {
     userId: number;
     ids: [baseTxId: string, oppositeTxId: string][];
     ignoreBaseTxTypeValidation?: boolean;
+    /** False when the caller settles the ingest requests itself, so no transfer-logged event follows. */
+    announce?: boolean;
   }): Promise<[baseTx: Transactions.default, oppositeTx: Transactions.default][]> => {
     try {
       const result: ResultStruct[] = [];
@@ -162,6 +167,12 @@ export const linkTransactions = withTransaction(
         // Linking is the owner's word on both legs: their confirm cards and any "link as transfer?"
         // card about them are answered.
         await settleTransactionCards({ transactionIds: [baseTxId, oppositeTxId], markConfirmed: true });
+        if (announce) {
+          await runAfterCommit({
+            fn: () =>
+              eventBus.emit(DOMAIN_EVENTS.TRANSFER_LOGGED, { userId, transactionIds: [baseTxId, oppositeTxId] }),
+          });
+        }
       }
 
       return result;

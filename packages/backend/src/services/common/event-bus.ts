@@ -47,6 +47,12 @@ export const DOMAIN_EVENTS = {
    * Payload: @type IngestRequestParkedPayload
    */
   INGEST_REQUEST_PARKED: 'ingest:request-parked',
+  /**
+   * Emitted after the commit of a transfer between two of the user's accounts that was created or linked (in the
+   * app, in chat or by import). A notification that waits for the owner and tells of the same transfer is settled.
+   * Payload: @type TransferLoggedPayload
+   */
+  TRANSFER_LOGGED: 'transfers:logged',
 } as const;
 
 /**
@@ -75,6 +81,12 @@ export interface TransactionsAiCategorizedPayload {
 export interface IngestPaymentUpdatedPayload {
   userId: number;
   transactionId: string;
+}
+
+export interface TransferLoggedPayload {
+  userId: number;
+  /** The two legs. */
+  transactionIds: string[];
 }
 
 export interface IngestRequestParkedPayload {

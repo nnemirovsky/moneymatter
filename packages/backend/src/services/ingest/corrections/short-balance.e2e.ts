@@ -1,3 +1,5 @@
+import { TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES, type RecordId } from '@bt/shared/types';
+import { until } from '@common/helpers';
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
 import Transactions from '@models/transactions.model';
@@ -115,6 +117,73 @@ describe('short-balance correction', () => {
     Object.assign(notificationTimings, DEFAULT_TIMINGS);
     await helpers.clearExchangeRatesForDates({ dates: SEEDED_DATES.splice(0) });
     await resetLimits();
+  });
+
+  describe('when a transfer into the account lands around the payment', () => {
+    const topUp = ({ usdId, gelId, at }: { usdId: RecordId; gelId: RecordId; at: Date }) =>
+      helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({
+          accountId: usdId,
+          amount: 100,
+          time: at.toISOString(),
+          transferNature: TRANSACTION_TRANSFER_NATURE.common_transfer,
+          destinationAmount: 200,
+          destinationAccountId: gelId,
+        }),
+        raw: true,
+      });
+
+    it('withdraws the suggestion once the conversion that covers the payment is booked a minute later', async () => {
+      const { gel, usd, noon, secret } = await setUp();
+      const res = await walletPayment({ secret, noon, amount: woltOnlinePayment.wallet.body });
+      expect(res.body.response.outcome).toBe('logged');
+      const tx = (await Transactions.findOne({
+        where: { accountId: gel.id, transactionType: TRANSACTION_TYPES.expense },
+      }))!;
+      expect(await correctionOf({ transactionId: tx.id })).toMatchObject({ status: 'open' });
+
+      await topUp({ usdId: usd.id, gelId: gel.id, at: addMinutes(noon, 1) });
+
+      await until(async () => (await correctionOf({ transactionId: tx.id }))?.status === 'dismissed', {
+        timeout: 15_000,
+        interval: 200,
+      });
+    });
+
+    it('keeps the suggestion when the transfer is too small to cover the payment', async () => {
+      const { gel, usd, noon, secret } = await setUp();
+      await walletPayment({ secret, noon, amount: woltOnlinePayment.wallet.body });
+      const tx = (await Transactions.findOne({
+        where: { accountId: gel.id, transactionType: TRANSACTION_TYPES.expense },
+      }))!;
+
+      await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({
+          accountId: usd.id,
+          amount: 1,
+          time: addMinutes(noon, 1).toISOString(),
+          transferNature: TRANSACTION_TRANSFER_NATURE.common_transfer,
+          destinationAmount: 2,
+          destinationAccountId: gel.id,
+        }),
+        raw: true,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      expect(await correctionOf({ transactionId: tx.id })).toMatchObject({ status: 'open' });
+    });
+
+    it('makes no suggestion when the conversion was booked first', async () => {
+      const { gel, usd, noon, secret } = await setUp();
+      await topUp({ usdId: usd.id, gelId: gel.id, at: addMinutes(noon, -1) });
+
+      await walletPayment({ secret, noon, amount: woltOnlinePayment.wallet.body });
+
+      const tx = (await Transactions.findOne({
+        where: { accountId: gel.id, transactionType: TRANSACTION_TYPES.expense },
+      }))!;
+      expect(await correctionOf({ transactionId: tx.id })).toBeNull();
+    });
   });
 
   describe('without a model', () => {

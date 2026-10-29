@@ -162,7 +162,7 @@ export const linkConversionLegs = async ({ requestId }: { requestId: RecordId })
     const income = rows.find((row) => row.transactionType === TRANSACTION_TYPES.income);
     if (rows.length !== 2 || !expense || !income || expense.transferId || income.transferId) return;
 
-    await linkTransactions({ userId: request.userId, ids: [[expense.id, income.id]] });
+    await linkTransactions({ userId: request.userId, ids: [[expense.id, income.id]], announce: false });
   } catch (error) {
     logger.error({ message: 'Failed to link the two sides of an exchange', error: error as Error });
   }
