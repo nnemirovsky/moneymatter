@@ -127,6 +127,7 @@ const read = async ({
         direction: stored.directionOverride ?? null,
         note: stored.noteOverride ?? null,
         time: stored.timeOverride ? new Date(stored.timeOverride) : null,
+        approved: stored.approved === true,
       },
     };
   }
