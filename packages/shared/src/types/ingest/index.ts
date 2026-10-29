@@ -286,6 +286,7 @@ export type IngestRequestReason =
   | 'holdReleased'
   | 'parkedTwin'
   | 'conversionLeg'
+  | 'resolvedElsewhere'
   | 'interrupted';
 
 /** One request a client sent to the card-payment endpoint, as Settings lists it. */

@@ -51,6 +51,8 @@ export interface PaymentOverride {
   direction: 'debit' | 'credit' | null;
   /** The note the owner wrote on the card; `''` is no note, `null` leaves the note to the pipeline. */
   note: string | null;
+  /** The time the exchange the payment is a side of was placed at (see `placeConversionTime`); `null` keeps the notice's. */
+  time?: Date | null;
 }
 
 /**
@@ -132,6 +134,7 @@ const logNotificationPaymentImpl = async ({
     }),
   });
 
+  const clue = { amount: payment.amount, kind: payment.kind, balanceAfter: payment.balanceAfter };
   // The owner's choice on the inbox card wins over the usual resolution; the server still never guesses.
   const chosen = override?.accountId ? await findUsableAccount({ userId, accountId: override.accountId }) : null;
   const found =
@@ -142,6 +145,7 @@ const logNotificationPaymentImpl = async ({
       cardLastDigits: payment.cardLastDigits,
       currencyCode: statedCurrencyCode,
       source,
+      clue,
     }));
   if (!found) {
     return needsOk({
@@ -151,6 +155,9 @@ const logNotificationPaymentImpl = async ({
           userId,
           currencyCode: statedCurrencyCode,
           appName: sourceAppName({ source, payload: row.payload }),
+          cardLastDigits: payment.cardLastDigits,
+          source,
+          clue,
         }),
       },
     });
@@ -177,7 +184,7 @@ const logNotificationPaymentImpl = async ({
   if (rejected.length) return needsOk({ reason: 'lowConfidence' });
 
   const direction = override?.direction ?? payment.kind;
-  const time = new Date(typeof row.payload.time === 'string' ? row.payload.time : row.createdAt);
+  const time = override?.time ?? new Date(typeof row.payload.time === 'string' ? row.payload.time : row.createdAt);
   const paymentAmount = Money.fromDecimal(payment.amount);
   const inAccountCurrency = resolved.currencyCode === account.currencyCode;
   let accountAmount = paymentAmount;
@@ -241,7 +248,8 @@ const logNotificationPaymentImpl = async ({
   // amounts supplies the charged one itself.
   const kept = original ?? (inAccountCurrency ? null : { amount: paymentAmount, currencyCode: resolved.currencyCode });
 
-  const merchant = payment.merchant ?? sourceLabel;
+  // A payment that names no merchant has none: the app's name is not a payee and not a note.
+  const merchant = payment.merchant ?? '';
   const slot = slotOfNotification({ sourceKey: source?.sourceKey ?? null, stage: payment.stage });
   const balanceStored = { ...base, balanceAfter };
 

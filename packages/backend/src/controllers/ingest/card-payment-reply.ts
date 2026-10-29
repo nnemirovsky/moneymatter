@@ -21,8 +21,12 @@ export const toCardPaymentReply = ({
     case 'parked':
       return { data: result satisfies CardPaymentResponse, statusCode: 202 };
 
-    case 'logged':
-      return { data: { ...result, duplicate: result.duplicate ? true : undefined } };
+    case 'logged': {
+      // `suppressed` only steers the event endpoint's `notify`; it is not part of the answer.
+      const { suppressed: _suppressed, ...logged } = result;
+
+      return { data: { ...logged, duplicate: result.duplicate ? true : undefined } };
+    }
 
     case 'dryRun':
       return { data: result satisfies CardPaymentResponse };

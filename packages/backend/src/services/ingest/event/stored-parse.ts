@@ -32,6 +32,8 @@ export interface StoredParse {
   accountOverrideId?: RecordId;
   /** The direction the owner chose on that card, when it differs from what the text said. */
   directionOverride?: 'debit' | 'credit';
+  /** The time an exchange was placed at, when it differs from the notice's own (see `placeConversionTime`). */
+  timeOverride?: string;
   /** The note the owner wrote on that card; an empty one is no note. Absent, the pipeline picks the note. */
   noteOverride?: string;
   /** The other side of a currency exchange this payment is one side of; the two are linked as a transfer once logged. */

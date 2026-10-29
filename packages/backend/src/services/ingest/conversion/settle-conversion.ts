@@ -1,18 +1,22 @@
 import { TRANSACTION_TYPES, type RecordId } from '@bt/shared/types';
+import { Money } from '@common/types/money';
 import { t } from '@i18n/index';
 import { ValidationError } from '@js/errors';
 import { logger } from '@js/utils/logger';
+import Accounts from '@models/accounts.model';
 import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
 import { findTransactions } from '@models/transactions-query';
 import { linkTransactions } from '@services/transactions/transactions-linking/link-transactions';
 import { Op } from 'sequelize';
 
+import { withdrawCoveredCorrections } from '../corrections/top-up-covers';
 import { readStoredParse, type StoredParse, type StoredPayment } from '../event/stored-parse';
 import { absorbParkedTwin } from '../twins/absorb-parked-twin';
 import { assertUsableAccount } from '../usable-account';
 import { findPastConversions, usualNote } from './conversion-history';
 import { sidesOf } from './conversion-rule';
+import { loadPaymentsBefore, placeConversionTime } from './conversion-timing';
 import { findConversionPartner } from './find-conversion-partner';
 import { resolveConversionAccount } from './resolve-conversion-account';
 
@@ -44,6 +48,38 @@ export const suggestConversionAccounts = async ({
   );
 
   return { fromAccountId: fromAccountId ?? null, toAccountId: toAccountId ?? null };
+};
+
+/**
+ * The time to book an exchange at when it differs from the arrival of its notice (see `placeConversionTime`): only an
+ * exchange whose notices state no time of their own is moved, to just before the payment it paid for. `null` keeps the
+ * notice's time.
+ */
+const placeExchange = async ({
+  userId,
+  debit,
+  credit,
+  toAccountId,
+}: {
+  userId: number;
+  debit: StoredPayment;
+  credit: { request: IngestRequests; payment: StoredPayment };
+  toAccountId: RecordId;
+}): Promise<Date | null> => {
+  if (debit.occurredAt || credit.payment.occurredAt) return null;
+
+  const account = await Accounts.findOne({ where: { id: toAccountId, userId }, attributes: ['currencyCode'] });
+  if (!account || credit.payment.currencyCode !== account.currencyCode) return null;
+
+  const { payload, createdAt } = credit.request;
+  const receivedAt = new Date(typeof payload.time === 'string' ? payload.time : createdAt);
+  const placed = placeConversionTime({
+    receivedAt,
+    received: Money.fromDecimal(credit.payment.amount),
+    payments: await loadPaymentsBefore({ userId, accountId: toAccountId, receivedAt }),
+  });
+
+  return placed.getTime() === receivedAt.getTime() ? null : placed;
 };
 
 /**
@@ -112,6 +148,8 @@ export const settleConversion = async ({
   const history = await findPastConversions({ userId, fromAccountId, toAccountId });
   const legNote = note ?? stored.exchangeNote ?? partnerStored.exchangeNote ?? usualNote({ history }) ?? undefined;
 
+  const placedAt = await placeExchange({ userId, debit: debit.payment, credit, toAccountId });
+
   for (const [leg, legAccountId, otherId] of [
     [debit, fromAccountId, credit.request.id],
     [credit, toAccountId, debit.request.id],
@@ -121,6 +159,7 @@ export const settleConversion = async ({
       accountOverrideId: legAccountId,
       conversion: { partnerRequestId: otherId },
       ...(legNote !== undefined && { noteOverride: legNote }),
+      ...(placedAt && { timeOverride: placedAt.toISOString() }),
     } as unknown as Record<string, unknown>;
 
     if (leg.request.id === row.id) {
@@ -162,7 +201,9 @@ export const linkConversionLegs = async ({ requestId }: { requestId: RecordId })
     const income = rows.find((row) => row.transactionType === TRANSACTION_TYPES.income);
     if (rows.length !== 2 || !expense || !income || expense.transferId || income.transferId) return;
 
-    await linkTransactions({ userId: request.userId, ids: [[expense.id, income.id]] });
+    await linkTransactions({ userId: request.userId, ids: [[expense.id, income.id]], announce: false });
+    // The exchange may be what paid for a payment that looked short of balance.
+    await withdrawCoveredCorrections({ userId: request.userId, topUp: income });
   } catch (error) {
     logger.error({ message: 'Failed to link the two sides of an exchange', error: error as Error });
   }

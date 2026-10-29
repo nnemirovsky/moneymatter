@@ -79,7 +79,7 @@ export interface NotificationEventResponse {
 }
 
 /** The answer to a `walletTransaction` event: the card-payment answer, which always shows a banner. */
-export type WalletEventResponse = CardPaymentResponse & { notify: true };
+export type WalletEventResponse = CardPaymentResponse & { notify: boolean };
 
 export type IngestEventResponse = NotificationEventResponse | WalletEventResponse;
 

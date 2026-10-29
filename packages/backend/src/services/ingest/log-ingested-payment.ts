@@ -192,7 +192,7 @@ export const logIngestedPayment = async ({
   const accountBefore = await Accounts.findOne({ where: { id: account.id }, attributes: ['currentBalance'] });
   const context = payeeId
     ? await readPayeeContext({ userId, payeeId, requestId, merchant, time })
-    : { note: merchant, createdPayeeId: null };
+    : { note: merchant || null, createdPayeeId: null };
   const { createdPayeeId } = context;
   // The owner's own note is theirs, not the pipeline's: it is not recorded as `systemNote`.
   const note = noteOverride === undefined ? context.note : noteOverride;

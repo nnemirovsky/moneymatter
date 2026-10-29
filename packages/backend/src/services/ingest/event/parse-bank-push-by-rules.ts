@@ -24,7 +24,7 @@ const MAX_LINES = 8;
 const RULES_CONFIDENCE = 0.9;
 
 /** A list of words as one pattern; the boundaries are letters and digits of any script, which `\b` does not see. */
-const wordsPattern = ({ words }: { words: string }): RegExp =>
+export const wordsPattern = ({ words }: { words: string }): RegExp =>
   new RegExp(`(?<![\\p{L}\\p{N}])(?:${words})(?![\\p{L}\\p{N}])`, 'iu');
 
 /** Words (several languages) of a message that is not a plain card payment: a refusal, a hold, a transfer, a fee. */
@@ -64,7 +64,7 @@ const TIME = /\b\d{1,2}:\d{2}(?::\d{2})?\b/gu;
 const MONEY =
   /(?:(?<![^\s])([-+−–])(?=[A-Z$€£¥₴₽₾₺₹\d]))?[ \u00a0]*(?:(?<![A-Za-z])([A-Z]{3})(?![A-Za-z])[ \u00a0]*)?([$€£¥₴₽₾₺₹])?[ \u00a0]*(\d[\d .,'\u00a0\u202f]*\d|\d)(?:[ \u00a0]*(?<![A-Za-z])([A-Z]{3})(?![A-Za-z]))?/gu;
 
-interface Found {
+export interface Found {
   amount: string;
   currencyCode: string | null;
   symbol: string | null;
@@ -77,7 +77,7 @@ interface Found {
  * The text as lines. The stored fields have their line breaks collapsed, so the device's own rendering (`raw`) is used
  * for the line structure when it has one; otherwise each field is a line, the title (usually the bank) first.
  */
-const linesOf = ({ text }: { text: NotificationText }): string[] => {
+export const linesOf = ({ text }: { text: NotificationText }): string[] => {
   const source = text.raw?.includes('\n') ? [text.raw] : [text.title, text.subtitle, text.body];
 
   return source
@@ -90,7 +90,14 @@ const linesOf = ({ text }: { text: NotificationText }): string[] => {
  * The amounts a line carries (with a currency), and the line without them (an amount leaves a `|` between the words
  * around it). `null` when a number is in doubt: a space inside the digits may join a store number and the amount.
  */
-const findAmounts = ({ line: original }: { line: string }): Found[] | null => {
+export const findAmounts = ({
+  line: original,
+  numberMayFollow = false,
+}: {
+  line: string;
+  /** A bare number after an amount is not in doubt (a notice that prints the rate behind its amounts). */
+  numberMayFollow?: boolean;
+}): Found[] | null => {
   const found: Found[] = [];
   let doubtful = false;
   // A date or a time sits next to an amount in some layouts; its digits are never part of the number.
@@ -113,7 +120,14 @@ const findAmounts = ({ line: original }: { line: string }): Found[] | null => {
       if (!parsed.ok || (!parsed.currencyCode && !parsed.symbol && !code && !symbol)) return token;
       // Doubt, left to the AI: a space inside the digits (a store number may be joined to the amount), a lone separator
       // before exactly three digits ("1.250" is one and a quarter or twelve hundred and fifty), a code on each side.
-      const followedByNumber = after !== undefined && /^[ \u00a0]*\d/u.test(line.slice(offset + token.length));
+      // A bare number after a code-first amount ("1234 USD 25.00") may be the real amount; a number with its own code after it
+      // ("100.00 USD 90.00 EUR") is another amount.
+      const followedByNumber =
+        !numberMayFollow &&
+        after !== undefined &&
+        /^[ \u00a0]*\d[\d.,]*(?![\d.,]*[ \u00a0]*(?:[A-Z]{3}(?![A-Za-z])|[$€£¥₴₽₾₺₹]))/u.test(
+          line.slice(offset + token.length),
+        );
       // A symbol on each side, a symbol after the number, a symbol with a code beside it, or a number in front of a symbol
       // amount all leave the currency or the amount in doubt.
       const symbolTrouble =

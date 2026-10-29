@@ -13,6 +13,7 @@ import { CardPaymentRateUnavailableError } from '../card-payment/rate-unavailabl
 import { readUserLocale } from '../card-payment/read-user-locale';
 import { applyHeldContexts } from '../context/apply-held-contexts';
 import { processContextNotification } from '../context/process-context-notification';
+import { parkConversionNotice } from '../conversion/park-conversion-notice';
 import { readExchangeMessage } from '../conversion/read-exchange-message';
 import { linkConversionLegs } from '../conversion/settle-conversion';
 import { enqueueAfterPaymentLogged } from '../follow-up-queue';
@@ -29,6 +30,7 @@ import type { PaymentOverride } from './log-notification-payment';
 import { buildNeedsOkSummary } from './needs-ok-summary';
 import { decryptNotificationText, type NotificationText } from './notification-text';
 import { parseBankPushByRules } from './parse-bank-push-by-rules';
+import { parseConversionNotice } from './parse-conversion-notice';
 import { parseNotificationWithAi } from './parse-notification-with-ai';
 import { parseWalletNotification } from './parse-wallet-notification';
 import { loadPayeeCandidates } from './payee-candidates';
@@ -124,6 +126,7 @@ const read = async ({
         accountId: stored.accountOverrideId ?? null,
         direction: stored.directionOverride ?? null,
         note: stored.noteOverride ?? null,
+        time: stored.timeOverride ? new Date(stored.timeOverride) : null,
       },
     };
   }
@@ -151,6 +154,14 @@ const read = async ({
       confidence: classified.confidence,
       paymentKind: classified.kind,
     };
+  }
+
+  // One notice that holds both sides of a currency exchange waits as the one exchange card, like two notices paired.
+  const conversion = notificationRules.enabled ? parseConversionNotice({ text }) : null;
+  if (conversion) {
+    await parkConversionNotice({ request: row, conversion, sourceLabel, locale });
+
+    return { kind: 'done' };
   }
 
   // A plain card-payment push is read by its layout; the model is for the texts the rules cannot settle.

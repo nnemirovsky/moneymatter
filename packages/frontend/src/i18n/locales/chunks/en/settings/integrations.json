@@ -232,7 +232,8 @@
               "exchangeNoted": "The message confirmed the currency exchange and gave it a note, so nothing else was added."
             },
             "parkedTwin": "The same payment was already waiting on another request, so this one joined it.",
-            "conversionLeg": "This was one side of a currency exchange that waited on another request, so this one joined it."
+            "conversionLeg": "This was one side of a currency exchange that waited on another request, so this one joined it.",
+            "resolvedElsewhere": "This transfer was logged somewhere else, so this notification was settled by it."
           },
           "retry": "Retry",
           "retryAria": "Retry the payment at {name}",
