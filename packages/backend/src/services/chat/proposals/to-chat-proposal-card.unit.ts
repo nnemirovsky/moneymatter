@@ -197,6 +197,21 @@ describe('toChatProposalCard', () => {
       expect(card.fields.find((field) => field.path === 'note')).not.toHaveProperty('namesRecord');
     });
 
+    it('leaves out the source id of a notification source card, which already shows the source by name', () => {
+      const card = toChatProposalCard({
+        row: row({
+          toolName: 'set_notification_source',
+          cardKind: 'update',
+          entity: 'notificationSource',
+          args: { sourceId: ID, mode: 'approved' },
+        }),
+        parents: [],
+      });
+
+      expect(card.fields.find((field) => field.path === 'sourceId')?.namesRecord).toBe(true);
+      expect(card.fields.find((field) => field.path === 'mode')).not.toHaveProperty('namesRecord');
+    });
+
     it('keeps the update title for other kinds of card and other entities', () => {
       const account = toChatProposalCard({
         row: row({ preview: { before: { id: ID }, automationCreated: true } }),
