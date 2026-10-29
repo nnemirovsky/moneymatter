@@ -152,6 +152,38 @@ describe('POST /ingest/event', () => {
       expect(stored!.textEnc).toBeNull();
     });
 
+    it('shows no second banner for a repeat of the same tap under another key, and one only for the first', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: account.id }, raw: true });
+      const secret = await setUp();
+      const time = new Date().toISOString();
+
+      const [first, second] = await Promise.all([
+        send({ secret, body: walletPayment({ time }) }),
+        send({ secret, body: walletPayment({ time }) }),
+      ]);
+
+      const answers = [first, second].map((res) => res.body.response);
+      expect(answers.filter((answer) => answer.notify)).toHaveLength(1);
+      const silent = answers.find((answer) => !answer.notify)!;
+      expect(silent).toMatchObject({ outcome: 'logged', duplicate: true, summary: '', notify: false });
+      expect(silent).not.toHaveProperty('suppressed');
+      expect(await helpers.getTransactions({ raw: true })).toHaveLength(1);
+    });
+
+    it('answers the same request resent under its own key with the banner again', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: account.id }, raw: true });
+      const secret = await setUp();
+      const body = walletPayment();
+
+      await send({ secret, body });
+      const resent = await send({ secret, body });
+
+      expect(resent.body.response).toMatchObject({ outcome: 'logged', duplicate: true, notify: true });
+      expect(resent.body.response.summary).not.toBe('');
+    });
+
     it('answers a payment on an unlinked card with a 202 and notify true', async () => {
       const secret = await setUp();
 

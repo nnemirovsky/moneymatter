@@ -31,6 +31,12 @@ interface LoggedResult {
   planned: boolean;
   categoryPending: boolean;
   duplicate: boolean;
+  /**
+   * The payment was already shown to the owner by another run or source (a repeat inside the window, a payment another
+   * source logged), so this answer shows no banner. A replay of the same request is not suppressed: its first answer
+   * may never have arrived.
+   */
+  suppressed?: boolean;
 }
 
 export type ProcessIngestResult =
@@ -225,7 +231,7 @@ const processIngestRequestImpl = async ({
       summary: replay.summary,
     });
 
-    return replay;
+    return { ...replay, suppressed: true };
   }
 
   const parsed = parsePayload({ body: row.payload, receivedAt: row.createdAt });
@@ -309,6 +315,7 @@ const processIngestRequestImpl = async ({
     planned: logged?.planned ?? false,
     categoryPending: false,
     duplicate: attached,
+    ...(attached && { suppressed: true }),
   };
 };
 
