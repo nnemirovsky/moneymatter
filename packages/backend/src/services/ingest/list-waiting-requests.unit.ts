@@ -15,7 +15,7 @@ const partnerOf = jest.mocked(findConversionPartner);
 const payment = (overrides: Record<string, unknown> = {}) => ({
   kind: 'debit',
   stage: 'settled',
-  amount: '116.01',
+  amount: '120',
   currencyCode: 'USD',
   originalAmount: null,
   originalCurrencyCode: null,
@@ -52,7 +52,7 @@ const request = ({
     summary: 'Example Bank',
     parsed,
     payload: time ? { time } : {},
-    createdAt: new Date('2026-10-29T10:45:00.000Z'),
+    createdAt: new Date('2026-10-29T14:50:00.000Z'),
   }) as never;
 
 describe('listWaitingIngestRequests', () => {
@@ -63,7 +63,7 @@ describe('listWaitingIngestRequests', () => {
 
   it('reads the amount, currency, direction and the time of each waiting notice', async () => {
     findAll.mockResolvedValue([
-      request({ id: 'r1', parsed: parsedOf({ payment: payment() }), time: '2026-10-29T10:30:00.000Z' }),
+      request({ id: 'r1', parsed: parsedOf({ payment: payment() }), time: '2026-10-29T14:05:00.000Z' }),
     ]);
 
     const [view] = await listWaitingIngestRequests({ userId: 1 });
@@ -71,29 +71,29 @@ describe('listWaitingIngestRequests', () => {
     expect(view).toMatchObject({
       requestId: 'r1',
       direction: 'debit',
-      amount: 116.01,
+      amount: 120,
       currencyCode: 'USD',
       reason: 'ownTransfer',
-      time: '2026-10-29T10:30:00.000Z',
+      time: '2026-10-29T14:05:00.000Z',
       exchange: null,
     });
   });
 
   it('takes the time the notice states when the shortcut sent none, and the arrival time as the last resort', async () => {
     findAll.mockResolvedValue([
-      request({ id: 'r1', parsed: parsedOf({ payment: payment({ occurredAt: '2026-10-29T10:31:00.000Z' }) }) }),
+      request({ id: 'r1', parsed: parsedOf({ payment: payment({ occurredAt: '2026-10-29T14:06:00.000Z' }) }) }),
       request({ id: 'r2', parsed: parsedOf({ payment: payment() }) }),
     ]);
 
     const views = await listWaitingIngestRequests({ userId: 1 });
 
-    expect(views.map((view) => view.time)).toEqual(['2026-10-29T10:31:00.000Z', '2026-10-29T10:45:00.000Z']);
+    expect(views.map((view) => view.time)).toEqual(['2026-10-29T14:06:00.000Z', '2026-10-29T14:50:00.000Z']);
   });
 
   it('names what was sold and what was bought when the notice is one side of an exchange, whichever side it is', async () => {
     const credit = request({
       id: 'r2',
-      parsed: parsedOf({ payment: payment({ kind: 'credit', amount: '300', currencyCode: 'GEL' }) }),
+      parsed: parsedOf({ payment: payment({ kind: 'credit', amount: '110', currencyCode: 'EUR' }) }),
     });
     findAll.mockResolvedValue([request({ id: 'r1', parsed: parsedOf({ payment: payment() }) })]);
     partnerOf.mockResolvedValue({ request: credit, joined: false } as never);
@@ -101,8 +101,8 @@ describe('listWaitingIngestRequests', () => {
     const [view] = await listWaitingIngestRequests({ userId: 1 });
 
     expect(view!.exchange).toEqual({
-      sold: { amount: 116.01, currencyCode: 'USD' },
-      bought: { amount: 300, currencyCode: 'GEL' },
+      sold: { amount: 120, currencyCode: 'USD' },
+      bought: { amount: 110, currencyCode: 'EUR' },
     });
   });
 
@@ -110,7 +110,7 @@ describe('listWaitingIngestRequests', () => {
     findAll.mockResolvedValue([
       request({
         id: 'r1',
-        parsed: parsedOf({ payment: payment({ originalAmount: '300', originalCurrencyCode: 'GEL' }) }),
+        parsed: parsedOf({ payment: payment({ originalAmount: '110', originalCurrencyCode: 'EUR' }) }),
       }),
       request({ id: 'r2', parsed: { parser: 'ai', kind: 'other', confidence: 0.2 } }),
     ]);
@@ -118,7 +118,7 @@ describe('listWaitingIngestRequests', () => {
     const views = await listWaitingIngestRequests({ userId: 1 });
 
     expect(views).toHaveLength(1);
-    expect(views[0]).toMatchObject({ originalAmount: 300, originalCurrencyCode: 'GEL' });
+    expect(views[0]).toMatchObject({ originalAmount: 110, originalCurrencyCode: 'EUR' });
   });
 
   it('asks for the notification requests that are parked, newest first, for this user only', async () => {

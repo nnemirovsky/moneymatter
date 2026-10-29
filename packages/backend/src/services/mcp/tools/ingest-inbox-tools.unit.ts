@@ -183,7 +183,7 @@ describe('get_waiting_ingest_requests', () => {
   });
 
   it('returns the waiting notices of the caller, read with the read scope only', async () => {
-    const views = [{ requestId: ID_1, direction: 'debit', amount: 116.01, currencyCode: 'USD' }];
+    const views = [{ requestId: ID_1, direction: 'debit', amount: 120, currencyCode: 'USD' }];
     jest.mocked(listWaitingIngestRequests).mockResolvedValue(views as never);
 
     const result = parseToolResult({ result: await tool.handler(makeExtra({ scopes: ['finance:read'] })) });

@@ -196,7 +196,7 @@ describe('buildHistoryMessages', () => {
         toolName: 'create_transaction',
         status: 'applied',
         statusReason: null,
-        args: { amount: 300, transactionType: 'expense', currencyCode: 'GEL' },
+        args: { amount: 120, transactionType: 'expense', currencyCode: 'EUR' },
       },
     ];
 
@@ -212,7 +212,7 @@ describe('buildHistoryMessages', () => {
 
     expect(content).toContain('proposal p-1 create_transaction: applied');
     expect(content).toContain('its arguments:');
-    expect(content).toContain('"amount":300');
+    expect(content).toContain('"amount":120');
     expect(content).toContain('"transactionType":"expense"');
   });
 
