@@ -39,6 +39,18 @@ export default class NotificationSources extends Model {
   @Column({ type: DataType.STRING(255), allowNull: true })
   sender!: string | null;
 
+  /** The app's icon on the App Store (artwork URL); null when none was found or none is checked yet. */
+  @Column({ type: DataType.STRING(512), allowNull: true })
+  iconUrl!: string | null;
+
+  /** The bundle id the icon lookup found; the shortcut sends none, so `bundleId` stays as it was. */
+  @Column({ type: DataType.STRING(255), allowNull: true })
+  resolvedBundleId!: string | null;
+
+  /** When the icon lookup last ran, whether it found an icon or not; a miss is cached like a hit. */
+  @Column({ type: DataType.DATE, allowNull: true })
+  iconCheckedAt!: Date | null;
+
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   conversational!: boolean;
 

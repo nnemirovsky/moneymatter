@@ -12,6 +12,7 @@ import type {
   CreateIngestTokenResponse,
   GateStrictnessDto,
   IngestTokenDto,
+  IosAutomationIconsDto,
   NotificationSourceDto,
   RetryCardPaymentRequestPayload,
   SetAccessHeadersPayload,
@@ -109,6 +110,10 @@ export const createCardPaymentSetupCode = async (
   payload: CreateCardPaymentSetupCodePayload,
 ): Promise<CreateCardPaymentSetupCodeResponse> => {
   return api.post('/user/settings/card-payments/setup-code', payload);
+};
+
+export const getIosAutomationIcons = async (): Promise<IosAutomationIconsDto> => {
+  return api.get('/user/settings/ios-automation-icons');
 };
 
 export const getNotificationSources = async (): Promise<NotificationSourceDto[]> => {

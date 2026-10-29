@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import NotificationSourceLabel from '@/components/common/notification-source-label.vue';
 import AccountSelectField from '@/components/fields/account-select-field.vue';
 import InputField from '@/components/fields/input-field.vue';
-import type { ChatIngestRequestSummary } from '@bt/shared/types';
+import type { ChatIngestRequestSummary, NotificationSourceDisplay } from '@bt/shared/types';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -13,6 +14,8 @@ const LABEL_ROOT = 'chat.cards.ingest';
 
 const props = defineProps<{
   payment: ChatIngestRequestSummary;
+  /** The source the payment came from, with its app icon; absent when the server did not attach it. */
+  source?: NotificationSourceDisplay | null;
   lookups: CardLookups;
   /** The account the card will log the payment on, `null` until one is chosen. */
   accountId: string | null;
@@ -180,7 +183,15 @@ const lessonText = computed(() => {
       </div>
       <div v-if="payment.sourceName" class="flex justify-between gap-3" data-testid="ingest-source">
         <dt class="text-muted-foreground shrink-0">{{ $t(`${LABEL_ROOT}.source`) }}</dt>
-        <dd class="min-w-0 text-right break-words">{{ payment.sourceName }}</dd>
+        <dd class="min-w-0 text-right break-words">
+          <NotificationSourceLabel
+            v-if="source"
+            v-bind="source"
+            class="justify-end"
+            data-testid="ingest-source-label"
+          />
+          <template v-else>{{ payment.sourceName }}</template>
+        </dd>
       </div>
       <div v-if="timeText" class="flex justify-between gap-3" data-testid="ingest-time">
         <dt class="text-muted-foreground shrink-0">{{ $t(`${LABEL_ROOT}.time`) }}</dt>

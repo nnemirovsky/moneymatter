@@ -5,6 +5,10 @@ import { createI18n } from 'vue-i18n';
 
 import IosAutomationConnectionRow from './ios-automation-connection-row.vue';
 
+vi.mock('@/components/common/ios-automation-icon.vue', () => ({
+  default: { template: '<span data-testid="ios-automation-icon" />' },
+}));
+
 const { mockPush } = vi.hoisted(() => ({ mockPush: vi.fn() }));
 
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: mockPush }) }));

@@ -22,6 +22,7 @@ const makeSource = (overrides: Partial<NotificationSourceDto> = {}): Notificatio
   id: 'source-1' as RecordId,
   appName: 'Messages',
   bundleId: null,
+  iconUrl: null,
   sender: 'Example',
   conversational: true,
   mode: 'pending',
@@ -58,12 +59,14 @@ describe('PendingSources', () => {
 
     const rows = wrapper.findAll('[data-testid="pending-source-row"]');
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.get('[data-testid="pending-source-name"]').text()).toBe('Messages');
-    expect(rows[0]!.text()).toContain('From Example');
+    const name = rows[0]!.get('[data-testid="pending-source-name"]');
+    expect(name.text()).toBe('Messages: Example');
   });
 
   it('names a source by its bundle id when the app has no name', async () => {
-    const { wrapper } = await mountPending({ sources: [makeSource({ appName: null, bundleId: 'com.example.bank' })] });
+    const { wrapper } = await mountPending({
+      sources: [makeSource({ appName: null, bundleId: 'com.example.bank', sender: null })],
+    });
 
     expect(wrapper.get('[data-testid="pending-source-name"]').text()).toBe('com.example.bank');
   });

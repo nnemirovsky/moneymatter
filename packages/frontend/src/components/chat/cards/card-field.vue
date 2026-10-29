@@ -3,6 +3,7 @@ import AccountLogo from '@/components/common/account-logo.vue';
 import BrandLogo from '@/components/common/brand-logo.vue';
 import CategoryCircle from '@/components/common/category-circle.vue';
 import CurrencyChip from '@/components/common/currency-chip.vue';
+import NotificationSourceLabel from '@/components/common/notification-source-label.vue';
 import { toEntityLogoDisplayProps } from '@/components/common/logo-selection';
 import { Button } from '@/components/lib/ui/button';
 import { cn } from '@/lib/utils';
@@ -111,7 +112,12 @@ const alternatives = computed(() =>
               :category-id="part.entity.id"
               data-testid="field-logo"
             />
-            <RouterLink v-if="part.to" :to="part.to" class="text-primary-text min-w-0 truncate hover:underline">{{
+            <NotificationSourceLabel
+              v-if="part.entity?.kind === 'notificationSource' && lookups.notificationSource()"
+              v-bind="lookups.notificationSource()!"
+              class="justify-end"
+            />
+            <RouterLink v-else-if="part.to" :to="part.to" class="text-primary-text min-w-0 truncate hover:underline">{{
               part.text
             }}</RouterLink>
             <span v-else class="min-w-0 truncate">{{ part.text }}</span>

@@ -83,6 +83,25 @@ export type WalletEventResponse = CardPaymentResponse & { notify: boolean };
 
 export type IngestEventResponse = NotificationEventResponse | WalletEventResponse;
 
+/**
+ * How a notification source is shown: the app's icon and name, then for a messaging or mail source a colon and the
+ * sender (`<icon> Mail: Sender`). A source with no icon shows the app's own glyph or a letter.
+ */
+export interface NotificationSourceDisplay {
+  appName: string | null;
+  bundleId: string | null;
+  /** The notification title of a messaging or mail app; `null` for every other app. */
+  sender: string | null;
+  /** The app's icon on the App Store; `null` when none was found. */
+  iconUrl: string | null;
+}
+
+/** The App Store icons of the two Apple apps the iOS Automation integration is drawn with; `null` when the lookup found none. */
+export interface IosAutomationIconsDto {
+  shortcuts: string | null;
+  wallet: string | null;
+}
+
 /** A notification source as `GET /user/settings/notification-sources` lists it. */
 export interface NotificationSourceDto {
   id: RecordId;
@@ -90,6 +109,8 @@ export interface NotificationSourceDto {
   bundleId: string | null;
   /** The notification title of a messaging or mail app; `null` for every other app. */
   sender: string | null;
+  /** The app's icon on the App Store, resolved by the server; `null` when none was found (or none is known yet). */
+  iconUrl: string | null;
   conversational: boolean;
   mode: NotificationSourceMode;
   defaultAccountId: RecordId | null;

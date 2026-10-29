@@ -1,5 +1,5 @@
 import enChat from '@/i18n/locales/chunks/en/pages/chat.json';
-import type { AccountModel, ChatCardField, ChatProposalCard } from '@bt/shared/types';
+import type { AccountModel, ChatCardField, ChatProposalCard, NotificationSourceDisplay } from '@bt/shared/types';
 import { defineComponent, h } from 'vue';
 import { createI18n } from 'vue-i18n';
 
@@ -61,17 +61,20 @@ export const buildLookups = ({
   baseCurrencyCode = 'USD',
   accounts = [],
   payees = {},
+  notificationSource = null,
 }: {
   names?: Record<string, string>;
   currencies?: Record<string, string>;
   baseCurrencyCode?: string | null;
   accounts?: AccountModel[];
   payees?: Record<string, { id: string; name: string }>;
+  notificationSource?: NotificationSourceDisplay | null;
 } = {}): CardLookups => ({
   entityName: ({ kind, id }) => names[`${kind}:${id}`] ?? null,
   accountCurrency: ({ id }) => currencies[id] ?? null,
   account: ({ id }) => accounts.find((account) => String(account.id) === id) ?? null,
   payee: ({ id }) => (payees[id] as never) ?? null,
+  notificationSource: () => notificationSource,
   baseCurrencyCode: () => baseCurrencyCode,
   accounts: () => accounts,
   categories: () => [],

@@ -86,6 +86,7 @@ const makeSource = (overrides: Partial<NotificationSourceDto> = {}): Notificatio
   id: 'source-1' as RecordId,
   appName: 'Example Bank',
   bundleId: null,
+  iconUrl: null,
   sender: null,
   conversational: false,
   mode: 'auto',
@@ -192,12 +193,32 @@ describe('NotificationSources', () => {
     });
   });
 
-  it('shows the sender of a messaging source', async () => {
+  it('names a source by its app icon, the app and the sender', async () => {
     const { wrapper } = await mountSources({
-      sources: [makeSource({ appName: 'Messages', sender: 'Example', mode: 'approved' })],
+      sources: [
+        makeSource({
+          appName: 'Example Notes',
+          sender: 'Example',
+          iconUrl: 'https://cdn.example.com/icon.jpg',
+          mode: 'approved',
+        }),
+      ],
     });
 
-    expect(wrapper.text()).toContain('From Example');
+    const name = wrapper.get('[data-testid="notification-source-name"]');
+    expect(name.text()).toBe('Example Notes: Example');
+    expect(name.get('img').attributes('src')).toBe('https://cdn.example.com/icon.jpg');
+    expect(wrapper.text()).not.toContain('From Example');
+  });
+
+  it('names a source that is the app itself by its icon and name alone', async () => {
+    const { wrapper } = await mountSources({
+      sources: [makeSource({ appName: 'Example Notes', sender: null, iconUrl: 'https://cdn.example.com/icon.jpg' })],
+    });
+
+    const name = wrapper.get('[data-testid="notification-source-name"]');
+    expect(name.text()).toBe('Example Notes');
+    expect(name.find('img').exists()).toBe(true);
   });
 
   it('shows an empty state before the first notification', async () => {

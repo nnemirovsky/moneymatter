@@ -17,6 +17,7 @@ import { runAfterCommit } from '@services/common/run-after-commit';
 import { withTransaction } from '@services/common/with-transaction';
 import { Op, QueryTypes } from 'sequelize';
 
+import { refreshDueSourceIcons } from '../source-icons/source-icon-cache';
 import { assertUsableAccount } from '../usable-account';
 import { enqueueNotificationProcessing } from './notification-queue';
 import { UNCLASSIFIED_PARK_REASONS } from './stored-parse';
@@ -85,6 +86,9 @@ const touchNotificationSourceImpl = async ({
     },
   });
 
+  // A source seen for the first time gets its app's icon, looked up after the commit and never in the notification's way.
+  if (created) await runAfterCommit({ fn: () => refreshDueSourceIcons({ sources: [source] }) });
+
   if (!created) {
     await source.update({
       lastSeenAt: now,
@@ -126,6 +130,7 @@ const createContextSourceImpl = async ({
     where: { userId, sourceKey },
     defaults: { userId, sourceKey, appName, bundleId: null, sender: senderName, conversational, mode: 'context' },
   });
+  if (created) await runAfterCommit({ fn: () => refreshDueSourceIcons({ sources: [source] }) });
   if (!created && source.mode !== 'context') {
     return (await updateNotificationSourceImpl({ userId, id: source.id, mode: 'context' })).source;
   }
@@ -180,6 +185,7 @@ const toSourceDto = ({ source }: { source: NotificationSources }): NotificationS
   appName: source.appName,
   bundleId: source.bundleId,
   sender: source.sender,
+  iconUrl: source.iconUrl,
   conversational: source.conversational,
   mode: source.mode,
   defaultAccountId: source.defaultAccountId,
@@ -196,6 +202,9 @@ export const listNotificationSources = async ({ userId }: { userId: number }): P
       ['id', 'ASC'],
     ],
   });
+
+  // The icons of sources not looked up yet (or whose answer expired) are resolved in the background and show next time.
+  refreshDueSourceIcons({ sources });
 
   return sources.map((source) => toSourceDto({ source }));
 };

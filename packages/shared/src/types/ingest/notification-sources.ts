@@ -59,7 +59,7 @@ export type NotificationDropReason = (typeof NOTIFICATION_DROP_REASONS)[number];
 /** `NotificationSources.counters`: how often each drop reason fired. A missing key is zero. */
 export type NotificationSourceCounters = Partial<Record<NotificationDropReason, number>>;
 
-interface AppIdentity {
+export interface AppIdentity {
   bundleId?: string | null;
   appName?: string | null;
 }
@@ -184,4 +184,54 @@ export const getDefaultSourceMode = ({ bundleId, appName }: AppIdentity): Notifi
   if (isContextApp({ bundleId, appName })) return 'context';
 
   return isKnownBankApp({ bundleId, appName }) ? 'auto' : 'pending';
+};
+
+/** Apple apps whose own artwork the app does not ship: the App Store lists them, and an icon of ours stands in when it does not answer. */
+export type BuiltInAppGlyph = 'messages' | 'wallet';
+
+export const MESSAGES_BUNDLE_ID = 'com.apple.MobileSMS';
+export const SHORTCUTS_BUNDLE_ID = 'com.apple.shortcuts';
+const MESSAGES_APP_NAMES: ReadonlySet<string> = new Set(['messages', 'imessage', 'сообщения', 'повідомлення']);
+
+/**
+ * The bundle ids of the common sources by their display name, so the App Store lookup is exact for them instead of
+ * a name search. The shortcut sends names only; a name that is not here is searched.
+ */
+const KNOWN_APP_BUNDLE_IDS: ReadonlyMap<string, string> = new Map([
+  ...['mail', 'почта', 'пошта'].map((name): [string, string] => [name, 'com.apple.mobilemail']),
+  ...[...MESSAGES_APP_NAMES].map((name): [string, string] => [name, MESSAGES_BUNDLE_ID]),
+  ['shortcuts', SHORTCUTS_BUNDLE_ID],
+  ['gmail', 'com.google.Gmail'],
+  ['outlook', 'com.microsoft.Office.Outlook'],
+  ['telegram', 'ph.telegra.Telegraph'],
+  ['whatsapp', 'net.whatsapp.WhatsApp'],
+  ['viber', 'com.viber'],
+  ['signal', 'org.whispersystems.signal'],
+  ['messenger', 'com.facebook.Messenger'],
+  ['slack', 'com.tinyspeck.chatlyio'],
+  ['discord', 'com.hammerandchisel.discord'],
+]);
+
+/** The bundle id of a common source by its display name (Wallet in any of its names included); null for any other app. */
+export const getKnownBundleId = ({ appName }: { appName: string | null | undefined }): string | null => {
+  if (isWalletApp({ bundleId: null, appName })) return WALLET_BUNDLE_ID;
+
+  const name = nonEmpty({ value: appName });
+
+  return (name !== null && KNOWN_APP_BUNDLE_IDS.get(name)) || null;
+};
+
+/**
+ * The own icon of a built-in Apple app, for when the App Store does not answer: a bundle id decides when there is
+ * one, else the display name.
+ */
+export const getBuiltInAppGlyph = ({ bundleId, appName }: AppIdentity): BuiltInAppGlyph | null => {
+  if (isWalletApp({ bundleId, appName })) return 'wallet';
+
+  const bundle = nonEmpty({ value: bundleId });
+  if (bundle) return bundle === MESSAGES_BUNDLE_ID.toLowerCase() ? 'messages' : null;
+
+  const name = nonEmpty({ value: appName });
+
+  return name !== null && MESSAGES_APP_NAMES.has(name) ? 'messages' : null;
 };
