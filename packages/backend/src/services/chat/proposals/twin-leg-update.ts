@@ -1,6 +1,6 @@
 import { isTwoLegTransfer } from '@bt/shared/types';
 import ChatProposals from '@models/chat-proposals.model';
-import Transactions from '@models/transactions.model';
+import { findOneTransaction, findTransactions } from '@models/transactions-query';
 import { Op } from 'sequelize';
 
 import { ToolInputError } from './placeholders';
@@ -61,17 +61,22 @@ export async function assertNoTwinLegUpdate({
   const id = args.id;
   if (typeof id !== 'string' || !SHARED_TRANSFER_FIELDS.some((field) => args[field] !== undefined)) return;
 
-  const leg = await Transactions.findOne({
+  const leg = await findOneTransaction({
+    planned: 'include',
+    access: { accessibleTo: userId },
+    balanceAdjustments: 'include',
     where: { id },
     attributes: ['id', 'transferId', 'transferNature'],
-    raw: true,
   });
   if (!leg?.transferId || !isTwoLegTransfer(leg.transferNature)) return;
 
-  const others = await Transactions.findAll({
+  const others = await findTransactions({
+    planned: 'include',
+    access: { accessibleTo: userId },
+    balanceAdjustments: 'include',
+    completeness: 'all',
     where: { transferId: leg.transferId, id: { [Op.ne]: id } },
     attributes: ['id'],
-    raw: true,
   });
   if (others.length === 0) return;
 

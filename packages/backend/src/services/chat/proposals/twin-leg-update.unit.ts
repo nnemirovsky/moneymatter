@@ -2,14 +2,11 @@ import { TRANSACTION_TRANSFER_NATURE } from '@bt/shared/types';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 // The real models open database connections when imported.
-jest.mock('@models/transactions.model', () => ({
-  __esModule: true,
-  default: { findOne: jest.fn(), findAll: jest.fn() },
-}));
+jest.mock('@models/transactions-query', () => ({ findOneTransaction: jest.fn(), findTransactions: jest.fn() }));
 jest.mock('@models/chat-proposals.model', () => ({ __esModule: true, default: { findAll: jest.fn() } }));
 
 import ChatProposals from '@models/chat-proposals.model';
-import Transactions from '@models/transactions.model';
+import { findOneTransaction, findTransactions } from '@models/transactions-query';
 
 import { ToolInputError } from './placeholders';
 import { assertNoTwinLegUpdate, repeatsSharedFields } from './twin-leg-update';
@@ -50,8 +47,8 @@ describe('assertNoTwinLegUpdate', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
-    jest.mocked(Transactions.findOne).mockResolvedValue(leg as never);
-    jest.mocked(Transactions.findAll).mockResolvedValue([{ id: 'leg-a' }] as never);
+    jest.mocked(findOneTransaction).mockResolvedValue(leg as never);
+    jest.mocked(findTransactions).mockResolvedValue([{ id: 'leg-a' }] as never);
   });
 
   it('refuses the same edit for the other leg while a card for the first leg is pending, and names that card', async () => {
@@ -76,7 +73,7 @@ describe('assertNoTwinLegUpdate', () => {
     await expect(run({ id: 'leg-b', time: '2026-10-29T10:30:00.000Z' })).resolves.toBeUndefined();
 
     jest
-      .mocked(Transactions.findOne)
+      .mocked(findOneTransaction)
       .mockResolvedValue({ id: 'x', transferId: null, transferNature: 'not_transfer' } as never);
     await expect(run({ id: 'x', time: '2026-10-29T10:30:00.000Z' })).resolves.toBeUndefined();
 
