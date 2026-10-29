@@ -36,9 +36,9 @@ beforeAll(async () => {
 describe('prefilterNotification', () => {
   describe('the amount', () => {
     it('passes a payment and reports the part the gate matched', () => {
-      expect(filter({ title: 'Example Bank', subtitle: 'Wolt', body: 'GEL 43.60' })).toEqual({
+      expect(filter({ title: 'Example Bank', subtitle: 'Wolt', body: 'CHF 43.60' })).toEqual({
         pass: true,
-        amountText: 'GEL 43.60',
+        amountText: 'CHF 43.60',
       });
     });
 
@@ -57,7 +57,7 @@ describe('prefilterNotification', () => {
 
       expect(filter({ title, subtitle, body })).toEqual({
         pass: true,
-        amountText: '48.00 GEL',
+        amountText: '48.00 CHF',
       });
     });
 
@@ -96,11 +96,11 @@ describe('prefilterNotification', () => {
 
   describe('security', () => {
     it.each([
-      'Your code 482913 for the payment of 43.60 GEL. Enter it to confirm.',
-      'Confirm the payment of 43.60 GEL with code 482913. Do not share this code with anyone.',
-      'Введите код 482913 для подтверждения оплаты 43.60 GEL',
-      'Введіть код 482913 для підтвердження оплати 43.60 GEL',
-      'შეიყვანეთ კოდი 482913 გადახდის დასადასტურებლად 43.60 GEL',
+      'Your code 482913 for the payment of 43.60 CHF. Enter it to confirm.',
+      'Confirm the payment of 43.60 CHF with code 482913. Do not share this code with anyone.',
+      'Введите код 482913 для подтверждения оплаты 43.60 CHF',
+      'Введіть код 482913 для підтвердження оплати 43.60 CHF',
+      'შეიყვანეთ კოდი 482913 გადახდის დასადასტურებლად 43.60 CHF',
       'Do not share 4829 with anyone. Payment 12.00 EUR',
     ])('drops an OTP request: %s', (body) => {
       expect(filter({ title: '', body })).toEqual({
@@ -110,10 +110,10 @@ describe('prefilterNotification', () => {
     });
 
     it.each([
-      'Payment 43.60 GEL, auth code 482913',
-      'Purchase 43.60 GEL at Wolt. Authorization code: 482913',
-      'Payment approved, approval code 482913, 43.60 GEL',
-      'Оплата 43.60 GEL, код авторизации 482913',
+      'Payment 43.60 CHF, auth code 482913',
+      'Purchase 43.60 CHF at Wolt. Authorization code: 482913',
+      'Payment approved, approval code 482913, 43.60 CHF',
+      'Оплата 43.60 CHF, код авторизации 482913',
     ])('passes a completed payment that states its code: %s', (body) => {
       expect(filter({ title: '', body })).toMatchObject({ pass: true });
     });
@@ -122,7 +122,7 @@ describe('prefilterNotification', () => {
       expect(
         filter({
           title: '',
-          body: 'Reference 482913: payment of 43.60 GEL received',
+          body: 'Reference 482913: payment of 43.60 CHF received',
         }),
       ).toMatchObject({
         pass: true,
@@ -144,7 +144,7 @@ describe('prefilterNotification', () => {
       expect(
         filter({
           title: '',
-          body: 'Please confirm the payment of 43.60 GEL in the app',
+          body: 'Please confirm the payment of 43.60 CHF in the app',
         }),
       ).toMatchObject({
         pass: true,
@@ -154,11 +154,11 @@ describe('prefilterNotification', () => {
 
   describe('promo', () => {
     it.each([
-      'Get 20% off orders over 50 GEL this weekend',
-      'Cashback up to 10% on purchases above 100 GEL',
-      'Скидка 30% на заказы от 50 GEL',
+      'Get 20% off orders over 50 CHF this weekend',
+      'Cashback up to 10% on purchases above 100 CHF',
+      'Скидка 30% на заказы от 50 CHF',
       'Знижка 15% на замовлення від 200 UAH',
-      'ფასდაკლება 20% შეკვეთებზე 50 GEL-დან',
+      'ფასდაკლება 20% შეკვეთებზე 50 CHF-დან',
       'Use promo code SAVE20 and get 5 EUR off',
     ])('drops a promo: %s', (body) => {
       expect(filter({ title: '', body })).toEqual({
@@ -168,9 +168,9 @@ describe('prefilterNotification', () => {
     });
 
     it.each([
-      'Purchase 43.60 GEL at Wolt, card *1234, cashback 2%',
-      'Payment 43.60 GEL. Balance 1,250.00 GEL. 20% off your next order',
-      'Покупка 43.60 GEL, остаток 1250.00 GEL. Скидка 5% на следующий заказ',
+      'Purchase 43.60 CHF at Wolt, card *1234, cashback 2%',
+      'Payment 43.60 CHF. Balance 1,250.00 CHF. 20% off your next order',
+      'Покупка 43.60 CHF, остаток 1250.00 CHF. Скидка 5% на следующий заказ',
     ])('passes a payment that mentions a promo word: %s', (body) => {
       expect(filter({ title: '', body })).toMatchObject({ pass: true });
     });
@@ -178,10 +178,10 @@ describe('prefilterNotification', () => {
 
   describe('own output', () => {
     it.each([
-      'Logged 43.60 GEL at Wolt → Food',
-      'Already logged 43.60 GEL at Wolt → Food',
-      'Noted 43.60 GEL at Wolt → Food; the bank sync will confirm it',
-      'Needs your OK in MoneyMatter: 43.60 GEL at Wolt',
+      'Logged 43.60 CHF at Wolt → Food',
+      'Already logged 43.60 CHF at Wolt → Food',
+      'Noted 43.60 CHF at Wolt → Food; the bank sync will confirm it',
+      'Needs your OK in MoneyMatter: 43.60 CHF at Wolt',
       'Queued, will appear shortly',
       'Not logged yet: link the card "Example Visa" in MoneyMatter → Accounts → iOS Automation',
     ])('drops our own banner "%s" before it is read as a payment', (body) => {
@@ -192,7 +192,7 @@ describe('prefilterNotification', () => {
       expect(
         filter({
           title: '',
-          body: 'Записано 43.60 GEL: Wolt → Їжа',
+          body: 'Записано 43.60 CHF: Wolt → Їжа',
           bundleId: null,
           appName: null,
         }),
@@ -208,7 +208,7 @@ describe('prefilterNotification', () => {
       ['the Shortcuts app by a translated name', null, 'Команды'],
       ['the MoneyMatter web app by name', null, 'MoneyMatter'],
     ])('drops a notification from %s', (_name, bundleId, appName) => {
-      expect(filter({ title: 'Payment', body: 'GEL 43.60', bundleId, appName })).toEqual({
+      expect(filter({ title: 'Payment', body: 'CHF 43.60', bundleId, appName })).toEqual({
         pass: false,
         reason: 'self',
       });
@@ -218,7 +218,7 @@ describe('prefilterNotification', () => {
       expect(
         filter({
           title: 'Example Bank',
-          body: 'Logged out of Example. Balance GEL 10.00',
+          body: 'Logged out of Example. Balance CHF 10.00',
         }).pass,
       ).toBe(true);
     });
@@ -227,7 +227,7 @@ describe('prefilterNotification', () => {
       expect(
         filter({
           title: '',
-          body: 'Logged 43.60 GEL at Wolt → Food',
+          body: 'Logged 43.60 CHF at Wolt → Food',
           strictness: 'strict',
         }),
       ).toEqual({

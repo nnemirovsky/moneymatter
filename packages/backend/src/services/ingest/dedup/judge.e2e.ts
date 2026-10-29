@@ -22,7 +22,7 @@ const ORIGINAL_DAILY_LIMIT = process.env.INGEST_AI_DAILY_LIMIT;
 const seedRateDay = async () => {
   const day = subDays(startOfDay(new Date()), 6);
   SEEDED_DATES.push(day);
-  await helpers.seedUsdExchangeRates({ date: day, ratesPerUsd: { GEL: 2 } });
+  await helpers.seedUsdExchangeRates({ date: day, ratesPerUsd: { CHF: 2 } });
 
   return addMinutes(day, 14 * 60 + 38);
 };
@@ -30,16 +30,16 @@ const seedRateDay = async () => {
 const timeOf = ({ noon, seconds }: { noon: Date; seconds: number }) =>
   new Date(noon.getTime() + seconds * 1000).toISOString();
 
-/** The owner's GEL card account, linked to the card, and a second GEL account the card does not own. */
+/** The owner's CHF card account, linked to the card, and a second CHF account the card does not own. */
 const setUp = async () => {
-  await helpers.addUserCurrencies({ currencyCodes: ['GEL'] });
+  await helpers.addUserCurrencies({ currencyCodes: ['CHF'] });
   const noon = await seedRateDay();
   const gel = await helpers.createAccount({
-    payload: helpers.buildAccountPayload({ name: 'Example GEL', currencyCode: 'GEL', initialBalance: 1000 }),
+    payload: helpers.buildAccountPayload({ name: 'Example CHF', currencyCode: 'CHF', initialBalance: 1000 }),
     raw: true,
   });
   const other = await helpers.createAccount({
-    payload: helpers.buildAccountPayload({ name: 'Cash GEL', currencyCode: 'GEL', initialBalance: 1000 }),
+    payload: helpers.buildAccountPayload({ name: 'Cash CHF', currencyCode: 'CHF', initialBalance: 1000 }),
     raw: true,
   });
   await helpers.createCardMapping({ payload: { cardLabel: CARD, accountId: gel.id }, raw: true });
@@ -125,7 +125,7 @@ describe('the AI duplicate judge', () => {
 
       expect(judgePrompts).toHaveLength(1);
       expect(judgePrompts[0]).toContain('DUPLICATE JUDGE');
-      expect(judgePrompts[0]).toContain('c1 | 29.41 GEL');
+      expect(judgePrompts[0]).toContain('c1 | 29.41 CHF');
       expect(judgePrompts[0]).toContain('manual or synced');
       expect(judgePrompts[0]).not.toContain(typed!.id);
 
