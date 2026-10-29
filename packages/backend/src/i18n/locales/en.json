@@ -1037,6 +1037,8 @@
   },
   "notificationSources": {
     "sourceNotFound": "Notification source not found.",
+    "appNotFound": "App not found in the App Store.",
+    "appLookupUnavailable": "App lookup is unavailable.",
     "accountNotFound": "Account not found."
   },
   "notifications": {

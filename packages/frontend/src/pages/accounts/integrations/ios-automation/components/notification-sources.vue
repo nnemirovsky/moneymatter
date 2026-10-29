@@ -32,6 +32,18 @@
               class="font-medium"
               data-testid="notification-source-name"
             />
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              class="text-muted-foreground -my-1"
+              :disabled="isBusy"
+              :aria-label="$t(`${LABEL_ROOT}.chooseApp.actionAria`, { name: getSourceName({ source, fallback: '' }) })"
+              :title="$t(`${LABEL_ROOT}.chooseApp.action`)"
+              data-testid="notification-source-choose-app"
+              @click="chooseAppTarget = source"
+            >
+              <AppWindowIcon class="size-4" />
+            </Button>
             <StatusBadge :variant="MODE_VARIANTS[source.mode]" data-testid="notification-source-mode">
               {{ $t(`${LABEL_ROOT}.modes.${source.mode}`) }}
             </StatusBadge>
@@ -152,6 +164,8 @@
     </form>
   </section>
 
+  <ChooseAppDialog :open="!!chooseAppTarget" :source="chooseAppTarget" @update:open="chooseAppTarget = null" />
+
   <ResponsiveAlertDialog
     v-model:open="isForgetOpen"
     :confirm-label="$t(`${LABEL_ROOT}.forgetDialog.confirm`)"
@@ -177,6 +191,7 @@ import {
   updateNotificationSource,
 } from '@/api/ingest';
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const/vue-query';
+import ChooseAppDialog from './choose-app-dialog.vue';
 import NotificationSourceLabel from '@/components/common/notification-source-label.vue';
 import ResponsiveAlertDialog from '@/components/common/responsive-alert-dialog.vue';
 import { Button } from '@/components/lib/ui/button';
@@ -192,6 +207,7 @@ import type {
   NotificationSourceMode,
   UpdateNotificationSourcePayload,
 } from '@bt/shared/types';
+import { AppWindowIcon } from '@lucide/vue';
 import { useQuery } from '@tanstack/vue-query';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -272,6 +288,8 @@ const addContextSource = async () => {
     // useInvalidatingMutation already told the user what failed.
   }
 };
+
+const chooseAppTarget = ref<NotificationSourceDto | null>(null);
 
 const isForgetOpen = ref(false);
 const forgetTarget = ref<NotificationSourceDto | null>(null);

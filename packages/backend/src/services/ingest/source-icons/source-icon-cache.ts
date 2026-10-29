@@ -16,7 +16,14 @@ const LOOKUP_GAP_MS = 1_000;
 type IconFields = Pick<NotificationSources, 'iconUrl' | 'iconCheckedAt'>;
 
 /** Whether the icon of a source has to be looked for (again): never checked, or its cached answer has expired. */
-export const isIconDue = ({ source, now = new Date() }: { source: IconFields; now?: Date }): boolean => {
+export const isIconDue = ({
+  source,
+  now = new Date(),
+}: {
+  source: IconFields & { iconOverride?: boolean };
+  now?: Date;
+}): boolean => {
+  if (source.iconOverride) return false;
   if (!source.iconCheckedAt) return true;
 
   const ttl = source.iconUrl ? ICON_HIT_TTL_MS : ICON_MISS_TTL_MS;
@@ -37,10 +44,31 @@ const sameApp = ({ a, b }: { a: Pick<NotificationSources, 'appName' | 'bundleId'
 /** A source of the same app (Mail, per sender) that was checked recently: its answer is this source's answer. */
 const findCheckedSibling = async ({ source, now }: { source: NotificationSources; now: Date }) => {
   const siblings = await NotificationSources.findAll({
-    where: { userId: source.userId, id: { [Op.ne]: source.id }, iconCheckedAt: { [Op.ne]: null } },
+    where: {
+      userId: source.userId,
+      id: { [Op.ne]: source.id },
+      iconCheckedAt: { [Op.ne]: null },
+      // An app the owner chose for one sender is not the app of another.
+      iconOverride: false,
+    },
   });
 
   return siblings.find((sibling) => sameApp({ a: sibling, b: source }) && !isIconDue({ source: sibling, now })) ?? null;
+};
+
+/**
+ * Stores an automatic answer on the source, unless the owner chose its app while the lookup ran: the condition is in
+ * the statement, so a lookup that started before the choice cannot overwrite it.
+ */
+const storeIcon = async ({
+  source,
+  icon,
+}: {
+  source: NotificationSources;
+  icon: Pick<NotificationSources, 'iconUrl' | 'resolvedBundleId' | 'iconCheckedAt'>;
+}) => {
+  const [updated] = await NotificationSources.update(icon, { where: { id: source.id, iconOverride: false } });
+  if (updated) Object.assign(source, icon);
 };
 
 /**
@@ -54,12 +82,17 @@ export const refreshSourceIcon = async ({
   source: NotificationSources;
   now?: Date;
 }): Promise<void> => {
+  if (source.iconOverride) return;
+
   const sibling = await findCheckedSibling({ source, now });
   if (sibling) {
-    await source.update({
-      iconUrl: sibling.iconUrl,
-      resolvedBundleId: sibling.resolvedBundleId,
-      iconCheckedAt: sibling.iconCheckedAt,
+    await storeIcon({
+      source,
+      icon: {
+        iconUrl: sibling.iconUrl,
+        resolvedBundleId: sibling.resolvedBundleId,
+        iconCheckedAt: sibling.iconCheckedAt,
+      },
     });
     return;
   }
@@ -75,10 +108,9 @@ export const refreshSourceIcon = async ({
     storefronts: storefrontsFor({ currencyCodes: accounts.map((account) => account.currencyCode) }),
   });
 
-  await source.update({
-    iconUrl: found?.iconUrl ?? null,
-    resolvedBundleId: found?.bundleId ?? null,
-    iconCheckedAt: now,
+  await storeIcon({
+    source,
+    icon: { iconUrl: found?.iconUrl ?? null, resolvedBundleId: found?.bundleId ?? null, iconCheckedAt: now },
   });
 };
 

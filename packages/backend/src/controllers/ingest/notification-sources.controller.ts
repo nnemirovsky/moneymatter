@@ -1,4 +1,4 @@
-import { NOTIFICATION_SOURCE_USER_MODES, type NotificationSourceDto } from '@bt/shared/types';
+import { type AppStoreSearchDto, NOTIFICATION_SOURCE_USER_MODES, type NotificationSourceDto } from '@bt/shared/types';
 import { recordId } from '@common/lib/zod/custom-types';
 import { createController } from '@controllers/helpers/controller-factory';
 import {
@@ -7,6 +7,7 @@ import {
   listNotificationSources,
   updateNotificationSource,
 } from '@services/ingest';
+import { chooseSourceApp, resetSourceApp, searchSourceApps } from '@services/ingest/event/source-app.service';
 import { z } from 'zod';
 
 export const listNotificationSourcesController = createController(z.object({}), async ({ user }) => {
@@ -61,5 +62,52 @@ export const createContextSourceController = createController(
     });
 
     return { data, statusCode: 201 };
+  },
+);
+
+export const searchSourceAppsController = createController(
+  z.object({
+    query: z.object({
+      term: z.string().trim().min(2).max(100),
+      storefront: z.string().trim().toLowerCase().max(2).optional(),
+    }),
+  }),
+  async ({ user, query }) => {
+    const data: AppStoreSearchDto = await searchSourceApps({
+      userId: user.id,
+      term: query.term,
+      storefront: query.storefront,
+    });
+
+    return { data };
+  },
+);
+
+export const chooseSourceAppController = createController(
+  z.object({
+    params: z.object({ id: recordId() }),
+    body: z.object({
+      bundleId: z.string().trim().min(1).max(255),
+      storefront: z.string().trim().toLowerCase().max(2),
+    }),
+  }),
+  async ({ user, params, body }) => {
+    const data: NotificationSourceDto = await chooseSourceApp({
+      userId: user.id,
+      id: params.id,
+      bundleId: body.bundleId,
+      storefront: body.storefront,
+    });
+
+    return { data };
+  },
+);
+
+export const resetSourceAppController = createController(
+  z.object({ params: z.object({ id: recordId() }) }),
+  async ({ user, params }) => {
+    const data: NotificationSourceDto = await resetSourceApp({ userId: user.id, id: params.id });
+
+    return { data };
   },
 );

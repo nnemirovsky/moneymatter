@@ -392,6 +392,19 @@ export const webPushTestRateLimit = perUserNonDevRateLimit({
 });
 
 /**
+ * App Store search of the "Choose app" dialog (per user, 30 a minute). Each call reaches Apple's public search API,
+ * which throttles by address; enough for typing with a pause, tight enough to stop a script.
+ */
+export const appSearchRateLimit = createRateLimit({
+  windowSeconds: 60,
+  maxAttempts: 30,
+  keyGenerator: (req: Request) => {
+    const user = req.user as Users;
+    return `app-search:user:${user.id}`;
+  },
+});
+
+/**
  * Ingest settings writes (per user, 10 per minute). Minting a token or a setup code creates a
  * credential, so it is limited like a login-adjacent action.
  */

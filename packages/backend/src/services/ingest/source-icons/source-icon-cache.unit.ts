@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 jest.mock('@js/utils/logger', () => ({ logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() } }));
 jest.mock('@models/accounts.model', () => ({ __esModule: true, default: { findAll: jest.fn() } }));
-jest.mock('@models/notification-sources.model', () => ({ __esModule: true, default: { findAll: jest.fn() } }));
+jest.mock('@models/notification-sources.model', () => ({
+  __esModule: true,
+  default: { findAll: jest.fn(), update: jest.fn() },
+}));
 jest.mock('./resolve-app-icon', () => ({ resolveAppIcon: jest.fn() }));
 
 import Accounts from '@models/accounts.model';
@@ -21,6 +24,10 @@ import {
 const resolve = jest.mocked(resolveAppIcon);
 const findAccounts = jest.mocked(Accounts.findAll);
 const findSources = jest.mocked(NotificationSources.findAll);
+const updateSources = jest.mocked(NotificationSources.update);
+
+const storedFor = ({ source }: { source: NotificationSources }) =>
+  updateSources.mock.calls.filter(([, options]) => (options as { where: { id: string } }).where.id === source.id);
 
 const now = new Date('2026-10-29T12:00:00Z');
 const ago = (ms: number) => new Date(now.getTime() - ms);
@@ -36,8 +43,7 @@ const makeSource = (overrides: Record<string, unknown> = {}) => {
     iconCheckedAt: null,
     ...overrides,
   };
-  source.update = jest.fn(async (values: Record<string, unknown>) => Object.assign(source, values));
-  return source as never as NotificationSources & { update: jest.Mock };
+  return source as never as NotificationSources;
 };
 
 describe('isIconDue', () => {
@@ -56,10 +62,61 @@ describe('isIconDue', () => {
   });
 });
 
+describe('an app the owner chose', () => {
+  beforeEach(() => {
+    jest.resetAllMocks();
+    findSources.mockResolvedValue([]);
+    updateSources.mockResolvedValue([1] as never);
+    findAccounts.mockResolvedValue([]);
+    process.env.APP_ICON_LOOKUP = 'on';
+  });
+
+  const chosen = () =>
+    makeSource({
+      iconOverride: true,
+      iconUrl: 'https://cdn.example.com/chosen.jpg',
+      iconCheckedAt: ago(ICON_HIT_TTL_MS * 2),
+    });
+
+  it('is never due, however old the answer is', () => {
+    expect(isIconDue({ source: chosen(), now })).toBe(false);
+  });
+
+  it('is left as it is by the lookup', async () => {
+    const source = chosen();
+
+    await refreshSourceIcon({ source, now });
+    refreshDueSourceIcons({ sources: [source], gapMs: 0 });
+    await flushSourceIconQueue();
+
+    expect(resolve).not.toHaveBeenCalled();
+    expect(updateSources).not.toHaveBeenCalled();
+  });
+
+  it('is not the answer of another source of the same app: the sibling search skips it', async () => {
+    resolve.mockResolvedValue(null);
+
+    await refreshSourceIcon({ source: makeSource({ id: 'src-9' }), now });
+
+    expect(findSources.mock.calls[0]![0]).toMatchObject({ where: { iconOverride: false } });
+  });
+
+  it('is not replaced by a lookup that began before it was chosen', async () => {
+    resolve.mockResolvedValue({ iconUrl: 'https://cdn.example.com/auto.jpg', bundleId: 'com.example.auto' });
+    updateSources.mockResolvedValue([0] as never);
+    const source = makeSource({ id: 'src-8' });
+
+    await refreshSourceIcon({ source, now });
+
+    expect(source.iconUrl).toBeNull();
+  });
+});
+
 describe('refreshSourceIcon', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     findSources.mockResolvedValue([]);
+    updateSources.mockResolvedValue([1] as never);
     findAccounts.mockResolvedValue([{ currencyCode: 'EUR' }] as never);
   });
 
@@ -71,11 +128,11 @@ describe('refreshSourceIcon', () => {
 
     expect(resolve.mock.calls[0]![0]).toMatchObject({ appName: 'Example Notes', bundleId: null });
     expect(resolve.mock.calls[0]![0].storefronts[0]).toBe('de');
-    expect(source.update).toHaveBeenCalledWith({
-      iconUrl: 'https://cdn.example.com/i.jpg',
-      resolvedBundleId: 'com.example.notes',
-      iconCheckedAt: now,
-    });
+    expect(updateSources).toHaveBeenCalledWith(
+      { iconUrl: 'https://cdn.example.com/i.jpg', resolvedBundleId: 'com.example.notes', iconCheckedAt: now },
+      // The condition is in the statement: a lookup that began before the owner chose an app cannot overwrite it.
+      { where: { id: source.id, iconOverride: false } },
+    );
   });
 
   it('stores a miss too, so it is not looked up again until the miss TTL passes', async () => {
@@ -84,7 +141,10 @@ describe('refreshSourceIcon', () => {
 
     await refreshSourceIcon({ source, now });
 
-    expect(source.update).toHaveBeenCalledWith({ iconUrl: null, resolvedBundleId: null, iconCheckedAt: now });
+    expect(updateSources).toHaveBeenCalledWith(
+      { iconUrl: null, resolvedBundleId: null, iconCheckedAt: now },
+      { where: { id: source.id, iconOverride: false } },
+    );
     expect(isIconDue({ source, now })).toBe(false);
   });
 
@@ -102,11 +162,14 @@ describe('refreshSourceIcon', () => {
     await refreshSourceIcon({ source, now });
 
     expect(resolve).not.toHaveBeenCalled();
-    expect(source.update).toHaveBeenCalledWith({
-      iconUrl: 'https://cdn.example.com/i.jpg',
-      resolvedBundleId: 'com.example.notes',
-      iconCheckedAt: sibling.iconCheckedAt,
-    });
+    expect(updateSources).toHaveBeenCalledWith(
+      {
+        iconUrl: 'https://cdn.example.com/i.jpg',
+        resolvedBundleId: 'com.example.notes',
+        iconCheckedAt: sibling.iconCheckedAt,
+      },
+      { where: { id: source.id, iconOverride: false } },
+    );
   });
 
   it('does not copy from a sibling of another app or one whose answer expired', async () => {
@@ -131,6 +194,7 @@ describe('refreshDueSourceIcons', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     findSources.mockResolvedValue([]);
+    updateSources.mockResolvedValue([1] as never);
     findAccounts.mockResolvedValue([]);
     resolve.mockResolvedValue(null);
     process.env.APP_ICON_LOOKUP = 'on';
@@ -154,8 +218,8 @@ describe('refreshDueSourceIcons', () => {
     await flushSourceIconQueue();
 
     expect(resolve).toHaveBeenCalledTimes(1);
-    expect(due.update).toHaveBeenCalled();
-    expect(fresh.update).not.toHaveBeenCalled();
+    expect(storedFor({ source: due })).toHaveLength(1);
+    expect(storedFor({ source: fresh })).toHaveLength(0);
   });
 
   it('queues a source once while its lookup is pending', async () => {
@@ -176,7 +240,7 @@ describe('refreshDueSourceIcons', () => {
     refreshDueSourceIcons({ sources: [failing, next], gapMs: 0 });
     await flushSourceIconQueue();
 
-    expect(failing.update).not.toHaveBeenCalled();
-    expect(next.update).toHaveBeenCalled();
+    expect(storedFor({ source: failing })).toHaveLength(0);
+    expect(storedFor({ source: next })).toHaveLength(1);
   });
 });

@@ -51,7 +51,8 @@ export async function withNotificationSources({
       source.id as string,
       {
         appName: source.appName,
-        bundleId: source.bundleId ?? source.resolvedBundleId,
+        // The app the owner chose is the app of the source, whatever bundle id the shortcut sends.
+        bundleId: source.iconOverride ? source.resolvedBundleId : (source.bundleId ?? source.resolvedBundleId),
         sender: source.sender,
         iconUrl: source.iconUrl,
       },

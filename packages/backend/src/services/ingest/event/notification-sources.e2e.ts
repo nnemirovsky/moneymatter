@@ -48,6 +48,8 @@ describe('notification sources', () => {
         appName: 'Example Bank',
         bundleId: 'ge.example.app',
         sender: null,
+        iconUrl: null,
+        iconOverride: false,
         conversational: false,
         mode: 'auto',
         defaultAccountId: null,

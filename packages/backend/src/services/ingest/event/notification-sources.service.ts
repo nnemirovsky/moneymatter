@@ -180,12 +180,13 @@ const deleteHeldContexts = async ({ userId, sourceId }: { userId: number; source
   await IngestRequests.destroy({ where: { userId, sourceId, pipeline: 'notification', status: 'held' } });
 };
 
-const toSourceDto = ({ source }: { source: NotificationSources }): NotificationSourceDto => ({
+export const toSourceDto = ({ source }: { source: NotificationSources }): NotificationSourceDto => ({
   id: source.id,
   appName: source.appName,
   bundleId: source.bundleId,
   sender: source.sender,
   iconUrl: source.iconUrl,
+  iconOverride: source.iconOverride,
   conversational: source.conversational,
   mode: source.mode,
   defaultAccountId: source.defaultAccountId,

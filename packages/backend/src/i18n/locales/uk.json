@@ -1047,6 +1047,8 @@
   },
   "notificationSources": {
     "sourceNotFound": "Джерело сповіщень не знайдено.",
+    "appNotFound": "Застосунок не знайдено в App Store.",
+    "appLookupUnavailable": "Пошук застосунків недоступний.",
     "accountNotFound": "Рахунок не знайдено."
   },
   "notifications": {

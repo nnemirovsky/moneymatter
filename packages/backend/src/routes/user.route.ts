@@ -57,6 +57,9 @@ import {
   deleteNotificationSourceController,
   listNotificationSourcesController,
   updateNotificationSourceController,
+  chooseSourceAppController,
+  resetSourceAppController,
+  searchSourceAppsController,
 } from '@controllers/ingest/notification-sources.controller';
 import { getConnectedAppsController, revokeConnectedAppController } from '@controllers/mcp/connected-apps.controller';
 import {
@@ -114,6 +117,7 @@ import {
   backupRateLimit,
   backupRestoreRateLimit,
   dataExportRateLimit,
+  appSearchRateLimit,
   ingestSettingsWriteRateLimit,
   rateSourceSaveRateLimit,
   rateSourceTestRateLimit,
@@ -294,6 +298,21 @@ router.get('/settings/notification-sources', listNotificationSourcesController);
 router.post('/settings/notification-sources', createContextSourceController);
 router.patch('/settings/notification-sources/:id', updateNotificationSourceController);
 router.delete('/settings/notification-sources/:id', deleteNotificationSourceController);
+// "Choose app": the owner picks the App Store app of a source, which then keeps its icon whatever the automatic lookup
+// finds; resetting hands the source back to the lookup.
+router.get('/settings/notification-sources/app-search', appSearchRateLimit, searchSourceAppsController);
+router.put(
+  '/settings/notification-sources/:id/app',
+  blockDemoUsers,
+  ingestSettingsWriteRateLimit,
+  chooseSourceAppController,
+);
+router.delete(
+  '/settings/notification-sources/:id/app',
+  blockDemoUsers,
+  ingestSettingsWriteRateLimit,
+  resetSourceAppController,
+);
 // The App Store icons the iOS Automation integration is drawn with (Shortcuts and Wallet).
 router.get('/settings/ios-automation-icons', getIosAutomationIconsController);
 

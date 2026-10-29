@@ -49,6 +49,13 @@ const request = async ({ path, params }: { path: string; params: Record<string, 
   }
 };
 
+/** Apps matching a free-text term in a storefront, as the App Store ranks them; for the owner to pick from. */
+export const searchApps = async ({ term, storefront }: { term: string; storefront: string }): Promise<AppStoreApp[]> =>
+  request({
+    path: '/search',
+    params: { term: term.trim(), entity: 'software', country: storefront, limit: String(SEARCH_LIMIT) },
+  });
+
 /** The app with this bundle id in a storefront, or null. The listing's own bundle id must match. */
 export const lookupByBundleId = async ({
   bundleId,
