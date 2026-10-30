@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { allowedEdits, editDistance, matchMerchantCore, merchantCoreName } from './merchant-core';
+import { allowedEdits, editDistance, isWordAligned, matchMerchantCore, merchantCoreName } from './merchant-core';
 
 const payee = ({ id, name, aliases = [] }: { id: string; name: string; aliases?: string[] }) => ({
   id,
@@ -99,5 +99,19 @@ describe('matchMerchantCore', () => {
         { payeeId: 'blue', name: 'Blue Coffee', distance: 1 },
       ],
     });
+  });
+});
+
+describe('isWordAligned', () => {
+  it('accepts the same words, a word start, extra words and a typo', () => {
+    expect(isWordAligned({ merchant: 'Blue Coffee', name: 'BLUE COFFEE LTD' })).toBe(true);
+    expect(isWordAligned({ merchant: 'Rosa', name: 'Rosario Bakery' })).toBe(true);
+    expect(isWordAligned({ merchant: 'POS Rosa Market 12', name: 'Rosa' })).toBe(true);
+    expect(isWordAligned({ merchant: 'Blue Cofee', name: 'Blue Coffee' })).toBe(true);
+  });
+
+  it('rejects a merchant that only sits in the middle of another word', () => {
+    expect(isWordAligned({ merchant: 'Rosa', name: 'Primrosa Market' })).toBe(false);
+    expect(isWordAligned({ merchant: 'Rosa', name: 'Primrose Market' })).toBe(false);
   });
 });

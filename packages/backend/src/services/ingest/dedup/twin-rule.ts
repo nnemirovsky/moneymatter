@@ -61,13 +61,24 @@ type SameShopCheck = (args: { candidate: DedupCandidate }) => boolean;
 
 const byTime = (a: DedupCandidate, b: DedupCandidate) => a.time.getTime() - b.time.getTime();
 
+/** Whether two merchant texts are the same once case and punctuation are gone. Neither empty. */
+export const sameMerchantText = ({ left, right }: { left: string | null; right: string | null }): boolean => {
+  if (!left || !right) return false;
+
+  const normalized = normalizePayeeName({ raw: left });
+
+  return normalized !== '' && normalized === normalizePayeeName({ raw: right });
+};
+
 /**
  * Tier-1 exact twin: the row an incoming source of the same payment joins. All of these must hold:
  *
  * - a free slot (a row holds one request per slot, so a second Wallet notification is a second payment);
  * - the same amount and currency, or the same charged (original) amount and currency;
  * - within `dedupConfig.twinWindowMs`;
- * - the same shop (`sameShop`), so two different shops with equal amounts stay apart.
+ * - the same shop: the merchant text both sources printed is the same, or `sameShop` agrees (the rows' names
+ *   and payees), so two different shops with equal amounts stay apart. The text decides alone because the
+ *   payee is a guess that may have resolved differently for each source.
  *
  * Several qualifying rows are interchangeable (same amount, no veto between them), so the earliest wins:
  * two coffees stay two rows in every arrival order.
@@ -88,16 +99,8 @@ export const pickTwin = ({
         !candidate.takenSlots.includes(incoming.slot) &&
         Math.abs(candidate.time.getTime() - incoming.time.getTime()) <= dedupConfig.twinWindowMs &&
         sharesFigure({ left: candidate.figures, right: incoming.figures }) &&
-        sameShop({ candidate }),
+        (sameMerchantText({ left: candidate.merchant, right: incoming.merchant }) || sameShop({ candidate })),
     ) ?? null;
-
-const sameMerchantText = ({ left, right }: { left: string | null; right: string | null }): boolean => {
-  if (!left || !right) return false;
-
-  const normalized = normalizePayeeName({ raw: left });
-
-  return normalized !== '' && normalized === normalizePayeeName({ raw: right });
-};
 
 /**
  * The settlement rule: a `settlement` notification of a bank joins the earliest row that holds the
