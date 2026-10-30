@@ -77,8 +77,9 @@ export const learnMerchantSpelling = async ({
 
 /**
  * A merchant no payee answers to and no core name matches: the payee whose name or alias a fuzzy
- * search finds closest among the names that share the merchant's words, as a suggestion only (no alias is written), else a new payee named after
- * the merchant at its first sighting, with the merchant as its own alias.
+ * search finds closest among the names that share the merchant's words (`isWordAligned`), as a
+ * suggestion only (no alias is written), else a new payee named after the merchant at its first
+ * sighting, with the merchant as its own alias.
  */
 export const resolveUnmatchedMerchant = async ({
   userId,
