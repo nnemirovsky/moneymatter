@@ -6,6 +6,7 @@ import {
   type IngestEventRejectionReason,
   type NotificationDropReason,
   type NotificationEventResponse,
+  type NotificationSourceMode,
   type RecordId,
 } from '@bt/shared/types';
 import { t } from '@i18n/index';
@@ -332,9 +333,14 @@ const ingestNotification = async ({
   };
 };
 
+/** Modes whose sender's notifications go to the server even when the device saw no amount. */
+const READ_SOURCE_MODES: ReadonlySet<NotificationSourceMode> = new Set(['approved', 'auto', 'context']);
+
 /**
  * The first step of the handshake for a messaging or mail notification without an amount. It reads the
- * app and the sender and answers `send: 'yes'` when that sender is a context source, or `senderMayBeRead`: a mail
+ * app and the sender and answers `send: 'yes'` when that sender is a source the user reads (approved, automatic or
+ * context), so the server's gate decides on its text (a device on an older gate pattern still reaches it), or
+ * `senderMayBeRead`: a mail
  * sender that names a merchant paid in the last half hour, or a text-message business ID that does, or that the
  * user's past transfer notes name while an exchange waits (then the sender becomes a source waiting for the
  * user's choice). Any other sender leaves no trace: nothing is stored, no source is created, nothing is counted.
@@ -345,7 +351,7 @@ const probeSender = async ({ userId, body }: { userId: number; body: unknown }):
   const sourceKey = getNotificationSourceKey({ app: appIdentity });
   const source = await findNotificationSource({ userId, sourceKey });
 
-  let send = source?.mode === 'context';
+  let send = !!source && READ_SOURCE_MODES.has(source.mode);
   traceStep({ step: 'probe', detail: source ? `source:${source.mode}` : 'source:none' });
   // A sender that names a merchant just paid (or a business ID named in past transfer notes while an exchange waits) is
   // offered as a context source: its row is made (the sender and the app, no text) and this one notification is sent.
