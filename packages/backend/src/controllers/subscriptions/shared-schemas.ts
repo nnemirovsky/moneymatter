@@ -23,6 +23,11 @@ const matchingRuleSchema = z.discriminatedUnion('field', [
     operator: z.literal('equals'),
     value: recordId(),
   }),
+  z.object({
+    field: z.literal('payeeId'),
+    operator: z.literal('equals'),
+    value: recordId(),
+  }),
 ]);
 
 /** A subscription's matching rules: the REST controllers and the MCP tools share it. */

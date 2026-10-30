@@ -25,6 +25,7 @@ import {
   validateAccountOwnership,
   validateCategoryOwnership,
   validatePayeeOwnership,
+  validateRulePayeesOwnership,
   validateTagsOwnership,
 } from './helpers';
 import { assertInstallmentScheduleComplete, assertMaxOccurrencesNotBelowConsumed } from './installments';
@@ -76,6 +77,8 @@ export const updateSubscription = withTransaction(
     if (fields.payeeId !== undefined && fields.payeeId !== null) {
       await validatePayeeOwnership({ payeeId: fields.payeeId, userId });
     }
+
+    await validateRulePayeesOwnership({ matchingRules: fields.matchingRules, userId });
 
     const uniqueTagIds = tagIds !== undefined ? [...new Set(tagIds)] : undefined;
     if (uniqueTagIds !== undefined) {

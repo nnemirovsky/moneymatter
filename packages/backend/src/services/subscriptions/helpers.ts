@@ -62,6 +62,24 @@ export const validatePayeeOwnership = async ({ payeeId, userId }: { payeeId: str
   });
 };
 
+/** Every payee a matching rule points at must belong to the user (rules are stored as JSON, so no FK guards them). */
+export const validateRulePayeesOwnership = async ({
+  matchingRules,
+  userId,
+}: {
+  matchingRules: SubscriptionMatchingRules | null | undefined;
+  userId: number;
+}) => {
+  const payeeIds = [
+    ...new Set(
+      (matchingRules?.rules ?? []).flatMap((rule) => (rule.field === 'payeeId' ? [rule.value as string] : [])),
+    ),
+  ];
+  for (const payeeId of payeeIds) {
+    await validatePayeeOwnership({ payeeId, userId });
+  }
+};
+
 export const validateTagsOwnership = async ({ tagIds, userId }: { tagIds: string[]; userId: number }) => {
   const uniqueTagIds = [...new Set(tagIds)];
   if (uniqueTagIds.length === 0) return;

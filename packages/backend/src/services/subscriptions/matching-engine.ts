@@ -236,6 +236,10 @@ async function evaluateRule({ rule, transaction, userId }: EvaluateRuleParams): 
       if (rule.operator !== 'equals') return false;
       return transaction.accountId === rule.value;
     }
+    case 'payeeId': {
+      if (rule.operator !== 'equals') return false;
+      return transaction.payeeId === rule.value;
+    }
     default:
       return false;
   }

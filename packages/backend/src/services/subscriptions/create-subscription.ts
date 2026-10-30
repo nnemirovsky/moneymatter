@@ -22,6 +22,7 @@ import {
   validateAccountOwnership,
   validateCategoryOwnership,
   validatePayeeOwnership,
+  validateRulePayeesOwnership,
   validateTagsOwnership,
 } from './helpers';
 import { assertInstallmentScheduleComplete } from './installments';
@@ -82,6 +83,8 @@ export const createSubscription = withTransaction(
     if (payeeId) {
       await validatePayeeOwnership({ payeeId, userId });
     }
+
+    await validateRulePayeesOwnership({ matchingRules, userId });
 
     const uniqueTagIds = [...new Set(tagIds)];
     await validateTagsOwnership({ tagIds: uniqueTagIds, userId });

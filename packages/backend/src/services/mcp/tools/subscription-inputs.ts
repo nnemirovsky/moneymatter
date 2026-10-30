@@ -10,6 +10,7 @@ const MATCHING_RULES_DESCRIPTION = [
   '- { "field": "amount", "operator": "between", "value": { "min": 9, "max": 11 }, "currencyCode": "USD" }: absolute amount within the decimal bounds, inclusive. Without currencyCode amounts are compared in each transaction currency; with it other currencies are converted first and get 5% tolerance.',
   '- { "field": "transactionType", "operator": "equals", "value": "expense" | "income" }',
   '- { "field": "accountId", "operator": "equals", "value": "<account uuid>" }',
+  '- { "field": "payeeId", "operator": "equals", "value": "<payee uuid>" }: the transaction payee is this one. Pair it with an amount rule to tell one payee\'s fixed charge from its other purchases; payments logged without a note can only match by payee.',
 ].join('\n');
 
 export const subscriptionMatchingRulesInput = matchingRulesSchema.optional().describe(MATCHING_RULES_DESCRIPTION);
