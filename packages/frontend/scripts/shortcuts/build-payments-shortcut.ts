@@ -264,8 +264,9 @@ export const buildPaymentsShortcut = (): Dict => {
   // No amount. The notification goes on only when the server wants it, and a one-time code never goes:
   //  1. a text that asks for a one-time code stops, for every app, so a code is never sent;
   //  2. a messaging or mail app first sends only its name and the sender (the title); the shortcut sends the
-  //     text only when the server answers `send: yes`, which it does for a sender the owner made a context
-  //     source. This is the one rule about chats: change it here and in `probeSender` on the server;
+  //     text only when the server answers `send: yes`, which it does for a sender the owner reads (an approved,
+  //     automatic or context source), so the server's gate gets the final say on a payment the device's gate
+  //     missed. This is the one rule about chats: change it here and in `probeSender` on the server;
   //  3. any other app of the trigger list goes on, and the server decides by its source's mode (a context
   //     source is read, anything else without an amount is dropped before it is stored).
   const gateMissGroup = kit.openGroup();

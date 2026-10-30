@@ -758,6 +758,23 @@ describe('context notifications', () => {
       expect(other.body.response).toEqual({ outcome: 'probe', notify: false });
     });
 
+    it('is asked for its text when the owner reads the sender for payments, and not once muted', async () => {
+      const { secret } = await setUp();
+      const created = await helpers.createContextSource({
+        payload: { appName: 'Messages', sender: 'Example Bank' },
+        raw: true,
+      });
+      await helpers.updateNotificationSource({ id: created.id, payload: { mode: 'approved' }, raw: true });
+      const smsProbe = { kind: 'notificationProbe', app: 'Messages', title: 'Example Bank' };
+
+      const approved = await send({ secret, body: smsProbe });
+      await helpers.updateNotificationSource({ id: created.id, payload: { mode: 'muted' }, raw: true });
+      const muted = await send({ secret, body: smsProbe });
+
+      expect(approved.body.response).toEqual({ outcome: 'probe', notify: false, send: 'yes' });
+      expect(muted.body.response).toEqual({ outcome: 'probe', notify: false });
+    });
+
     it('is asked for its text once the owner switched the sender’s source to context', async () => {
       const { secret } = await setUp();
       await send({ secret, body: mail({ body: `Payment ${BASE} 5.00` }) });
