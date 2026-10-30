@@ -38,6 +38,9 @@ const describeRule = ({
   if (field === 'accountId' && typeof value === 'string') {
     return t('chat.cards.matchingRules.account', { name: entityName({ kind: 'account', id: value }) ?? value });
   }
+  if (field === 'payeeId' && typeof value === 'string') {
+    return t('chat.cards.matchingRules.payee', { name: entityName({ kind: 'payee', id: value }) ?? value });
+  }
 
   return JSON.stringify(rule);
 };

@@ -152,7 +152,8 @@
           "note": "Примітка",
           "amount": "Сума",
           "transactionType": "Тип транзакції",
-          "account": "Рахунок"
+          "account": "Рахунок",
+          "payee": "Отримувач платежу"
         },
         "transactionTypeOptions": {
           "income": "Дохід",

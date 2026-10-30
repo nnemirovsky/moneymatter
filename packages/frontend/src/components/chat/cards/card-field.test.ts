@@ -231,15 +231,16 @@ describe('CardField', () => {
             { field: 'amount', operator: 'between', value: { min: 9, max: 11.5 }, currencyCode: 'USD' },
             { field: 'transactionType', operator: 'equals', value: 'expense' },
             { field: 'accountId', operator: 'equals', value: 'acc-1' },
+            { field: 'payeeId', operator: 'equals', value: 'p1' },
           ],
         },
         display: { kind: 'matchingRules' },
       }),
-      names: { 'account:acc-1': 'Main card' },
+      names: { 'account:acc-1': 'Main card', 'payee:p1': 'Streamly' },
     });
 
     expect(wrapper.get('[data-testid="field-value"]').text()).toBe(
-      'Note contains “netflix”, “nflx”; Amount from 9 to 11.5 USD; Type is Expense; Account is Main card',
+      'Note contains “netflix”, “nflx”; Amount from 9 to 11.5 USD; Type is Expense; Account is Main card; Payee is Streamly',
     );
   });
 

@@ -152,7 +152,8 @@
           "note": "Note",
           "amount": "Amount",
           "transactionType": "Transaction type",
-          "account": "Account"
+          "account": "Account",
+          "payee": "Payee"
         },
         "transactionTypeOptions": {
           "income": "Income",
