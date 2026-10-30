@@ -96,7 +96,16 @@ describe('pickTwin', () => {
   });
 
   it('keeps two different shops apart', () => {
-    expect(pickTwin({ candidates: [candidate()], incoming: incoming(), sameShop: () => false })).toBeNull();
+    expect(
+      pickTwin({ candidates: [candidate()], incoming: incoming({ merchant: 'Rosa' }), sameShop: () => false }),
+    ).toBeNull();
+  });
+
+  it('joins on the same merchant text even when the rows resolved to different payees', () => {
+    const tap = candidate({ merchant: 'Rosa', payeeId: 'payee-a', names: ['Primrose Market'] });
+    const notice = incoming({ merchant: 'ROSA', payeeId: 'payee-b' });
+
+    expect(pickTwin({ candidates: [tap], incoming: notice, sameShop: () => false })?.id).toBe('row-1');
   });
 
   it('attaches to the earliest of interchangeable rows', () => {
