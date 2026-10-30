@@ -125,6 +125,24 @@ describe('payee matching of an automated payment', () => {
       expect(alias!.rawName).toBe('Blue Cofee Company Ltd');
     });
 
+    it('does not suggest a payee whose name only contains the merchant inside another word', async () => {
+      enableServerModel();
+      mockNotificationParsing({ answer: () => ({}) });
+      const { account, secret } = await linkCard();
+      const category = await createCategory('Restaurant, fast-food');
+      const primrosa = await payeeWithHistory({
+        name: 'Primrosa Market',
+        accountId: account.id,
+        categoryIds: [category.id],
+      });
+
+      const tx = await stored({ id: await tap({ secret, merchant: 'Rosa' }) });
+
+      expect(await payeeNames()).toEqual(['Primrosa Market', 'Rosa']);
+      expect(tx.payeeId).not.toBe(primrosa.id);
+      expect(tx.note ?? null).toBeNull();
+    });
+
     it('maps the next identical merchant by its confirmed alias, without the matcher or the model', async () => {
       enableServerModel();
       const payeePickPrompts: string[] = [];

@@ -193,3 +193,31 @@ export const matchMerchantCore = ({
 
   return { kind: 'ambiguous', candidates: sorted };
 };
+
+const MIN_PREFIX_WORD_LENGTH = 3;
+
+/** The same word, one the start of the other, or a typo apart. */
+const wordsAlign = ({ a, b }: { a: string; b: string }): boolean => {
+  if (a === b) return true;
+
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  if (short.length >= MIN_PREFIX_WORD_LENGTH && long.startsWith(short)) return true;
+
+  return editDistance({ a, b }) <= allowedEdits({ length: short.length });
+};
+
+/**
+ * Whether a payee name is a name the merchant could be written as: every word of the one with fewer
+ * words lines up with a whole word of the other. The fuzzy search scores a short text sitting anywhere
+ * inside a longer one as a near hit ("rosa" inside "primrosa"), which is a different business, so a hit
+ * counts only when the words themselves agree.
+ */
+export const isWordAligned = ({ merchant, name }: { merchant: string; name: string }): boolean => {
+  const one = merchantCoreName({ raw: merchant }).split(' ').filter(Boolean);
+  const other = merchantCoreName({ raw: name }).split(' ').filter(Boolean);
+  if (!one.length || !other.length) return false;
+
+  const [few, many] = one.length <= other.length ? [one, other] : [other, one];
+
+  return few.every((word) => many.some((candidate) => wordsAlign({ a: word, b: candidate })));
+};
