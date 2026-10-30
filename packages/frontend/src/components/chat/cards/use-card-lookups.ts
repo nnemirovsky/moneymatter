@@ -7,6 +7,7 @@ import { useCurrenciesStore } from '@/stores/currencies';
 import { useTagsStore } from '@/stores/tags';
 import {
   type AccountModel,
+  type ChatCardField,
   type ChatEntityKind,
   type ChatProposalCard,
   type NotificationSourceDisplay,
@@ -34,6 +35,16 @@ export interface CardLookups {
   currencyCodes: () => string[];
 }
 
+/** The payees a matching-rules field points at; the field's own value is a rules object, not an id. */
+const rulePayeeIds = ({ field }: { field: ChatCardField }): string[] => {
+  if (field.display?.kind !== 'matchingRules' || typeof field.value !== 'object' || field.value === null) return [];
+  const { rules } = field.value as { rules?: unknown };
+  if (!Array.isArray(rules)) return [];
+  return rules.flatMap((rule) =>
+    rule?.field === 'payeeId' && typeof rule.value === 'string' ? [rule.value as string] : [],
+  );
+};
+
 const idsOf = ({ value }: { value: unknown }): string[] => {
   const list = Array.isArray(value) ? value : [value];
   return list.filter((item): item is string => typeof item === 'string' && !isProposalRef({ value: item }));
@@ -57,7 +68,7 @@ export const useCardLookups = ({ card }: { card: MaybeRefOrGetter<ChatProposalCa
       [...toValue(card).fields, ...(toValue(card).target ?? [])].flatMap((field) =>
         fieldEntityKind({ field }) === 'payee'
           ? [...idsOf({ value: field.value }), ...idsOf({ value: field.uncertain?.alternatives ?? [] })]
-          : [],
+          : rulePayeeIds({ field }),
       ),
     ),
   ]);

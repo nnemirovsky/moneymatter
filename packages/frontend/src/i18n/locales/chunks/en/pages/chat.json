@@ -624,7 +624,9 @@
         "amount": "Amount from {min} to {max}",
         "amountCurrency": "Amount from {min} to {max} {currency}",
         "transactionType": "Type is {value}",
-        "account": "Account is {name}"
+        "account": "Account is {name}",
+        "payee": "Payee is {name}",
+        "dueDate": "Within {days} days of the due date"
       }
     },
     "errors": {

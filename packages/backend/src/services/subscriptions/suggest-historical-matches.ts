@@ -8,6 +8,7 @@ import { calculateRefAmount } from '@services/calculate-ref-amount.service';
 import { startOfDay, subMonths } from 'date-fns';
 import { Op, WhereOptions } from 'sequelize';
 
+import { isWithinDaysOfDueDate } from './due-date-window';
 import { findSubscriptionOrThrow } from './helpers';
 
 const HISTORICAL_MONTHS = 12;
@@ -35,12 +36,12 @@ export const suggestHistoricalMatches = async ({
   // Separate rules into SQL-applicable and post-processing rules
   // NOTE: This builds Sequelize WHERE clauses for the same rule types that
   // matching-engine.ts evaluates at runtime via `evaluateRule`. Keep in sync.
-  const { sqlConditions, crossCurrencyAmountRules } = buildWhereFromRules({
+  const { sqlConditions, crossCurrencyAmountRules, dueDateWindows } = buildWhereFromRules({
     rules: matchingRules.rules,
   });
 
   // If no SQL conditions and no cross-currency rules, nothing to match
-  if (sqlConditions.length === 0 && crossCurrencyAmountRules.length === 0) {
+  if (sqlConditions.length === 0 && crossCurrencyAmountRules.length === 0 && dueDateWindows.length === 0) {
     return [];
   }
 
@@ -62,7 +63,13 @@ export const suggestHistoricalMatches = async ({
 
   // Fetch more transactions if we need to post-filter by cross-currency amount
   // We fetch more because some will be filtered out after conversion
-  const fetchLimit = crossCurrencyAmountRules.length > 0 ? MAX_SUGGESTIONS * 3 : MAX_SUGGESTIONS;
+  // A due-date window is narrow (a few days a month), so it needs a deeper fetch still.
+  const fetchLimit =
+    dueDateWindows.length > 0
+      ? MAX_SUGGESTIONS * 10
+      : crossCurrencyAmountRules.length > 0
+        ? MAX_SUGGESTIONS * 3
+        : MAX_SUGGESTIONS;
 
   let transactions = await findTransactions({
     planned: 'exclude',
@@ -72,6 +79,13 @@ export const suggestHistoricalMatches = async ({
     where: baseWhere,
     order: [['time', 'DESC']],
   });
+
+  // The schedule distance has no SQL form, so the due-date window is applied in memory.
+  if (dueDateWindows.length > 0) {
+    transactions = transactions.filter((tx) =>
+      dueDateWindows.every((days) => isWithinDaysOfDueDate({ transactionTime: tx.time, days, subscription })),
+    );
+  }
 
   // Apply cross-currency amount filtering in memory
   if (crossCurrencyAmountRules.length > 0 && transactions.length > 0) {
@@ -95,11 +109,14 @@ interface AmountRuleWithCurrency {
 interface BuildWhereResult {
   sqlConditions: WhereOptions[];
   crossCurrencyAmountRules: AmountRuleWithCurrency[];
+  /** `dueDate` rule windows (days), checked in memory against the subscription's schedule. */
+  dueDateWindows: number[];
 }
 
 function buildWhereFromRules({ rules }: { rules: SubscriptionMatchingRule[] }): BuildWhereResult {
   const sqlConditions: WhereOptions[] = [];
   const crossCurrencyAmountRules: AmountRuleWithCurrency[] = [];
+  const dueDateWindows: number[] = [];
 
   for (const rule of rules) {
     switch (rule.field) {
@@ -150,10 +167,22 @@ function buildWhereFromRules({ rules }: { rules: SubscriptionMatchingRule[] }): 
         }
         break;
       }
+      case 'dueDate': {
+        if (rule.operator === 'within_days' && typeof rule.value === 'number') {
+          dueDateWindows.push(rule.value);
+        }
+        break;
+      }
+      case 'payeeId': {
+        if (rule.operator === 'equals') {
+          sqlConditions.push({ payeeId: rule.value as string });
+        }
+        break;
+      }
     }
   }
 
-  return { sqlConditions, crossCurrencyAmountRules };
+  return { sqlConditions, crossCurrencyAmountRules, dueDateWindows };
 }
 
 /**
