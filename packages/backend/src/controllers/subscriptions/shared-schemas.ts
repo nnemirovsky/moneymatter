@@ -28,6 +28,11 @@ const matchingRuleSchema = z.discriminatedUnion('field', [
     operator: z.literal('equals'),
     value: recordId(),
   }),
+  z.object({
+    field: z.literal('dueDate'),
+    operator: z.literal('within_days'),
+    value: z.number().int().min(0).max(31),
+  }),
 ]);
 
 /** A subscription's matching rules: the REST controllers and the MCP tools share it. */

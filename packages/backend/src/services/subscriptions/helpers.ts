@@ -63,6 +63,19 @@ export const validatePayeeOwnership = async ({ payeeId, userId }: { payeeId: str
 };
 
 /** Every payee a matching rule points at must belong to the user (rules are stored as JSON, so no FK guards them). */
+/** A due-date rule is measured against the subscription's schedule, so without a dueDate it could never match. */
+export const assertDueDateRuleHasSchedule = ({
+  matchingRules,
+  dueDate,
+}: {
+  matchingRules: SubscriptionMatchingRules | null | undefined;
+  dueDate: string | null | undefined;
+}): void => {
+  if (dueDate == null && matchingRules?.rules.some((rule) => rule.field === 'dueDate')) {
+    throw new ValidationError({ message: 'A dueDate matching rule needs the subscription to have a dueDate.' });
+  }
+};
+
 export const validateRulePayeesOwnership = async ({
   matchingRules,
   userId,

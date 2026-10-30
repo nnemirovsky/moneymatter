@@ -7,6 +7,7 @@ import * as Transactions from '@models/transactions.model';
 import { calculateRefAmount } from '@services/calculate-ref-amount.service';
 import { withTransaction } from '@services/common/with-transaction';
 
+import { isWithinDaysOfDueDate } from './due-date-window';
 import { settleNearestOpenPeriod } from './settle-period-on-match';
 import { stampSubscriptionPayeeAndTags } from './stamp-payee-and-tags';
 
@@ -18,6 +19,7 @@ interface MatchTransactionParams {
 }
 
 interface EvaluateRuleParams {
+  subscription: Subscriptions;
   rule: SubscriptionMatchingRule;
   transaction: Transactions.default;
   userId: number;
@@ -62,7 +64,7 @@ export const matchTransactionToSubscriptions = withTransaction(
       // suggest-historical-matches.ts `buildWhereFromRules`. Keep in sync.
       let allMatch = true;
       for (const rule of rules) {
-        if (!(await evaluateRule({ rule, transaction, userId }))) {
+        if (!(await evaluateRule({ rule, subscription, transaction, userId }))) {
           allMatch = false;
           break;
         }
@@ -186,7 +188,7 @@ async function calculateMatchScore({
   return Math.max(0, 1 - deviation);
 }
 
-async function evaluateRule({ rule, transaction, userId }: EvaluateRuleParams): Promise<boolean> {
+async function evaluateRule({ rule, subscription, transaction, userId }: EvaluateRuleParams): Promise<boolean> {
   switch (rule.field) {
     case 'note': {
       if (rule.operator !== 'contains_any' || !Array.isArray(rule.value)) return false;
@@ -239,6 +241,10 @@ async function evaluateRule({ rule, transaction, userId }: EvaluateRuleParams): 
     case 'payeeId': {
       if (rule.operator !== 'equals') return false;
       return transaction.payeeId === rule.value;
+    }
+    case 'dueDate': {
+      if (rule.operator !== 'within_days' || typeof rule.value !== 'number') return false;
+      return isWithinDaysOfDueDate({ transactionTime: transaction.time, days: rule.value, subscription });
     }
     default:
       return false;

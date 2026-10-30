@@ -103,8 +103,8 @@ export const MAX_REMIND_BEFORE_PRESETS = 3;
  * Rules are evaluated with AND logic (all must pass).
  */
 export interface SubscriptionMatchingRule {
-  field: 'note' | 'amount' | 'transactionType' | 'accountId' | 'payeeId';
-  operator: 'contains_any' | 'between' | 'equals';
+  field: 'note' | 'amount' | 'transactionType' | 'accountId' | 'payeeId' | 'dueDate';
+  operator: 'contains_any' | 'between' | 'equals' | 'within_days';
   value: string[] | { min: number; max: number } | string | number;
   /** Currency code for amount rules (enables cross-currency matching) */
   currencyCode?: string;
