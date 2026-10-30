@@ -40,8 +40,10 @@ const ISO_CURRENCY_CODES = [
 
 const NOT_PART_OF_WORD_BEFORE = String.raw`(?<![\p{L}\p{N}])`;
 const NOT_PART_OF_WORD_AFTER = String.raw`(?![\p{L}\p{N}])`;
+// A code may follow the number with no space (`43.60EUR`), so only a letter before it makes it part of a word.
+const NOT_AFTER_LETTER = String.raw`(?<!\p{L})`;
 
-const CODE = `${NOT_PART_OF_WORD_BEFORE}(?:${ISO_CURRENCY_CODES.join('|')})${NOT_PART_OF_WORD_AFTER}`;
+const CODE = `${NOT_AFTER_LETTER}(?:${ISO_CURRENCY_CODES.join('|')})${NOT_PART_OF_WORD_AFTER}`;
 
 // Symbols that are not letters stand alone; the letter symbols need word boundaries.
 const SYMBOL = String.raw`[₾€£₴₽₺₹₸₪₩₫₦₱₼֏฿$¥]|${NOT_PART_OF_WORD_BEFORE}(?i:zł|kč|kr)${NOT_PART_OF_WORD_AFTER}`;
@@ -140,6 +142,7 @@ export const AMOUNT_GATE_SAMPLES: readonly AmountGateSample[] = [
   { text: 'Списание $ 1,234.50 Amazon', minLevel: 'strict' },
   { text: 'Оплата 250 zł Żabka', minLevel: 'strict' },
   { text: 'Received USD 1000 from John', minLevel: 'strict' },
+  { text: 'Payment\n43.60EUR\nExample Store', minLevel: 'strict' },
   // Local currency words and a little punctuation between the number and the mark.
   { text: 'გადახდა: 43.60 ლარი', minLevel: 'standard' },
   { text: 'Оплата 120 рублей в магазине', minLevel: 'standard' },
