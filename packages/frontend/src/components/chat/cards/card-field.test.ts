@@ -232,6 +232,7 @@ describe('CardField', () => {
             { field: 'transactionType', operator: 'equals', value: 'expense' },
             { field: 'accountId', operator: 'equals', value: 'acc-1' },
             { field: 'payeeId', operator: 'equals', value: 'p1' },
+            { field: 'dueDate', operator: 'within_days', value: 3 },
           ],
         },
         display: { kind: 'matchingRules' },
@@ -240,7 +241,7 @@ describe('CardField', () => {
     });
 
     expect(wrapper.get('[data-testid="field-value"]').text()).toBe(
-      'Note contains “netflix”, “nflx”; Amount from 9 to 11.5 USD; Type is Expense; Account is Main card; Payee is Streamly',
+      'Note contains “netflix”, “nflx”; Amount from 9 to 11.5 USD; Type is Expense; Account is Main card; Payee is Streamly; Within 3 days of the due date',
     );
   });
 

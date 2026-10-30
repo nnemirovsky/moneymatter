@@ -148,12 +148,15 @@
         "maxAmount": "Max amount",
         "currencyCode": "Currency code",
         "addRule": "Add rule",
+        "dueDateDays": "Days around the due date",
+        "dueDateDescription": "The transaction must land this many days before or after a due date of the schedule (month ends count, so a 30th renews on Feb 28).",
         "fieldOptions": {
           "note": "Note",
           "amount": "Amount",
           "transactionType": "Transaction type",
           "account": "Account",
-          "payee": "Payee"
+          "payee": "Payee",
+          "dueDate": "Due date"
         },
         "transactionTypeOptions": {
           "income": "Income",

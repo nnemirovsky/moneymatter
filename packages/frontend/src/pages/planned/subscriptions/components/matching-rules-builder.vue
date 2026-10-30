@@ -33,12 +33,16 @@ const getSelectedCurrency = ({ rule }: { rule: SubscriptionMatchingRule }) => {
   return currencies.value.find((c) => c.code === rule.currencyCode) ?? null;
 };
 
+const DEFAULT_DUE_DATE_WINDOW_DAYS = 3;
+const MAX_DUE_DATE_WINDOW_DAYS = 31;
+
 const FIELD_OPTIONS = computed(() => [
   { label: t('planned.subscriptions.rules.fieldOptions.note'), value: 'note' },
   { label: t('planned.subscriptions.rules.fieldOptions.amount'), value: 'amount' },
   { label: t('planned.subscriptions.rules.fieldOptions.transactionType'), value: 'transactionType' },
   { label: t('planned.subscriptions.rules.fieldOptions.account'), value: 'accountId' },
   { label: t('planned.subscriptions.rules.fieldOptions.payee'), value: 'payeeId' },
+  { label: t('planned.subscriptions.rules.fieldOptions.dueDate'), value: 'dueDate' },
 ]);
 
 const TRANSACTION_TYPE_OPTIONS = computed(() => [
@@ -57,6 +61,8 @@ const getOperatorForField = (field: string): string => {
       return 'contains_any';
     case 'amount':
       return 'between';
+    case 'dueDate':
+      return 'within_days';
     default:
       return 'equals';
   }
@@ -72,6 +78,8 @@ const getDefaultValueForField = (field: string): SubscriptionMatchingRule['value
       return TRANSACTION_TYPES.expense;
     case 'accountId':
       return 0;
+    case 'dueDate':
+      return DEFAULT_DUE_DATE_WINDOW_DAYS;
     default:
       return '';
   }
@@ -147,6 +155,11 @@ const removeNoteKeyword = ({ ruleIndex, keywordIndex }: { ruleIndex: number; key
 
 const getAmountValue = ({ rule }: { rule: SubscriptionMatchingRule }): { min: number; max: number } => {
   return rule.value as { min: number; max: number };
+};
+
+const updateDueDateWindow = ({ index, v }: { index: number; v: unknown }) => {
+  const days = Math.round(Number(v ?? 0));
+  updateRuleValue({ index, value: Math.min(MAX_DUE_DATE_WINDOW_DAYS, Math.max(0, Number.isFinite(days) ? days : 0)) });
 };
 
 const updateAmountMin = ({ index, rule, v }: { index: number; rule: SubscriptionMatchingRule; v: unknown }) => {
@@ -286,6 +299,17 @@ const updateAmountMax = ({ index, rule, v }: { index: number; rule: Subscription
           :placeholder="$t('planned.subscriptions.form.payeePlaceholder')"
           @update:model-value="(payeeId: string | null) => payeeId && updateRuleValue({ index, value: payeeId })"
         />
+      </template>
+
+      <template v-else-if="rule.field === 'dueDate'">
+        <InputField
+          :model-value="rule.value as number"
+          type="number"
+          :label="$t('planned.subscriptions.rules.dueDateDays')"
+          only-positive
+          @update:model-value="(v: any) => updateDueDateWindow({ index, v })"
+        />
+        <p class="text-muted-foreground text-xs">{{ $t('planned.subscriptions.rules.dueDateDescription') }}</p>
       </template>
     </div>
 

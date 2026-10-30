@@ -625,7 +625,8 @@
         "amountCurrency": "Сума від {min} до {max} {currency}",
         "transactionType": "Тип: {value}",
         "account": "Рахунок: {name}",
-        "payee": "Отримувач: {name}"
+        "payee": "Отримувач: {name}",
+        "dueDate": "Не далі ніж {days} дн. від дати платежу"
       }
     },
     "errors": {
