@@ -13,7 +13,7 @@ const createPayee = ({ name }: { name: string }) =>
 const payeeSubscription = ({ payeeId }: { payeeId: string }) =>
   helpers.createSubscription({
     name: 'Streamly+',
-    expectedAmount: 8.99,
+    expectedAmount: 12.49,
     expectedCurrencyCode: global.BASE_CURRENCY_CODE,
     frequency: SUBSCRIPTION_FREQUENCIES.monthly,
     startDate: '2025-01-01',
@@ -23,7 +23,7 @@ const payeeSubscription = ({ payeeId }: { payeeId: string }) =>
         {
           field: 'amount',
           operator: 'between',
-          value: { min: 8.99, max: 8.99 },
+          value: { min: 12.49, max: 12.49 },
         },
       ],
     },
@@ -59,15 +59,15 @@ describe('Subscription payee rule', () => {
     const other = await createPayee({ name: 'Corner Shop' });
     const sub = await payeeSubscription({ payeeId: streamly.id });
 
-    await expense({ accountId: account.id, payeeId: other.id, amount: 8.99 });
+    await expense({ accountId: account.id, payeeId: other.id, amount: 12.49 });
     await expense({ accountId: account.id, payeeId: streamly.id, amount: 20 });
-    await expense({ accountId: account.id, payeeId: null, amount: 8.99 });
+    await expense({ accountId: account.id, payeeId: null, amount: 12.49 });
     expect((await helpers.getSubscriptionById({ id: sub.id, raw: true })).transactions).toHaveLength(0);
 
     const [match] = await expense({
       accountId: account.id,
       payeeId: streamly.id,
-      amount: 8.99,
+      amount: 12.49,
     });
     const detail = await helpers.getSubscriptionById({ id: sub.id, raw: true });
     expect(detail.transactions.map((t: { id: string }) => t.id)).toEqual([match.id]);
@@ -82,13 +82,13 @@ describe('Subscription payee rule', () => {
     const [hit] = await expense({
       accountId: account.id,
       payeeId: streamly.id,
-      amount: 8.99,
+      amount: 12.49,
       time,
     });
     const [wrongPayee] = await expense({
       accountId: account.id,
       payeeId: other.id,
-      amount: 8.99,
+      amount: 12.49,
       time,
     });
     const [wrongAmount] = await expense({

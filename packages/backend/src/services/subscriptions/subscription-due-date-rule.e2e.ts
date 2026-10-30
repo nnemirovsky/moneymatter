@@ -6,14 +6,14 @@ import { addDays, format, setDate, subMonths } from 'date-fns';
 const subscriptionWithWindow = ({ dueDate, days }: { dueDate: string; days: number }) =>
   helpers.createSubscription({
     name: 'Streamly+',
-    expectedAmount: 8.99,
+    expectedAmount: 12.49,
     expectedCurrencyCode: global.BASE_CURRENCY_CODE,
     frequency: SUBSCRIPTION_FREQUENCIES.monthly,
     startDate: dueDate,
     dueDate,
     matchingRules: {
       rules: [
-        { field: 'amount', operator: 'between', value: { min: 8.99, max: 8.99 } },
+        { field: 'amount', operator: 'between', value: { min: 12.49, max: 12.49 } },
         { field: 'dueDate', operator: 'within_days', value: days },
       ],
     },
@@ -24,7 +24,7 @@ const expenseOn = ({ accountId, time }: { accountId: RecordId; time: string }) =
   helpers.createTransaction({
     payload: helpers.buildTransactionPayload({
       accountId,
-      amount: 8.99,
+      amount: 12.49,
       transactionType: TRANSACTION_TYPES.expense,
       time,
     }),
@@ -65,6 +65,48 @@ describe('Subscription due-date rule', () => {
     expect(ids).toContain(near.id);
     expect(ids).not.toContain(far.id);
   });
+
+  it('combines with a payee and an amount rule: all three must hold', async () => {
+    const account = await helpers.createAccount({ raw: true });
+    const streamly = await helpers.createPayee({ payload: helpers.buildPayeePayload({ name: 'Streamly' }), raw: true });
+    const other = await helpers.createPayee({ payload: helpers.buildPayeePayload({ name: 'Corner Shop' }), raw: true });
+    const sub = await helpers.createSubscription({
+      name: 'Streamly+',
+      expectedAmount: 12.49,
+      expectedCurrencyCode: global.BASE_CURRENCY_CODE,
+      frequency: SUBSCRIPTION_FREQUENCIES.monthly,
+      startDate: '2025-01-30',
+      dueDate: '2025-01-30',
+      matchingRules: {
+        rules: [
+          { field: 'payeeId', operator: 'equals', value: streamly.id },
+          { field: 'amount', operator: 'between', value: { min: 12.49, max: 12.49 } },
+          { field: 'dueDate', operator: 'within_days', value: 3 },
+        ],
+      },
+      raw: true,
+    });
+    const purchase = ({ payeeId, amount, time }: { payeeId: RecordId; amount: number; time: string }) =>
+      helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({
+          accountId: account.id,
+          amount,
+          transactionType: TRANSACTION_TYPES.expense,
+          payeeId,
+          time,
+        }),
+        raw: true,
+      });
+
+    await purchase({ payeeId: streamly.id, amount: 12.49, time: '2025-04-15T12:00:00Z' });
+    await purchase({ payeeId: other.id, amount: 12.49, time: '2025-04-29T12:00:00Z' });
+    await purchase({ payeeId: streamly.id, amount: 12, time: '2025-04-29T12:00:00Z' });
+    expect((await helpers.getSubscriptionById({ id: sub.id, raw: true })).transactions).toHaveLength(0);
+
+    const [hit] = await purchase({ payeeId: streamly.id, amount: 12.49, time: '2025-04-29T12:00:00Z' });
+    const linked = (await helpers.getSubscriptionById({ id: sub.id, raw: true })).transactions;
+    expect(linked.map((t: { id: string }) => t.id)).toEqual([hit.id]);
+  }, 60_000);
 
   it('rejects a dueDate rule on a subscription without a dueDate, and out-of-range windows', async () => {
     const base = {
