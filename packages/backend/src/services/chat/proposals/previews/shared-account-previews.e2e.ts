@@ -708,3 +708,59 @@ describe('A change of a line of a tracker on its card', () => {
     expect(JSON.stringify(card)).not.toContain('Other line');
   });
 });
+
+describe('An expected amount of a subscription on its card', () => {
+  const provisionSubscription = ({ expected }: { expected: boolean }) =>
+    helpers.createSubscription({
+      name: 'Electricity',
+      type: SUBSCRIPTION_TYPES.bill,
+      frequency: SUBSCRIPTION_FREQUENCIES.monthly,
+      startDate: '2026-01-01',
+      ...(expected ? { expectedAmount: 9.99, expectedCurrencyCode: global.BASE_CURRENCY.code } : {}),
+      raw: true,
+    });
+
+  it.each([
+    ['with an account', true],
+    ['without an account', false],
+  ])('makes no card for an amount %s when no currency is stored or passed', async (_label, withAccount) => {
+    const account = await helpers.createAccount({ raw: true });
+    const subscription = await provisionSubscription({ expected: false });
+
+    const { cards, script } = await proposeTool({
+      toolName: 'update_subscription',
+      args: { id: subscription.id, expectedAmount: 12, ...(withAccount ? { accountId: account.id } : {}) },
+    });
+
+    expect(cards).toEqual([]);
+    expect(lastToolResult({ script })).toMatch(/expectedCurrencyCode/);
+  });
+
+  it('makes a card that applies when the currency is passed with the amount', async () => {
+    const subscription = await provisionSubscription({ expected: false });
+
+    const card = await proposedCard({
+      toolName: 'update_subscription',
+      args: { id: subscription.id, expectedAmount: 12, expectedCurrencyCode: global.BASE_CURRENCY.code },
+    });
+
+    expect(card.canApply).toEqual({ ok: true });
+    const approved = await helpers.approveChatProposal({
+      proposalId: card.id,
+      payload: { revision: card.revision },
+      raw: true,
+    });
+    expect(approved.card.status).toBe('applied');
+  });
+
+  it('makes a card for a new amount in the stored currency', async () => {
+    const subscription = await provisionSubscription({ expected: true });
+
+    const card = await proposedCard({
+      toolName: 'update_subscription',
+      args: { id: subscription.id, expectedAmount: 12 },
+    });
+
+    expect(card.canApply).toEqual({ ok: true });
+  });
+});

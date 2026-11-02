@@ -8,6 +8,7 @@ import { assertKnownRecords } from '../proposals/known-records';
 import { normalizeUserTimeArgs } from '../proposals/normalize-time-args';
 import { assertCardUsesPickedRecords } from '../proposals/picked-records';
 import { proposalRef, ToolInputError } from '../proposals/placeholders';
+import { assertSubscriptionAmountHasCurrency } from '../proposals/subscription-amount';
 import { assertNoTwinLegUpdate } from '../proposals/twin-leg-update';
 import { parseWriteInput } from './model-schema';
 import { errorMessage, toolFailure, toolSuccess } from './result-text';
@@ -74,6 +75,10 @@ export async function proposeToolCall({
     // One edit of a transfer leg changes both legs, so the same edit for the other leg is not a second card.
     if (entry.name === 'update_transaction') {
       await assertNoTwinLegUpdate({ userId: ctx.run.user.id, threadId: ctx.run.threadId, args });
+    }
+
+    if (entry.name === 'update_subscription') {
+      await assertSubscriptionAmountHasCurrency({ userId: ctx.run.user.id, args });
     }
 
     const taken = ctx.state.limits.take({ kind: 'proposals' });
