@@ -114,6 +114,8 @@ export interface ChatCardAffected {
 export interface ChatCardWarning {
   key: string;
   params?: Record<string, string | number>;
+  /** The service would refuse the call for this reason, so the card cannot be approved as it stands. */
+  blocksApproval?: boolean;
 }
 
 export interface ChatCardDependency {

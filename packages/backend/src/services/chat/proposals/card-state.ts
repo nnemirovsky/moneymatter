@@ -5,15 +5,21 @@ import type {
   ChatProposalSnapshot,
   ChatProposalStatus,
 } from '@bt/shared/types';
+import { logger } from '@js/utils/logger';
 
 import { confirmationFor, type ResolvedToolPolicy } from '../policies/rules';
-import { errorMessage } from '../toolkit/result-text';
 import { resolveCardLabels } from './card-labels';
 import { PREVIEW_RESOLVERS } from './previews';
 import { resolveArgsOnlyMoneyCurrencies } from './previews/money-currencies';
 import { PreviewError } from './previews/preview-helpers';
 import type { PreviewResolution, PreviewResolver } from './previews/types';
 import { buildSnapshot } from './snapshot';
+
+/** What a card says when its resolver failed for a reason that is not the user's to act on. */
+const PREVIEW_FAILED: ChatCardError = {
+  messageKey: 'chat.cards.previewFailed',
+  message: 'The preview could not be prepared',
+};
 
 async function runPreview({
   userId,
@@ -39,7 +45,9 @@ async function runPreview({
     if (error instanceof PreviewError) {
       return { resolution: null, error: { messageKey: error.messageKey, message: error.message } };
     }
-    return { resolution: null, error: { message: errorMessage({ error }) } };
+    // The text of an unexpected error can be a raw database message, so it stays in the log.
+    logger.error({ message: `Preview of ${toolName} failed`, error: error as Error });
+    return { resolution: null, error: PREVIEW_FAILED };
   }
 }
 

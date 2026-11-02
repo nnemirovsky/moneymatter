@@ -952,11 +952,13 @@ describe('buildChatToolkit', () => {
       const result = await call({ toolkit, name: 'bulk_delete_transactions', input: { transactionIds: [ACCOUNT] } });
 
       expect(result.isError).toBe(false);
+      const shown = { messageKey: 'chat.cards.previewFailed', message: 'The preview could not be prepared' };
       expect(cardsIn({ events })[0]).toMatchObject({
         canApply: { ok: false, reasonKey: 'chat.cards.previewFailed' },
-        error: { message: 'Preview exploded' },
+        error: shown,
       });
-      expect((createSpy().mock.calls[0]![0] as any).error).toEqual({ message: 'Preview exploded' });
+      expect((createSpy().mock.calls[0]![0] as any).error).toEqual(shown);
+      expect(JSON.parse(result.text)).toMatchObject({ cannotApprove: shown.message });
     });
 
     it('retracts the text of the run on its first card', async () => {

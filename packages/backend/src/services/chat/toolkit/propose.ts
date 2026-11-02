@@ -101,8 +101,16 @@ export async function proposeToolCall({
     if (replacedCard) await ctx.run.emit({ type: 'proposal.upserted', card: replacedCard });
     await ctx.run.textPolicy.cardCreated();
 
+    // A card the user cannot approve is still on the screen, and the model has to say so and may correct the call.
+    const cannotApprove = card.error?.message ?? card.warnings.find((warning) => warning.blocksApproval)?.key;
+
     return toolSuccess({
-      text: JSON.stringify({ proposalId: card.id, ref: proposalRef({ id: card.id }), status: 'proposed' }),
+      text: JSON.stringify({
+        proposalId: card.id,
+        ref: proposalRef({ id: card.id }),
+        status: 'proposed',
+        ...(cannotApprove ? { cannotApprove } : {}),
+      }),
     });
   } catch (error) {
     if (error instanceof ToolInputError) return toolFailure({ text: error.message });
