@@ -9,7 +9,7 @@ export const CARD_PAYMENT_AMOUNT_TOLERANCE = '0.25';
 
 const WINDOW_MS = PLANNED_MATCH_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 const MIN_TOKEN_LENGTH = 3;
-const MIN_PREFIX_TOKEN_LENGTH = 4;
+const MIN_PREFIX_TOKEN_LENGTH = 5;
 
 interface PlanFigures {
   amount: Money;

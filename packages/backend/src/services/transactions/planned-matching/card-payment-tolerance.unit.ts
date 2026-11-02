@@ -97,9 +97,15 @@ describe('hasMerchantAffinity', () => {
     expect(affinity({ planNames: ['Cafe Heart of Lisbon'], incomingText: 'OF 12 GE' })).toBe(false);
   });
 
-  it('allows prefixes only when both tokens have at least 4 characters', () => {
+  it('allows prefixes only when both tokens have at least 5 characters', () => {
     expect(affinity({ planNames: ['Sun'], incomingText: 'SUNSET' })).toBe(false);
-    expect(affinity({ planNames: ['Sunset'], incomingText: 'SUNS' })).toBe(true);
+    expect(affinity({ planNames: ['Sunset'], incomingText: 'SUNS' })).toBe(false);
+    expect(affinity({ planNames: ['Sunset'], incomingText: 'SUNSE' })).toBe(true);
+  });
+
+  it('does not take a 4-letter name for the start of a longer word', () => {
+    expect(affinity({ planNames: ['Mark'], incomingText: 'MARKET' })).toBe(false);
+    expect(affinity({ planNames: ['Mark'], incomingText: 'MARK' })).toBe(true);
   });
 
   it('needs a majority of a name distinctive tokens to match', () => {
