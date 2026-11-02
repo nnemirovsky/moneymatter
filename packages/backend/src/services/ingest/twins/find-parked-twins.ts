@@ -54,7 +54,7 @@ export const joinedSlots = async ({ twins }: { twins: IngestRequests[] }): Promi
 };
 
 /** A waiting request that is the twin of another, with the reading the rule used. */
-export interface ParkedTwin {
+interface ParkedTwin {
   request: IngestRequests;
   probe: TwinProbe;
 }

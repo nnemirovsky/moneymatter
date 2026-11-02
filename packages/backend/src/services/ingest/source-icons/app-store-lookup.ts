@@ -5,7 +5,7 @@ const REQUEST_TIMEOUT_MS = 5_000;
 const SEARCH_LIMIT = 25;
 
 /** What the App Store API says of one app that this uses. */
-export interface AppStoreApp {
+interface AppStoreApp {
   bundleId: string;
   trackName: string;
   sellerName: string | null;

@@ -1,7 +1,7 @@
 import type Transactions from '@models/transactions.model';
 
 /** What `pickContextPayment` decided for a context notification. */
-export type ContextPick =
+type ContextPick =
   | { kind: 'none' }
   /** One open payment and no competing context: a certain match. */
   | { kind: 'sure'; transaction: Transactions }

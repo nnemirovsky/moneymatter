@@ -8,9 +8,9 @@ import { readStoredParse } from './event/stored-parse';
 import { TWIN_PARK_REASONS } from './twins/find-parked-twins';
 
 /** The waiting list a chat reads is short: the newest few are what the owner means by "the notice in the inbox". */
-export const WAITING_REQUESTS_FOR_CHAT_LIMIT = 20;
+const WAITING_REQUESTS_FOR_CHAT_LIMIT = 20;
 
-export interface WaitingIngestRequestView {
+interface WaitingIngestRequestView {
   requestId: RecordId;
   /** Why it waits: `unknownAccount`, `ownTransfer`, `lowConfidence`, `unverifiedParse`. */
   reason: string | null;

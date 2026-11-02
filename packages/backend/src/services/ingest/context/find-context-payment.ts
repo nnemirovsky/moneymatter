@@ -14,7 +14,7 @@ import { matchesService } from './service-match';
 const CANDIDATES_LIMIT = 100;
 
 /** The payments a context notification could belong to. */
-export interface ContextCandidates {
+interface ContextCandidates {
   /** Rows whose confirm card is still open: the only ones that may be enriched. */
   open: Transactions[];
   /** Rows of the service in the window that the owner already settled. */

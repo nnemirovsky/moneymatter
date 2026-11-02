@@ -53,7 +53,7 @@ const closeHeldStagesOfOrder = async ({
 };
 
 /** What the matching did with a context notification. `summary` is the banner of an applied one. */
-export type ContextResolution = { kind: 'enriched'; summary: string } | { kind: 'held' } | { kind: 'ignored' };
+type ContextResolution = { kind: 'enriched'; summary: string } | { kind: 'held' } | { kind: 'ignored' };
 
 /**
  * Matches one context notification to a payment and settles its request, for a notification that has

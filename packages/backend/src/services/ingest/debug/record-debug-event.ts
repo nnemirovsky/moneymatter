@@ -62,7 +62,7 @@ const findTracedToken = async ({
   return token && ids.has(token.id) ? { id: token.id, userId: token.userId } : null;
 };
 
-export interface DebugEventInput {
+interface DebugEventInput {
   req: Request;
   httpStatus: number;
   responseBody: unknown;

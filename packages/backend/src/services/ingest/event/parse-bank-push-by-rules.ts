@@ -4,7 +4,7 @@ import type { ClassifiedNotification } from './classify-notification';
 import type { NotificationText } from './notification-text';
 
 /** A plain card payment read by its layout; the same shape the Wallet reader returns. */
-export interface RulesPayment {
+interface RulesPayment {
   classified: Extract<ClassifiedNotification, { verdict: 'payment' }>;
   /** A currency symbol written next to the amount, as written; only the user's own currencies can settle a shared one. */
   symbol: string | null;
@@ -64,7 +64,7 @@ const TIME = /\b\d{1,2}:\d{2}(?::\d{2})?\b/gu;
 const MONEY =
   /(?:(?<![^\s])([-+−–])(?=[A-Z$€£¥₴₽₾₺₹\d]))?[ \u00a0]*(?:(?<![A-Za-z])([A-Z]{3})(?![A-Za-z])[ \u00a0]*)?([$€£¥₴₽₾₺₹])?[ \u00a0]*(\d[\d .,'\u00a0\u202f]*\d|\d)(?:[ \u00a0]*(?<![A-Za-z])([A-Z]{3})(?![A-Za-z]))?/gu;
 
-export interface Found {
+interface Found {
   amount: string;
   currencyCode: string | null;
   symbol: string | null;

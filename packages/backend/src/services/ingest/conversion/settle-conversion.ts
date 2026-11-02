@@ -21,7 +21,7 @@ import { findConversionPartner } from './find-conversion-partner';
 import { resolveConversionAccount } from './resolve-conversion-account';
 
 /** The accounts of an exchange the bank's notices point at: where the money left, where it arrived. */
-export interface ConversionAccounts {
+interface ConversionAccounts {
   fromAccountId: RecordId | null;
   toAccountId: RecordId | null;
 }

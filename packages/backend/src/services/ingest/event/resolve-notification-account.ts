@@ -17,7 +17,7 @@ const usableOrNull = ({ account }: { account: Accounts | null }): Accounts | nul
 type AccountMatch = 'card' | 'sourceDefault' | 'history' | 'owner';
 
 /** What a notification states of its payment, for finding the account among the ones the source used before. */
-export interface HistoryClue {
+interface HistoryClue {
   amount: string;
   kind: 'debit' | 'credit';
   balanceAfter: { amount: string; currencyCode: string } | null;

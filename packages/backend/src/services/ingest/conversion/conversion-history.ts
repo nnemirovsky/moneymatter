@@ -8,10 +8,10 @@ const HISTORY_LIMIT = 10;
 const USUAL_RATE_SAMPLE = 5;
 
 /** The exchange rate may differ this much (as a share of the usual one) before the card says so. */
-export const RATE_DEVIATION_LIMIT = 0.05;
+const RATE_DEVIATION_LIMIT = 0.05;
 
 /** A transfer the owner already has between the same two accounts, in the same direction. */
-export interface PastConversion {
+interface PastConversion {
   /** Units received per unit sent. */
   rate: number;
   note: string | null;

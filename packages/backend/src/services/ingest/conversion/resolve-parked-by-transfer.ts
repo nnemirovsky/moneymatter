@@ -91,7 +91,7 @@ const resolveImpl = async ({
   return settled;
 };
 
-export const resolveParkedByTransfer = withTransaction(resolveImpl);
+const resolveParkedByTransfer = withTransaction(resolveImpl);
 
 /** Runs `resolveParkedByTransfer` where a failure must never reach the transfer that was logged. */
 export const settleParkedForTransfer = async ({

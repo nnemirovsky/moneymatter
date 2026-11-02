@@ -9,7 +9,7 @@ import { ToolInputError } from './placeholders';
  * The arguments of `update_transaction` that the transaction service writes to the other leg of a transfer as
  * well, so one edit of either leg changes both.
  */
-export const SHARED_TRANSFER_FIELDS = [
+const SHARED_TRANSFER_FIELDS = [
   'time',
   'timeZone',
   'note',

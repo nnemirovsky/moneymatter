@@ -8,7 +8,7 @@ export const SETTLEMENT_MIN_AGE_MS = 24 * 60 * 60_000;
 export const SETTLEMENT_MAX_AGE_MS = 10 * 24 * 60 * 60_000;
 
 /** A hold settles within a few percent of its amount (the card network's rate moves, not the price). */
-export const SETTLEMENT_MAX_SHARE = 0.05;
+const SETTLEMENT_MAX_SHARE = 0.05;
 
 /** A payment in a foreign currency that is still at the amount its notice stated. */
 export interface SettlementCandidate {

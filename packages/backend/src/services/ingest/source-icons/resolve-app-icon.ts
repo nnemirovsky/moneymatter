@@ -2,7 +2,7 @@ import { type AppIdentity, getKnownBundleId } from '@bt/shared/types';
 
 import { lookupByBundleId, searchByName } from './app-store-lookup';
 
-export interface ResolvedAppIcon {
+interface ResolvedAppIcon {
   iconUrl: string;
   /** The bundle id of the listing the icon came from. */
   bundleId: string;

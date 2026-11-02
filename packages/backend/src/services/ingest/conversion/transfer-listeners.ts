@@ -14,7 +14,7 @@ import { settleParkedForTransfer } from './resolve-parked-by-transfer';
  * - the short-balance suggestion of a payment on the account the transfer topped up, if the transfer covers it.
  * Failures are logged; the transfer is already committed.
  */
-export const onTransferLogged = async ({
+const onTransferLogged = async ({
   userId,
   transactionIds,
 }: {

@@ -62,7 +62,7 @@ type SameShopCheck = (args: { candidate: DedupCandidate }) => boolean;
 const byTime = (a: DedupCandidate, b: DedupCandidate) => a.time.getTime() - b.time.getTime();
 
 /** Whether two merchant texts are the same once case and punctuation are gone. Neither empty. */
-export const sameMerchantText = ({ left, right }: { left: string | null; right: string | null }): boolean => {
+const sameMerchantText = ({ left, right }: { left: string | null; right: string | null }): boolean => {
   if (!left || !right) return false;
 
   const normalized = normalizePayeeName({ raw: left });

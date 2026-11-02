@@ -13,7 +13,7 @@ import { dismissCorrection } from './apply-correction';
  * payment at once, and the transfer that tops the balance up (a conversion, a move between accounts) is booked a few
  * minutes before or after.
  */
-export const TOP_UP_WINDOW_MS = 10 * 60_000;
+const TOP_UP_WINDOW_MS = 10 * 60_000;
 
 /** The transfers into `accountId` landed within the top-up window of `time`, newest first. */
 export const findTopUps = async ({

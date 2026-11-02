@@ -11,7 +11,7 @@ const NOTE_HISTORY_DAYS = 180;
 const NOTE_HISTORY_LIMIT = 200;
 
 /** The request of a currency exchange that waits on a card: the one the other side joined, and the side that joined. */
-export interface WaitingExchange {
+interface WaitingExchange {
   primary: IngestRequests;
   joinedLegId: RecordId;
 }
@@ -49,7 +49,7 @@ export const findWaitingExchange = async ({
 const escapeRegExp = ({ value }: { value: string }) => value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 
 /** Whether a note of one of the owner's own transfers names the sender, as a whole word (case ignored). */
-export const senderNamedInTransferNotes = async ({
+const senderNamedInTransferNotes = async ({
   userId,
   sender,
   now = new Date(),

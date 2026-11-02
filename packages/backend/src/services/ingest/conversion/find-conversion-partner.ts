@@ -38,7 +38,7 @@ export const findJoinedConversionLeg = ({
   });
 
 /** The other side of an exchange: a request, and whether it already joined (`joined`) or still waits on a card of its own. */
-export interface ConversionPartner {
+interface ConversionPartner {
   request: IngestRequests;
   joined: boolean;
 }

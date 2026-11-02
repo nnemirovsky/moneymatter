@@ -69,7 +69,7 @@ export type CardPaymentSummary =
   | { type: 'contextHeld'; store: string; service: string }
   | { type: 'dryRun'; username: string; card: string | null; accountName: string | null; linkedCardCount: number };
 
-export const formatAmount = ({ value, locale }: { value: SummaryAmount; locale: string }): string => {
+const formatAmount = ({ value, locale }: { value: SummaryAmount; locale: string }): string => {
   let formatted: string;
 
   try {
