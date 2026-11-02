@@ -2,8 +2,13 @@ import type { ChatEntityKind, ChatFieldDisplay, ChatFieldEditable } from '@bt/sh
 
 import type { JsonSchema } from '../toolkit/types';
 
-/** Money arguments: shown as an amount and edited as one. A currency code argument is a picker, not money. */
-const MONEY_FIELD = /(amount|balance|creditlimit)$/i;
+/**
+ * Money arguments: shown as an amount and edited as one. A currency code argument is a picker, not money. Each has a
+ * currency to read: a currency argument of its card, the row its preview loads, or for `amountThreshold`, which a tag
+ * reminder keeps in the base currency, the base currency the frontend falls back to.
+ */
+const MONEY_FIELD =
+  /(amount|balance|creditlimit|minpayment|plannedpayment|originalprincipal|purchaseprice|expectedincome|fundingcap|amountthreshold)$/i;
 
 const isRefAlternative = ({ node }: { node: JsonSchema }) =>
   node.type === 'string' && typeof node.pattern === 'string' && node.pattern.includes('$proposal');

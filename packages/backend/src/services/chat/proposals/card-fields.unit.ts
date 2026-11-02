@@ -83,4 +83,37 @@ describe('describeField', () => {
       }),
     ).toEqual({ display: { kind: 'enum' }, editable: null });
   });
+
+  it.each([
+    'minPayment',
+    'plannedPayment',
+    'originalPrincipal',
+    'purchasePrice',
+    'expectedIncome',
+    'fundingCap',
+    'amountThreshold',
+  ])('shows the number %s as money and edits it as one', (key) => {
+    expect(describeField({ key, value: 100, node: { type: 'number' }, entityKind: undefined })).toEqual({
+      display: { kind: 'money' },
+      editable: { type: 'money' },
+    });
+  });
+
+  it('leaves a decimal string or a union amount as it reads, and a day of a month as a number', () => {
+    const text = { display: { kind: 'text' }, editable: { type: 'text' } };
+    expect(
+      describeField({ key: 'settlementAmount', value: '12.50', node: { type: 'string' }, entityKind: undefined }),
+    ).toEqual(text);
+    expect(
+      describeField({
+        key: 'gpCarryAmount',
+        value: '12.50',
+        node: { anyOf: [{ type: 'string' }, { type: 'number' }, { type: 'null' }] },
+        entityKind: undefined,
+      }),
+    ).toEqual({ display: { kind: 'text' }, editable: null });
+    expect(
+      describeField({ key: 'paymentDayOfMonth', value: 15, node: { type: 'integer' }, entityKind: undefined }),
+    ).toEqual({ display: { kind: 'text' }, editable: { type: 'number' } });
+  });
 });
