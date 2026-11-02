@@ -140,6 +140,31 @@ describe('toChatProposalCard', () => {
     });
   });
 
+  it('offers only the alternatives that could replace the value of the field', () => {
+    const card = toChatProposalCard({
+      row: row({
+        toolName: 'update_subscription',
+        entity: 'subscription',
+        args: { id: ID, expectedAmount: 2.59, note: 'Gas' },
+        preview: null,
+        uncertainFields: [
+          {
+            field: 'expectedAmount',
+            reason: 'guessedFromAttachment',
+            alternatives: [3.1, 'The real amount may differ from this estimate'],
+          },
+          { field: 'note', reason: 'other', alternatives: ['Gas bill'] },
+        ],
+      }),
+      parents: [],
+    });
+
+    const uncertainOf = ({ path }: { path: string }) => card.fields.find((field) => field.path === path)?.uncertain;
+
+    expect(uncertainOf({ path: 'expectedAmount' })).toEqual({ reason: 'guessedFromAttachment', alternatives: [3.1] });
+    expect(uncertainOf({ path: 'note' })).toEqual({ reason: 'other', alternatives: ['Gas bill'] });
+  });
+
   it('names the record a delete or update card targets from its preview, and no record for a create card', () => {
     const before = { id: ID, amount: 28.1, currencyCode: 'GEL', note: 'Nord Coffee', time: '2026-10-19T07:26:00.000Z' };
     const base = { toolName: 'delete_transaction', cardKind: 'delete', entity: 'transaction', args: { id: ID } };

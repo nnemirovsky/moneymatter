@@ -49,6 +49,15 @@ type ChatProposalRow = Pick<
 /** Arguments and stored rows are JSON, so equal values serialize alike. */
 const isSameValue = ({ a, b }: { a: unknown; b: unknown }) => JSON.stringify(a) === JSON.stringify(b);
 
+/**
+ * The alternatives a tap can write into a field: the model sometimes lists prose for a numeric argument, so only
+ * those of the value's type are offered. An empty field has no value to compare against and keeps them all.
+ */
+const replacementsFor = ({ value, alternatives }: { value: unknown; alternatives: unknown[] | undefined }) =>
+  value === null || value === undefined
+    ? alternatives
+    : alternatives?.filter((alternative) => typeof alternative === typeof value);
+
 /** The arguments that put an amount in a currency of their choosing, over the one its record stores. */
 const currencyArgsOf = ({ path }: { path: string }) =>
   path === 'destinationAmount' ? ['destinationAccountId'] : ['accountId', 'currencyCode'];
@@ -297,7 +306,14 @@ export function toChatProposalCard({
       ...(rowBefore && path in rowBefore && !isSameValue({ a: rowBefore[path], b: value })
         ? { before: rowBefore[path] }
         : {}),
-      ...(unsure ? { uncertain: { reason: unsure.reason, alternatives: unsure.alternatives } } : {}),
+      ...(unsure
+        ? {
+            uncertain: {
+              reason: unsure.reason,
+              alternatives: replacementsFor({ value, alternatives: unsure.alternatives }),
+            },
+          }
+        : {}),
     };
   });
 
