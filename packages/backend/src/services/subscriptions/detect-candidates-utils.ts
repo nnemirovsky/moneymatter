@@ -1,4 +1,5 @@
 import { SUBSCRIPTION_FREQUENCIES } from '@bt/shared/types';
+import { containsWord } from '@common/lib/contains-word';
 
 /**
  * Normalize a transaction note for grouping:
@@ -215,17 +216,23 @@ export function computeConfidenceScore({
 }
 
 /**
- * Check if two names are a fuzzy match by comparing their space-stripped
- * normalized forms. Also handles containment (e.g. "Netflix" matches
- * "Netflix subscription").
+ * Check if two names are a fuzzy match: their normalized forms are equal once spaces are gone
+ * ("Digital Ocean" and "DigitalOcean"), or one stands in the other as whole words ("Netflix" in
+ * "Netflix subscription", but "Art" not in "Smart Gym"). The word to look for is normalized so a
+ * reference number in a note does not get in the way; the text keeps its punctuation, which
+ * separates words ("APPLE.COM/BILL").
  */
 export function isFuzzyNameMatch({ a, b }: { a: string; b: string }): boolean {
-  const normA = normalizeNote({ note: a }).replace(/\s+/g, '');
-  const normB = normalizeNote({ note: b }).replace(/\s+/g, '');
+  const normA = normalizeNote({ note: a });
+  const normB = normalizeNote({ note: b });
 
   if (!normA || !normB) return false;
 
-  return normA === normB || normA.includes(normB) || normB.includes(normA);
+  return (
+    normA.replace(/\s+/g, '') === normB.replace(/\s+/g, '') ||
+    containsWord({ text: a, word: normB }) ||
+    containsWord({ text: b, word: normA })
+  );
 }
 
 /**

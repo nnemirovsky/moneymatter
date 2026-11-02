@@ -57,6 +57,23 @@ describe('normalizeNote', () => {
 });
 
 describe('isFuzzyNameMatch', () => {
+  it.each([
+    ['Gas', 'Gastroenterologist Clinic'],
+    ['Art', 'Smart Gym'],
+  ])('does not match %j with a name that only holds it inside a word: %j', (a, b) => {
+    expect(isFuzzyNameMatch({ a, b })).toBe(false);
+    expect(isFuzzyNameMatch({ a: b, b: a })).toBe(false);
+  });
+
+  it.each([
+    ['Netflix', 'Netflix Premium'],
+    ['Apple', 'APPLE.COM/BILL'],
+    ['Netflix 12345678', 'Netflix Premium'],
+  ])('matches %j with %j, where it stands as a whole word', (a, b) => {
+    expect(isFuzzyNameMatch({ a, b })).toBe(true);
+    expect(isFuzzyNameMatch({ a: b, b: a })).toBe(true);
+  });
+
   it('matches identical names', () => {
     expect(isFuzzyNameMatch({ a: 'Netflix', b: 'Netflix' })).toBe(true);
   });
