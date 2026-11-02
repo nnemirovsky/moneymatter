@@ -114,4 +114,17 @@ describe('isWordAligned', () => {
     expect(isWordAligned({ merchant: 'Rosa', name: 'Primrosa Market' })).toBe(false);
     expect(isWordAligned({ merchant: 'Rosa', name: 'Primrose Market' })).toBe(false);
   });
+
+  it('rejects a short text that only starts a longer word', () => {
+    expect(isWordAligned({ merchant: 'Gas', name: 'Gastroenterologist Clinic' })).toBe(false);
+  });
+
+  it('keeps a truncated bank name of at least 4 letters', () => {
+    expect(isWordAligned({ merchant: 'SUPERM', name: 'Supermarket' })).toBe(true);
+  });
+
+  it('counts a typo only between words with the same first letter', () => {
+    expect(isWordAligned({ merchant: 'Coffee', name: 'Toffee' })).toBe(false);
+    expect(isWordAligned({ merchant: 'Cofee', name: 'Coffee' })).toBe(true);
+  });
 });

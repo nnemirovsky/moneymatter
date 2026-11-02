@@ -194,16 +194,19 @@ export const matchMerchantCore = ({
   return { kind: 'ambiguous', candidates: sorted };
 };
 
-const MIN_PREFIX_WORD_LENGTH = 3;
+const MIN_PREFIX_WORD_LENGTH = 4;
 
-/** The same word, one the start of the other, or a typo apart. */
+/**
+ * The same word, one the start of the other (a name the bank truncated), or a typo apart. A typo
+ * keeps the first letter: "coffee" and "toffee" are one edit apart and two different words.
+ */
 const wordsAlign = ({ a, b }: { a: string; b: string }): boolean => {
   if (a === b) return true;
 
   const [short, long] = a.length <= b.length ? [a, b] : [b, a];
   if (short.length >= MIN_PREFIX_WORD_LENGTH && long.startsWith(short)) return true;
 
-  return editDistance({ a, b }) <= allowedEdits({ length: short.length });
+  return [...a][0] === [...b][0] && editDistance({ a, b }) <= allowedEdits({ length: short.length });
 };
 
 /**
