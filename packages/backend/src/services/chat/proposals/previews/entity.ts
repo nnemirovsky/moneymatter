@@ -52,7 +52,7 @@ export const resolveEntityPreview: PreviewResolver = async ({ userId, args, poli
 
   return {
     preview: {
-      before: entity.row,
+      before: entity.row ?? (entity.moneyCurrencies ? { moneyCurrencies: entity.moneyCurrencies } : null),
       ...(Object.keys(entity.counts).length > 0 ? { counts: entity.counts } : {}),
       ...(entity.automationCreated ? { automationCreated: true } : {}),
       ...(twins.length > 0

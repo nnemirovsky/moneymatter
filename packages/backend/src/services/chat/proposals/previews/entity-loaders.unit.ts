@@ -14,6 +14,7 @@ import Holdings from '@models/investments/holdings.model';
 import InvestmentTransactions from '@models/investments/investment-transaction.model';
 import PortfolioTransfers from '@models/investments/portfolio-transfers.model';
 import Portfolios from '@models/investments/portfolios.model';
+import LoanDetails from '@models/loan-details.model';
 import PayeeAliases from '@models/payee-aliases.model';
 import Payees from '@models/payees.model';
 import RefundTransactions from '@models/refund-transactions.model';
@@ -28,6 +29,7 @@ import Trackers from '@models/trackers.model';
 import TransactionAttachments from '@models/transaction-attachments.model';
 import TransactionSplits from '@models/transaction-splits.model';
 import TransactionTags from '@models/transaction-tags.model';
+import TransactionTemplates from '@models/transaction-templates.model';
 import UsersCurrencies from '@models/users-currencies.model';
 import VentureEventLinks from '@models/venture/venture-event-links.model';
 import VentureEvents from '@models/venture/venture-events.model';
@@ -44,10 +46,14 @@ jest.mock('@models/transactions-query', () => ({
 
 jest.mock('@services/categories/count-category-transactions', () => ({ countCategoryTransactions: jest.fn() }));
 jest.mock('@services/sharing/auth/can-user-access-resource.service', () => ({ canUserAccessResource: jest.fn() }));
+jest.mock('@services/sharing/auth/get-accessible-account-ids.service', () => ({
+  getAccessibleAccountIdsForUser: jest.fn(),
+}));
 
 import * as transactionsQuery from '@models/transactions-query';
 import { countCategoryTransactions } from '@services/categories/count-category-transactions';
 import { canUserAccessResource } from '@services/sharing/auth/can-user-access-resource.service';
+import { getAccessibleAccountIdsForUser } from '@services/sharing/auth/get-accessible-account-ids.service';
 
 import { ENTITY_LOADERS } from './entity-loaders';
 
@@ -62,10 +68,11 @@ const record = (values: Record<string, unknown>) => ({
   toJSON: () => ({ updatedAt: UPDATED, ...values }),
 });
 
-const load = ({ kind, targets }: { kind: string; targets: string[] }) =>
+const load = ({ kind, targets, args }: { kind: string; targets: string[]; args?: Record<string, unknown> }) =>
   (ENTITY_LOADERS as Record<string, NonNullable<(typeof ENTITY_LOADERS)[keyof typeof ENTITY_LOADERS]>>)[kind]!({
     userId: USER,
     targets,
+    args,
   });
 
 const whereOf = (spy: unknown) =>
@@ -301,6 +308,7 @@ describe('entity loaders', () => {
         .mockResolvedValue({ granted: true, isOwner: false, ownerUserId: RECIPIENT_OWNER } as never);
       const find = jest.spyOn(Trackers, 'findOne').mockResolvedValue(record({ id: ID, name: 'Home' }) as never);
       jest.spyOn(TrackerTransactions, 'count').mockResolvedValue(4);
+      jest.spyOn(UsersCurrencies, 'findOne').mockResolvedValue(null as never);
 
       const loaded = await load({ kind: 'tracker', targets: [ID] });
 
@@ -444,6 +452,148 @@ describe('entity loaders', () => {
       jest.mocked(transactionsQuery.findOneTransaction).mockResolvedValue(record({ id: ID }) as never);
 
       expect((await load({ kind: 'transaction', targets: [ID] }))?.counts).toEqual({});
+    });
+  });
+
+  describe('the currency of an amount the arguments do not state', () => {
+    const TWIN = '5d2e8f40-7a13-4c9b-b0e5-6f4a2c1d8e37';
+    const TRANSFER = '7b1c3d5e-9f20-4a68-8c4e-0d2f4b6a8c13';
+
+    it('reads the balance of a loan in the currency of its account, found among the accounts of the user', async () => {
+      jest.spyOn(LoanDetails, 'findOne').mockResolvedValue(record({ accountId: ID, lenderName: 'Bank' }) as never);
+      const account = jest.spyOn(Accounts, 'findOne').mockResolvedValue(record({ currencyCode: 'EUR' }) as never);
+
+      const loaded = await load({ kind: 'loan', targets: [ID] });
+
+      expect(whereOf(account).where).toEqual({ id: ID, userId: USER });
+      expect(loaded?.row).toMatchObject({ lenderName: 'Bank', moneyCurrencies: { currentBalance: 'EUR' } });
+    });
+
+    it('reads the balance and the payments of a loan in the currency of its account', async () => {
+      jest.spyOn(LoanDetails, 'findOne').mockResolvedValue(record({ accountId: ID, minPayment: 100 }) as never);
+      jest.spyOn(Accounts, 'findOne').mockResolvedValue({ currencyCode: 'EUR' } as never);
+
+      const loaded = await load({ kind: 'loan', targets: [ID] });
+
+      expect(loaded?.row?.moneyCurrencies).toEqual({
+        currentBalance: 'EUR',
+        minPayment: 'EUR',
+        plannedPayment: 'EUR',
+      });
+    });
+
+    it('reads the expected income of a budget plan in the currency of the plan', async () => {
+      jest.spyOn(BudgetPlans, 'findOne').mockResolvedValue(record({ id: ID, currencyCode: 'EUR' }) as never);
+      jest.spyOn(BudgetLines, 'count').mockResolvedValue(0);
+
+      const loaded = await load({ kind: 'budgetPlan', targets: [ID] });
+
+      expect(loaded?.row?.moneyCurrencies).toEqual({ expectedIncome: 'EUR' });
+    });
+
+    it('reads the amounts of a goal in the currency of the plan, on a goal that does not exist yet too', async () => {
+      jest.spyOn(BudgetPlans, 'findOne').mockResolvedValue(record({ id: ID, currencyCode: 'EUR' }) as never);
+      jest.spyOn(BudgetLines, 'findOne').mockResolvedValue(record({ id: OTHER }) as never);
+      const goal = jest.spyOn(BudgetLineGoals, 'findOne').mockResolvedValue(null);
+      const currencies = { amount: 'EUR', stopAtBalance: 'EUR', fundingCap: 'EUR' };
+
+      const missing = await load({ kind: 'budgetPlanLineGoal', targets: [ID, OTHER] });
+      expect(missing).toMatchObject({ row: null, moneyCurrencies: currencies });
+
+      goal.mockResolvedValue(record({ lineId: OTHER }) as never);
+      const existing = await load({ kind: 'budgetPlanLineGoal', targets: [ID, OTHER] });
+      expect(existing?.row?.moneyCurrencies).toEqual(currencies);
+    });
+
+    it('states no currency when the account of a loan is not among the accounts of the user', async () => {
+      jest.spyOn(LoanDetails, 'findOne').mockResolvedValue(record({ accountId: ID }) as never);
+      jest.spyOn(Accounts, 'findOne').mockResolvedValue(null as never);
+
+      const loaded = await load({ kind: 'loan', targets: [ID] });
+
+      expect(loaded?.row).not.toHaveProperty('moneyCurrencies');
+    });
+
+    it('reads the amount of a template in the currency of its stored account', async () => {
+      jest
+        .spyOn(TransactionTemplates, 'findOne')
+        .mockResolvedValue(record({ id: ID, accountId: OTHER, amount: 5 }) as never);
+      const account = jest.spyOn(Accounts, 'findOne').mockResolvedValue(record({ currencyCode: 'GEL' }) as never);
+
+      const loaded = await load({ kind: 'transactionTemplate', targets: [ID] });
+
+      expect(whereOf(account).where).toEqual({ id: OTHER, userId: USER });
+      expect(loaded?.row).toMatchObject({ moneyCurrencies: { amount: 'GEL' } });
+    });
+
+    it('reads no account for a template without one', async () => {
+      jest.spyOn(TransactionTemplates, 'findOne').mockResolvedValue(record({ id: ID, accountId: null }) as never);
+      const account = jest.spyOn(Accounts, 'findOne');
+
+      const loaded = await load({ kind: 'transactionTemplate', targets: [ID] });
+
+      expect(account).not.toHaveBeenCalled();
+      expect(loaded?.row).not.toHaveProperty('moneyCurrencies');
+    });
+
+    describe('the destination amount of a transfer', () => {
+      const twoLegs = () => {
+        jest.mocked(transactionsQuery.findOneTransaction).mockResolvedValue(
+          record({
+            id: ID,
+            currencyCode: 'USD',
+            transferId: TRANSFER,
+            transferNature: TRANSACTION_TRANSFER_NATURE.common_transfer,
+          }) as never,
+        );
+        jest
+          .mocked(transactionsQuery.findTransactions)
+          .mockResolvedValue([record({ id: TWIN, accountId: OTHER, currencyCode: 'EUR' })] as never);
+      };
+
+      it('is in the currency of the other leg', async () => {
+        twoLegs();
+        jest.mocked(getAccessibleAccountIdsForUser).mockResolvedValue([OTHER]);
+
+        const loaded = await load({ kind: 'transaction', targets: [ID], args: { id: ID, destinationAmount: 40 } });
+
+        expect(loaded?.row).toMatchObject({ currencyCode: 'USD', moneyCurrencies: { destinationAmount: 'EUR' } });
+      });
+
+      it('says nothing of a leg on an account the user cannot see', async () => {
+        twoLegs();
+        jest.mocked(getAccessibleAccountIdsForUser).mockResolvedValue([ID]);
+
+        const loaded = await load({ kind: 'transaction', targets: [ID], args: { id: ID, destinationAmount: 40 } });
+
+        expect(loaded?.row).not.toHaveProperty('moneyCurrencies');
+      });
+
+      it('reads no access for a call that leaves the destination amount alone', async () => {
+        twoLegs();
+        jest.mocked(getAccessibleAccountIdsForUser).mockClear();
+
+        const loaded = await load({ kind: 'transaction', targets: [ID], args: { id: ID, note: 'Rent' } });
+
+        expect(getAccessibleAccountIdsForUser).not.toHaveBeenCalled();
+        expect(loaded?.row).not.toHaveProperty('moneyCurrencies');
+      });
+    });
+
+    it('reads the limit of a shared tracker in the base currency of its owner, not of the user', async () => {
+      jest.mocked(canUserAccessResource).mockResolvedValue({
+        granted: true,
+        isOwner: false,
+        ownerUserId: USER + 1,
+      } as never);
+      jest.spyOn(Trackers, 'findOne').mockResolvedValue(record({ id: ID, limitAmount: 500 }) as never);
+      jest.spyOn(TrackerTransactions, 'count').mockResolvedValue(0);
+      const base = jest.spyOn(UsersCurrencies, 'findOne').mockResolvedValue(record({ currencyCode: 'UAH' }) as never);
+
+      const loaded = await load({ kind: 'tracker', targets: [ID] });
+
+      expect(whereOf(base).where).toEqual({ userId: USER + 1, isDefaultCurrency: true });
+      expect(loaded?.row).toMatchObject({ moneyCurrencies: { limitAmount: 'UAH' } });
     });
   });
 

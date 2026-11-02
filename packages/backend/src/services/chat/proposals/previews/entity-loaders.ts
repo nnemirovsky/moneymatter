@@ -52,11 +52,13 @@ import { canUserAccessResource } from '@services/sharing/auth/can-user-access-re
 import { getSubscriptionTagIds } from '@services/subscriptions/subscription-tags';
 import { Op, type Model, type ModelStatic, type WhereOptions } from 'sequelize';
 
+import { accountCurrencyOf, type MoneyCurrencies, trackerLimitCurrencies } from './money-currencies';
 import {
   canSeeTransaction,
   countPayeeReferences,
   findPlanOrNull,
   forUpdate,
+  keepVisibleRows,
   loadTransferTwins,
   serializeRow,
 } from './preview-helpers';
@@ -75,6 +77,8 @@ export interface LoadedEntity {
    * then the other leg, which the service reads by `transferId` and updates or deletes with it.
    */
   legs?: Transactions[];
+  /** The currencies of the money arguments of a card whose target has no row yet, so they cannot travel on it. */
+  moneyCurrencies?: MoneyCurrencies;
   /** The row is a transaction the ingest pipeline wrote that still waits for the owner's decision. */
   automationCreated?: boolean;
 }
@@ -113,6 +117,35 @@ const loaded = ({ record, related }: { record: Model; related?: Related }): Load
   removes: related?.removes ?? 0,
   ...(related?.legs ? { legs: related.legs } : {}),
 });
+
+/** The row with the currencies of the money arguments a card can leave without one. */
+const withMoneyCurrencies = ({
+  entity,
+  currencies,
+}: {
+  entity: LoadedEntity;
+  currencies: MoneyCurrencies | null;
+}): LoadedEntity => {
+  if (!currencies) return entity;
+  return entity.row
+    ? { ...entity, row: { ...entity.row, moneyCurrencies: currencies } }
+    : { ...entity, moneyCurrencies: currencies };
+};
+
+const inCurrency = ({ args, currency }: { args: string[]; currency: string }): MoneyCurrencies =>
+  Object.fromEntries(args.map((arg) => [arg, currency]));
+
+/** A record whose `amountArgs` are written in the currency of the account the row stores. */
+const inAccountCurrency =
+  ({ loader, amountArgs }: { loader: EntityLoader; amountArgs: string[] }): EntityLoader =>
+  async (params) => {
+    const entity = await loader(params);
+    const accountId = entity?.row?.accountId;
+    if (!entity || typeof accountId !== 'string') return entity;
+
+    const currency = await accountCurrencyOf({ userId: params.userId, accountId });
+    return withMoneyCurrencies({ entity, currencies: currency ? inCurrency({ args: amountArgs, currency }) : null });
+  };
 
 /** The counts that are not zero: a card lists what goes with its target, not what does not. */
 const nonZero = ({ counts }: { counts: Record<string, number> }): Record<string, number> =>
@@ -183,8 +216,9 @@ const lineOf = ({ targets }: { targets: string[] }) =>
 export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
   // The services authorize a transaction by the user's access to its account, not by who wrote it.
   // A delete or update of one leg of a transfer reaches the other leg too, found by `transferId`
-  // whoever wrote it. It reads the other rows the transaction goes with as well.
-  transaction: async ({ userId, targets, lock }) => {
+  // whoever wrote it. It reads the other rows the transaction goes with as well. The other leg may sit
+  // on an account the user cannot see, whose currency is then not theirs to read.
+  transaction: async ({ userId, targets, args, lock }) => {
     const id = targets[0]!;
     const record = await findOneTransaction({
       ...forUpdate({ lock }),
@@ -221,9 +255,13 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
       },
     });
 
-    return isUnconfirmedIngest({ externalData: record.externalData })
-      ? { ...withRelated, automationCreated: true }
-      : withRelated;
+    const [destination] = args?.destinationAmount === undefined ? [] : await keepVisibleRows({ userId, rows: twins });
+    const entity = withMoneyCurrencies({
+      entity: withRelated,
+      currencies: destination ? { destinationAmount: destination.currencyCode } : null,
+    });
+
+    return isUnconfirmedIngest({ externalData: record.externalData }) ? { ...entity, automationCreated: true } : entity;
   },
 
   account: owned({
@@ -300,9 +338,12 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
     const record = await Trackers.findOne({ where: { id, userId: access.ownerUserId }, ...forUpdate({ lock }) });
     if (!record) return null;
 
-    return loaded({
-      record,
-      related: { counts: { transactionCount: await TrackerTransactions.count({ where: { trackerId: id } }) } },
+    return withMoneyCurrencies({
+      entity: loaded({
+        record,
+        related: { counts: { transactionCount: await TrackerTransactions.count({ where: { trackerId: id } }) } },
+      }),
+      currencies: await trackerLimitCurrencies({ ownerUserId: access.ownerUserId }),
     });
   },
 
@@ -310,9 +351,12 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
     const record = await planOf({ userId, targets, lock });
     if (!record) return null;
 
-    return loaded({
-      record,
-      related: { counts: { lineCount: await BudgetLines.count({ where: { planId: record.id } }) } },
+    return withMoneyCurrencies({
+      entity: loaded({
+        record,
+        related: { counts: { lineCount: await BudgetLines.count({ where: { planId: record.id } }) } },
+      }),
+      currencies: { expectedIncome: record.currencyCode },
     });
   },
 
@@ -335,13 +379,25 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
     }),
   }),
 
-  budgetPlanLineGoal: under({
-    parent: async ({ userId, targets, lock }) =>
-      (await planOf({ userId, targets, lock })) ? lineOf({ targets }) : null,
-    model: BudgetLineGoals,
-    where: (targets) => ({ lineId: targets[1]! }),
-    optional: true,
-  }),
+  // The amounts of a goal are in the currency of its plan, whether the goal exists yet or the card makes it.
+  budgetPlanLineGoal: async (params) => {
+    const entity = await under({
+      parent: async ({ userId, targets, lock }) =>
+        (await planOf({ userId, targets, lock })) ? lineOf({ targets }) : null,
+      model: BudgetLineGoals,
+      where: (targets) => ({ lineId: targets[1]! }),
+      optional: true,
+    })(params);
+    if (!entity) return null;
+
+    const plan = await planOf({ userId: params.userId, targets: params.targets });
+    return withMoneyCurrencies({
+      entity,
+      currencies: plan
+        ? inCurrency({ args: ['amount', 'stopAtBalance', 'fundingCap'], currency: plan.currencyCode })
+        : null,
+    });
+  },
 
   // Deleting a subscription unlinks its transactions and drops its periods. Its tags live in a join
   // table, so they are added to the row for the card to show the set an update replaces.
@@ -361,7 +417,10 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
     return { ...loadedSubscription, row: { ...loadedSubscription.row, tagIds: tagIds.toSorted() } };
   },
 
-  loan: owned({ model: LoanDetails, key: 'accountId' }),
+  loan: inAccountCurrency({
+    loader: owned({ model: LoanDetails, key: 'accountId' }),
+    amountArgs: ['currentBalance', 'minPayment', 'plannedPayment'],
+  }),
 
   vehicle: owned({ model: Vehicles }),
 
@@ -398,7 +457,7 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
 
   transactionAutomation: owned({ model: TransactionAutomations }),
 
-  transactionTemplate: owned({ model: TransactionTemplates }),
+  transactionTemplate: inAccountCurrency({ loader: owned({ model: TransactionTemplates }), amountArgs: ['amount'] }),
 
   customCurrency: async ({ userId, targets, lock }) => {
     const record = await Currencies.findOne({

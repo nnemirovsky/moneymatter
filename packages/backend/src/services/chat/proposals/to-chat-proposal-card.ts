@@ -16,7 +16,7 @@ import { resolveToolPolicy } from '../policies';
 import { isSafeForApproveAll } from '../policies/safe-cards';
 import { getModelSchema } from '../toolkit/model-schema';
 import { describeField } from './card-fields';
-import { buildCardTarget } from './card-target';
+import { buildCardTarget, moneyCurrenciesOf } from './card-target';
 
 /** The columns a card is built from; a Sequelize row and a plain object both fit. */
 type ChatProposalRow = Pick<
@@ -48,6 +48,27 @@ type ChatProposalRow = Pick<
 
 /** Arguments and stored rows are JSON, so equal values serialize alike. */
 const isSameValue = ({ a, b }: { a: unknown; b: unknown }) => JSON.stringify(a) === JSON.stringify(b);
+
+/** The arguments that put an amount in a currency of their choosing, over the one its record stores. */
+const currencyArgsOf = ({ path }: { path: string }) =>
+  path === 'destinationAmount' ? ['destinationAccountId'] : ['accountId', 'currencyCode'];
+
+/**
+ * The currency to show a money argument in when the card's arguments do not decide it: the one the preview read.
+ * The display wins over what the frontend works out from the arguments, so it is left out when they state one.
+ */
+const readCurrencyOf = ({
+  path,
+  args,
+  before,
+}: {
+  path: string;
+  args: Record<string, unknown>;
+  before: Record<string, unknown> | null;
+}): string | null =>
+  currencyArgsOf({ path }).some((arg) => args[arg] !== null && args[arg] !== undefined && args[arg] !== '')
+    ? null
+    : (moneyCurrenciesOf({ before })[path] ?? null);
 
 /** The related counts that are not zero, or `undefined` when none is: a card lists what is there, not what is not. */
 const nonZeroCountsOf = ({ counts }: { counts: Record<string, number> | undefined }) => {
@@ -256,12 +277,22 @@ export function toChatProposalCard({
       : row.args,
   ).map(([path, value]) => {
     const unsure = uncertain.get(path);
+    const described = describeField({
+      key: path,
+      value,
+      node: properties?.[path],
+      entityKind: policy?.entityFields[path],
+    });
+    const currencyCode =
+      described.display?.kind === 'money' ? readCurrencyOf({ path, args: row.args, before: rowBefore }) : null;
+
     return {
       path,
       labelKey:
         CHAT_TOOL_FIELD_LABEL_KEYS[row.toolName]?.[path] ?? CHAT_FIELD_LABEL_KEYS[path] ?? `chat.fields.${path}`,
       value,
-      ...describeField({ key: path, value, node: properties?.[path], entityKind: policy?.entityFields[path] }),
+      ...described,
+      ...(described.display && currencyCode ? { display: { ...described.display, currencyCode } } : {}),
       ...(namesRecordOf({ row, path, targetFields: policy?.targetFields ?? [] }) ? { namesRecord: true as const } : {}),
       ...(rowBefore && path in rowBefore && !isSameValue({ a: rowBefore[path], b: value })
         ? { before: rowBefore[path] }

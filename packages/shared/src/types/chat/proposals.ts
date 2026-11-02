@@ -130,7 +130,10 @@ export interface ChatCardError {
 
 /** What the server computed the call will do, stored on the proposal and shown on the card. */
 export interface ChatProposalPreview {
-  /** The entity as it is now, for update and delete cards. */
+  /**
+   * The entity as it is now, for update and delete cards. Under `moneyCurrencies` it holds the currency of each money
+   * argument a card can leave without one, by argument name; a card with no entity to read carries only that.
+   */
   before?: Record<string, unknown> | null;
   affected?: ChatCardAffected;
   /** Related counts, such as the transactions an account holds. */

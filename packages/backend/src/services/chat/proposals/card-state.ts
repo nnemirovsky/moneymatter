@@ -10,6 +10,7 @@ import { confirmationFor, type ResolvedToolPolicy } from '../policies/rules';
 import { errorMessage } from '../toolkit/result-text';
 import { resolveCardLabels } from './card-labels';
 import { PREVIEW_RESOLVERS } from './previews';
+import { resolveArgsOnlyMoneyCurrencies } from './previews/money-currencies';
 import { PreviewError } from './previews/preview-helpers';
 import type { PreviewResolution, PreviewResolver } from './previews/types';
 import { buildSnapshot } from './snapshot';
@@ -76,12 +77,18 @@ export async function computeCardState({
   // carries the names of the records it points at, an args-only card included.
   const labels = error ? {} : await resolveCardLabels({ userId, policy, args });
   const named = Object.keys(labels).length > 0 ? { labels } : {};
+  // A card with no resolver has no row to read, so the currencies of its amounts are fetched on their own.
+  const moneyCurrencies =
+    policy.previewResolver === null
+      ? await resolveArgsOnlyMoneyCurrencies({ userId, toolName: policy.name, args })
+      : null;
+  const argsOnly = { ...(moneyCurrencies ? { before: { moneyCurrencies } } : {}), ...named };
 
   return {
     preview: resolution
       ? { ...resolution.preview, ...(resolution.warnings ? { warnings: resolution.warnings } : {}), ...named }
-      : policy.previewResolver === null && !error && named.labels
-        ? { ...named }
+      : policy.previewResolver === null && !error && Object.keys(argsOnly).length > 0
+        ? argsOnly
         : null,
     error,
     snapshot: await buildSnapshot({ userId, resolved: resolution?.snapshot, parents }),

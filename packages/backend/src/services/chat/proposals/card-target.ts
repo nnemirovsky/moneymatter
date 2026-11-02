@@ -48,6 +48,13 @@ const toNumber = ({ value }: { value: unknown }): number | null => {
   return typeof number === 'number' && Number.isFinite(number) ? number : null;
 };
 
+/** The currency the preview read for each money argument its card can leave without one. */
+export const moneyCurrenciesOf = ({
+  before,
+}: {
+  before: Record<string, unknown> | null | undefined;
+}): Record<string, string> => (before?.moneyCurrencies ?? {}) as Record<string, string>;
+
 /**
  * The record an update or delete card targets, by the fields that identify it. Built from the row the
  * preview read, never from the model's arguments, so the card shows what will change whatever the model
@@ -59,6 +66,7 @@ export function buildCardTarget({ before }: { before: Record<string, unknown> | 
   const currencyCode = [before.currencyCode, before.expectedCurrencyCode].find(
     (code): code is string => typeof code === 'string' && code !== '',
   );
+  const moneyCurrencies = moneyCurrenciesOf({ before });
 
   const found = IDENTIFYING_FIELDS.flatMap((definition) => {
     const { key, kind, entity } = definition;
@@ -68,13 +76,14 @@ export function buildCardTarget({ before }: { before: Record<string, unknown> | 
     const value = kind === 'money' ? toNumber({ value: raw }) : raw;
     if (value === null) return [];
 
+    const moneyCurrency = moneyCurrencies[key] ?? currencyCode;
     const field: ChatCardField = {
       path: key,
       labelKey: CHAT_FIELD_LABEL_KEYS[key] ?? `chat.fields.${key}`,
       value,
       display: {
         kind,
-        ...(kind === 'money' && currencyCode ? { currencyCode } : {}),
+        ...(kind === 'money' && moneyCurrency ? { currencyCode: moneyCurrency } : {}),
         // The card names the record from the app's own lists; the label is only a placeholder.
         ...(entity ? { entity: { kind: entity, id: String(value), label: '' } } : {}),
       },

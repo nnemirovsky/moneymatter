@@ -56,6 +56,90 @@ const createTransactionRow = (overrides: Record<string, unknown> = {}) =>
   });
 
 describe('toChatProposalCard', () => {
+  describe('the currency of an amount the arguments do not state', () => {
+    const fieldOf = ({ overrides, path }: { overrides: Record<string, unknown>; path: string }) =>
+      toChatProposalCard({ row: row(overrides), parents: [] }).fields.find((field) => field.path === path);
+
+    it('shows the balance of a loan in the currency of its account', () => {
+      const field = fieldOf({
+        path: 'currentBalance',
+        overrides: {
+          toolName: 'update_loan',
+          entity: 'loan',
+          args: { loanId: ID, currentBalance: 900 },
+          preview: { before: { accountId: ID, moneyCurrencies: { currentBalance: 'EUR' } } },
+        },
+      });
+
+      expect(field?.display).toEqual({ kind: 'money', currencyCode: 'EUR' });
+    });
+
+    it.each([
+      ['pay_subscription_period', 'action', 'amount', { subscriptionId: ID, periodId: ID, amount: 9 }],
+      ['update_transaction_template', 'update', 'amount', { templateId: ID, amount: 9 }],
+      ['update_transaction', 'update', 'destinationAmount', { id: ID, destinationAmount: 9 }],
+      ['create_transaction', 'create', 'destinationAmount', { destinationTransactionId: ID, destinationAmount: 9 }],
+      ['update_tracker', 'update', 'limitAmount', { trackerId: ID, limitAmount: 9 }],
+      ['update_tracker_line', 'update', 'limitAmount', { trackerId: ID, lineId: ID, limitAmount: 9 }],
+      ['create_tracker_line', 'create', 'limitAmount', { trackerId: ID, name: 'Food', limitAmount: 9 }],
+    ])('shows %s in the stored currency', (toolName, cardKind, path, args) => {
+      const field = fieldOf({
+        path,
+        overrides: { toolName, cardKind, args, preview: { before: { moneyCurrencies: { [path]: 'JPY' } } } },
+      });
+
+      expect(field?.display).toEqual({ kind: 'money', currencyCode: 'JPY' });
+    });
+
+    it.each([
+      ['an account the amount moves to', 'update_transaction_template', 'amount', { templateId: ID, accountId: ID }],
+      ['an account the payment books on', 'pay_subscription_period', 'amount', { subscriptionId: ID, accountId: ID }],
+      ['a destination account', 'update_transaction', 'destinationAmount', { id: ID, destinationAccountId: ID }],
+    ])('leaves the amount to %s', (_name, toolName, path, args) => {
+      const field = fieldOf({
+        path,
+        overrides: {
+          toolName,
+          args: { ...args, [path]: 9 },
+          preview: { before: { moneyCurrencies: { [path]: 'JPY' } } },
+        },
+      });
+
+      expect(field?.display).toEqual({ kind: 'money' });
+    });
+
+    it('keeps the stored currency when the account argument is cleared', () => {
+      const field = fieldOf({
+        path: 'amount',
+        overrides: {
+          toolName: 'update_transaction_template',
+          args: { templateId: ID, amount: 9, accountId: null },
+          preview: { before: { moneyCurrencies: { amount: 'JPY' } } },
+        },
+      });
+
+      expect(field?.display).toEqual({ kind: 'money', currencyCode: 'JPY' });
+    });
+
+    it('reads the bookkeeping that carries the currency as no value of the card', () => {
+      const card = toChatProposalCard({
+        row: row({
+          toolName: 'update_transaction_template',
+          args: { templateId: ID, amount: 9 },
+          preview: { before: { amount: 5, moneyCurrencies: { amount: 'JPY' } } },
+        }),
+        parents: [],
+      });
+
+      expect(card.target?.find((field) => field.path === 'amount')?.display).toEqual({
+        kind: 'money',
+        currencyCode: 'JPY',
+      });
+      expect(card.target?.some((field) => field.path === 'moneyCurrencies')).toBe(false);
+      expect(card.fields.some((field) => field.path === 'moneyCurrencies')).toBe(false);
+    });
+  });
+
   it('names the record a delete or update card targets from its preview, and no record for a create card', () => {
     const before = { id: ID, amount: 28.1, currencyCode: 'GEL', note: 'Nord Coffee', time: '2026-10-19T07:26:00.000Z' };
     const base = { toolName: 'delete_transaction', cardKind: 'delete', entity: 'transaction', args: { id: ID } };

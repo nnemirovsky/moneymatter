@@ -36,6 +36,18 @@ describe('buildCardTarget', () => {
     expect(target[6]).toMatchObject({ display: { kind: 'enum' } });
   });
 
+  it('shows an amount in the currency stated for it, when the record has no currency of its own', () => {
+    const target = buildCardTarget({ before: { amount: 5, accountId: ID, moneyCurrencies: { amount: 'GEL' } } });
+
+    expect(target[0]).toMatchObject({ path: 'amount', display: { kind: 'money', currencyCode: 'GEL' } });
+  });
+
+  it('lists no field for a currency stated for an amount the record does not show', () => {
+    const target = buildCardTarget({ before: { lenderName: 'Bank', moneyCurrencies: { currentBalance: 'GEL' } } });
+
+    expect(target.map((field) => field.path)).toEqual(['lenderName']);
+  });
+
   it('reads a money amount stored as text', () => {
     const [amount] = buildCardTarget({ before: { amount: '12.50', currencyCode: 'USD' } });
 
