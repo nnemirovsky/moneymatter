@@ -1,12 +1,12 @@
+import { recordId } from '@common/lib/zod/custom-types';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { dismissCandidate } from '@services/subscriptions';
-import { z } from 'zod';
 
 import { assertBaseCurrencyUnlocked, getUserId, jsonContent, requireScope } from './helpers';
 
 const inputSchema = {
-  candidateId: z.string().describe('UUID of the subscription candidate to dismiss'),
+  candidateId: recordId().describe('UUID of the subscription candidate to dismiss'),
 };
 
 export function registerDismissSubscriptionCandidate(server: McpServer) {

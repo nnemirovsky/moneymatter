@@ -1,13 +1,13 @@
+import { recordId } from '@common/lib/zod/custom-types';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { mergePayees } from '@services/payees';
-import { z } from 'zod';
 
 import { assertBaseCurrencyUnlocked, getUserId, jsonContent, requireScope } from './helpers';
 
 const inputSchema = {
-  sourceId: z.string().describe('Payee id to merge from (will be deleted).'),
-  targetId: z.string().describe('Payee id to merge into (kept).'),
+  sourceId: recordId().describe('Payee id to merge from (will be deleted).'),
+  targetId: recordId().describe('Payee id to merge into (kept).'),
 };
 
 export function registerMergePayees(server: McpServer) {

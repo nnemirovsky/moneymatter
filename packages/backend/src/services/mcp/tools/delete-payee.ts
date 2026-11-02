@@ -1,3 +1,4 @@
+import { recordId } from '@common/lib/zod/custom-types';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { deletePayee, deletePayeeAndIgnoreFuture } from '@services/payees';
@@ -6,7 +7,7 @@ import { z } from 'zod';
 import { assertBaseCurrencyUnlocked, getUserId, jsonContent, requireScope } from './helpers';
 
 const inputSchema = {
-  id: z.string().describe('Payee id to delete.'),
+  id: recordId().describe('Payee id to delete.'),
   ignoreFuture: z
     .boolean()
     .optional()

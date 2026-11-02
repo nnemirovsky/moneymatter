@@ -2,7 +2,7 @@ import { SUBSCRIPTION_FREQUENCIES } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
 import * as helpers from '@tests/helpers';
 import { useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
-import { cardFor, proposeCards } from '@tests/helpers/chat-cards';
+import { cardFor, proposeCards, type ProposedCards } from '@tests/helpers/chat-cards';
 import { failOnUnscriptedChatRequests } from '@tests/mocks/openai-compatible/chat-script';
 
 useSelfHostWithoutServerAiKeys();
@@ -31,6 +31,15 @@ const propose = ({ toolName, args }: { toolName: string; args: Record<string, un
       { text: 'Done.' },
     ],
   });
+
+/** What the model read back from its last tool call, the one before the closing turn of the script. */
+const lastToolResult = ({ script }: { script: ProposedCards['script'] }): string =>
+  String(
+    script.requests
+      .at(-1)!
+      .messages!.filter((message) => message.role === 'tool')
+      .at(-1)!.content,
+  );
 
 describe('Chat cards that link transactions to a subscription', () => {
   it('names the subscription and lists each transaction with the subscription it is linked to', async () => {
@@ -122,6 +131,17 @@ describe('Chat cards that link transactions to a subscription', () => {
 });
 
 describe('Chat card of a subscription update', () => {
+  it('makes no card for a malformed id and tells the model, so it can correct the call', async () => {
+    const { cards, script } = await propose({
+      toolName: 'update_subscription',
+      args: { id: '01a14b51-73c8-af44-bc2ce032ca30', name: 'Netflix' },
+    });
+
+    expect(cards).toEqual([]);
+    expect(lastToolResult({ script })).toContain('id:');
+    expect(lastToolResult({ script })).not.toContain('invalid input syntax');
+  });
+
   it('shows the matching rules and the tags it replaces beside the new ones', async () => {
     const tag = await helpers.createTag({ payload: { name: 'streaming', color: '#00AA00', icon: null }, raw: true });
     const rules = { rules: [{ field: 'note', operator: 'contains_any', value: ['netflix'] }] };

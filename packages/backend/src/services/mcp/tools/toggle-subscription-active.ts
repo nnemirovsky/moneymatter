@@ -1,3 +1,4 @@
+import { recordId } from '@common/lib/zod/custom-types';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { toggleSubscriptionActive } from '@services/subscriptions';
@@ -6,7 +7,7 @@ import { z } from 'zod';
 import { assertBaseCurrencyUnlocked, getUserId, jsonContent, requireScope } from './helpers';
 
 const inputSchema = {
-  id: z.string().describe('UUID of the subscription'),
+  id: recordId().describe('UUID of the subscription'),
   isActive: z.boolean().describe('True to activate the subscription, false to deactivate it'),
 };
 

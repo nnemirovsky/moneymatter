@@ -9,7 +9,7 @@ import { assertBaseCurrencyUnlocked, getUserId, jsonContent, requireScope } from
 import { subscriptionExtraInputs, subscriptionMatchingRulesUpdateInput } from './subscription-inputs';
 
 const inputSchema = {
-  id: z.string().describe('UUID of the subscription to update'),
+  id: recordId().describe('UUID of the subscription to update'),
   name: z.string().optional().describe('New display name'),
   frequency: z
     .enum([

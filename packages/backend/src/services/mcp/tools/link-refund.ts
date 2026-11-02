@@ -13,7 +13,7 @@ const inputSchema = {
     .nullable()
     .describe('ID of the original transaction being refunded. Pass null for a standalone refund'),
   refundTxId: recordId().describe('ID of the transaction that represents the refund'),
-  splitId: z.string().optional().describe('UUID of a specific split on the original transaction this refund targets'),
+  splitId: recordId().optional().describe('UUID of a specific split on the original transaction this refund targets'),
 };
 
 export function registerLinkRefund(server: McpServer) {

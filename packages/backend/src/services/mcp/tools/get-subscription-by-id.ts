@@ -1,13 +1,13 @@
+import { recordId } from '@common/lib/zod/custom-types';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { slimSubscriptionDetailForMcp } from '@services/mcp/serializers';
 import { getSubscriptionById } from '@services/subscriptions';
-import { z } from 'zod';
 
 import { getUserId, jsonContent } from './helpers';
 
 const inputSchema = {
-  id: z.string().describe('UUID of the subscription to retrieve'),
+  id: recordId().describe('UUID of the subscription to retrieve'),
 };
 
 export function registerGetSubscriptionById(server: McpServer) {

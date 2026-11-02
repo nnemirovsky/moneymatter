@@ -1,12 +1,12 @@
+import { recordId } from '@common/lib/zod/custom-types';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { deleteSubscription } from '@services/subscriptions';
-import { z } from 'zod';
 
 import { assertBaseCurrencyUnlocked, getUserId, jsonContent, requireScope } from './helpers';
 
 const inputSchema = {
-  id: z.string().describe('UUID of the subscription to delete'),
+  id: recordId().describe('UUID of the subscription to delete'),
 };
 
 export function registerDeleteSubscription(server: McpServer) {

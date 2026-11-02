@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { assertBaseCurrencyUnlocked, getUserId, jsonContent, requireScope } from './helpers';
 
 const inputSchema = {
-  subscriptionId: z.string().describe('UUID of the subscription'),
+  subscriptionId: recordId().describe('UUID of the subscription'),
   transactionIds: z.array(recordId()).describe('IDs of transactions to unlink from the subscription'),
 };
 

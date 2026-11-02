@@ -1,3 +1,4 @@
+import { recordId } from '@common/lib/zod/custom-types';
 import { updatePayeeBodyShape } from '@controllers/payees/shared-schemas';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -9,8 +10,7 @@ import { presentPayee } from './payee-output';
 
 const inputSchema = {
   name: z.string().describe('Display name for the Payee, max 200 chars.'),
-  defaultCategoryId: z
-    .string()
+  defaultCategoryId: recordId()
     .optional()
     .describe('Optional category id automatically applied to future transactions linked to this Payee.'),
   categorizationMode: updatePayeeBodyShape.categorizationMode.describe(
