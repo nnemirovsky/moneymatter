@@ -181,14 +181,17 @@ export async function createTestMcpBearerToken({ scopes }: { scopes: string[] })
 export function requestMcp({
   method = 'post',
   token,
+  sessionId,
   body,
 }: {
   method?: 'post' | 'get' | 'delete';
   token?: string;
+  sessionId?: string;
   body?: object;
 }) {
   const req = request(app)[method]('/mcp');
   if (token) req.set('Authorization', `Bearer ${token}`);
+  if (sessionId) req.set('mcp-session-id', sessionId);
   return req.send(body);
 }
 

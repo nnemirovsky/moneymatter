@@ -230,7 +230,46 @@ describe('bridge listener', () => {
     const after = await rpc({ url, token: TOKEN_A, sessionId, body: { jsonrpc: '2.0', id: 3, method: 'tools/list' } });
 
     expect(revokeChatBridgeTokenOfRun).toHaveBeenCalledWith({ runId: RUN_A });
-    expect(after.status).toBe(400);
+    expect(after.status).toBe(404);
+  });
+
+  it('answers 404 for an unknown session and 400 for a missing one, on every method', async () => {
+    const { url } = await ensureBridgeListener();
+    const listTools = { jsonrpc: '2.0', id: 4, method: 'tools/list' };
+
+    const unknown = await Promise.all([
+      rpc({ url, token: TOKEN_A, sessionId: 'never-issued', body: listTools }),
+      rpc({ url, token: TOKEN_A, sessionId: 'never-issued', method: 'GET' }),
+      rpc({ url, token: TOKEN_A, sessionId: 'never-issued', method: 'DELETE' }),
+    ]);
+    const missing = await Promise.all([
+      rpc({ url, token: TOKEN_A, body: listTools }),
+      rpc({ url, token: TOKEN_A, method: 'GET' }),
+      rpc({ url, token: TOKEN_A, method: 'DELETE' }),
+    ]);
+
+    expect(unknown.map((response) => response.status)).toEqual([404, 404, 404]);
+    expect(missing.map((response) => response.status)).toEqual([400, 400, 400]);
+  });
+
+  it('lets the same run start a new session after a 404, but not a run that has ended', async () => {
+    const { url } = await ensureBridgeListener();
+    const initialize = {
+      jsonrpc: '2.0',
+      id: 5,
+      method: 'initialize',
+      params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1.0.0' } },
+    };
+
+    const stale = await rpc({ url, token: TOKEN_A, sessionId: 'never-issued', body: { ...initialize, id: 6 } });
+    const restarted = await rpc({ url, token: TOKEN_A, body: initialize });
+    await endBridgeRun({ runId: RUN_A });
+    const afterEnd = await rpc({ url, token: TOKEN_A, body: initialize });
+
+    expect(stale.status).toBe(404);
+    expect(restarted.status).toBe(200);
+    expect(restarted.headers.get('mcp-session-id')).toBeTruthy();
+    expect(afterEnd.status).toBe(503);
   });
 });
 

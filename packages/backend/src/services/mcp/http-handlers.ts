@@ -82,7 +82,10 @@ export function createMcpHandlers({
 
   /**
    * Lookup an existing session transport by session ID from the request header.
-   * Returns the transport if found, or sends a 400/403 error and returns null.
+   * Returns the transport if found, or sends a 400/403/404 error and returns null.
+   * An unknown session answers 404, the status the Streamable HTTP spec tells a client to start a
+   * new session on: sessions live in memory, so an idle timeout or a restart ends them. The JSON-RPC
+   * code and message are the ones the MCP SDK's own server transport answers with.
    */
   const resolveSessionTransport = ({
     req,
@@ -104,9 +107,9 @@ export function createMcpHandlers({
 
     const session = getSession({ sessionId });
     if (!session) {
-      res.status(400).json({
+      res.status(404).json({
         jsonrpc: '2.0',
-        error: { code: -32000, message: 'Invalid or expired session ID' },
+        error: { code: -32001, message: 'Session not found' },
         id: null,
       });
       return null;

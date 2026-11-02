@@ -71,4 +71,21 @@ describe('/mcp scope gate', () => {
       expect(res.status).toBe(400);
     }
   });
+
+  // A client only starts a new session on a 404, as the Streamable HTTP spec requires.
+  it('answers 404 for an unknown session on every method', async () => {
+    const token = await mcpHelpers.createTestMcpBearerToken({ scopes: ['finance:read'] });
+
+    for (const method of METHODS) {
+      const res = await mcpHelpers.requestMcp({
+        method,
+        token,
+        sessionId: randomUUID(),
+        body: NON_INITIALIZE_BODY,
+      });
+
+      expect(res.status).toBe(404);
+      expect(res.body).toMatchObject({ jsonrpc: '2.0', error: { code: -32001, message: 'Session not found' } });
+    }
+  });
 });
