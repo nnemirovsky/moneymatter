@@ -41,6 +41,7 @@
       "notePrepend": "prepend",
       "note": {
         "containsAny": "note has",
+        "containsWordAny": "note has word",
         "notContainsAny": "note lacks",
         "startsWithAny": "note starts",
         "endsWithAny": "note ends",
@@ -49,6 +50,7 @@
       },
       "merchant": {
         "containsAny": "merchant has",
+        "containsWordAny": "merchant has word",
         "notContainsAny": "merchant lacks",
         "startsWithAny": "merchant starts",
         "endsWithAny": "merchant ends",
@@ -95,6 +97,7 @@
     },
     "operators": {
       "contains_any": "contains any of",
+      "contains_word_any": "contains word",
       "not_contains_any": "does not contain",
       "starts_with_any": "starts with",
       "ends_with_any": "ends with",

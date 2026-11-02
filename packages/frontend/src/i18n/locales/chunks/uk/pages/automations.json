@@ -41,6 +41,7 @@
       "notePrepend": "додати на початок",
       "note": {
         "containsAny": "примітка містить",
+        "containsWordAny": "примітка містить слово",
         "notContainsAny": "примітка не містить",
         "startsWithAny": "примітка починається",
         "endsWithAny": "примітка закінчується",
@@ -49,6 +50,7 @@
       },
       "merchant": {
         "containsAny": "продавець містить",
+        "containsWordAny": "продавець містить слово",
         "notContainsAny": "продавець не містить",
         "startsWithAny": "продавець починається",
         "endsWithAny": "продавець закінчується",
@@ -95,6 +97,7 @@
     },
     "operators": {
       "contains_any": "містить будь-що з",
+      "contains_word_any": "містить слово",
       "not_contains_any": "не містить",
       "starts_with_any": "починається з",
       "ends_with_any": "закінчується на",

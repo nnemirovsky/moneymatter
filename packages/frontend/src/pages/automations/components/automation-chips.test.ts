@@ -70,6 +70,32 @@ describe('buildAutomationChips', () => {
     ]);
   });
 
+  test('contains_word_any reads as its own label on both text fields and keeps its keywords', () => {
+    const { when } = chips(
+      makeRule({
+        items: [
+          { field: 'note', operator: 'contains_word_any', value: ['gas', 'rent'] },
+          { field: 'merchant', operator: 'contains_word_any', value: ['gas'] },
+        ],
+      }),
+    );
+
+    expect(when).toEqual([
+      {
+        kind: 'text',
+        field: 'note',
+        labelKey: 'automations.chips.note.containsWordAny',
+        keywords: ['gas', 'rent'],
+      },
+      {
+        kind: 'text',
+        field: 'merchant',
+        labelKey: 'automations.chips.merchant.containsWordAny',
+        keywords: ['gas'],
+      },
+    ]);
+  });
+
   test('id-based conditions expand to one chip per id and keep the negation', () => {
     const { when } = chips(
       makeRule({

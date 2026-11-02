@@ -291,6 +291,64 @@ describe('Transaction automations hook', () => {
     expect((await helpers.getAutomationById({ id: rule.id }))?.matchCount).toBe(1);
   });
 
+  it('fires contains_word_any on a whole word and not inside a longer one', async () => {
+    const category = await helpers.addCustomCategory({ name: 'Utilities', color: '#111111', raw: true });
+    const rule = await helpers.createAutomation({
+      payload: {
+        name: 'Gas bill',
+        conditions: { match: 'all', items: [{ field: 'note', operator: 'contains_word_any', value: ['gas'] }] },
+        actions: [{ type: 'set_category', categoryId: category.id }],
+      },
+      raw: true,
+    });
+    expect(rule.conditions.items).toEqual([{ field: 'note', operator: 'contains_word_any', value: ['gas'] }]);
+
+    const systemAccount = await helpers.createAccount({ raw: true });
+    const [inWord] = await helpers.createTransaction({
+      payload: {
+        ...helpers.buildTransactionPayload({ accountId: systemAccount.id, note: 'Gastroenterologist' }),
+        applyAutomations: true,
+      },
+      raw: true,
+    });
+
+    expect(inWord!.categoryId).not.toBe(category.id);
+    expect((await helpers.getAutomationById({ id: rule.id }))?.matchCount).toBe(0);
+
+    const [wholeWord] = await helpers.createTransaction({
+      payload: {
+        ...helpers.buildTransactionPayload({ accountId: systemAccount.id, note: 'Northwind gas' }),
+        applyAutomations: true,
+      },
+      raw: true,
+    });
+
+    expect(wholeWord!.categoryId).toBe(category.id);
+    expect(wholeWord!.categorizationMeta?.source).toBe(CATEGORIZATION_SOURCE.userRule);
+    expect((await helpers.getAutomationById({ id: rule.id }))?.matchCount).toBe(1);
+  });
+
+  it('keeps contains_any firing inside a longer word', async () => {
+    const category = await helpers.addCustomCategory({ name: 'Utilities', color: '#111111', raw: true });
+    const rule = await noteRule({
+      name: 'Anything with gas',
+      keyword: 'gas',
+      actions: [{ type: 'set_category', categoryId: category.id }],
+    });
+
+    const systemAccount = await helpers.createAccount({ raw: true });
+    const [tx] = await helpers.createTransaction({
+      payload: {
+        ...helpers.buildTransactionPayload({ accountId: systemAccount.id, note: 'Gastroenterologist' }),
+        applyAutomations: true,
+      },
+      raw: true,
+    });
+
+    expect(tx!.categoryId).toBe(category.id);
+    expect((await helpers.getAutomationById({ id: rule.id }))?.matchCount).toBe(1);
+  });
+
   it("never applies another user's rule to the syncing user's row", async () => {
     const second = await helpers.signUpSecondUser();
     const foreignRule = await helpers.asUser({

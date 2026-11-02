@@ -66,6 +66,14 @@ describe('conditionError – text fields', () => {
   test('a valid keyword list passes', () => {
     expect(check([{ field: 'note', operator: 'contains_any', value: ['uber'] }])).toBeNull();
   });
+
+  test('contains_word_any needs a keyword like its siblings', () => {
+    expect(check([{ field: 'note', operator: 'contains_word_any', value: ['gas'] }])).toBeNull();
+    expect(check([{ field: 'merchant', operator: 'contains_word_any', value: ['  ', ''] }])).toEqual({
+      key: 'automations.editor.errors.keywordsRequired',
+      params: undefined,
+    });
+  });
 });
 
 describe('conditionError – list fields', () => {

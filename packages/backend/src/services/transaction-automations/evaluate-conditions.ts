@@ -7,6 +7,7 @@ import {
   AutomationTextOperator,
   RecordId,
 } from '@bt/shared/types';
+import { containsWord } from '@common/lib/contains-word';
 import { Money } from '@common/types/money';
 
 import { AutomationContext } from './build-context';
@@ -28,6 +29,8 @@ const matchText = ({
   switch (operator) {
     case 'contains_any':
       return needles.some((needle) => haystack.includes(needle));
+    case 'contains_word_any':
+      return needles.some((needle) => containsWord({ text: haystack, word: needle }));
     case 'not_contains_any':
       return !needles.some((needle) => haystack.includes(needle));
     case 'starts_with_any':

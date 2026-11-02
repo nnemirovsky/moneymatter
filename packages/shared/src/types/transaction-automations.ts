@@ -5,6 +5,7 @@ import { TRANSACTION_TYPES } from './transactions';
 
 export const AUTOMATION_TEXT_OPERATORS = [
   'contains_any',
+  'contains_word_any',
   'not_contains_any',
   'starts_with_any',
   'ends_with_any',

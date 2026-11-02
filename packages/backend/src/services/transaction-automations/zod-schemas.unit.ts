@@ -16,6 +16,22 @@ describe('transaction automations zod schemas', () => {
     expect(conditions([{ field: 'note', operator: 'is_empty', value: [] }]).success).toBe(true);
   });
 
+  it.each(['note', 'merchant'])('accepts contains_word_any on %s and requires a keyword', (field) => {
+    expect(conditions([{ field, operator: 'contains_word_any', value: ['gas'] }]).success).toBe(true);
+    expect(conditions([{ field, operator: 'contains_word_any', value: [] }]).success).toBe(false);
+    expect(conditions([{ field, operator: 'contains_word_any', value: ['   '] }]).success).toBe(false);
+  });
+
+  it('keeps contains_word_any off the fields that are not text', () => {
+    expect(
+      conditions([{ field: 'payee', operator: 'contains_word_any', value: [generateRandomRecordId()] }]).success,
+    ).toBe(false);
+  });
+
+  it('rejects the negated word operator, which does not exist', () => {
+    expect(conditions([{ field: 'note', operator: 'not_contains_word_any', value: ['gas'] }]).success).toBe(false);
+  });
+
   it('enforces amount bounds per operator', () => {
     expect(conditions(amount('gte', { min: 10 })).success).toBe(true);
     expect(conditions(amount('gte', { min: 10, max: 20 })).success).toBe(false);

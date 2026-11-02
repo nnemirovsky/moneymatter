@@ -5,7 +5,7 @@ export const automationConditionsInput = conditionsSchema.describe(
     'Condition tree: { match: "all" | "any", items: [...] }. 1-10 items, at most one transactionType item.',
     'Item shapes by field:',
     '- note | merchant (merchant is the bank-provided merchant/description text): { field, operator, value }.',
-    '  operator: contains_any | not_contains_any | starts_with_any | ends_with_any | equals_any | is_empty.',
+    '  operator: contains_any | contains_word_any (whole words) | not_contains_any | starts_with_any | ends_with_any | equals_any | is_empty.',
     '  value: 1-20 case-insensitive keywords, max 64 chars each; required unless operator is is_empty.',
     '  Example: { "field": "merchant", "operator": "contains_any", "value": ["uber", "bolt"] }',
     '- payee | account | accountGroup | bankConnection: { field, operator, value }. operator: in | not_in.',

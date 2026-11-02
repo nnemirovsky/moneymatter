@@ -139,7 +139,7 @@ const DEMO_AUTOMATIONS: Array<({ refs }: { refs: DemoAutomationRefs }) => DemoAu
     conditions: {
       match: 'all',
       items: [
-        { field: 'note', operator: 'contains_any', value: ['rent'] },
+        { field: 'note', operator: 'contains_word_any', value: ['rent'] },
         { field: 'dayOfMonth', operator: 'between', value: { min: 1, max: 7 } },
         {
           field: 'amount',

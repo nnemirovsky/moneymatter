@@ -93,6 +93,56 @@ describe('evaluateConditions', () => {
         matches({ ctx, conditions: all([{ field: 'merchant', operator: 'contains_any', value: ['uber'] }]) }),
       ).resolves.toBe(true);
     });
+
+    describe('contains_word_any', () => {
+      const wordCases: [string, string[], boolean][] = [
+        ['Northwind gas', ['gas'], true],
+        ['Gastroenterologist', ['gas'], false],
+        ['Northwind gas 12', ['gas'], true],
+        ['Gas, Northwind', ['gas'], true],
+        ['biogas', ['gas'], false],
+        ['gas2', ['gas'], false],
+        ['NORTHWIND GAS', ['gas'], true],
+        ['Northwind gas', ['GAS'], true],
+        ['Northwind gas', ['  gas  '], true],
+        ['Northwind gas', ['water', 'gas'], true],
+        ['Gastroenterologist', ['water', 'gas'], false],
+        ['Gastroenterologist', ['water', 'gastroenterologist'], true],
+        ['Northwind gas station', ['northwind gas'], true],
+        ['Северный газ', ['газ'], true],
+        ['Свежая газета', ['газ'], false],
+        ['Northwind gas', ['   '], false],
+        ['', ['gas'], false],
+      ];
+
+      it.each(wordCases)('note %j with %j → %s', async (note, value, expected) => {
+        const ctx = makeCtx({ transaction: { note } });
+        const conditions = all([{ field: 'note', operator: 'contains_word_any', value }]);
+
+        await expect(matches({ ctx, conditions })).resolves.toBe(expected);
+      });
+
+      it('reads the merchant field too', async () => {
+        const conditions = all([{ field: 'merchant', operator: 'contains_word_any', value: ['gas'] }]);
+
+        await expect(
+          matches({ ctx: makeCtx({ transaction: { externalData: { merchantName: 'NORTHWIND GAS' } } }), conditions }),
+        ).resolves.toBe(true);
+        await expect(
+          matches({
+            ctx: makeCtx({ transaction: { externalData: { merchantName: 'Gastroenterologist' } } }),
+            conditions,
+          }),
+        ).resolves.toBe(false);
+      });
+
+      it('leaves contains_any matching inside a word', async () => {
+        const ctx = makeCtx({ transaction: { note: 'Gastroenterologist' } });
+        const conditions = all([{ field: 'note', operator: 'contains_any', value: ['gas'] }]);
+
+        await expect(matches({ ctx, conditions })).resolves.toBe(true);
+      });
+    });
   });
 
   describe('payee', () => {
