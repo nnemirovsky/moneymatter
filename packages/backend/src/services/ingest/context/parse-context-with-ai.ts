@@ -1,15 +1,15 @@
 import { AI_FEATURE } from '@bt/shared/types';
+import { containsWord } from '@common/lib/contains-word';
 import { z } from 'zod';
 
 import type { NotificationText } from '../event/notification-text';
 import { CONTEXT_STORE_MAX_LENGTH } from './context-config';
-import { normalizeStore } from './normalize-store';
 import { CONTEXT_STATUSES, type ParsedContext } from './parse-context-notification';
 import { runContextModel } from './run-context-model';
 import { promptCell, untrustedText } from './untrusted-text';
 
 /** The object the context reading answers with. Every field is required, the shape structured output accepts. */
-export const contextParseSchema = z.object({
+const contextParseSchema = z.object({
   isOrderUpdate: z.boolean(),
   store: z.string().nullable(),
   status: z.enum(CONTEXT_STATUSES),
@@ -20,7 +20,19 @@ type ContextParseOutput = z.infer<typeof contextParseSchema>;
 
 const MIN_CONFIDENCE = 0.5;
 
-export const buildContextSystemPrompt =
+/**
+ * A text with its words kept apart: `&` read as `and` and any other run of punctuation a single
+ * space, so "Urban Roastery&Coffee" and "Urban Roastery & Coffee" read the same and the whole-word
+ * check still has word boundaries to see.
+ */
+const separateWords = ({ value }: { value: string }): string =>
+  value
+    .normalize('NFC')
+    .replace(/&/g, ' and ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+
+const buildContextSystemPrompt =
   (): string => `You read one notification that a delivery or shopping app sent to its user, and report what it says about an order. The text may be in any language.
 
 1. isOrderUpdate is true only when the notification reports on one specific order the user placed: it was accepted, is being prepared, is on its way, was delivered or was cancelled. Promotions, discounts, ratings, reminders and account notices are false.
@@ -49,8 +61,8 @@ export const buildContextUserMessage = ({
 };
 
 /**
- * Validates what the model answered: a store it returns must appear in the text (compared as two
- * spellings of one name), otherwise it is dropped to `null`, so the model cannot invent a place.
+ * Validates what the model answered: a store it returns must appear in the text as whole words
+ * (punctuation aside), otherwise it is dropped to `null`, so the model cannot invent a place.
  * Null when the text is not an order update or the model was unsure.
  */
 export const validateContextOutput = ({
@@ -62,10 +74,9 @@ export const validateContextOutput = ({
 }): ParsedContext | null => {
   if (!output.isOrderUpdate || !(output.confidence >= MIN_CONFIDENCE)) return null;
 
-  const haystack = normalizeStore({ value: [text.title, text.subtitle, text.body, text.raw ?? ''].join(' ') });
+  const printedText = separateWords({ value: [text.title, text.subtitle, text.body, text.raw ?? ''].join(' ') });
   const store = output.store?.trim().slice(0, CONTEXT_STORE_MAX_LENGTH) ?? '';
-  const normalized = normalizeStore({ value: store });
-  const printed = normalized !== '' && haystack.includes(normalized);
+  const printed = containsWord({ text: printedText, word: separateWords({ value: store }) });
 
   return { store: printed ? store : null, status: output.status };
 };

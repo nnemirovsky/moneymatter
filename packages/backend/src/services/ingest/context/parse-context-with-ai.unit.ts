@@ -28,6 +28,24 @@ describe('validateContextOutput', () => {
     ).toEqual({ store: null, status: 'accepted' });
   });
 
+  it('drops a store the text only holds inside a longer word', () => {
+    expect(
+      validateContextOutput({
+        output: { isOrderUpdate: true, store: 'Art', status: 'accepted', confidence: 0.9 },
+        text: { ...text, body: 'Smart Gym has accepted your order!' },
+      }),
+    ).toEqual({ store: null, status: 'accepted' });
+  });
+
+  it('keeps a store printed as whole words between other text', () => {
+    expect(
+      validateContextOutput({
+        output: { isOrderUpdate: true, store: 'urban roastery', status: 'accepted', confidence: 0.9 },
+        text,
+      }),
+    ).toEqual({ store: 'urban roastery', status: 'accepted' });
+  });
+
   it('returns null for a promo or an unsure reading', () => {
     expect(
       validateContextOutput({ output: { isOrderUpdate: false, store: null, status: 'other', confidence: 0.9 }, text }),
