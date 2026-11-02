@@ -133,6 +133,10 @@ const titleOf = ({
   params: { entity: row.entity },
 });
 
+/** A warning of the preview says the service would refuse this call, so approving it could only fail. */
+export const previewBlocksApproval = ({ preview }: { preview: ChatProposalRow['preview'] }): boolean =>
+  (preview?.warnings ?? []).some((warning) => warning.blocksApproval);
+
 /**
  * Whether a card can be approved now, from what is stored: a pending card whose policy declares a
  * preview needs that preview (a card without one is waiting for its resolver, or its resolver
@@ -149,6 +153,7 @@ function canApplyOf({
   if (needsPreview && row.preview === null) {
     return { ok: false, reasonKey: row.error ? 'chat.cards.previewFailed' : 'chat.cards.previewPending' };
   }
+  if (previewBlocksApproval({ preview: row.preview })) return { ok: false, reasonKey: 'chat.cards.refusedByWarning' };
   // A payment parked on its account is logged on an account the owner names; nothing is guessed.
   if (needsIngestAccount({ row })) return { ok: false, reasonKey: 'chat.cards.ingestAccountRequired' };
   return { ok: true };

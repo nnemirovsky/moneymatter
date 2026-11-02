@@ -112,7 +112,36 @@ describe('subscription link previews', () => {
 
       const byId = Object.fromEntries(preview.affected!.rows.map((row) => [row.note, row.linkedTo]));
       expect(byId).toEqual({ 'Netflix 1': 'Spotify', 'Netflix 2': null });
-      expect(warnings).toEqual([{ key: 'chat.warnings.subscriptionAlreadyLinked', params: { count: 1 } }]);
+      expect(warnings).toEqual([
+        { key: 'chat.warnings.subscriptionAlreadyLinked', params: { count: 1 }, blocksApproval: true },
+      ]);
+    });
+
+    it('has nothing to link when every transaction is linked to this subscription already', async () => {
+      jest.mocked(transactionsQuery.findTransactions).mockResolvedValue([tx(2), tx(1)] as never);
+      jest
+        .spyOn(SubscriptionTransactions, 'findAll')
+        .mockResolvedValue([link(1, SUBSCRIPTION), link(2, SUBSCRIPTION)] as never);
+
+      await expect(run({ toolName: 'link_transactions_to_subscription', args })).rejects.toMatchObject({
+        messageKey: 'chat.cards.nothingToLink',
+        message: 'These transactions are already linked to this subscription, so there is nothing to link',
+      });
+    });
+
+    it('tells a transaction linked here from one linked elsewhere, and both refuse the call', async () => {
+      const three = { ...args, transactionIds: [uuid(1), uuid(2), uuid(3)] };
+      jest.mocked(transactionsQuery.findTransactions).mockResolvedValue([tx(3), tx(2), tx(1)] as never);
+      jest
+        .spyOn(SubscriptionTransactions, 'findAll')
+        .mockResolvedValue([link(1, SUBSCRIPTION), link(2, OTHER_SUBSCRIPTION)] as never);
+
+      const { warnings } = await run({ toolName: 'link_transactions_to_subscription', args: three });
+
+      expect(warnings).toEqual([
+        { key: 'chat.warnings.subscriptionAlreadyLinkedHere', params: { count: 1 }, blocksApproval: true },
+        { key: 'chat.warnings.subscriptionAlreadyLinked', params: { count: 1 }, blocksApproval: true },
+      ]);
     });
 
     it('warns about a transaction of another type than the subscription', async () => {
@@ -122,7 +151,9 @@ describe('subscription link previews', () => {
 
       const { warnings } = await run({ toolName: 'link_transactions_to_subscription', args });
 
-      expect(warnings).toEqual([{ key: 'chat.warnings.subscriptionTypeMismatch', params: { count: 1 } }]);
+      expect(warnings).toEqual([
+        { key: 'chat.warnings.subscriptionTypeMismatch', params: { count: 1 }, blocksApproval: true },
+      ]);
     });
 
     it('is not found when the subscription or a transaction is not the user’s', async () => {

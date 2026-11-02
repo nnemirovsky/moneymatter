@@ -31,6 +31,7 @@ import { expireDueCards, isExpiryDue } from './card-expiry';
 import { findOwnedProposal, loadCards } from './card-load';
 import { describeInputError, substituteRefs } from './placeholders';
 import { findRevisionMismatch, planChain } from './plan-chain';
+import { previewBlocksApproval } from './to-chat-proposal-card';
 
 type ApprovalUser = Pick<Users, 'id' | 'username' | 'authUserId' | 'role'>;
 
@@ -152,7 +153,11 @@ const applyChain = withTransaction(
     }
     const unavailable =
       prepared.some(
-        ({ row, policy, entry }) => !policy || !entry || (policy.previewResolver !== null && row.preview === null),
+        ({ row, policy, entry }) =>
+          !policy ||
+          !entry ||
+          (policy.previewResolver !== null && row.preview === null) ||
+          previewBlocksApproval({ preview: row.preview }),
       ) || plan.appliedParents.some((id) => !realIds.has(id));
     if (unavailable) return { kind: 'conflict', reason: 'unavailable', chainIds: knownIds };
 

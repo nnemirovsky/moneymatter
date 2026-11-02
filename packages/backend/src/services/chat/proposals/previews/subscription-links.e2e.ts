@@ -1,5 +1,6 @@
-import { SUBSCRIPTION_FREQUENCIES } from '@bt/shared/types';
+import { type RecordId, SUBSCRIPTION_FREQUENCIES } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
+import { ERROR_CODES } from '@js/errors';
 import * as helpers from '@tests/helpers';
 import { useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
 import { cardFor, proposeCards, type ProposedCards } from '@tests/helpers/chat-cards';
@@ -40,6 +41,14 @@ const lastToolResult = ({ script }: { script: ProposedCards['script'] }): string
       .messages!.filter((message) => message.role === 'tool')
       .at(-1)!.content,
   );
+
+const noteTransaction = async ({ accountId, note }: { accountId: RecordId; note: string }) => {
+  const [transaction] = await helpers.createTransaction({
+    payload: helpers.buildTransactionPayload({ accountId, amount: 9.99, note }),
+    raw: true,
+  });
+  return transaction;
+};
 
 describe('Chat cards that link transactions to a subscription', () => {
   it('names the subscription and lists each transaction with the subscription it is linked to', async () => {
@@ -85,8 +94,79 @@ describe('Chat cards that link transactions to a subscription', () => {
         expect.objectContaining({ amount: 7, note: 'SPOTIFY AB', linkedTo: 'Spotify' }),
       ]),
     );
-    expect(card.warnings).toEqual([{ key: 'chat.warnings.subscriptionAlreadyLinked', params: { count: 1 } }]);
-    expect(card.canApply).toEqual({ ok: true });
+    expect(card.warnings).toEqual([
+      { key: 'chat.warnings.subscriptionAlreadyLinked', params: { count: 1 }, blocksApproval: true },
+    ]);
+    expect(card.canApply).toEqual({ ok: false, reasonKey: 'chat.cards.refusedByWarning' });
+  });
+
+  it('has nothing to link when every transaction is linked to this subscription, and tells the model', async () => {
+    const account = await helpers.createAccount({ raw: true });
+    const netflix = await helpers.createSubscription(subscriptionPayload({ name: 'Netflix' }));
+    const linked = await noteTransaction({ accountId: account.id, note: 'NFLX' });
+    await helpers.linkTransactionsToSubscription({ id: netflix.id, transactionIds: [linked.id], raw: true });
+
+    const { cards, script } = await propose({
+      toolName: 'link_transactions_to_subscription',
+      args: { subscriptionId: netflix.id, transactionIds: [linked.id], matchSource: 'manual' },
+    });
+    const card = cardFor({ cards, toolName: 'link_transactions_to_subscription' });
+
+    expect(card.error).toEqual({
+      messageKey: 'chat.cards.nothingToLink',
+      message: 'These transactions are already linked to this subscription, so there is nothing to link',
+    });
+    expect(card.canApply).toEqual({ ok: false, reasonKey: 'chat.cards.previewFailed' });
+    expect(card.affected).toBeUndefined();
+    expect(JSON.parse(lastToolResult({ script }))).toMatchObject({ cannotApprove: card.error!.message });
+  });
+
+  it('gives a stale card the same result on refresh once its transactions got linked here', async () => {
+    const account = await helpers.createAccount({ raw: true });
+    const netflix = await helpers.createSubscription(subscriptionPayload({ name: 'Netflix' }));
+    const transaction = await noteTransaction({ accountId: account.id, note: 'NFLX' });
+
+    const { cards } = await propose({
+      toolName: 'link_transactions_to_subscription',
+      args: { subscriptionId: netflix.id, transactionIds: [transaction.id], matchSource: 'manual' },
+    });
+    const proposed = cardFor({ cards, toolName: 'link_transactions_to_subscription' });
+    expect(proposed.canApply).toEqual({ ok: true });
+
+    await helpers.linkTransactionsToSubscription({ id: netflix.id, transactionIds: [transaction.id], raw: true });
+
+    const approved = await helpers.approveChatProposal({ proposalId: proposed.id, payload: { revision: 1 } });
+    expect(approved.statusCode).toBe(ERROR_CODES.ConflictError);
+
+    const refreshed = await helpers.refreshChatProposal({ proposalId: proposed.id, raw: true });
+    expect(refreshed.error).toMatchObject({ messageKey: 'chat.cards.nothingToLink' });
+    expect(refreshed.canApply).toEqual({ ok: false, reasonKey: 'chat.cards.previewFailed' });
+  });
+
+  it('refuses to approve a card that mixes a transaction linked here with a free one', async () => {
+    const account = await helpers.createAccount({ raw: true });
+    const netflix = await helpers.createSubscription(subscriptionPayload({ name: 'Netflix' }));
+    const linked = await noteTransaction({ accountId: account.id, note: 'NFLX' });
+    const free = await noteTransaction({ accountId: account.id, note: 'NFLX AGAIN' });
+    await helpers.linkTransactionsToSubscription({ id: netflix.id, transactionIds: [linked.id], raw: true });
+
+    const { cards, script } = await propose({
+      toolName: 'link_transactions_to_subscription',
+      args: { subscriptionId: netflix.id, transactionIds: [linked.id, free.id], matchSource: 'manual' },
+    });
+    const card = cardFor({ cards, toolName: 'link_transactions_to_subscription' });
+
+    const warning = { key: 'chat.warnings.subscriptionAlreadyLinkedHere', params: { count: 1 }, blocksApproval: true };
+    expect(card.warnings).toEqual([warning]);
+    expect(card.canApply).toEqual({ ok: false, reasonKey: 'chat.cards.refusedByWarning' });
+    expect(JSON.parse(lastToolResult({ script }))).toMatchObject({ cannotApprove: warning.key });
+
+    const approved = await helpers.approveChatProposal({ proposalId: card.id, payload: { revision: 1 } });
+    expect(approved.statusCode).toBe(ERROR_CODES.ConflictError);
+
+    const refreshed = await helpers.refreshChatProposal({ proposalId: card.id, raw: true });
+    expect(refreshed.warnings).toEqual([warning]);
+    expect(refreshed.canApply).toEqual({ ok: false, reasonKey: 'chat.cards.refusedByWarning' });
   });
 
   it('refuses a subscription that is not there, with a key the card translates', async () => {

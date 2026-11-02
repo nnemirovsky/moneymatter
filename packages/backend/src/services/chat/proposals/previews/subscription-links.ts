@@ -41,10 +41,12 @@ const transactionsOf = ({ userId, ids, lock }: { userId: number; ids: string[]; 
   });
 
 /**
- * Linking marks transactions as payments of a subscription. The service refuses a transaction that
- * is not the user's, that is of another type than the subscription, or that is linked to any
- * subscription already (this one included). The card lists the transactions with the subscription
- * each is linked to now, and warns about the ones the call would refuse.
+ * Linking marks transactions as payments of a subscription. The service refuses the whole call for a
+ * transaction that is not the user's, that is of another type than the subscription, or that is
+ * linked to any subscription already (this one included). The card lists the transactions with the
+ * subscription each is linked to now; its warnings name the ones the call would refuse, and they
+ * block the approval. When every transaction is linked to this subscription there is nothing to do,
+ * so no card can be approved at all.
  */
 export const resolveLinkTransactionsToSubscription: PreviewResolver = async ({ userId, args, lock }) => {
   const subscriptionId = args.subscriptionId as string;
@@ -57,6 +59,15 @@ export const resolveLinkTransactionsToSubscription: PreviewResolver = async ({ u
 
   const links = await SubscriptionTransactions.findAll({ where: { transactionId: { [Op.in]: requested } } });
   const active = links.filter((link) => link.status === SUBSCRIPTION_LINK_STATUS.active);
+  const linkedHere = active.filter((link) => link.subscriptionId === subscriptionId).length;
+  const linkedElsewhere = active.length - linkedHere;
+  if (requested.length > 0 && linkedHere === requested.length) {
+    throw new PreviewError({
+      messageKey: 'chat.cards.nothingToLink',
+      message: 'These transactions are already linked to this subscription, so there is nothing to link',
+    });
+  }
+
   const owners = new Map(
     (
       await Subscriptions.findAll({
@@ -68,14 +79,14 @@ export const resolveLinkTransactionsToSubscription: PreviewResolver = async ({ u
   const linkedTo = new Map(active.map((link) => [link.transactionId, owners.get(link.subscriptionId) ?? null]));
 
   const typeMismatches = rows.filter((row) => row.transactionType !== subscription.transactionType).length;
-  const warnings = [
-    ...(active.length > 0
-      ? [{ key: 'chat.warnings.subscriptionAlreadyLinked', params: { count: active.length } }]
-      : []),
-    ...(typeMismatches > 0
-      ? [{ key: 'chat.warnings.subscriptionTypeMismatch', params: { count: typeMismatches } }]
-      : []),
+  const refusals = [
+    { key: 'chat.warnings.subscriptionAlreadyLinkedHere', count: linkedHere },
+    { key: 'chat.warnings.subscriptionAlreadyLinked', count: linkedElsewhere },
+    { key: 'chat.warnings.subscriptionTypeMismatch', count: typeMismatches },
   ];
+  const warnings = refusals.flatMap(({ key, count }) =>
+    count > 0 ? [{ key, params: { count }, blocksApproval: true as const }] : [],
+  );
 
   return {
     preview: {
