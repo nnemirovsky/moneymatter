@@ -24,6 +24,7 @@ import SubscriptionTransactions from '@models/subscription-transactions.model';
 import Subscriptions from '@models/subscriptions.model';
 import TagReminders from '@models/tag-reminders.model';
 import Tags from '@models/tags.model';
+import TrackerLines from '@models/tracker-lines.model';
 import TrackerTransactions from '@models/tracker-transactions.model';
 import Trackers from '@models/trackers.model';
 import TransactionAttachments from '@models/transaction-attachments.model';
@@ -320,6 +321,47 @@ describe('entity loaders', () => {
       });
       expect(whereOf(find).where).toEqual({ id: ID, userId: RECIPIENT_OWNER });
       expect(loaded).toMatchObject({ row: { name: 'Home' }, counts: { transactionCount: 4 } });
+    });
+
+    describe('a line of a tracker', () => {
+      const granted = () =>
+        jest
+          .mocked(canUserAccessResource)
+          .mockResolvedValue({ granted: true, isOwner: false, ownerUserId: RECIPIENT_OWNER } as never);
+
+      it('reads the row of the line under the tracker, in the base currency of the owner of the tracker', async () => {
+        granted();
+        const tracker = jest.spyOn(Trackers, 'findOne');
+        const line = jest
+          .spyOn(TrackerLines, 'findOne')
+          .mockResolvedValue(record({ id: OTHER, name: 'Food', limitAmount: 100 }) as never);
+        const base = jest.spyOn(UsersCurrencies, 'findOne').mockResolvedValue(record({ currencyCode: 'UAH' }) as never);
+
+        const loaded = await load({ kind: 'tracker', targets: [ID, OTHER] });
+
+        expect(whereOf(line).where).toEqual({ id: OTHER, trackerId: ID });
+        expect(whereOf(base).where).toEqual({ userId: RECIPIENT_OWNER, isDefaultCurrency: true });
+        expect(tracker).not.toHaveBeenCalled();
+        expect(loaded).toMatchObject({
+          row: { name: 'Food', limitAmount: 100, moneyCurrencies: { limitAmount: 'UAH' } },
+          counts: {},
+        });
+      });
+
+      it('does not find a line that is not of the tracker', async () => {
+        granted();
+        jest.spyOn(TrackerLines, 'findOne').mockResolvedValue(null);
+
+        expect(await load({ kind: 'tracker', targets: [ID, OTHER] })).toBeNull();
+      });
+
+      it('does not read a line of a tracker the user has no access to', async () => {
+        jest.mocked(canUserAccessResource).mockResolvedValue({ granted: false, ownerUserId: RECIPIENT_OWNER } as never);
+        const line = jest.spyOn(TrackerLines, 'findOne');
+
+        expect(await load({ kind: 'tracker', targets: [ID, OTHER] })).toBeNull();
+        expect(line).not.toHaveBeenCalled();
+      });
     });
 
     it('does not find a tracker the user has no access to', async () => {

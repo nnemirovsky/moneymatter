@@ -145,7 +145,7 @@ export const EXPLICIT_POLICIES: Readonly<Record<string, ExplicitPolicy>> = {
   add_transactions_to_tracker: { kind: 'link', entity: 'tracker' },
   remove_transactions_from_tracker: { entity: 'tracker' },
   create_tracker_line: { entity: 'tracker' },
-  update_tracker_line: { entity: 'tracker', targetFields: ['trackerId'], entityFields: TRACKER_LINE },
+  update_tracker_line: { entity: 'tracker', targetFields: ['trackerId', 'lineId'], entityFields: TRACKER_LINE },
   delete_tracker_line: { entity: 'tracker', targetFields: ['trackerId'], entityFields: TRACKER_LINE },
   accept_tracker_suggestions: { kind: 'link', entity: 'tracker' },
   reject_tracker_suggestions: { kind: 'link', entity: 'tracker' },

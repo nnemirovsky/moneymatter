@@ -29,6 +29,7 @@ import SubscriptionTransactions from '@models/subscription-transactions.model';
 import Subscriptions from '@models/subscriptions.model';
 import TagReminders from '@models/tag-reminders.model';
 import Tags from '@models/tags.model';
+import TrackerLines from '@models/tracker-lines.model';
 import TrackerTransactions from '@models/tracker-transactions.model';
 import Trackers from '@models/trackers.model';
 import TransactionAttachments from '@models/transaction-attachments.model';
@@ -324,7 +325,8 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
   }),
 
   // A shared tracker is edited and archived by a recipient with write access, so the tracker is found
-  // through the user's access to it and read as its owner's row.
+  // through the user's access to it and read as its owner's row. A second target names a line of the
+  // tracker, which is then what the card changes.
   tracker: async ({ userId, targets, lock }) => {
     const id = targets[0]!;
     const access = await canUserAccessResource({
@@ -334,6 +336,17 @@ export const ENTITY_LOADERS: Partial<Record<ChatEntityKind, EntityLoader>> = {
       requiredPermission: SHARE_PERMISSIONS.read,
     });
     if (!access.granted) return null;
+
+    const lineId = targets[1];
+    if (lineId) {
+      const line = await TrackerLines.findOne({ where: { id: lineId, trackerId: id }, ...forUpdate({ lock }) });
+      if (!line) return null;
+
+      return withMoneyCurrencies({
+        entity: loaded({ record: line }),
+        currencies: await trackerLimitCurrencies({ ownerUserId: access.ownerUserId }),
+      });
+    }
 
     const record = await Trackers.findOne({ where: { id, userId: access.ownerUserId }, ...forUpdate({ lock }) });
     if (!record) return null;

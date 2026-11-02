@@ -417,6 +417,13 @@ describe('Chat cards state the currency of an amount their arguments leave witho
         args: { trackerId: tracker.id, limitAmount: 600 },
       });
       expect(moneyDisplayOf({ card: updateTracker, path: 'limitAmount' })).toEqual(owners);
+
+      const updateLine = await proposedByRecipient({
+        recipient,
+        toolName: 'update_tracker_line',
+        args: { trackerId: tracker.id, lineId: line.id, limitAmount: 120 },
+      });
+      expect(moneyDisplayOf({ card: updateLine, path: 'limitAmount' })).toEqual(owners);
     });
 
     it('shows a new line of the owner in the base currency of the owner', async () => {
@@ -574,5 +581,45 @@ describe('Chat cards state the currency of an amount their arguments leave witho
       expect(cards).toEqual([]);
       expect(lastToolResult({ script })).toMatch(/must be set, or cleared, together/);
     });
+  });
+});
+
+describe('A change of a line of a tracker on its card', () => {
+  it('shows the old limit and name of the line, not of the tracker, and names the line as its target', async () => {
+    const { tracker, line, recipient } = await provisionSharedTracker();
+
+    const card = await proposedByRecipient({
+      recipient,
+      toolName: 'update_tracker_line',
+      args: { trackerId: tracker.id, lineId: line.id, limitAmount: 120, name: 'Groceries' },
+    });
+
+    expect(card.canApply).toEqual({ ok: true });
+    expect(Number(card.fields.find((field) => field.path === 'limitAmount')?.before)).toBe(100);
+    expect(card.fields.find((field) => field.path === 'name')?.before).toBe('Food');
+    expect(card.target?.find((field) => field.path === 'name')?.value).toBe('Food');
+    expect(moneyDisplayOf({ card, path: 'limitAmount' })).toEqual({
+      kind: 'money',
+      currencyCode: global.BASE_CURRENCY.code,
+    });
+  });
+
+  it('finds no line that is not of the tracker', async () => {
+    const { tracker } = await provisionSharedTracker();
+    const other = await helpers.createTracker({ name: 'Other', limitAmount: 10, raw: true });
+    const category = await helpers.addCustomCategory({ name: 'other-cat', color: '#0000AA', raw: true });
+    const foreignLine = await helpers.createTrackerLine({
+      trackerId: other.id,
+      payload: { name: 'Other line', limitAmount: 7, categoryIds: [category.id] },
+      raw: true,
+    });
+
+    const card = await proposedCard({
+      toolName: 'update_tracker_line',
+      args: { trackerId: tracker.id, lineId: foreignLine.id, limitAmount: 120 },
+    });
+
+    expect(card.canApply).toEqual({ ok: false, reasonKey: 'chat.cards.previewFailed' });
+    expect(JSON.stringify(card)).not.toContain('Other line');
   });
 });
