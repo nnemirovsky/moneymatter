@@ -57,6 +57,7 @@ import { useAppBadge } from '@/composable/use-app-badge';
 import { useIdleEnabled } from '@/composable/use-idle-enabled';
 import { usePushWorkerMessages } from '@/composable/use-push-worker-messages';
 import { useWebPush } from '@/composable/use-web-push';
+import { useWithdrawReadPushes } from '@/composable/use-withdraw-read-pushes';
 import { CUSTOM_BREAKPOINTS, useWindowBreakpoints } from '@/composable/window-breakpoints';
 import { ROUTES_NAMES } from '@/routes/constants';
 import { useCurrenciesStore, useOnboardingStore, useRootStore } from '@/stores';
@@ -85,6 +86,7 @@ const { syncOnLoad: syncWebPushOnLoad } = useWebPush();
 
 useAppBadge();
 usePushWorkerMessages();
+useWithdrawReadPushes();
 const isMobileView = useWindowBreakpoints(CUSTOM_BREAKPOINTS.uiMobile, {
   wait: 50,
 });

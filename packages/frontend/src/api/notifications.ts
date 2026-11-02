@@ -16,8 +16,14 @@ export const getNotifications = async (params: GetNotificationsParams = {}): Pro
 };
 
 /** The backend answers 200 with a null body for an id that is missing or belongs to another account. */
-export const getNotificationById = async ({ id }: { id: string }): Promise<NotificationStruct | null> => {
-  const result: NotificationStruct | null = await api.get(`/notifications/${id}`);
+export const getNotificationById = async ({
+  id,
+  silent = false,
+}: {
+  id: string;
+  silent?: boolean;
+}): Promise<NotificationStruct | null> => {
+  const result: NotificationStruct | null = await api.get(`/notifications/${id}`, {}, { silent });
   return result ?? null;
 };
 
