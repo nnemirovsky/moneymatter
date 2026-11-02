@@ -255,9 +255,10 @@ const resultLinks = computed(() =>
   }),
 );
 
-const currencyOf = ({ path }: { path: string }) =>
+const currencyOf = ({ path, values }: { path: string; values?: Record<string, unknown> }) =>
   moneyCurrencyOf({
     card: props.card,
+    values,
     path,
     accountCurrency: lookups.accountCurrency,
     baseCurrencyCode: lookups.baseCurrencyCode(),
@@ -497,6 +498,7 @@ const summaryText = computed(() => {
           :tone="row.tone"
           :lookups="lookups"
           :currency-code="row.source === 'target' ? null : currencyOf({ path: row.field.path })"
+          :before-currency-code="row.beforeCurrencyCode"
           :depends-on="card.dependsOn"
           :disabled="!isOpen || isBusy"
           @choose="chooseAlternative({ path: row.field.path, value: $event })"
@@ -509,7 +511,7 @@ const summaryText = computed(() => {
             v-model="draft[field.path]"
             :field="field"
             :lookups="lookups"
-            :currency-code="currencyOf({ path: field.path })"
+            :currency-code="currencyOf({ path: field.path, values: draft })"
             :depends-on="card.dependsOn"
           />
         </div>

@@ -94,6 +94,21 @@ describe('moneyCurrencyOf', () => {
     expect(moneyCurrencyOf({ card, path: 'amount', accountCurrency, baseCurrencyCode: 'CAD' })).toBe('GBP');
   });
 
+  it.each(['originalPrincipal', 'minPayment', 'plannedPayment', 'purchasePrice'])(
+    'takes %s of a new record from the currency argument of the card',
+    (path) => {
+      const card = buildCard({ fields: [buildField({ path: 'currencyCode', value: 'EUR' })] });
+
+      expect(moneyCurrencyOf({ card, path, accountCurrency, baseCurrencyCode: 'CAD' })).toBe('EUR');
+    },
+  );
+
+  it('reads the threshold of a tag reminder in the base currency', () => {
+    const card = buildCard({ fields: [buildField({ path: 'amountThreshold', value: 250 })] });
+
+    expect(moneyCurrencyOf({ card, path: 'amountThreshold', accountCurrency, baseCurrencyCode: 'CAD' })).toBe('CAD');
+  });
+
   it('uses the account currency, and the destination account for a destination amount', () => {
     const card = buildCard({
       fields: [
@@ -115,6 +130,109 @@ describe('moneyCurrencyOf', () => {
     });
 
     expect(moneyCurrencyOf({ card, path: 'originalAmount', accountCurrency, baseCurrencyCode: null })).toBe('JPY');
+  });
+
+  it('uses the expected currency for an expected amount, over the account and the base currency', () => {
+    const card = buildCard({
+      fields: [
+        buildField({ path: 'expectedCurrencyCode', value: 'GEL' }),
+        buildField({ path: 'accountId', value: 'usd' }),
+      ],
+    });
+
+    expect(moneyCurrencyOf({ card, path: 'expectedAmount', accountCurrency, baseCurrencyCode: 'USD' })).toBe('GEL');
+  });
+
+  it('uses the counter account for a counter amount', () => {
+    const card = buildCard({
+      fields: [buildField({ path: 'accountId', value: 'usd' }), buildField({ path: 'counterAccountId', value: 'eur' })],
+    });
+
+    expect(moneyCurrencyOf({ card, path: 'counterAmount', accountCurrency, baseCurrencyCode: 'CAD' })).toBe('EUR');
+  });
+
+  it('reads the values it is given over the ones on the card', () => {
+    const card = buildCard({ fields: [buildField({ path: 'currencyCode', value: 'GBP' })] });
+
+    const values = { currencyCode: 'JPY' };
+
+    expect(moneyCurrencyOf({ card, values, path: 'amount', accountCurrency, baseCurrencyCode: null })).toBe('JPY');
+  });
+
+  describe('on a card whose amount the server states the currency of', () => {
+    const stated = ({ path }: { path: string }) =>
+      buildField({ path, value: 25, display: { kind: 'money', currencyCode: 'GEL' } });
+
+    it('uses the stated currency over the base currency', () => {
+      const card = buildCard({ fields: [stated({ path: 'currentBalance' })] });
+
+      expect(moneyCurrencyOf({ card, path: 'currentBalance', accountCurrency, baseCurrencyCode: 'USD' })).toBe('GEL');
+    });
+
+    it('gives way to an account the form picks', () => {
+      const card = buildCard({ fields: [stated({ path: 'destinationAmount' })] });
+      const values = { destinationAccountId: 'eur' };
+
+      expect(
+        moneyCurrencyOf({ card, values, path: 'destinationAmount', accountCurrency, baseCurrencyCode: 'USD' }),
+      ).toBe('EUR');
+    });
+  });
+
+  describe('on a card that targets a stored record', () => {
+    const stored = ({ path, currencyCode }: { path: string; currencyCode: string }) =>
+      buildField({ path, value: 25, display: { kind: 'money', currencyCode } });
+
+    it('uses the currency of the record when the card names none', () => {
+      const card = buildCard({ target: [stored({ path: 'amount', currencyCode: 'GEL' })] });
+
+      expect(moneyCurrencyOf({ card, path: 'amount', accountCurrency, baseCurrencyCode: 'USD' })).toBe('GEL');
+    });
+
+    it('prefers the currency the card names', () => {
+      const card = buildCard({
+        fields: [buildField({ path: 'expectedCurrencyCode', value: 'EUR' })],
+        target: [stored({ path: 'expectedAmount', currencyCode: 'USD' })],
+      });
+
+      expect(moneyCurrencyOf({ card, path: 'expectedAmount', accountCurrency, baseCurrencyCode: 'CAD' })).toBe('EUR');
+    });
+
+    it('prefers the account an amount moves to', () => {
+      const card = buildCard({
+        fields: [buildField({ path: 'accountId', value: 'eur' })],
+        target: [stored({ path: 'amount', currencyCode: 'USD' })],
+      });
+
+      expect(moneyCurrencyOf({ card, path: 'amount', accountCurrency, baseCurrencyCode: 'CAD' })).toBe('EUR');
+    });
+
+    it('keeps an amount with a currency of its own in the stored one, whichever account the card names', () => {
+      const card = buildCard({
+        fields: [buildField({ path: 'accountId', value: 'eur' })],
+        target: [stored({ path: 'expectedAmount', currencyCode: 'USD' })],
+      });
+
+      expect(moneyCurrencyOf({ card, path: 'expectedAmount', accountCurrency, baseCurrencyCode: 'CAD' })).toBe('USD');
+    });
+
+    it('does not guess from the record when the account is a card not applied yet', () => {
+      const card = buildCard({
+        fields: [buildField({ path: 'accountId', value: '$proposal:p1' })],
+        target: [stored({ path: 'amount', currencyCode: 'USD' })],
+      });
+
+      expect(moneyCurrencyOf({ card, path: 'amount', accountCurrency, baseCurrencyCode: 'CAD' })).toBe('CAD');
+    });
+
+    it('stays in the stored currency when the account argument only names the record', () => {
+      const card = buildCard({
+        fields: [{ ...buildField({ path: 'accountId', value: 'eur' }), namesRecord: true as const }],
+        target: [stored({ path: 'amount', currencyCode: 'USD' })],
+      });
+
+      expect(moneyCurrencyOf({ card, path: 'amount', accountCurrency, baseCurrencyCode: 'CAD' })).toBe('USD');
+    });
   });
 
   it('falls back to the base currency, then to none', () => {

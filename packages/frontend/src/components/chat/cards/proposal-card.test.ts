@@ -7,6 +7,7 @@ import {
 } from '@/api/chat';
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const';
 import AccountSelectField from '@/components/fields/account-select-field.vue';
+import FormattedAmountField from '@/components/fields/formatted-amount-field.vue';
 import { ApiErrorResponseError } from '@/js/errors';
 import {
   API_ERROR_CODES,
@@ -55,7 +56,7 @@ vi.mock('./use-card-lookups', () => ({
         'category:cat-1': 'Groceries',
         'category:cat-2': 'Dining',
       },
-      currencies: { 'acc-1': 'USD' },
+      currencies: { 'acc-1': 'USD', 'acc-gbp': 'GBP', 'acc-jpy': 'JPY' },
     }),
 }));
 // A dialog that renders only while open, with its slots and a confirm button.
@@ -964,6 +965,33 @@ describe('ProposalCard', () => {
   });
 
   describe('editing', () => {
+    it('labels an expected amount with the expected currency, and follows that currency as it is edited', async () => {
+      const card = createCard({
+        fields: [
+          buildField({ path: 'expectedAmount', value: 2.59, display: { kind: 'money' }, editable: { type: 'money' } }),
+          buildField({
+            path: 'expectedCurrencyCode',
+            value: 'GEL',
+            display: { kind: 'text' },
+            editable: { type: 'entity', entity: 'userCurrency' },
+          }),
+        ],
+      });
+      const wrapper = mountCard({ card });
+
+      await wrapper.find('[data-testid="edit"]').trigger('click');
+
+      const editorOf = ({ path }: { path: string }) =>
+        wrapper.findAllComponents(CardFieldEditor).find((editor) => editor.props('field').path === path)!;
+
+      expect(editorOf({ path: 'expectedAmount' }).props('currencyCode')).toBe('GEL');
+
+      editorOf({ path: 'expectedCurrencyCode' }).vm.$emit('update:modelValue', 'EUR');
+      await flushPromises();
+
+      expect(editorOf({ path: 'expectedAmount' }).props('currencyCode')).toBe('EUR');
+    });
+
     it('builds editors from the editable fields and sends only the changed ones', async () => {
       vi.mocked(editChatProposal).mockResolvedValue(createCard({ revision: 2 }));
       const wrapper = mountCard({ card: createCard() });
@@ -1195,6 +1223,333 @@ describe('ProposalCard', () => {
       expect(rows[0]!.find('s').exists()).toBe(false);
       expect(wrapper.findAll('[data-testid="field-value"]')).toHaveLength(4);
       expect(wrapper.text()).not.toContain('Transaction');
+    });
+  });
+
+  describe('the currency of an amount', () => {
+    const moneyField = ({ path, value = 30, before }: { path: string; value?: number; before?: number }) =>
+      buildField({
+        path,
+        value,
+        display: { kind: 'money' },
+        editable: { type: 'money' },
+        ...(before === undefined ? {} : { before }),
+      });
+    const codeField = ({ path, value, before }: { path: string; value: string; before?: string }) =>
+      buildField({
+        path,
+        value,
+        display: { kind: 'text' },
+        editable: { type: 'entity', entity: 'userCurrency' },
+        ...(before === undefined ? {} : { before }),
+      });
+    const accountField = ({ path = 'accountId', value, before }: { path?: string; value: string; before?: string }) =>
+      buildField({
+        path,
+        value,
+        display: { kind: 'entity' },
+        editable: { type: 'entity', entity: 'account' },
+        ...(before === undefined ? {} : { before }),
+      });
+    const storedMoney = ({ path, value = 25, currencyCode }: { path: string; value?: number; currencyCode: string }) =>
+      buildField({ path, value, display: { kind: 'money', currencyCode } });
+    const updateCard = ({
+      toolName,
+      fields: cardFields,
+      target,
+    }: {
+      toolName: string;
+      fields: ChatCardField[];
+      target?: ChatCardField[];
+    }) => buildCard({ kind: 'update', toolName, fields: cardFields, ...(target ? { target } : {}) });
+
+    const openEditors = async ({ card }: { card: ChatProposalCard }) => {
+      const wrapper = mountCard({ card });
+      await wrapper.find('[data-testid="edit"]').trigger('click');
+      return wrapper;
+    };
+    const editorOf = ({ wrapper, path }: { wrapper: ReturnType<typeof mountCard>; path: string }) =>
+      wrapper.findAllComponents(CardFieldEditor).find((editor) => editor.props('field').path === path)!;
+    const amountFieldOf = ({ wrapper, path }: { wrapper: ReturnType<typeof mountCard>; path: string }) =>
+      editorOf({ wrapper, path }).findComponent(FormattedAmountField);
+    const setArg = async ({
+      wrapper,
+      path,
+      value,
+    }: {
+      wrapper: ReturnType<typeof mountCard>;
+      path: string;
+      value: unknown;
+    }) => {
+      editorOf({ wrapper, path }).vm.$emit('update:modelValue', value);
+      await flushPromises();
+    };
+
+    describe('while it is edited', () => {
+      it.each([
+        { amount: 'amount', arg: codeField({ path: 'currencyCode', value: 'USD' }), edited: 'GBP' },
+        { amount: 'originalAmount', arg: codeField({ path: 'originalCurrencyCode', value: 'USD' }), edited: 'GBP' },
+        { amount: 'amount', arg: accountField({ value: 'acc-1' }), edited: 'acc-gbp' },
+        {
+          amount: 'destinationAmount',
+          arg: accountField({ path: 'destinationAccountId', value: 'acc-1' }),
+          edited: 'acc-gbp',
+        },
+      ])('$amount follows $arg.path in the form', async ({ amount, arg, edited }) => {
+        const wrapper = await openEditors({ card: buildCard({ fields: [moneyField({ path: amount }), arg] }) });
+
+        expect(amountFieldOf({ wrapper, path: amount }).props('label')).toContain('(USD)');
+
+        await setArg({ wrapper, path: arg.path, value: edited });
+
+        expect(amountFieldOf({ wrapper, path: amount }).props('label')).toContain('(GBP)');
+      });
+
+      it('gives the amount the decimals of the currency chosen in the form', async () => {
+        const wrapper = await openEditors({
+          card: buildCard({
+            fields: [moneyField({ path: 'amount' }), codeField({ path: 'currencyCode', value: 'USD' })],
+          }),
+        });
+
+        expect(amountFieldOf({ wrapper, path: 'amount' }).props('decimals')).toBe(2);
+
+        await setArg({ wrapper, path: 'currencyCode', value: 'JPY' });
+
+        expect(amountFieldOf({ wrapper, path: 'amount' }).props('decimals')).toBe(0);
+      });
+
+      it('goes back to the currency of the record when the account is cleared in the form', async () => {
+        const wrapper = await openEditors({
+          card: updateCard({
+            toolName: 'update_transaction',
+            fields: [moneyField({ path: 'amount' }), accountField({ value: 'acc-gbp' })],
+            target: [storedMoney({ path: 'amount', currencyCode: 'EUR' })],
+          }),
+        });
+
+        expect(amountFieldOf({ wrapper, path: 'amount' }).props('label')).toContain('(GBP)');
+
+        await setArg({ wrapper, path: 'accountId', value: null });
+
+        expect(amountFieldOf({ wrapper, path: 'amount' }).props('label')).toContain('(EUR)');
+      });
+    });
+
+    describe('when the card names no currency', () => {
+      const cases = [
+        { toolName: 'update_transaction', path: 'amount' },
+        { toolName: 'update_subscription', path: 'expectedAmount' },
+        { toolName: 'confirm_ingest_payment', path: 'amount' },
+      ];
+
+      it.each(cases)('$toolName edits $path in the currency of the record', async ({ toolName, path }) => {
+        const wrapper = await openEditors({
+          card: updateCard({
+            toolName,
+            fields: [moneyField({ path, before: 25 })],
+            target: [storedMoney({ path, currencyCode: 'EUR' })],
+          }),
+        });
+
+        expect(amountFieldOf({ wrapper, path }).props('label')).toContain('(EUR)');
+      });
+
+      it.each(cases)('$toolName edits $path with the decimals of the record', async ({ toolName, path }) => {
+        const wrapper = await openEditors({
+          card: updateCard({
+            toolName,
+            fields: [moneyField({ path, before: 25 })],
+            target: [storedMoney({ path, currencyCode: 'JPY' })],
+          }),
+        });
+
+        expect(amountFieldOf({ wrapper, path }).props('decimals')).toBe(0);
+      });
+
+      it.each(cases)('$toolName reads and edits $path in one currency', async ({ toolName, path }) => {
+        const card = updateCard({
+          toolName,
+          fields: [moneyField({ path, before: 25 })],
+          target: [storedMoney({ path, currencyCode: 'EUR' })],
+        });
+
+        expect(mountCard({ card }).get('[data-tone="changed"]').text()).toContain('€30.00');
+
+        const wrapper = await openEditors({ card });
+        expect(editorOf({ wrapper, path }).props('currencyCode')).toBe('EUR');
+      });
+    });
+
+    describe('an amount the server states the currency of', () => {
+      const stated = moneyField({ path: 'currentBalance', value: 30, before: 25 });
+      const card = updateCard({
+        toolName: 'update_loan',
+        fields: [{ ...stated, display: { kind: 'money', currencyCode: 'EUR' } }],
+      });
+
+      it('reads it and the value it replaces in that currency', () => {
+        const row = mountCard({ card }).get('[data-tone="changed"]');
+
+        expect(row.get('[data-testid="field-value"]').text()).toBe('€30.00');
+        expect(row.get('[data-testid="field-before"]').text()).toContain('€25.00');
+      });
+
+      it('labels and rounds its editor in that currency', async () => {
+        const jpy = updateCard({
+          toolName: 'update_loan',
+          fields: [{ ...stated, display: { kind: 'money', currencyCode: 'JPY' } }],
+        });
+
+        const wrapper = await openEditors({ card: jpy });
+
+        expect(amountFieldOf({ wrapper, path: 'currentBalance' }).props('label')).toContain('(JPY)');
+        expect(amountFieldOf({ wrapper, path: 'currentBalance' }).props('decimals')).toBe(0);
+      });
+    });
+
+    describe('a payment of a loan', () => {
+      const jpy = updateCard({
+        toolName: 'update_loan',
+        fields: [
+          {
+            ...moneyField({ path: 'minPayment', value: 900, before: 800 }),
+            display: { kind: 'money', currencyCode: 'JPY' },
+          },
+        ],
+      });
+
+      it('edits in the currency of the loan, with its decimals', async () => {
+        const wrapper = await openEditors({ card: jpy });
+
+        expect(amountFieldOf({ wrapper, path: 'minPayment' }).props('label')).toContain('(JPY)');
+        expect(amountFieldOf({ wrapper, path: 'minPayment' }).props('decimals')).toBe(0);
+      });
+
+      it('sends a number back', async () => {
+        const wrapper = await openEditors({ card: jpy });
+
+        amountFieldOf({ wrapper, path: 'minPayment' }).vm.$emit('update:modelValue', 950);
+        await flushPromises();
+
+        expect(editorOf({ wrapper, path: 'minPayment' }).emitted('update:modelValue')?.at(-1)).toEqual([950]);
+      });
+    });
+
+    describe('a template', () => {
+      const target = [storedMoney({ path: 'amount', value: 25, currencyCode: 'EUR' })];
+
+      it('names its stored amount in the currency of its account on the folded summary', () => {
+        const wrapper = mountCard({
+          card: buildCard({
+            kind: 'delete',
+            toolName: 'delete_transaction_template',
+            status: 'applied',
+            fields: [],
+            target,
+          }),
+        });
+
+        expect(wrapper.get('[data-testid="card-summary"]').text()).toContain('€25.00');
+      });
+    });
+
+    describe('a subscription', () => {
+      const target = [storedMoney({ path: 'expectedAmount', value: 10, currencyCode: 'USD' })];
+
+      it('reads a new amount in the new currency it states, and the old amount in the old one', () => {
+        const wrapper = mountCard({
+          card: updateCard({
+            toolName: 'update_subscription',
+            fields: [
+              moneyField({ path: 'expectedAmount', value: 20, before: 10 }),
+              codeField({ path: 'expectedCurrencyCode', value: 'EUR', before: 'USD' }),
+            ],
+            target,
+          }),
+        });
+
+        const row = wrapper.get('[data-tone="changed"]');
+        expect(row.get('[data-testid="field-value"]').text()).toBe('€20.00');
+        expect(row.get('[data-testid="field-before"]').text()).toContain('$10.00');
+      });
+
+      it('keeps its stored currency when it moves to an account in another one', () => {
+        const wrapper = mountCard({
+          card: updateCard({
+            toolName: 'update_subscription',
+            fields: [
+              moneyField({ path: 'expectedAmount', value: 20, before: 10 }),
+              accountField({ value: 'acc-gbp', before: 'acc-1' }),
+            ],
+            target,
+          }),
+        });
+
+        const row = wrapper.findAll('[data-tone="changed"]')[0]!;
+        expect(row.get('[data-testid="field-value"]').text()).toBe('$20.00');
+        expect(row.get('[data-testid="field-before"]').text()).toContain('$10.00');
+      });
+
+      it('edits its amount in the stored currency, whichever account the form picks', async () => {
+        const wrapper = await openEditors({
+          card: updateCard({
+            toolName: 'update_subscription',
+            fields: [moneyField({ path: 'expectedAmount', value: 20 }), accountField({ value: 'acc-gbp' })],
+            target,
+          }),
+        });
+
+        expect(amountFieldOf({ wrapper, path: 'expectedAmount' }).props('label')).toContain('(USD)');
+
+        await setArg({ wrapper, path: 'accountId', value: 'acc-jpy' });
+
+        expect(amountFieldOf({ wrapper, path: 'expectedAmount' }).props('label')).toContain('(USD)');
+      });
+    });
+
+    describe('the other side of a logged transfer', () => {
+      it('edits the counter amount in the currency of the counter account, following the form', async () => {
+        const wrapper = await openEditors({
+          card: buildCard({
+            toolName: 'log_ingest_request',
+            fields: [
+              moneyField({ path: 'counterAmount' }),
+              accountField({ value: 'acc-1' }),
+              accountField({ path: 'counterAccountId', value: 'acc-gbp' }),
+            ],
+          }),
+        });
+
+        expect(amountFieldOf({ wrapper, path: 'counterAmount' }).props('label')).toContain('(GBP)');
+
+        await setArg({ wrapper, path: 'counterAccountId', value: 'acc-jpy' });
+
+        expect(amountFieldOf({ wrapper, path: 'counterAmount' }).props('label')).toContain('(JPY)');
+        expect(amountFieldOf({ wrapper, path: 'counterAmount' }).props('decimals')).toBe(0);
+      });
+    });
+
+    describe('a payment that moves to an account in another currency', () => {
+      it.each(['update_transaction', 'confirm_ingest_payment'])(
+        '%s reads the new amount in the new currency and the old amount in the old one',
+        (toolName) => {
+          const wrapper = mountCard({
+            card: updateCard({
+              toolName,
+              fields: [
+                moneyField({ path: 'amount', value: 30, before: 25 }),
+                accountField({ value: 'acc-gbp', before: 'acc-1' }),
+              ],
+              target: [storedMoney({ path: 'amount', value: 25, currencyCode: 'USD' })],
+            }),
+          });
+
+          const row = wrapper.findAll('[data-tone="changed"]')[0]!;
+          expect(row.get('[data-testid="field-value"]').text()).toBe('£30.00');
+          expect(row.get('[data-testid="field-before"]').text()).toContain('$25.00');
+        },
+      );
     });
   });
 });

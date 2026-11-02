@@ -1,6 +1,6 @@
 import type { ChatCardField, ChatProposalCard } from '@bt/shared/types';
 
-import { fieldEntityKind } from './card-values';
+import { fieldEntityKind, keptCurrencyOf } from './card-values';
 
 /**
  * How a row of the card reads: an `added` field fills in something that was empty, a `changed` one replaces a real
@@ -32,6 +32,8 @@ export interface CardRow {
   tone: CardRowTone;
   /** Where the field came from: the card's own arguments, or the record the card targets. */
   source: 'card' | 'target';
+  /** The currency the record stores an amount in: the value it replaces is in that one, wherever the card moves it. */
+  beforeCurrencyCode?: string;
 }
 
 /** The last segment of a field path: a nested argument is named like a top-level one. */
@@ -76,22 +78,20 @@ export const buildCardRows = ({ card }: { card: ChatProposalCard }): CardRow[] =
 
   const fields = card.fields.filter((field) => field.namesRecord !== true);
   const used = new Set<ChatCardField>();
-  // A card that moves the transaction to another account or currency says in its own fields what the amount is in.
-  const statesCurrency = fields.some((field) => ['accountId', 'currencyCode'].includes(keyOf({ field })));
 
   const identifying = target.map((identified): CardRow => {
     const own = fields.find((field) => keyOf({ field }) === keyOf({ field: identified }));
     if (!own) return { field: identified, tone: 'normal', source: 'target' };
 
     used.add(own);
-    // The card's amount argument carries no currency; the record's own is what it is in.
-    const recordCurrency = identified.display?.currencyCode;
-    const field =
-      own.display?.kind === 'money' && !own.display.currencyCode && recordCurrency && !statesCurrency
-        ? { ...own, display: { ...own.display, currencyCode: recordCurrency } }
-        : own;
+    if (own.display?.kind !== 'money') return { field: own, tone: toneOf({ field: own }), source: 'card' };
 
-    return { field, tone: toneOf({ field }), source: 'card' };
+    // The card's amount argument carries no currency; the record's own is what it is in, unless the card replaces it.
+    const kept = keptCurrencyOf({ card, path: identified.path });
+    const field = kept && !own.display.currencyCode ? { ...own, display: { ...own.display, currencyCode: kept } } : own;
+    const beforeCurrencyCode = identified.display?.currencyCode;
+
+    return { field, tone: toneOf({ field }), source: 'card', ...(beforeCurrencyCode ? { beforeCurrencyCode } : {}) };
   });
 
   const rest = fields

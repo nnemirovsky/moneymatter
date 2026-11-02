@@ -27,6 +27,8 @@ const props = defineProps<{
   disabled?: boolean;
   /** `changed` marks a field that replaces a value, `added` one that fills in an empty one; both are tinted. */
   tone?: CardRowTone;
+  /** The currency of the value a money field replaces, when the card moves the amount out of it. */
+  beforeCurrencyCode?: string;
 }>();
 
 const emit = defineEmits<{ choose: [value: unknown] }>();
@@ -35,9 +37,17 @@ const tone = computed(() => props.tone ?? 'normal');
 const { keyText } = useChatText();
 const { valueParts: partsOfValue } = useCardFieldText();
 
-const partsOf = ({ value, current = false }: { value: unknown; current?: boolean }) =>
+const partsOf = ({
+  value,
+  current = false,
+  field = props.field,
+}: {
+  value: unknown;
+  current?: boolean;
+  field?: ChatCardField;
+}) =>
   partsOfValue({
-    field: props.field,
+    field,
     value,
     current,
     lookups: props.lookups,
@@ -47,11 +57,17 @@ const partsOf = ({ value, current = false }: { value: unknown; current?: boolean
 
 const label = computed(() => keyText({ key: props.field.labelKey }) ?? props.field.path);
 const valueParts = computed(() => partsOf({ value: props.field.value, current: true }));
+const beforeField = computed<ChatCardField>(() => {
+  const { field, beforeCurrencyCode } = props;
+  return field.display && beforeCurrencyCode
+    ? { ...field, display: { ...field.display, currencyCode: beforeCurrencyCode } }
+    : field;
+});
 // An old value that was empty has nothing to show: the green highlight says the field is new.
 const beforeText = computed(() =>
   !hasOldValue({ field: props.field })
     ? null
-    : partsOf({ value: props.field.before })
+    : partsOf({ value: props.field.before, field: beforeField.value })
         .map((part) => part.text)
         .join(', '),
 );

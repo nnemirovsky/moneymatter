@@ -59,36 +59,89 @@ export const buildEditedArgs = ({
   return { args, changed };
 };
 
-const stringValue = ({ card, path }: { card: ChatProposalCard; path: string }): string | null => {
-  const value = card.fields.find((field) => field.path === path)?.value;
+const stringValue = ({ values, path }: { values: Record<string, unknown>; path: string }): string | null => {
+  const value = values[path];
   return typeof value === 'string' && !isProposalRef({ value }) ? value : null;
 };
 
 /** The argument that holds the currency an amount argument is written in, when it is not the account's. */
-const CURRENCY_FIELD_OF: Readonly<Record<string, string>> = { originalAmount: 'originalCurrencyCode' };
+const CURRENCY_FIELD_OF: Readonly<Record<string, string>> = {
+  originalAmount: 'originalCurrencyCode',
+  expectedAmount: 'expectedCurrencyCode',
+};
 
 /** The account argument whose currency an amount argument is written in. */
-const ACCOUNT_FIELD_OF: Readonly<Record<string, string>> = { destinationAmount: 'destinationAccountId' };
+const ACCOUNT_FIELD_OF: Readonly<Record<string, string>> = {
+  destinationAmount: 'destinationAccountId',
+  counterAmount: 'counterAccountId',
+};
+
+/** Whether the values put the amount on an account; the argument that only names the record moves nothing. */
+const movesAccount = ({
+  card,
+  values,
+  path,
+}: {
+  card: ChatProposalCard;
+  values: Record<string, unknown>;
+  path: string;
+}): boolean => {
+  const accountPath = ACCOUNT_FIELD_OF[path] ?? 'accountId';
+  const value = values[accountPath];
+  const namesRecord = card.fields.some((field) => field.path === accountPath && field.namesRecord === true);
+
+  return !namesRecord && value !== null && value !== undefined && value !== '';
+};
 
 /**
- * The currency an amount on a card is written in. The card does not carry it, so it comes from the
- * card's own arguments: a currency argument, then the account the amount belongs to, then the base currency.
+ * The currency the server read for an amount, when the amount stays in it: the record the card targets stores it in
+ * that one, or the field itself says it. A currency argument replaces it. So does an account argument, except for an
+ * amount with a currency argument of its own: a subscription's account does not decide what its expected amount is in.
+ */
+export const keptCurrencyOf = ({
+  card,
+  values = cardArgsOf({ card }),
+  path,
+}: {
+  card: ChatProposalCard;
+  values?: Record<string, unknown>;
+  path: string;
+}): string | null => {
+  const ownCurrencyArg = CURRENCY_FIELD_OF[path];
+  if (stringValue({ values, path: ownCurrencyArg ?? 'currencyCode' })) return null;
+  if (!ownCurrencyArg && movesAccount({ card, values, path })) return null;
+
+  const stated = ({ fields }: { fields: ChatCardField[] | undefined }) =>
+    fields?.find((field) => field.path === path)?.display?.currencyCode;
+
+  return stated({ fields: card.target }) ?? stated({ fields: card.fields }) ?? null;
+};
+
+/**
+ * The currency an amount on a card is written in. The amount argument does not carry it, so it comes from the
+ * values around it: a currency argument, then the record's own currency, then the account the amount belongs
+ * to, then the base currency. `values` are the card's arguments, or the form's while the card is edited.
  */
 export const moneyCurrencyOf = ({
   card,
+  values = cardArgsOf({ card }),
   path,
   accountCurrency,
   baseCurrencyCode,
 }: {
   card: ChatProposalCard;
+  values?: Record<string, unknown>;
   path: string;
   accountCurrency: (params: { id: string }) => string | null;
   baseCurrencyCode: string | null;
 }): string | null => {
-  const named = stringValue({ card, path: CURRENCY_FIELD_OF[path] ?? 'currencyCode' });
+  const named = stringValue({ values, path: CURRENCY_FIELD_OF[path] ?? 'currencyCode' });
   if (named) return named;
 
-  const accountId = stringValue({ card, path: ACCOUNT_FIELD_OF[path] ?? 'accountId' });
+  const kept = keptCurrencyOf({ card, values, path });
+  if (kept) return kept;
+
+  const accountId = stringValue({ values, path: ACCOUNT_FIELD_OF[path] ?? 'accountId' });
   return (accountId ? accountCurrency({ id: accountId }) : null) ?? baseCurrencyCode;
 };
 

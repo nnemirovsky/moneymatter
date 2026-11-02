@@ -229,6 +229,52 @@ describe('buildCardRows', () => {
     expect(buildCardRows({ card })[0]!.field.display?.currencyCode).toBeUndefined();
   });
 
+  it('keeps the old value of an amount in the stored currency when the account moves', () => {
+    const card = buildCard({
+      kind: 'update',
+      entity: 'transaction',
+      target: [field({ path: 'amount', value: 28.1, display: { kind: 'money', currencyCode: 'GEL' } })],
+      fields: [
+        field({ path: 'amount', value: 30, before: 28.1, display: { kind: 'money' } }),
+        entityField({ path: 'accountId', kind: 'account', id: 'a2' }),
+      ],
+    });
+
+    expect(buildCardRows({ card })[0]!.beforeCurrencyCode).toBe('GEL');
+  });
+
+  describe('a subscription amount', () => {
+    const subscriptionTarget = [
+      field({ path: 'expectedAmount', value: 10, display: { kind: 'money', currencyCode: 'USD' } }),
+    ];
+    const expectedAmount = field({ path: 'expectedAmount', value: 20, before: 10, display: { kind: 'money' } });
+
+    it('leaves a new currency the card states to the card, and keeps the old value in the stored one', () => {
+      const card = buildCard({
+        kind: 'update',
+        entity: 'subscription',
+        target: subscriptionTarget,
+        fields: [expectedAmount, field({ path: 'expectedCurrencyCode', value: 'EUR', before: 'USD' })],
+      });
+
+      const [row] = buildCardRows({ card });
+
+      expect(row!.field.display?.currencyCode).toBeUndefined();
+      expect(row!.beforeCurrencyCode).toBe('USD');
+    });
+
+    it('stays in the stored currency when the card moves it to another account', () => {
+      const card = buildCard({
+        kind: 'update',
+        entity: 'subscription',
+        target: subscriptionTarget,
+        fields: [expectedAmount, entityField({ path: 'accountId', kind: 'account', id: 'a2' })],
+      });
+
+      expect(buildCardRows({ card })[0]!.field.display?.currencyCode).toBe('USD');
+    });
+  });
+
   it('marks the rows that come from the target record rather than from the card', () => {
     const card = buildCard({ kind: 'update', entity: 'transaction', target, fields: [] });
 
