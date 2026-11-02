@@ -98,6 +98,8 @@ describe('Chat cards that link transactions to a subscription', () => {
       { key: 'chat.warnings.subscriptionAlreadyLinked', params: { count: 1 }, blocksApproval: true },
     ]);
     expect(card.canApply).toEqual({ ok: false, reasonKey: 'chat.cards.refusedByWarning' });
+    expect(card.labels?.[`payee:${payee.id}`]).toBe('Netflix Inc');
+    expect(card.labels?.[`account:${account.id}`]).toBe(account.name);
   });
 
   it('has nothing to link when every transaction is linked to this subscription, and tells the model', async () => {
@@ -207,6 +209,7 @@ describe('Chat cards that link transactions to a subscription', () => {
     expect(card.affected).toMatchObject({ count: 1 });
     expect(card.affected!.rows[0]).toMatchObject({ note: 'NFLX', amount: 9.99 });
     expect(card.warnings).toEqual([{ key: 'chat.warnings.subscriptionNotLinked', params: { count: 1 } }]);
+    expect(card.labels?.[`account:${account.id}`]).toBe(account.name);
   });
 });
 

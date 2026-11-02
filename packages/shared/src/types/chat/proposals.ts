@@ -145,9 +145,9 @@ export interface ChatProposalPreview {
   /** What the resolver wants the user to see before approving, such as the transfer twin a delete also removes. */
   warnings?: ChatCardWarning[];
   /**
-   * Display names of the records the card's arguments point at, by `chatEntityRefKey`, read
-   * from the user's own data. Only for kinds the app holds no list of (a subscription, a transaction, a plan), so
-   * the card names the record and not only its kind.
+   * Display names by `chatEntityRefKey`, so the card names a record and not only its kind: of the records the card's
+   * arguments point at, read from the user's own data, for kinds the app holds no list of (a subscription, a
+   * transaction, a plan), and of the payees, categories and accounts in the rows of `affected`.
    */
   labels?: Record<string, string>;
 }

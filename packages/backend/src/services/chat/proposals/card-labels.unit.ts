@@ -111,6 +111,42 @@ describe('resolveCardLabels', () => {
     });
   });
 
+  it('names the payees, categories and accounts of the affected rows, one read per kind', async () => {
+    const findPayees = jest.spyOn(Payees, 'findAll').mockResolvedValue([{ id: PAYEE, name: 'Netflix Inc' }] as never);
+    const findCategories = jest
+      .spyOn(Categories, 'findAll')
+      .mockResolvedValue([{ id: TX, name: 'Streaming' }] as never);
+    const findAccounts = jest.spyOn(Accounts, 'findAll').mockResolvedValue([{ id: ACCOUNT, name: 'Main' }] as never);
+
+    const labels = await resolveCardLabels({
+      userId: USER,
+      policy: { name: 'unlink_transactions_from_subscription', entityFields: {} },
+      args: {},
+      affected: {
+        count: 2,
+        columns: [],
+        truncated: false,
+        rows: [
+          { account: { kind: 'account', id: ACCOUNT }, payee: { kind: 'payee', id: PAYEE }, note: 'first' },
+          {
+            account: { kind: 'account', id: ACCOUNT },
+            category: { kind: 'category', id: TX },
+            payee: { kind: 'payee', id: PAYEE },
+          },
+        ],
+      },
+    });
+
+    expect(labels).toEqual({
+      [`payee:${PAYEE}`]: 'Netflix Inc',
+      [`category:${TX}`]: 'Streaming',
+      [`account:${ACCOUNT}`]: 'Main',
+    });
+    expect(findPayees).toHaveBeenCalledTimes(1);
+    expect(findCategories).toHaveBeenCalledTimes(1);
+    expect(findAccounts).toHaveBeenCalledTimes(1);
+  });
+
   describe('the categories of a line of a shared tracker', () => {
     const OWNER = 99;
     const CATEGORY = '00000000-0000-4000-8000-000000000002';

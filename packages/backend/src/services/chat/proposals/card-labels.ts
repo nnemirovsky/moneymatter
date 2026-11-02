@@ -1,4 +1,10 @@
-import { chatEntityRefKey, type ChatEntityKind, TRANSACTION_TYPES } from '@bt/shared/types';
+import {
+  type ChatCardAffected,
+  chatEntityRefKey,
+  type ChatEntityKind,
+  type ChatTableCell,
+  TRANSACTION_TYPES,
+} from '@bt/shared/types';
 import AccountGroups from '@models/accounts-groups/account-groups.model';
 import Accounts from '@models/accounts.model';
 import BudgetLineGroups from '@models/budget-line-groups.model';
@@ -271,20 +277,54 @@ async function labelTrackerOwnerCategories({
   for (const row of rows) labels.set(chatEntityRefKey({ kind: 'category', id: row.id }), row.name);
 }
 
+/** The kinds a table of affected rows refers to, each read in one query however many rows it has. */
+const AFFECTED_ROW_MODELS: Partial<Record<ChatEntityKind, ModelStatic<Model>>> = {
+  account: Accounts,
+  category: Categories,
+  payee: Payees,
+};
+
+const isEntityCell = (cell: ChatTableCell | undefined): cell is Extract<ChatTableCell, { kind: ChatEntityKind }> =>
+  typeof cell === 'object' && cell !== null;
+
 /**
- * Names the records a card's arguments point at when the frontend has no list to name them from:
- * the subscription a link call names, the transactions it links, the plan a line belongs to. Read
- * from the user's own rows only, so a record that is not theirs stays unnamed, and the card falls
- * back to its kind. At most ten records per argument are named.
+ * Names the records in the rows of the affected table. A row is one the resolver read for this user
+ * and limited to what they may see, but it can carry records outside the frontend's lists: its payees
+ * are read one by one there, and a row on a shared account holds the owner's category and payee.
+ */
+async function labelAffectedRows({ affected, labels }: { affected: ChatCardAffected; labels: Map<string, string> }) {
+  const idsByKind = new Map<ChatEntityKind, Set<string>>();
+  for (const row of affected.rows) {
+    for (const cell of Object.values(row)) {
+      if (!isEntityCell(cell) || cell.label || !AFFECTED_ROW_MODELS[cell.kind]) continue;
+      idsByKind.set(cell.kind, (idsByKind.get(cell.kind) ?? new Set<string>()).add(cell.id));
+    }
+  }
+
+  await Promise.all(
+    [...idsByKind].map(async ([kind, ids]) => {
+      const names = await namesOf({ model: AFFECTED_ROW_MODELS[kind]!, ids: [...ids] });
+      for (const [id, name] of names) labels.set(chatEntityRefKey({ kind, id }), name);
+    }),
+  );
+}
+
+/**
+ * Names the records a card's arguments and its affected rows point at when the frontend has no list to name them from:
+ * the subscription a link call names, the transactions it links, the plan a line belongs to. An
+ * argument is read from the user's own rows only, so a record that is not theirs stays unnamed, and
+ * the card falls back to its kind. At most ten records per argument are named.
  */
 export async function resolveCardLabels({
   userId,
   policy,
   args,
+  affected,
 }: {
   userId: number;
   policy: Pick<ResolvedToolPolicy, 'name' | 'entityFields'>;
   args: Record<string, unknown>;
+  affected?: ChatCardAffected;
 }): Promise<Record<string, string>> {
   const idsByKind = new Map<ChatEntityKind, Set<string>>();
   for (const [field, kind] of Object.entries(policy.entityFields)) {
@@ -324,6 +364,7 @@ export async function resolveCardLabels({
   }
 
   await labelTrackerOwnerCategories({ userId, policy, args, labels });
+  if (affected) await labelAffectedRows({ affected, labels });
 
   return Object.fromEntries(labels);
 }

@@ -52,9 +52,10 @@ const idsOf = ({ value }: { value: unknown }): string[] => {
 
 /**
  * Names the records of a card from the stores the app keeps. Accounts, categories, tags and
- * currencies are in memory already; payees are read one at a time, only the ones the card mentions.
- * A record the app has no list of (a subscription, a transaction, a budget) is named by the server, which
- * sends the names with the card; one that has no name in either place shows its kind.
+ * currencies are in memory already; the payees of the fields and the target are read one at a time.
+ * A record the app has no list of (a subscription, a transaction, a budget) and the records in the
+ * affected rows, up to one card's table of them, are named by the server, which sends the names with
+ * the card in one read; one that has no name in either place shows its kind.
  */
 export const useCardLookups = ({ card }: { card: MaybeRefOrGetter<ChatProposalCard> }): CardLookups => {
   const { accountsRecord, systemAccounts } = storeToRefs(useAccountsStore());
@@ -78,14 +79,14 @@ export const useCardLookups = ({ card }: { card: MaybeRefOrGetter<ChatProposalCa
     const nameOnCard = toValue(card).labels?.[chatEntityRefKey({ kind, id })] ?? null;
     switch (kind) {
       case 'account':
-        return accountsRecord.value[id]?.name ?? null;
+        return accountsRecord.value[id]?.name ?? nameOnCard;
       case 'category':
         // The category of a tracker shared with the user is not in their lists; the server names it on the card.
         return categoriesMap.value[id]?.name ?? nameOnCard;
       case 'tag':
         return tagsMap.value[id]?.name ?? null;
       case 'payee':
-        return payees.value.get(id)?.name ?? null;
+        return payees.value.get(id)?.name ?? nameOnCard;
       case 'userCurrency':
       case 'customCurrency':
         return id;

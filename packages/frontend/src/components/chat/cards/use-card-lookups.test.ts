@@ -87,6 +87,25 @@ describe('useCardLookups', () => {
     expect(entityName({ kind: 'tracker', id: 'sub-1' })).toBeNull();
   });
 
+  it('names the payee and the account of an affected row from the card', () => {
+    const card = buildCard({ labels: { 'payee:payee-1': 'Netflix Inc', 'account:acc-shared': 'Family card' } });
+
+    const { entityName } = useCardLookups({ card });
+
+    expect(entityName({ kind: 'payee', id: 'payee-1' })).toBe('Netflix Inc');
+    expect(entityName({ kind: 'payee', id: 'payee-2' })).toBeNull();
+    expect(entityName({ kind: 'account', id: 'acc-shared' })).toBe('Family card');
+  });
+
+  it('prefers a payee it has read to the name on the card, which may be older', () => {
+    vi.mocked(usePayeesByIds).mockReturnValue({
+      byId: ref(new Map([['payee-1', { id: 'payee-1', name: 'Renamed' }]])),
+    } as never);
+    const card = buildCard({ labels: { 'payee:payee-1': 'Netflix Inc' } });
+
+    expect(useCardLookups({ card }).entityName({ kind: 'payee', id: 'payee-1' })).toBe('Renamed');
+  });
+
   it('names a category outside the lists of the user, of a tracker shared with them, from the card', () => {
     const card = buildCard({ labels: { 'category:cat-owner': 'Food' } });
 

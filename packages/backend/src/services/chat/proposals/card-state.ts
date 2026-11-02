@@ -83,7 +83,7 @@ export async function computeCardState({
 
   // A card whose resolver failed stays without a preview, so it cannot be approved; every other card
   // carries the names of the records it points at, an args-only card included.
-  const labels = error ? {} : await resolveCardLabels({ userId, policy, args });
+  const labels = error ? {} : await resolveCardLabels({ userId, policy, args, affected: resolution?.preview.affected });
   const named = Object.keys(labels).length > 0 ? { labels } : {};
   // A card with no resolver has no row to read, so the currencies of its amounts are fetched on their own.
   const moneyCurrencies =
