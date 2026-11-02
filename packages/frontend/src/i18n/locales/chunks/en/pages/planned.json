@@ -141,7 +141,7 @@
       },
       "rules": {
         "selectField": "Select field",
-        "noteDescription": "Transaction will match if its note contains any of these keywords",
+        "noteDescription": "Transaction will match if its note includes any of these keywords as a whole word",
         "keywordPlaceholder": "Enter keyword",
         "addKeyword": "Add keyword",
         "minAmount": "Min amount",

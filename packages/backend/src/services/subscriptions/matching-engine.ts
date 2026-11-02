@@ -1,4 +1,5 @@
 import { CATEGORIZATION_SOURCE, SUBSCRIPTION_MATCH_SOURCE, SubscriptionMatchingRule } from '@bt/shared/types';
+import { containsWord } from '@common/lib/contains-word';
 import { Money } from '@common/types/money';
 import { logger } from '@js/utils/logger';
 import SubscriptionTransactions from '@models/subscription-transactions.model';
@@ -192,8 +193,8 @@ async function evaluateRule({ rule, subscription, transaction, userId }: Evaluat
   switch (rule.field) {
     case 'note': {
       if (rule.operator !== 'contains_any' || !Array.isArray(rule.value)) return false;
-      const note = (transaction.note || '').toLowerCase();
-      return (rule.value as string[]).some((v) => note.includes(v.toLowerCase()));
+      const note = transaction.note || '';
+      return (rule.value as string[]).some((word) => containsWord({ text: note, word }));
     }
     case 'amount': {
       if (rule.operator !== 'between' || typeof rule.value !== 'object' || Array.isArray(rule.value)) return false;

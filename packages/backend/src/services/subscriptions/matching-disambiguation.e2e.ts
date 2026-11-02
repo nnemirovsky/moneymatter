@@ -1,4 +1,4 @@
-import { SUBSCRIPTION_FREQUENCIES, SUBSCRIPTION_TYPES, TRANSACTION_TYPES } from '@bt/shared/types';
+import { type RecordId, SUBSCRIPTION_FREQUENCIES, SUBSCRIPTION_TYPES, TRANSACTION_TYPES } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
 import * as helpers from '@tests/helpers';
 
@@ -32,6 +32,76 @@ function centsToDecimal(cents: number): number {
 }
 
 describe('Subscription matching disambiguation', () => {
+  describe('note keywords', () => {
+    const createGasSubscription = async () => {
+      const { account } = await helpers.createAccountWithNewCurrency({ currency: 'UAH' });
+      const subscription = await helpers.createSubscription({
+        name: 'Gas bill',
+        type: SUBSCRIPTION_TYPES.subscription,
+        expectedAmount: 110,
+        expectedCurrencyCode: 'UAH',
+        frequency: SUBSCRIPTION_FREQUENCIES.monthly,
+        startDate: '2025-01-01',
+        accountId: account.id,
+        matchingRules: { rules: [{ field: 'note', operator: 'contains_any', value: ['gas'] }] },
+        raw: true,
+      });
+
+      return { account, subscription };
+    };
+
+    const createExpense = async ({ accountId, note }: { accountId: RecordId; note: string }) => {
+      const [transaction] = await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({
+          accountId,
+          amount: 110,
+          note,
+          transactionType: TRANSACTION_TYPES.expense,
+        }),
+        raw: true,
+      });
+
+      return transaction;
+    };
+
+    it('does not link a payment whose note only has the keyword inside a longer word', async () => {
+      const { account, subscription } = await createGasSubscription();
+
+      await createExpense({ accountId: account.id, note: 'Gastroenterologist' });
+
+      const detail = await helpers.getSubscriptionById({ id: subscription.id, raw: true });
+      expect(detail.transactions).toHaveLength(0);
+    });
+
+    it('links a payment whose note has the keyword as a word of its own', async () => {
+      const { account, subscription } = await createGasSubscription();
+
+      await createExpense({ accountId: account.id, note: 'Northwind gas, October' });
+
+      const detail = await helpers.getSubscriptionById({ id: subscription.id, raw: true });
+      expect(detail.transactions).toHaveLength(1);
+    });
+
+    it('suggests past payments by the same word rule as the live match', async () => {
+      // Unlinked first, so the live match does not take the rows out of the suggestions.
+      const { account, subscription } = await createGasSubscription();
+      const inside = await createExpense({ accountId: account.id, note: 'Gastroenterologist' });
+      const whole = await createExpense({ accountId: account.id, note: 'Northwind gas, October' });
+      const { transactions } = await helpers.getSubscriptionById({ id: subscription.id, raw: true });
+      await helpers.unlinkTransactionsFromSubscription({
+        id: subscription.id,
+        transactionIds: transactions.map((transaction: { id: string }) => transaction.id),
+        raw: true,
+      });
+
+      const suggested = await helpers.getSuggestedMatches({ id: subscription.id, raw: true });
+      const suggestedIds = suggested.map((transaction: { id: string }) => transaction.id);
+
+      expect(suggestedIds).toContain(whole!.id);
+      expect(suggestedIds).not.toContain(inside!.id);
+    });
+  });
+
   describe('cross-currency matching with multiple overlapping subscriptions', () => {
     it('matches each transaction to the correct Apple subscription based on amount', async () => {
       const { account } = await helpers.createAccountWithNewCurrency({ currency: 'UAH' });

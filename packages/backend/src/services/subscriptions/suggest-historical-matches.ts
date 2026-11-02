@@ -1,4 +1,5 @@
 import { SUBSCRIPTION_LINK_STATUS, SubscriptionMatchingRule } from '@bt/shared/types';
+import { containsWord } from '@common/lib/contains-word';
 import { Money } from '@common/types/money';
 import SubscriptionTransactions from '@models/subscription-transactions.model';
 import { findTransactions } from '@models/transactions-query';
@@ -36,7 +37,7 @@ export const suggestHistoricalMatches = async ({
   // Separate rules into SQL-applicable and post-processing rules
   // NOTE: This builds Sequelize WHERE clauses for the same rule types that
   // matching-engine.ts evaluates at runtime via `evaluateRule`. Keep in sync.
-  const { sqlConditions, crossCurrencyAmountRules, dueDateWindows } = buildWhereFromRules({
+  const { sqlConditions, crossCurrencyAmountRules, dueDateWindows, noteKeywordRules } = buildWhereFromRules({
     rules: matchingRules.rules,
   });
 
@@ -63,11 +64,12 @@ export const suggestHistoricalMatches = async ({
 
   // Fetch more transactions if we need to post-filter by cross-currency amount
   // We fetch more because some will be filtered out after conversion
+  // The same goes for note keywords: the SQL pattern also finds a keyword inside a longer word.
   // A due-date window is narrow (a few days a month), so it needs a deeper fetch still.
   const fetchLimit =
     dueDateWindows.length > 0
       ? MAX_SUGGESTIONS * 10
-      : crossCurrencyAmountRules.length > 0
+      : crossCurrencyAmountRules.length > 0 || noteKeywordRules.length > 0
         ? MAX_SUGGESTIONS * 3
         : MAX_SUGGESTIONS;
 
@@ -79,6 +81,13 @@ export const suggestHistoricalMatches = async ({
     where: baseWhere,
     order: [['time', 'DESC']],
   });
+
+  // iLike is only a cheap pre-filter: the whole-word check is the same predicate as the live match.
+  if (noteKeywordRules.length > 0) {
+    transactions = transactions.filter((tx) =>
+      noteKeywordRules.every((keywords) => keywords.some((word) => containsWord({ text: tx.note || '', word }))),
+    );
+  }
 
   // The schedule distance has no SQL form, so the due-date window is applied in memory.
   if (dueDateWindows.length > 0) {
@@ -111,21 +120,27 @@ interface BuildWhereResult {
   crossCurrencyAmountRules: AmountRuleWithCurrency[];
   /** `dueDate` rule windows (days), checked in memory against the subscription's schedule. */
   dueDateWindows: number[];
+  /** Each `note` rule's keywords, checked in memory as whole words. */
+  noteKeywordRules: string[][];
 }
 
 function buildWhereFromRules({ rules }: { rules: SubscriptionMatchingRule[] }): BuildWhereResult {
   const sqlConditions: WhereOptions[] = [];
   const crossCurrencyAmountRules: AmountRuleWithCurrency[] = [];
   const dueDateWindows: number[] = [];
+  const noteKeywordRules: string[][] = [];
 
   for (const rule of rules) {
     switch (rule.field) {
       case 'note': {
         if (rule.operator === 'contains_any' && Array.isArray(rule.value)) {
-          const patterns = (rule.value as string[]).map((v) => ({
-            [Op.iLike]: `%${v}%`,
+          const keywords = rule.value as string[];
+          // Trimmed like the whole-word check, so the pre-filter never drops a row it would accept.
+          const patterns = keywords.map((v) => ({
+            [Op.iLike]: `%${v.trim()}%`,
           }));
           sqlConditions.push({ note: { [Op.or]: patterns } });
+          noteKeywordRules.push(keywords);
         }
         break;
       }
@@ -182,7 +197,7 @@ function buildWhereFromRules({ rules }: { rules: SubscriptionMatchingRule[] }): 
     }
   }
 
-  return { sqlConditions, crossCurrencyAmountRules, dueDateWindows };
+  return { sqlConditions, crossCurrencyAmountRules, dueDateWindows, noteKeywordRules };
 }
 
 /**

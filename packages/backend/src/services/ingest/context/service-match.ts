@@ -1,7 +1,4 @@
-const escapeRegExp = ({ value }: { value: string }) => value.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
-
-const containsWord = ({ text, word }: { text: string; word: string }): boolean =>
-  new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp({ value: word })}(?![\\p{L}\\p{N}])`, 'iu').test(text);
+import { containsWord } from '@common/lib/contains-word';
 
 /**
  * Whether a payment's printed names (the payee, the merchant as the bank wrote it) belong to the
