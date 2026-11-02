@@ -69,6 +69,7 @@ interface UpdateSubscriptionPayload extends EntityLogoPayload {
   isActive?: boolean;
   notes?: string | null;
   dueDate?: string | null;
+  rescheduleOpenPeriod?: boolean;
   maxOccurrences?: number | null;
   remindBefore?: RemindBeforePreset[];
   notifyEmail?: boolean;

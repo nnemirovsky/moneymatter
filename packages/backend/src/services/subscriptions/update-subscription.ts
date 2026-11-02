@@ -16,6 +16,7 @@ import { assertCurrencyCodesVisible } from '@services/currencies/assert-currency
 import { ensureUserCurrencyConnected } from '@services/sharing/auth/ensure-currency-connected.service';
 import { Op } from 'sequelize';
 
+import { calculateNextDueDate } from './calculate-next-due-date';
 import { ensureNextPeriodExists, reconcileInstallmentCompletion } from './ensure-next-period';
 import {
   assertAmountCurrencyConsistent,
@@ -36,6 +37,35 @@ import { getSubscriptionTagIds } from './subscription-tags';
 /** Statuses that count as a live, un-consumed period. */
 const OPEN_PERIOD_STATUSES = [SUBSCRIPTION_PERIOD_STATUSES.upcoming, SUBSCRIPTION_PERIOD_STATUSES.overdue];
 
+/**
+ * The first occurrence from `dueDate` on that no paid or skipped period sits on, so an open
+ * period moved there never reopens a settled cycle.
+ */
+async function findFirstUnsettledOccurrence({
+  subscription,
+  dueDate,
+}: {
+  subscription: Subscriptions;
+  dueDate: string;
+}): Promise<string> {
+  const settledPeriods = await SubscriptionPeriods.findAll({
+    where: {
+      subscriptionId: subscription.id,
+      status: { [Op.in]: [SUBSCRIPTION_PERIOD_STATUSES.paid, SUBSCRIPTION_PERIOD_STATUSES.skipped] },
+      dueDate: { [Op.gte]: dueDate },
+    },
+    attributes: ['dueDate'],
+  });
+  const settledDates = new Set(settledPeriods.map((period) => period.dueDate));
+  const anchorDay = new Date(dueDate + 'T00:00:00Z').getUTCDate();
+
+  let occurrence = dueDate;
+  while (settledDates.has(occurrence)) {
+    occurrence = calculateNextDueDate({ currentDueDate: occurrence, frequency: subscription.frequency, anchorDay });
+  }
+  return occurrence;
+}
+
 interface UpdateSubscriptionParams extends EntityLogoPayload {
   id: string;
   userId: number;
@@ -55,6 +85,12 @@ interface UpdateSubscriptionParams extends EntityLogoPayload {
   isActive?: boolean;
   notes?: string | null;
   dueDate?: string | null;
+  /**
+   * `dueDate` is the open period's new date, even when it equals the stored anchor, and a date
+   * that already has a paid or skipped period rolls to the next free occurrence. Without it, a
+   * `dueDate` equal to the anchor is a re-send and leaves the open period alone.
+   */
+  rescheduleOpenPeriod?: boolean;
   maxOccurrences?: number | null;
   remindBefore?: RemindBeforePreset[];
   notifyEmail?: boolean;
@@ -62,7 +98,7 @@ interface UpdateSubscriptionParams extends EntityLogoPayload {
 }
 
 export const updateSubscription = withTransaction(
-  async ({ id, userId, tagIds, ...fields }: UpdateSubscriptionParams) => {
+  async ({ id, userId, tagIds, rescheduleOpenPeriod, ...fields }: UpdateSubscriptionParams) => {
     const subscription = await findSubscriptionOrThrow({ id, userId });
 
     await assertCurrencyCodesVisible({ userId, codes: [fields.expectedCurrencyCode] });
@@ -197,34 +233,40 @@ export const updateSubscription = withTransaction(
     });
 
     // Keep the live schedule in step with an edited due date. Realigning only fires
-    // when the due date ACTUALLY changed (`fields.dueDate !== previousDueDate`). The
-    // edit form always re-sends the stored dueDate, even on edits that don't touch
-    // the schedule (e.g. linking an account). subscriptions.dueDate is the static
-    // anchor — it never advances as periods are paid — so once the schedule has
-    // moved on, the open period sits ahead of the anchor. Comparing the re-sent
+    // when the due date ACTUALLY changed (`fields.dueDate !== previousDueDate`) or the
+    // caller says it means a reschedule (`rescheduleOpenPeriod`). Edit forms re-send
+    // the stored dueDate on edits that don't touch the schedule (e.g. linking an
+    // account). subscriptions.dueDate is the static anchor — it never advances as
+    // periods are paid — so once the schedule has moved on, the open period sits
+    // ahead of the anchor. Comparing the re-sent
     // anchor against the open period (rather than the pre-edit anchor) would read it
     // as a reschedule and drag the open period backwards onto an already-consumed
     // date, spawning a duplicate overdue period.
     //  - dueDate changed: shift the single open (upcoming/overdue) period onto the
     //    new date and re-resolve its status, so the shown/reminded date and the
     //    next-cycle anchor track the schedule the user just set. Paid/skipped periods
-    //    are immutable history and are never moved.
+    //    are immutable history and are never moved. With `rescheduleOpenPeriod`, a date
+    //    already settled rolls forward, so a settled cycle never gets a second period.
     //  - no open period yet (first time a schedule is added): seed one. Guarding on a
     //    zero TOTAL count stops a re-anchored finished installment (whose only periods
     //    are paid) from duplicating history. A past dueDate is born overdue (mirrors
     //    the cron).
     //  - dueDate cleared to null: the subscription becomes detection-only, so drop any
     //    open period (nothing left to fall due).
-    if (fields.dueDate != null && fields.dueDate !== previousDueDate) {
+    if (fields.dueDate != null && (rescheduleOpenPeriod || fields.dueDate !== previousDueDate)) {
       const openPeriod = await SubscriptionPeriods.findOne({
         where: { subscriptionId: id, status: { [Op.in]: OPEN_PERIOD_STATUSES } },
         order: [['dueDate', 'ASC']],
       });
 
       if (openPeriod) {
+        const nextDueDate = rescheduleOpenPeriod
+          ? await findFirstUnsettledOccurrence({ subscription, dueDate: fields.dueDate })
+          : fields.dueDate;
+
         await openPeriod.update({
-          dueDate: fields.dueDate,
-          status: resolveOpenPeriodStatus({ dueDate: fields.dueDate }),
+          dueDate: nextDueDate,
+          status: resolveOpenPeriodStatus({ dueDate: nextDueDate }),
         });
       } else {
         const existingPeriodCount = await SubscriptionPeriods.count({ where: { subscriptionId: id } });

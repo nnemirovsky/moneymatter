@@ -20,6 +20,7 @@ import {
   REMIND_BEFORE_PRESETS,
   type RemindBeforePreset,
   SUBSCRIPTION_FREQUENCIES,
+  SUBSCRIPTION_PERIOD_STATUSES,
   SUBSCRIPTION_TYPES,
 } from '@bt/shared/types';
 import { useMutation } from '@tanstack/vue-query';
@@ -59,12 +60,29 @@ interface ScheduleForm {
   notifyEmail: boolean;
 }
 
+/**
+ * The date the schedule next falls due: the open period, which moves on from the static
+ * `dueDate` anchor as periods are paid. `nextExpectedDate` can't stand in for it: it is null on a
+ * paused subscription and an estimate on an unscheduled one.
+ */
+const resolveCurrentDueDate = (): string | null => {
+  const { dueDate, periods } = props.subscription;
+  if (!dueDate) return null;
+
+  const openPeriod = periods.find(
+    ({ status }) => status === SUBSCRIPTION_PERIOD_STATUSES.upcoming || status === SUBSCRIPTION_PERIOD_STATUSES.overdue,
+  );
+  return openPeriod?.dueDate ?? dueDate;
+};
+
+const currentDueDate = ref(resolveCurrentDueDate());
+
 const buildFormState = (): ScheduleForm => ({
   frequency: props.subscription.frequency,
   // parseISO reads date-only strings as local midnight, so re-formatting with
   // 'yyyy-MM-dd' round-trips exactly; new Date() would parse them as UTC and
-  // shift a day west of UTC, which the backend reads as a real reschedule.
-  dueDate: props.subscription.dueDate ? parseISO(props.subscription.dueDate) : null,
+  // shift a day west of UTC, which would read as an edit of the date.
+  dueDate: currentDueDate.value ? parseISO(currentDueDate.value) : null,
   maxOccurrences: props.subscription.maxOccurrences ?? null,
   startDate: props.subscription.startDate ? parseISO(props.subscription.startDate) : new Date(),
   endDate: props.subscription.endDate ? parseISO(props.subscription.endDate) : null,
@@ -77,6 +95,7 @@ const formError = ref<string | null>(null);
 
 watch(open, (isOpen) => {
   if (!isOpen) return;
+  currentDueDate.value = resolveCurrentDueDate();
   form.value = buildFormState();
   formError.value = null;
 });
@@ -142,9 +161,13 @@ const handleSubmit = () => {
   if (!isFormValid()) return;
   formError.value = null;
 
+  const dueDate = form.value.dueDate ? toIsoDate({ date: form.value.dueDate }) : null;
+  const dueDateFields =
+    dueDate === currentDueDate.value ? {} : { dueDate, ...(dueDate ? { rescheduleOpenPeriod: true } : {}) };
+
   mutate({
     frequency: form.value.frequency,
-    dueDate: form.value.dueDate ? toIsoDate({ date: form.value.dueDate }) : null,
+    ...dueDateFields,
     maxOccurrences: form.value.maxOccurrences ?? null,
     startDate: form.value.startDate ? toIsoDate({ date: form.value.startDate }) : toIsoDate({ date: new Date() }),
     endDate: form.value.endDate ? toIsoDate({ date: form.value.endDate }) : null,

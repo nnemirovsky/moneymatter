@@ -41,6 +41,8 @@ const schema = z.object({
         isActive: z.boolean().optional(),
         notes: z.string().max(5000).nullable().optional(),
         dueDate: dateBound().nullable().optional(),
+        // The caller means `dueDate` as the open period's new date, even when it equals the stored anchor.
+        rescheduleOpenPeriod: z.boolean().optional(),
         maxOccurrences: z.number().int().positive().nullable().optional(),
         remindBefore: z.array(z.enum(remindBeforePresetValues)).max(MAX_REMIND_BEFORE_PRESETS).optional(),
         notifyEmail: z.boolean().optional(),

@@ -88,6 +88,8 @@ export const updateSubscription = async ({
   id: string;
   payload: Partial<Omit<SubscriptionModel, 'id' | 'userId' | 'createdAt' | 'updatedAt'>> & {
     dueDate?: string | null;
+    /** `dueDate` is the open period's new date, even when it equals the stored anchor. */
+    rescheduleOpenPeriod?: boolean;
     maxOccurrences?: number | null;
     remindBefore?: RemindBeforePreset[];
     notifyEmail?: boolean;
