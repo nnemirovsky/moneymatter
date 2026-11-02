@@ -3,6 +3,7 @@ import PayeeAliases from '@models/payee-aliases.model';
 import Payees from '@models/payees.model';
 import { findTransactions, updateTransactions } from '@models/transactions-query';
 import { enqueueLogoResolutionAfterCommit } from '@services/brand-logos';
+import { isWordAligned } from '@services/ingest/payee/merchant-core';
 import { getUserSettings } from '@services/user-settings/get-user-settings';
 import { Op } from 'sequelize';
 
@@ -164,14 +165,18 @@ export const resolvePayeeForRawMerchant = withTransaction(
       return noMatch;
     }
 
-    // Step 2: fuzzy match across the user's full Payee + alias set.
+    // Step 2: fuzzy match across the names of the user's Payees and aliases that share the
+    // merchant's words. The search alone scores a short text inside a longer word as a near hit,
+    // and a hit here writes a permanent alias.
     const userPayees = await Payees.findAll({
       where: { userId },
       include: [{ model: PayeeAliases, as: 'aliases' }],
     });
 
     if (userPayees.length > 0) {
-      const haystack = buildHaystack({ payees: userPayees });
+      const haystack = buildHaystack({ payees: userPayees }).filter((entry) =>
+        isWordAligned({ merchant: trimmed, name: entry.text }),
+      );
       const fuzzy = fuzzyFindBestMatch({ haystack, query: trimmed });
 
       if (fuzzy) {

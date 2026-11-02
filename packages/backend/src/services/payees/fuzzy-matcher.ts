@@ -61,11 +61,17 @@ interface FuzzyMatchResult {
 export function buildFuzzyIndex({ haystack }: { haystack: HaystackEntry[] }) {
   const fuse = new Fuse(haystack, fuzzyFuseOptions<HaystackEntry>());
   return {
-    search({ query }: { query: string }): FuzzyMatchResult | null {
+    /** The closest hit, skipping any whose text `accept` refuses. */
+    search({
+      query,
+      accept,
+    }: {
+      query: string;
+      accept?: (params: { text: string }) => boolean;
+    }): FuzzyMatchResult | null {
       const normalized = normalizePayeeName({ raw: query });
       if (normalized.length < FUZZY_MIN_MATCH_CHAR_LENGTH) return null;
-      const results = fuse.search(normalized);
-      const best = results[0];
+      const best = fuse.search(normalized).find((result) => !accept || accept({ text: result.item.text }));
       if (!best || best.score === undefined || best.score > FUZZY_MATCH_THRESHOLD) {
         return null;
       }

@@ -39,19 +39,27 @@ import Payees from '@models/payees.model';
 import { findTransactions, updateTransactions } from '@models/transactions-query';
 
 import { runNoteFuzzyBackfill } from './note-fuzzy-backfill';
+import { ensureAliasExists } from './payee-namespace';
 /* eslint-enable import/first */
 
 const findTransactionsMock = jest.mocked(findTransactions);
 const updateTransactionsMock = jest.mocked(updateTransactions);
 const payeesFindAllMock = jest.mocked(Payees.findAll);
+const ensureAliasExistsMock = jest.mocked(ensureAliasExists);
 
 const USER_ID = 42;
 const PAYEE_ID = 'payee-1';
 
 type Candidate = { id: string; note: string | null };
 
-function seed({ candidates }: { candidates: Candidate[] }) {
-  payeesFindAllMock.mockResolvedValue([{ id: PAYEE_ID, name: 'Amazon', aliases: [] }] as never);
+function seed({
+  candidates,
+  payees = [{ id: PAYEE_ID, name: 'Amazon', aliases: [] }],
+}: {
+  candidates: Candidate[];
+  payees?: { id: string; name: string; aliases: { rawName: string }[] }[];
+}) {
+  payeesFindAllMock.mockResolvedValue(payees as never);
   findTransactionsMock.mockResolvedValue(candidates as never);
   updateTransactionsMock.mockResolvedValue([candidates.length] as never);
 }
@@ -119,6 +127,50 @@ describe('runNoteFuzzyBackfill payee link write', () => {
       access: 'unscoped-internal',
       balanceAdjustments: 'include',
       where: { id: 'tx-1', payeeId: null, payeeLocked: false },
+    });
+  });
+
+  it('writes nothing for a note that only sits inside a word of the payee name', async () => {
+    seed({
+      candidates: [{ id: 'tx-1', note: 'DONA' }],
+      payees: [{ id: PAYEE_ID, name: "McDonald's", aliases: [] }],
+    });
+
+    const result = await runNoteFuzzyBackfill({ userId: USER_ID, transactionIds: ['tx-1'] });
+
+    expect(updateTransactionsMock).not.toHaveBeenCalled();
+    expect(ensureAliasExistsMock).not.toHaveBeenCalled();
+    expect(result).toEqual({ scanned: 1, linked: 0 });
+  });
+
+  it('passes over a closer hit that fails the word check for one whose words agree', async () => {
+    seed({
+      candidates: [{ id: 'tx-1', note: 'DONA' }],
+      payees: [
+        { id: 'mcdonalds', name: "McDonald's", aliases: [] },
+        { id: 'dona', name: 'Dona Bakery', aliases: [] },
+      ],
+    });
+
+    const result = await runNoteFuzzyBackfill({ userId: USER_ID, transactionIds: ['tx-1'] });
+
+    expect(result).toEqual({ scanned: 1, linked: 1 });
+    expect(updateTransactionsMock.mock.calls[0]![0]!.values).toEqual({ payeeId: 'dona' });
+  });
+
+  it('links a multi-word note to the payee it names', async () => {
+    seed({
+      candidates: [{ id: 'tx-1', note: 'Blue Cofee Lisbon' }],
+      payees: [{ id: PAYEE_ID, name: 'Blue Coffee Lisbon', aliases: [] }],
+    });
+
+    const result = await runNoteFuzzyBackfill({ userId: USER_ID, transactionIds: ['tx-1'] });
+
+    expect(result).toEqual({ scanned: 1, linked: 1 });
+    expect(ensureAliasExistsMock).toHaveBeenCalledWith({
+      payeeId: PAYEE_ID,
+      rawName: 'Blue Cofee Lisbon',
+      normalizedName: 'blue cofee lisbon',
     });
   });
 

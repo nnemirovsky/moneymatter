@@ -102,6 +102,46 @@ describe('Payee extraction — description/note fallback flag', () => {
     });
   });
 
+  describe('fuzzy link to an existing Payee', () => {
+    const createWithNote = async ({ note }: { note: string }) => {
+      const account = await helpers.createAccount({ raw: true });
+      const [tx] = await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({ accountId: account.id, note }),
+        raw: true,
+      });
+
+      return tx!;
+    };
+
+    it('does not link or alias a merchant that only sits inside a word of the Payee name', async () => {
+      await enableNoteExtraction();
+      const mcdonalds = await helpers.createPayee({
+        payload: helpers.buildPayeePayload({ name: "McDonald's" }),
+        raw: true,
+      });
+
+      const tx = await createWithNote({ note: 'DONA' });
+
+      expect(tx.payeeId).toBeNull();
+      const detail = await helpers.getPayeeById({ id: mcdonalds.id, raw: true });
+      expect((detail.aliases ?? []).some((alias) => alias.normalizedName === 'dona')).toBe(false);
+    });
+
+    it('still links and aliases a merchant whose words agree with the Payee name', async () => {
+      await enableNoteExtraction();
+      const blueCoffee = await helpers.createPayee({
+        payload: helpers.buildPayeePayload({ name: 'Blue Coffee' }),
+        raw: true,
+      });
+
+      const tx = await createWithNote({ note: 'Blue Cofee' });
+
+      expect(tx.payeeId).toBe(blueCoffee.id);
+      const detail = await helpers.getPayeeById({ id: blueCoffee.id, raw: true });
+      expect((detail.aliases ?? []).some((alias) => alias.normalizedName === 'blue cofee')).toBe(true);
+    });
+  });
+
   describe('payee_rule runs inline during tx create — AI runs later on uncategorized rows only', () => {
     // The ordering invariant: `createTransaction` resolves a Payee and applies
     // `payee_rule` categorization synchronously, so the row is already stamped

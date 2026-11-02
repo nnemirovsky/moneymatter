@@ -3,6 +3,7 @@ import Accounts from '@models/accounts.model';
 import PayeeAliases from '@models/payee-aliases.model';
 import Payees from '@models/payees.model';
 import { findTransactions, updateTransactions } from '@models/transactions-query';
+import { isWordAligned } from '@services/ingest/payee/merchant-core';
 import { Op } from 'sequelize';
 
 import { withTransaction } from '../common/with-transaction';
@@ -107,7 +108,12 @@ export const runNoteFuzzyBackfill = withTransaction(
         const raw = tx.note?.trim();
         if (!raw) continue;
 
-        const match = index.search({ query: raw });
+        // A hit writes an alias, a category, tags and a location, so a note that only sits inside
+        // a longer word of a name does not count.
+        const match = index.search({
+          query: raw,
+          accept: ({ text }) => isWordAligned({ merchant: raw, name: text }),
+        });
         if (!match) continue;
 
         const normalized = normalizePayeeName({ raw });
