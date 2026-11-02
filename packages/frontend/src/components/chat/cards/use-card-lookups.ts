@@ -75,11 +75,13 @@ export const useCardLookups = ({ card }: { card: MaybeRefOrGetter<ChatProposalCa
   const { byId: payees } = usePayeesByIds({ ids: payeeIds });
 
   const entityName: CardLookups['entityName'] = ({ kind, id }) => {
+    const nameOnCard = toValue(card).labels?.[chatEntityRefKey({ kind, id })] ?? null;
     switch (kind) {
       case 'account':
         return accountsRecord.value[id]?.name ?? null;
       case 'category':
-        return categoriesMap.value[id]?.name ?? null;
+        // The category of a tracker shared with the user is not in their lists; the server names it on the card.
+        return categoriesMap.value[id]?.name ?? nameOnCard;
       case 'tag':
         return tagsMap.value[id]?.name ?? null;
       case 'payee':
@@ -88,7 +90,7 @@ export const useCardLookups = ({ card }: { card: MaybeRefOrGetter<ChatProposalCa
       case 'customCurrency':
         return id;
       default:
-        return toValue(card).labels?.[chatEntityRefKey({ kind, id })] ?? null;
+        return nameOnCard;
     }
   };
 

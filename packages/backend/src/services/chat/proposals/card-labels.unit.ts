@@ -2,15 +2,20 @@ import { TRANSACTION_TYPES } from '@bt/shared/types';
 import { Money } from '@common/types/money';
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import Accounts from '@models/accounts.model';
+import Categories from '@models/categories.model';
 import Payees from '@models/payees.model';
 import Subscriptions from '@models/subscriptions.model';
+import Trackers from '@models/trackers.model';
 
 jest.mock('@models/transactions-query', () => ({
   ...(jest.requireActual('@models/transactions-query') as object),
   findTransactions: jest.fn(),
 }));
 
+jest.mock('@services/sharing/auth/can-user-access-resource.service', () => ({ canUserAccessResource: jest.fn() }));
+
 import * as transactionsQuery from '@models/transactions-query';
+import { canUserAccessResource } from '@services/sharing/auth/can-user-access-resource.service';
 
 import { resolveToolPolicy } from '../policies';
 import { resolveCardLabels } from './card-labels';
@@ -103,6 +108,43 @@ describe('resolveCardLabels', () => {
 
     expect(jest.mocked(transactionsQuery.findTransactions).mock.calls[0]![0]).toMatchObject({
       where: { id: ids.slice(0, 10) },
+    });
+  });
+
+  describe('the categories of a line of a shared tracker', () => {
+    const OWNER = 99;
+    const CATEGORY = '00000000-0000-4000-8000-000000000002';
+    const args = { trackerId: SUBSCRIPTION, name: 'Food', categoryIds: [CATEGORY] };
+    beforeEach(() => {
+      jest.spyOn(Trackers, 'findAll').mockResolvedValue([]);
+    });
+
+    const labelsFor = ({ name = 'create_tracker_line' }: { name?: string } = {}) =>
+      resolveCardLabels({ userId: USER, policy: policy({ name }), args });
+
+    it('names them from the tree of the owner for a recipient who may manage the tracker', async () => {
+      jest.mocked(canUserAccessResource).mockResolvedValue({ granted: true, ownerUserId: OWNER } as never);
+      const find = jest.spyOn(Categories, 'findAll').mockResolvedValue([{ id: CATEGORY, name: 'Food' }] as never);
+
+      expect(await labelsFor()).toMatchObject({ [`category:${CATEGORY}`]: 'Food' });
+      expect(jest.mocked(canUserAccessResource).mock.calls.at(-1)![0]).toMatchObject({ requiredPermission: 'manage' });
+      expect(find.mock.calls[0]![0]).toMatchObject({ where: { id: [CATEGORY], userId: OWNER } });
+    });
+
+    it('names none of them for a caller without that access', async () => {
+      jest.mocked(canUserAccessResource).mockResolvedValue({ granted: false, ownerUserId: OWNER } as never);
+      const find = jest.spyOn(Categories, 'findAll');
+
+      expect(await labelsFor()).toEqual({});
+      expect(find).not.toHaveBeenCalled();
+    });
+
+    it('leaves the categories of the owner of the tracker to the lists of the app', async () => {
+      jest.mocked(canUserAccessResource).mockResolvedValue({ granted: true, ownerUserId: USER } as never);
+      const find = jest.spyOn(Categories, 'findAll');
+
+      expect(await labelsFor()).toEqual({});
+      expect(find).not.toHaveBeenCalled();
     });
   });
 });

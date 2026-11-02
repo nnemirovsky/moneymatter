@@ -584,6 +584,91 @@ describe('Chat cards state the currency of an amount their arguments leave witho
   });
 });
 
+describe('A line of a shared tracker in the chat', () => {
+  it('is proposed by a manage recipient with the categories of the owner, named on the card, and applied', async () => {
+    const { tracker, category, recipient } = await provisionSharedTracker();
+
+    const card = await proposedByRecipient({
+      recipient,
+      toolName: 'create_tracker_line',
+      args: { trackerId: tracker.id, name: 'Fun', categoryIds: [category.id], limitAmount: 50 },
+    });
+
+    expect(card.canApply).toEqual({ ok: true });
+    expect(moneyDisplayOf({ card, path: 'limitAmount' })).toEqual({
+      kind: 'money',
+      currencyCode: global.BASE_CURRENCY.code,
+    });
+    expect(card.labels?.[`category:${category.id}`]).toBe('trip-food');
+
+    const approved = await helpers.asUser({
+      cookies: recipient.cookies,
+      fn: () => helpers.approveChatProposal({ proposalId: card.id, payload: { revision: card.revision }, raw: true }),
+    });
+    expect(approved.card.status).toBe('applied');
+
+    const shared = await helpers.getTrackerById({ id: tracker.id, raw: true });
+    const created = shared!.lines!.find((item) => item.name === 'Fun');
+    expect(created?.limitAmount).toBe(50);
+    expect(created?.categories?.map((item) => item.id)).toEqual([category.id]);
+  });
+
+  it('takes the categories of the owner on an update by a manage recipient', async () => {
+    const { tracker, category, line, recipient } = await provisionSharedTracker();
+
+    const card = await proposedByRecipient({
+      recipient,
+      toolName: 'update_tracker_line',
+      args: { trackerId: tracker.id, lineId: line.id, categoryIds: [category.id] },
+    });
+
+    expect(card.canApply).toEqual({ ok: true });
+    expect(card.labels?.[`category:${category.id}`]).toBe('trip-food');
+  });
+
+  it('refuses a category of the recipient, which is not in the tree of the owner', async () => {
+    const { tracker, recipient } = await provisionSharedTracker();
+    const own = await helpers.asUser({
+      cookies: recipient.cookies,
+      fn: () => helpers.addCustomCategory({ name: 'recipient-own', color: '#00AA00', raw: true }),
+    });
+
+    const { cards, script } = await proposedRunByRecipient({
+      recipient,
+      toolName: 'create_tracker_line',
+      args: { trackerId: tracker.id, name: 'Fun', categoryIds: [own.id] },
+    });
+
+    expect(cards).toEqual([]);
+    expect(lastToolResult({ script })).toMatch(new RegExp(`categoryIds: ${own.id} .*get_tracker`));
+  });
+
+  it.each([
+    [
+      'a user without access',
+      async () => helpers.provisionSecondUserWithBaseCurrency({ email: 'stranger@test.local' }),
+    ],
+    ['a read-only recipient', null],
+  ])('refuses %s, and says nothing of the categories of the owner', async (_label, stranger) => {
+    const { tracker, category, recipient } = await provisionSharedTracker({
+      permission: stranger ? SHARE_PERMISSIONS.manage : SHARE_PERMISSIONS.read,
+    });
+    const caller = stranger ? await stranger() : recipient;
+
+    const { cards, script } = await proposedRunByRecipient({
+      recipient: caller,
+      toolName: 'create_tracker_line',
+      args: { trackerId: tracker.id, name: 'Fun', categoryIds: [category.id] },
+    });
+
+    expect(cards).toEqual([]);
+    const result = lastToolResult({ script });
+    expect(result).toMatch(/trackerId: .*get_trackers/);
+    expect(result).not.toContain('trip-food');
+    expect(result).not.toContain(category.id);
+  });
+});
+
 describe('A change of a line of a tracker on its card', () => {
   it('shows the old limit and name of the line, not of the tracker, and names the line as its target', async () => {
     const { tracker, line, recipient } = await provisionSharedTracker();

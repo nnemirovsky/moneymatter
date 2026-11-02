@@ -4,6 +4,7 @@ import Accounts from '@models/accounts.model';
 import BudgetLineGroups from '@models/budget-line-groups.model';
 import BudgetLines from '@models/budget-lines.model';
 import BudgetPlans from '@models/budget-plans.model';
+import Categories from '@models/categories.model';
 import ImportBatches from '@models/import-batches.model';
 import Portfolios from '@models/investments/portfolios.model';
 import LoanDetails from '@models/loan-details.model';
@@ -25,6 +26,7 @@ import { Op, type Model, type ModelStatic, type WhereOptions } from 'sequelize';
 import { describeSource } from '../../ingest/event/source-label';
 import type { ResolvedToolPolicy } from '../policies/rules';
 import { SAMPLE_ROW_LIMIT, TRANSACTION_SAMPLE_ATTRIBUTES } from './previews/preview-helpers';
+import { categoryTreeOwner } from './tracker-category-owner';
 
 /**
  * The kinds the frontend names from lists it already holds (accounts, categories, tags, payees,
@@ -245,6 +247,31 @@ const idsOf = ({ value }: { value: unknown }): string[] =>
   );
 
 /**
+ * The categories of a line of a tracker shared with the user are the owner's, which the frontend's lists of the
+ * user's own categories do not hold. They are named only for a caller who may manage the tracker.
+ */
+async function labelTrackerOwnerCategories({
+  userId,
+  policy,
+  args,
+  labels,
+}: {
+  userId: number;
+  policy: Pick<ResolvedToolPolicy, 'name'>;
+  args: Record<string, unknown>;
+  labels: Map<string, string>;
+}) {
+  const ids = idsOf({ value: args.categoryIds }).slice(0, LABELED_IDS_PER_FIELD);
+  if (ids.length === 0) return;
+
+  const ownerUserId = await categoryTreeOwner({ userId, toolName: policy.name, args });
+  if (ownerUserId === null || ownerUserId === userId) return;
+
+  const rows = await Categories.findAll({ where: { id: ids, userId: ownerUserId }, attributes: ['id', 'name'] });
+  for (const row of rows) labels.set(chatEntityRefKey({ kind: 'category', id: row.id }), row.name);
+}
+
+/**
  * Names the records a card's arguments point at when the frontend has no list to name them from:
  * the subscription a link call names, the transactions it links, the plan a line belongs to. Read
  * from the user's own rows only, so a record that is not theirs stays unnamed, and the card falls
@@ -256,7 +283,7 @@ export async function resolveCardLabels({
   args,
 }: {
   userId: number;
-  policy: Pick<ResolvedToolPolicy, 'entityFields'>;
+  policy: Pick<ResolvedToolPolicy, 'name' | 'entityFields'>;
   args: Record<string, unknown>;
 }): Promise<Record<string, string>> {
   const idsByKind = new Map<ChatEntityKind, Set<string>>();
@@ -295,6 +322,8 @@ export async function resolveCardLabels({
       }
     }
   }
+
+  await labelTrackerOwnerCategories({ userId, policy, args, labels });
 
   return Object.fromEntries(labels);
 }

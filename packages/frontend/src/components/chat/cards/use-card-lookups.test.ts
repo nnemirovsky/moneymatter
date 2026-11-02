@@ -86,4 +86,13 @@ describe('useCardLookups', () => {
     expect(entityName({ kind: 'subscription', id: 'sub-2' })).toBeNull();
     expect(entityName({ kind: 'tracker', id: 'sub-1' })).toBeNull();
   });
+
+  it('names a category outside the lists of the user, of a tracker shared with them, from the card', () => {
+    const card = buildCard({ labels: { 'category:cat-owner': 'Food' } });
+
+    const { entityName } = useCardLookups({ card });
+
+    expect(entityName({ kind: 'category', id: 'cat-owner' })).toBe('Food');
+    expect(entityName({ kind: 'category', id: 'cat-other' })).toBeNull();
+  });
 });
