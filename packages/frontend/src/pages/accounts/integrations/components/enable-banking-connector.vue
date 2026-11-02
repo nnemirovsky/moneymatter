@@ -164,7 +164,7 @@
           </div>
 
           <div class="flex gap-2 pt-4">
-            <UiButton @click="openAuthUrl">{{
+            <UiButton class="h-auto min-w-0 py-2 text-left wrap-anywhere whitespace-normal" @click="openAuthUrl">{{
               t('pages.integrations.enableBankingConnector.steps.authorizeButton', { bank: selectedBankName })
             }}</UiButton>
             <UiButton variant="outline" @click="currentStep = 3" :disabled="isLoading">

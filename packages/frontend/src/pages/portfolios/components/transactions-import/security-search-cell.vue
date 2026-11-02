@@ -171,9 +171,9 @@ const hasResults = computed(() => (query.data.value ?? []).length > 0);
               @click="pickResult(r)"
             >
               <SecurityLogo :security="r" class="size-5" />
-              <span class="min-w-0 flex-1">
-                <span class="font-medium">{{ r.symbol }}</span>
-                <span class="text-muted-foreground ml-2 truncate text-xs">{{ r.name }}</span>
+              <span class="flex min-w-0 flex-1 items-baseline">
+                <span class="shrink-0 font-medium">{{ r.symbol }}</span>
+                <span class="text-muted-foreground ml-2 min-w-0 truncate text-xs" :title="r.name">{{ r.name }}</span>
               </span>
               <span
                 v-if="r.assetClass === ASSET_CLASS.crypto && assetClassFilter === 'all'"

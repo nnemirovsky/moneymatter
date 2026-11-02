@@ -28,7 +28,7 @@
       >
         <PaymentRequestSummary :request="request" :inbox-thread-id="inboxThreadId" />
 
-        <div class="flex gap-2 self-start @lg/integrations:self-center">
+        <div class="flex flex-wrap gap-2 self-start @lg/integrations:self-center">
           <Button
             variant="outline"
             size="sm"
@@ -48,6 +48,7 @@
             :key="connection.id"
             variant="outline"
             size="sm"
+            class="max-w-full"
             :aria-label="
               $t(`${LABEL_ROOT}.parseWithAria`, { connection: connection.name, name: merchantName({ request }) })
             "
@@ -55,7 +56,9 @@
             data-testid="waiting-payment-parse-with"
             @click="retry({ request, aiConnectionId: connection.id })"
           >
-            {{ $t(`${LABEL_ROOT}.parseWith`, { connection: connection.name }) }}
+            <span class="max-w-44 truncate" :title="connection.name">
+              {{ $t(`${LABEL_ROOT}.parseWith`, { connection: connection.name }) }}
+            </span>
           </Button>
           <Button
             variant="soft-destructive"

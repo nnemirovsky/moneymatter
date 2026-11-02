@@ -37,6 +37,21 @@ describe('ClarificationCard', () => {
     expect(option({ wrapper, id: 'o2' }).text()).toBe('Cash');
   });
 
+  it('lets a long option wrap inside the card instead of running past its edge', () => {
+    const wrapper = mountCard({
+      part: clarification({
+        options: [
+          { id: 'long', label: 'Keep GEL; remove EUR and correct the recurring payment link to the GEL record' },
+        ],
+      }),
+    });
+
+    const classes = option({ wrapper, id: 'long' }).classes();
+    expect(classes).toContain('whitespace-normal');
+    expect(classes).toContain('h-auto');
+    expect(classes).toContain('max-w-full');
+  });
+
   it('shows the question and labels as text, never as markup', () => {
     const wrapper = mountCard({
       part: clarification({

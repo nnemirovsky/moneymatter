@@ -11,7 +11,7 @@ const { titleText } = useChatText();
   <div v-if="parents.length > 0" class="text-muted-foreground text-sm">
     <p class="font-medium">{{ $t('chat.cards.dependencies.title') }}</p>
     <ul class="mt-1 list-disc pl-5">
-      <li v-for="parent in parents" :key="parent.id">{{ titleText({ title: parent.title }) }}</li>
+      <li v-for="parent in parents" :key="parent.id" class="wrap-anywhere">{{ titleText({ title: parent.title }) }}</li>
     </ul>
   </div>
 </template>

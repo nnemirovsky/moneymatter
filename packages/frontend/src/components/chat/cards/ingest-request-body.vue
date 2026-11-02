@@ -203,7 +203,9 @@ const lessonText = computed(() => {
       </div>
     </dl>
 
-    <p v-if="payment.summary" class="text-muted-foreground text-sm" data-testid="ingest-note">{{ payment.summary }}</p>
+    <p v-if="payment.summary" class="text-muted-foreground text-sm wrap-anywhere" data-testid="ingest-note">
+      {{ payment.summary }}
+    </p>
 
     <div data-testid="ingest-note-field" @keydown.enter.prevent="commitNote" @focusout="commitNote">
       <InputField

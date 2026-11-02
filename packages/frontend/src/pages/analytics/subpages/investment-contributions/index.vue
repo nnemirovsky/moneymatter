@@ -78,10 +78,10 @@
               <span
                 v-for="entry in model.legend"
                 :key="entry.portfolioId"
-                class="text-muted-foreground flex items-center gap-1.5 text-xs"
+                class="text-muted-foreground flex max-w-full items-center gap-1.5 text-xs"
               >
-                <span class="size-2 rounded-full" :style="{ backgroundColor: entry.color }" />
-                {{ entry.name }}
+                <span class="size-2 shrink-0 rounded-full" :style="{ backgroundColor: entry.color }" />
+                <span class="truncate" :title="entry.name">{{ entry.name }}</span>
               </span>
             </div>
           </template>

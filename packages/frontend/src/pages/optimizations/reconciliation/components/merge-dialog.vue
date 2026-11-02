@@ -110,7 +110,7 @@ const confirm = () => {
         class="bg-muted text-muted-foreground flex flex-wrap gap-x-3.5 gap-y-1 rounded-md px-3 py-2 text-xs"
       >
         <span>{{ $t('optimizations.reconciliation.merge.sameInAll') }}</span>
-        <span v-for="field in sharedFields" :key="field.key">
+        <span v-for="field in sharedFields" :key="field.key" class="max-w-full wrap-anywhere">
           {{ $t(field.labelKey) }}
           <span class="text-foreground font-semibold">{{ field.value(transactions[0]!) }}</span>
         </span>

@@ -301,10 +301,10 @@ const confirmDeletion = async () => {
               v-if="item.stored"
               type="button"
               variant="link"
-              class="h-auto justify-start p-0 text-sm font-medium"
+              class="h-auto min-w-0 justify-start p-0 text-sm font-medium"
               @click="openViewer(item.stored)"
             >
-              <span class="truncate">{{ item.filename }}</span>
+              <span class="truncate" :title="item.filename">{{ item.filename }}</span>
             </Button>
             <span v-else class="truncate text-sm font-medium">{{ item.filename }}</span>
             <span class="text-muted-foreground text-xs">{{ formatBytes({ bytes: item.size }) }}</span>

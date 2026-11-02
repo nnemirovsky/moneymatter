@@ -66,7 +66,7 @@ const ctaRoute = computed(() =>
       </div>
 
       <RouterLink :to="ctaRoute" class="block" @click="emit('close-modal')">
-        <Button variant="outline" class="mt-4 w-full">
+        <Button variant="outline" class="mt-4 h-auto w-full py-2 wrap-anywhere whitespace-normal">
           {{ $t('dialogs.manageTransaction.vehicleLinked.openVehicle', { name: accountName }) }}
         </Button>
       </RouterLink>

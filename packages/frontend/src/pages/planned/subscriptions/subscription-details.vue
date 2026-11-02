@@ -725,7 +725,7 @@ async function openTransaction({ transactionId }: { transactionId: string }) {
           <dl class="grid gap-1.5 text-sm">
             <div class="flex items-baseline justify-between gap-3">
               <dt class="text-muted-foreground">{{ $t('planned.subscriptions.form.categoryLabel') }}</dt>
-              <dd class="flex items-center gap-1.5 text-right font-medium">
+              <dd class="flex min-w-0 items-center gap-1.5 text-right font-medium wrap-anywhere">
                 <template v-if="subscription.category">
                   <span
                     class="inline-block size-2.5 shrink-0 rounded-full"
@@ -738,7 +738,7 @@ async function openTransaction({ transactionId }: { transactionId: string }) {
             </div>
             <div v-if="subscription.payeeId" class="flex items-center justify-between gap-3">
               <dt class="text-muted-foreground">{{ $t('planned.subscriptions.form.payeeLabel') }}</dt>
-              <dd class="flex items-center gap-1.5 text-right font-medium">
+              <dd class="flex min-w-0 items-center gap-1.5 text-right font-medium wrap-anywhere">
                 <template v-if="resolvedPayee">
                   <BrandLogo
                     v-bind="toEntityLogoDisplayProps(resolvedPayee)"
@@ -752,13 +752,14 @@ async function openTransaction({ transactionId }: { transactionId: string }) {
             </div>
             <div class="flex items-baseline justify-between gap-3">
               <dt class="text-muted-foreground">{{ $t('planned.subscriptions.form.tagsLabel') }}</dt>
-              <dd class="flex flex-wrap justify-end gap-1 text-right font-medium">
+              <dd class="flex min-w-0 flex-wrap justify-end gap-1 text-right font-medium">
                 <template v-if="resolvedTags.length">
                   <span
                     v-for="tag in visibleTags"
                     :key="tag.id"
-                    class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium text-white/90"
+                    class="inline-block max-w-full truncate rounded-full px-2 py-0.5 text-xs font-medium text-white/90"
                     :style="{ backgroundColor: tag.color }"
+                    :title="tag.name"
                   >
                     {{ tag.name }}
                   </span>

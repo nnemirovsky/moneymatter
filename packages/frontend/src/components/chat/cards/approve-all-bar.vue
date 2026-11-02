@@ -105,7 +105,7 @@ const approve = async () => {
     <div v-else-if="skipped.length > 0" class="text-muted-foreground text-sm">
       <p class="font-medium">{{ $t('chat.cards.approveAll.skippedTitle', { count: skipped.length }) }}</p>
       <ul class="mt-1 flex flex-col gap-0.5">
-        <li v-for="item in skipped" :key="item.id" data-testid="skipped-card">
+        <li v-for="item in skipped" :key="item.id" class="wrap-anywhere" data-testid="skipped-card">
           <span class="text-foreground">{{ item.title }}</span>
           <span> · {{ item.reason }}</span>
         </li>

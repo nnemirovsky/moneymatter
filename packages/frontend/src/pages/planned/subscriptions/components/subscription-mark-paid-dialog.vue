@@ -418,7 +418,7 @@ defineExpose({ triggerPay, isPending });
 
         <div v-if="accountLabel" class="bg-muted/40 rounded-md px-3 py-2 text-sm">
           <p class="text-muted-foreground text-xs">{{ $t('dialogs.subscriptionMarkPaid.accountLabel') }}</p>
-          <p class="font-medium">{{ accountLabel }}</p>
+          <p class="font-medium wrap-anywhere">{{ accountLabel }}</p>
         </div>
       </template>
     </div>

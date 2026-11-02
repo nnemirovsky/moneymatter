@@ -59,6 +59,7 @@ const send = () => {
         :key="option.id"
         type="button"
         size="sm"
+        class="h-auto max-w-full py-2 text-left wrap-anywhere whitespace-normal"
         :variant="shownIds.includes(option.id) ? 'soft-primary' : 'outline'"
         :aria-pressed="shownIds.includes(option.id)"
         :data-testid="`option-${option.id}`"

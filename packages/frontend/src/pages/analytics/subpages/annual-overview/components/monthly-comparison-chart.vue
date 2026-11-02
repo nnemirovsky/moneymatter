@@ -105,11 +105,11 @@
               <Button
                 variant="ghost"
                 size="sm"
-                class="h-7 gap-1.5 px-2 text-xs"
+                class="h-7 max-w-full gap-1.5 px-2 text-xs"
                 @click="emit('hide-category', { categoryId: cat.categoryId })"
               >
                 <span class="inline-block size-2.5 shrink-0 rounded-sm" :style="{ backgroundColor: cat.color }"></span>
-                <span class="text-muted-foreground">{{ cat.name }}</span>
+                <span class="text-muted-foreground truncate" :title="cat.name">{{ cat.name }}</span>
               </Button>
             </DesktopOnlyTooltip>
           </template>
@@ -129,11 +129,11 @@
               <Button
                 variant="ghost"
                 size="sm"
-                class="h-7 gap-1.5 px-2 text-xs"
+                class="h-7 max-w-full gap-1.5 px-2 text-xs"
                 @click="emit('show-category', { categoryId: cat.id })"
               >
                 <EyeOffIcon class="text-muted-foreground size-3 shrink-0" />
-                <span class="text-muted-foreground line-through">{{ cat.name }}</span>
+                <span class="text-muted-foreground truncate line-through" :title="cat.name">{{ cat.name }}</span>
               </Button>
             </DesktopOnlyTooltip>
           </template>

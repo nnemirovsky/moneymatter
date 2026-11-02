@@ -253,10 +253,10 @@ const handleConfirmedApply = () => {
             <span
               v-for="tag in selectedTags"
               :key="tag.id"
-              class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white"
+              class="inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium wrap-anywhere text-white"
               :style="{ backgroundColor: tag.color }"
             >
-              <TagIcon v-if="tag.icon" :name="tag.icon" class="size-3" />
+              <TagIcon v-if="tag.icon" :name="tag.icon" class="size-3 shrink-0" />
               {{ tag.name }}
             </span>
           </div>

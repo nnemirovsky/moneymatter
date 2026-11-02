@@ -423,10 +423,10 @@ const chipClass = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-
         <span
           v-for="category in tracker.categories"
           :key="category.id"
-          class="bg-muted inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium"
+          class="bg-muted inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium"
         >
-          <span class="size-2 rounded-full" :style="{ backgroundColor: category.color }" />
-          {{ category.name }}
+          <span class="size-2 shrink-0 rounded-full" :style="{ backgroundColor: category.color }" />
+          <span class="truncate" :title="category.name">{{ category.name }}</span>
         </span>
         <span class="text-muted-foreground ml-auto text-[11px]">{{
           $t('budgets.categoryBudget.autoTrackedInfo')

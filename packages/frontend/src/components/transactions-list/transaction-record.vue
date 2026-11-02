@@ -44,7 +44,7 @@
         </div>
       </template>
 
-      <div :class="isCompactInline ? 'flex w-full min-w-0 items-center gap-2 text-left' : 'w-full text-left'">
+      <div :class="isCompactInline ? 'flex w-full min-w-0 items-center gap-2 text-left' : 'w-full min-w-0 text-left'">
         <template v-if="isLoadingGroupedTransfer">
           <!-- Loading skeleton: known leg renders on its side (source left, dest
                right); the still-loading opposite leg is a placeholder. -->
@@ -128,8 +128,8 @@
           </div>
         </template>
         <template v-else>
-          <div :class="['flex items-center gap-2', compact && 'shrink-0']">
-            <span class="text-sm tracking-wider whitespace-nowrap">
+          <div :class="['flex max-w-full min-w-0 items-center gap-2', compact && 'shrink-0']">
+            <span class="truncate text-sm tracking-wider" :title="category?.name">
               {{ category ? category.name : t('common.ui.other') }}
             </span>
             <ResponsiveTooltip v-if="aiMatchReason" content-class-name="max-w-64" :delay-duration="100">

@@ -43,14 +43,17 @@
 
     <!-- Preview -->
     <div class="bg-muted/50 flex items-center justify-center gap-4 rounded-lg p-4">
-      <div class="flex size-8 items-center justify-center rounded-full" :style="{ backgroundColor: form.color }">
+      <div
+        class="flex size-8 shrink-0 items-center justify-center rounded-full"
+        :style="{ backgroundColor: form.color }"
+      >
         <TagIcon v-if="form.icon" :name="form.icon" class="size-4 text-white" />
       </div>
       <span
-        class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-sm font-medium text-white"
+        class="inline-flex min-w-0 items-center gap-1 rounded-full px-2.5 py-1 text-sm font-medium wrap-anywhere text-white"
         :style="{ backgroundColor: form.color }"
       >
-        <TagIcon v-if="form.icon" :name="form.icon" class="size-3.5" />
+        <TagIcon v-if="form.icon" :name="form.icon" class="size-3.5 shrink-0" />
         {{ form.name || $t('settings.tags.form.previewPlaceholder') }}
       </span>
     </div>

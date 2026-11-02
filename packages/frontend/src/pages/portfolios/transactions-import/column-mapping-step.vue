@@ -572,7 +572,7 @@ const extract = useMutation({
             "
             :data-mapping-invalid="invalidSideValues.has(value) ? 'true' : null"
           >
-            <code class="bg-background min-w-20 rounded px-2 py-1 text-xs">{{ value }}</code>
+            <code class="bg-background max-w-1/2 min-w-20 rounded px-2 py-1 text-xs wrap-anywhere">{{ value }}</code>
             <span class="text-muted-foreground text-xs">→</span>
             <div class="min-w-0 flex-1">
               <SelectField

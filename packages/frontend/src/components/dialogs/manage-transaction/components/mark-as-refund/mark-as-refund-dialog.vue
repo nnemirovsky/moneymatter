@@ -502,19 +502,24 @@ const hasSmallOptions = computed(() => {
             ]"
             @click="!shouldDisableOption(isMainCategoryTooSmall) && selectTempSplit(null)"
           >
-            <div class="flex items-center gap-2">
+            <div class="flex min-w-0 items-center gap-2">
               <div
                 class="size-3 shrink-0 rounded-full"
                 :style="{ backgroundColor: getMainCategoryInfo(pendingTransaction).color }"
               />
-              <span :class="['text-sm font-medium', shouldDisableOption(isMainCategoryTooSmall) && 'line-through']">
+              <span
+                :class="[
+                  'min-w-0 text-sm font-medium wrap-anywhere',
+                  shouldDisableOption(isMainCategoryTooSmall) && 'line-through',
+                ]"
+              >
                 {{ getMainCategoryInfo(pendingTransaction).name }}
               </span>
               <span class="text-muted-foreground text-xs">
                 {{ $t('dialogs.manageTransaction.markAsRefund.mainCategoryLabel') }}
               </span>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="ml-2 flex shrink-0 items-center gap-2">
               <span :class="['text-sm tabular-nums', isMainCategoryTooSmall && 'text-warning-text']">
                 {{
                   formatUIAmount(getMainCategoryInfo(pendingTransaction).amount, {
@@ -541,16 +546,21 @@ const hasSmallOptions = computed(() => {
             ]"
             @click="!shouldDisableOption(isSplitTooSmall(split)) && selectTempSplit(split.id)"
           >
-            <div class="flex items-center gap-2">
+            <div class="flex min-w-0 items-center gap-2">
               <div
                 class="size-3 shrink-0 rounded-full"
                 :style="{ backgroundColor: getSplitCategoryInfo(split).color }"
               />
-              <span :class="['text-sm font-medium', shouldDisableOption(isSplitTooSmall(split)) && 'line-through']">
+              <span
+                :class="[
+                  'min-w-0 text-sm font-medium wrap-anywhere',
+                  shouldDisableOption(isSplitTooSmall(split)) && 'line-through',
+                ]"
+              >
                 {{ getSplitCategoryInfo(split).name }}
               </span>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="ml-2 flex shrink-0 items-center gap-2">
               <span :class="['text-sm tabular-nums', isSplitTooSmall(split) && 'text-warning-text']">
                 {{ formatUIAmount(split.amount, { currency: pendingTransaction.currencyCode }) }}
               </span>

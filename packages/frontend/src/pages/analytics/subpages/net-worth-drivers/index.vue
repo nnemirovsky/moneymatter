@@ -106,10 +106,17 @@
             <span
               v-for="entry in breakdownModel.legend"
               :key="entry.portfolioId"
-              class="text-muted-foreground flex items-center gap-1.5 text-xs"
+              class="text-muted-foreground flex max-w-full items-center gap-1.5 text-xs"
             >
-              <span class="size-2 rounded-full" :style="{ backgroundColor: entry.color }" />
-              {{ entry.portfolioId === OTHERS_SERIES_ID ? $t('netWorthDrivers.breakdownChart.others') : entry.name }}
+              <span class="size-2 shrink-0 rounded-full" :style="{ backgroundColor: entry.color }" />
+              <span
+                class="truncate"
+                :title="
+                  entry.portfolioId === OTHERS_SERIES_ID ? $t('netWorthDrivers.breakdownChart.others') : entry.name
+                "
+              >
+                {{ entry.portfolioId === OTHERS_SERIES_ID ? $t('netWorthDrivers.breakdownChart.others') : entry.name }}
+              </span>
             </span>
           </div>
         </div>

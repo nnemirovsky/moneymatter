@@ -54,12 +54,12 @@ const onKeydown = (event: KeyboardEvent) => {
         <Button
           type="button"
           variant="ghost"
-          class="bg-muted hover:bg-destructive/15 hover:text-destructive-text h-auto gap-1 rounded-full py-0.5 pr-1.5 pl-2.5 text-xs font-normal"
+          class="bg-muted hover:bg-destructive/15 hover:text-destructive-text h-auto max-w-full gap-1 rounded-full py-0.5 pr-1.5 pl-2.5 text-xs font-normal"
           :aria-label="`${$t('automations.editor.removeKeyword')}: ${keyword}`"
           @click="removeAt({ index })"
         >
-          {{ keyword }}
-          <XIcon class="size-3" />
+          <span class="truncate" :title="keyword">{{ keyword }}</span>
+          <XIcon class="size-3 shrink-0" />
         </Button>
       </DesktopOnlyTooltip>
     </div>

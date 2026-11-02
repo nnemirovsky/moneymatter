@@ -362,6 +362,22 @@ describe('CardField', () => {
       expect(wrapper.text()).toContain('The assistant guessed this from your history');
     });
 
+    it('lets a long alternative wrap inside the card instead of running past its edge', () => {
+      const wrapper = mountField({
+        field: buildField({
+          path: 'note',
+          value: 'Lunch',
+          display: { kind: 'text' },
+          uncertain: { reason: 'other', alternatives: ['A long alternative that does not fit on one line of a phone'] },
+        }),
+      });
+
+      const classes = wrapper.get('[data-testid="alternative"]').classes();
+      expect(classes).toContain('whitespace-normal');
+      expect(classes).toContain('h-auto');
+      expect(classes).toContain('max-w-full');
+    });
+
     it('offers each alternative as a one-tap choice', async () => {
       const wrapper = mountField({ field: uncertain, names });
       const choices = wrapper.findAll('[data-testid="alternative"]');

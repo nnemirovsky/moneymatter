@@ -115,7 +115,9 @@
                 class="bg-muted/40 text-foreground flex items-center gap-2 border-b px-3 py-2 text-xs"
                 role="note"
               >
-                <span>{{ $t('fields.categorySelect.sharedOwnerNotice', { owner: sharedOwnerHandle }) }}</span>
+                <span class="min-w-0 wrap-anywhere">{{
+                  $t('fields.categorySelect.sharedOwnerNotice', { owner: sharedOwnerHandle })
+                }}</span>
                 <ResponsiveTooltip
                   :content="$t('fields.categorySelect.sharedOwnerNoticeTooltip', { owner: sharedOwnerHandle })"
                   content-class-name="max-w-64"
@@ -209,7 +211,9 @@
           class="bg-muted/40 text-foreground mb-3 flex items-center justify-between gap-2 rounded-md px-3 py-2 text-xs"
           role="note"
         >
-          <span>{{ $t('fields.categorySelect.sharedOwnerNotice', { owner: sharedOwnerHandle }) }}</span>
+          <span class="min-w-0 wrap-anywhere">{{
+            $t('fields.categorySelect.sharedOwnerNotice', { owner: sharedOwnerHandle })
+          }}</span>
           <ResponsiveTooltip
             :content="$t('fields.categorySelect.sharedOwnerNoticeTooltip', { owner: sharedOwnerHandle })"
             content-class-name="max-w-64"

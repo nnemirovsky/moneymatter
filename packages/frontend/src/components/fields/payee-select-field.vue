@@ -279,8 +279,8 @@ function handlePayeeCreated(payee: PayeeModel) {
           data-test="payee-select-create"
           @click="openCreateDialog"
         >
-          <PlusIcon class="size-4" />
-          {{ createLabel }}
+          <PlusIcon class="size-4 shrink-0" />
+          <span class="truncate" :title="createLabel">{{ createLabel }}</span>
         </Button>
       </Popover.PopoverContent>
     </Popover.Popover>

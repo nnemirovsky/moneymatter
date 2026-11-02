@@ -17,16 +17,16 @@
             <div v-if="selectedCategories.length === 0" class="text-muted-foreground flex-1 text-left">
               {{ placeholderText }}
             </div>
-            <div v-else class="flex max-h-18 flex-1 flex-wrap gap-1 overflow-y-auto">
+            <div v-else class="flex max-h-18 min-w-0 flex-1 flex-wrap gap-1 overflow-y-auto">
               <span
                 v-for="category in selectedCategories"
                 :key="category.id"
-                class="group relative inline-flex cursor-pointer items-center justify-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white transition-opacity hover:opacity-80"
+                class="group relative inline-flex max-w-full cursor-pointer items-center justify-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white transition-opacity hover:opacity-80"
                 :style="{ backgroundColor: category.color }"
                 @click.stop="toggleCategory(category.id)"
               >
                 <XIcon class="absolute hidden size-3 group-hover:block" />
-                <span class="inline-flex items-center gap-1 group-hover:invisible">
+                <span class="truncate group-hover:invisible" :title="category.name">
                   {{ category.name }}
                 </span>
               </span>

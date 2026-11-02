@@ -180,11 +180,11 @@ const previewIncomeAccount = computed(
         <!-- Preview: resulting transfer -->
         <div class="bg-muted/50 rounded-md border px-3 py-2">
           <div class="flex items-center gap-2 text-sm">
-            <span class="text-app-transfer-color font-medium">
+            <span class="text-app-transfer-color min-w-0 font-medium wrap-anywhere">
               {{ previewExpenseAccount?.name }}
             </span>
             <ArrowRightIcon class="text-muted-foreground size-3.5 shrink-0" />
-            <span class="text-app-transfer-color font-medium">
+            <span class="text-app-transfer-color min-w-0 font-medium wrap-anywhere">
               {{ previewIncomeAccount?.name }}
             </span>
           </div>

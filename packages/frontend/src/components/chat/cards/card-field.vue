@@ -164,6 +164,7 @@ const alternatives = computed(() =>
           type="button"
           variant="outline"
           size="sm"
+          class="h-auto max-w-full py-2 text-left wrap-anywhere whitespace-normal"
           data-testid="alternative"
           :disabled="disabled"
           @click="emit('choose', alternative.value)"
