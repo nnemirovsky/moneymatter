@@ -228,11 +228,12 @@ const warningTexts = computed(() =>
     }),
 );
 
-const conflictText = computed(() =>
-  conflictReason.value
-    ? keyText({ key: `chat.cards.${conflictReason.value}`, fallbackKey: 'chat.cards.notPending' })
-    : null,
-);
+const conflictText = computed(() => {
+  if (!conflictReason.value) return null;
+  // The card's own stale callout already says this one.
+  if (conflictReason.value === 'stale' && props.card.stale) return null;
+  return keyText({ key: `chat.cards.${conflictReason.value}`, fallbackKey: 'chat.cards.notPending' });
+});
 
 const alsoAppliedTitles = computed(() => {
   const applied = new Set(props.card.result?.alsoApplied ?? []);
@@ -296,6 +297,17 @@ const submitApprove = () => {
       onError: (error) => {
         typed.value = '';
         conflictReason.value = conflictReasonOf({ error });
+      },
+    },
+  );
+};
+
+const onRefresh = () => {
+  actions.refresh.mutate(
+    { proposalId: props.card.id },
+    {
+      onSuccess: () => {
+        conflictReason.value = null;
       },
     },
   );
@@ -558,13 +570,7 @@ const summaryText = computed(() => {
         <Button v-if="isPending" size="sm" data-testid="approve" :disabled="approveDisabled" @click="onApprove">
           {{ actions.approve.isPending.value ? $t('chat.cards.actions.approving') : $t('chat.cards.actions.approve') }}
         </Button>
-        <Button
-          v-if="canRefresh"
-          size="sm"
-          data-testid="refresh"
-          :disabled="isBusy"
-          @click="actions.refresh.mutate({ proposalId: card.id })"
-        >
+        <Button v-if="canRefresh" size="sm" data-testid="refresh" :disabled="isBusy" @click="onRefresh">
           {{ $t('chat.cards.actions.refresh') }}
         </Button>
         <Button

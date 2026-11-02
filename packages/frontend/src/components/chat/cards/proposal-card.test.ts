@@ -759,6 +759,79 @@ describe('ProposalCard', () => {
   });
 
   describe('a stale card', () => {
+    const mountOnThread = ({ queryClient, card }: { queryClient: QueryClient; card: ChatProposalCard }) => {
+      const page = {
+        thread: { id: 'thread-1' },
+        messages: [],
+        hasMore: false,
+        cards: { 'card-1': card },
+      } as unknown as ChatThreadWithMessages;
+      queryClient.setQueryData([...VUE_QUERY_CACHE_KEYS.chatThread, 'thread-1', 'latest'], page);
+
+      const Harness = defineComponent({
+        setup() {
+          const { data } = useQuery<ChatThreadWithMessages>({
+            queryKey: [...VUE_QUERY_CACHE_KEYS.chatThread, 'thread-1', 'latest'],
+            queryFn: () => page,
+            staleTime: Infinity,
+          });
+          return () =>
+            data.value ? h(ProposalCard, { card: data.value.cards['card-1']!, cards: data.value.cards }) : null;
+        },
+      });
+      return mount(Harness, {
+        global: { plugins: [[VueQueryPlugin, { queryClient }], createChatI18n()], stubs: HEAVY_STUBS },
+      });
+    };
+
+    const conflictOf = ({ reason, card }: { reason: string; card: ChatProposalCard }) =>
+      new ApiErrorResponseError('Conflict', {
+        code: API_ERROR_CODES.conflict,
+        message: 'Conflict',
+        details: { reason, card, cards: [card] },
+      });
+
+    const staleCard = () =>
+      createCard({
+        status: 'stale',
+        revision: 2,
+        stale: { reasonKey: 'chat.stale.targets', before: 10, after: 12 },
+        canApply: { ok: false, reasonKey: 'chat.cards.notPending' },
+      });
+
+    it('says it once when the approval found the card stale, and not again after a refresh', async () => {
+      const refreshed = createCard({ revision: 3 });
+      vi.mocked(approveChatProposal).mockRejectedValueOnce(conflictOf({ reason: 'stale', card: staleCard() }));
+      vi.mocked(refreshChatProposal).mockResolvedValue(refreshed);
+      const wrapper = mountOnThread({ queryClient: newClient(), card: createCard({ revision: 1 }) });
+      await flushPromises();
+
+      await wrapper.find('[data-testid="approve"]').trigger('click');
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="stale"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="conflict"]').exists()).toBe(false);
+
+      await wrapper.find('[data-testid="refresh"]').trigger('click');
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="stale"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="conflict"]').exists()).toBe(false);
+    });
+
+    it('keeps the callout of another conflict', async () => {
+      vi.mocked(approveChatProposal).mockRejectedValueOnce(
+        conflictOf({ reason: 'revision', card: createCard({ revision: 2 }) }),
+      );
+      const wrapper = mountOnThread({ queryClient: newClient(), card: createCard({ revision: 1 }) });
+      await flushPromises();
+
+      await wrapper.find('[data-testid="approve"]').trigger('click');
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="conflict"]').exists()).toBe(true);
+    });
+
     it('shows what moved and refreshes on request', async () => {
       vi.mocked(refreshChatProposal).mockResolvedValue(createCard({ revision: 2 }));
       const card = createCard({
