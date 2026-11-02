@@ -68,7 +68,7 @@ export interface RefBalanceRemeasureResult {
  * payload. Discriminated by `type` so the frontend renders the right copy and routing for
  * each blocker without re-deriving the shape from the error code.
  */
-export type BaseCurrencyBlocker = { type: 'household' | 'share' | 'budget_plan'; count: number };
+export type BaseCurrencyBlocker = { type: 'household' | 'share' | 'tracker_share' | 'budget_plan'; count: number };
 
 /**
  * `details` payload of errors with code `currencyNotConnected`. Lists every

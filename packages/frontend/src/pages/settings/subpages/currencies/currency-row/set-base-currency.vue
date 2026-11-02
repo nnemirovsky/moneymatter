@@ -134,6 +134,7 @@ const showRoundingDetails = ref(false);
 const LOCKED_MESSAGE_KEYS: Record<BaseCurrencyBlocker['type'], string> = {
   household: 'settings.currencies.setBase.errors.lockedHousehold',
   share: 'settings.currencies.setBase.errors.lockedShares',
+  tracker_share: 'settings.currencies.setBase.errors.lockedTrackerShares',
   budget_plan: 'settings.currencies.setBase.errors.lockedBudgetPlan',
 };
 

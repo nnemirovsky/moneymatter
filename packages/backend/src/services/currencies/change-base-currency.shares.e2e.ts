@@ -62,6 +62,56 @@ describe('Change Base Currency — active share guard', () => {
     );
   });
 
+  it('rejects the change for both sides of an accepted tracker share, and allows it once the share is revoked', async () => {
+    const tracker = await helpers.createTracker({ name: 'Trip', limitAmount: 500, raw: true });
+    const recipient = await helpers.provisionSecondUserWithBaseCurrency();
+    await helpers.shareTrackerWith({ trackerId: tracker.id, recipient, permission: SHARE_PERMISSIONS.read });
+
+    const ownerRes = await callChangeBase();
+    expect(ownerRes.statusCode).toBe(409);
+    const ownerError = ownerRes.body.response as unknown as ErrorResponse;
+    expect(ownerError.code).toBe(API_ERROR_CODES.baseCurrencyLockedByShares);
+    expect(ownerError.details?.blockers).toEqual([{ type: 'tracker_share', count: 1 }]);
+
+    const recipientRes = await helpers.asUser({
+      cookies: recipient.cookies,
+      fn: async () => {
+        await helpers.addUserCurrencies({ currencyCodes: ['USD'], raw: true });
+        return callChangeBase();
+      },
+    });
+    expect(recipientRes.statusCode).toBe(409);
+    expect((recipientRes.body.response as unknown as ErrorResponse).details?.blockers).toEqual([
+      { type: 'tracker_share', count: 1 },
+    ]);
+
+    const member = await helpers.findAppUserByEmail({ email: recipient.email });
+    await helpers.revokeShareMember({
+      resourceType: RESOURCE_TYPES.tracker,
+      resourceId: tracker.id,
+      memberUserId: member.id,
+      raw: true,
+    });
+
+    const status = await helpers.changeBaseCurrencyAndWait({ newCurrencyCode: 'USD' });
+    helpers.expectBaseCurrencyChangeCompleted(status);
+  });
+
+  it('allows the change when only a pending invitation to a tracker exists', async () => {
+    const tracker = await helpers.createTracker({ name: 'Trip', limitAmount: 500, raw: true });
+    const recipient = await helpers.provisionSecondUserWithBaseCurrency();
+    await helpers.createShareInvitation({
+      inviteeEmail: recipient.email,
+      resourceType: RESOURCE_TYPES.tracker,
+      resourceId: tracker.id,
+      permission: SHARE_PERMISSIONS.read,
+      raw: true,
+    });
+
+    const status = await helpers.changeBaseCurrencyAndWait({ newCurrencyCode: 'USD' });
+    helpers.expectBaseCurrencyChangeCompleted(status);
+  });
+
   it('allows the change when only a pending (not-yet-accepted) invitation exists', async () => {
     const account = await helpers.createAccount({ raw: true });
     const recipient = await helpers.provisionSecondUserWithBaseCurrency();

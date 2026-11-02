@@ -84,6 +84,7 @@
           "changeFailed": "Unexpected error. Failed to change base currency.",
           "lockedHousehold": "You're in {count} active household membership. Leave it from Settings → Household first. | You're in {count} active household memberships. Leave them from Settings → Household first.",
           "lockedShares": "You have {count} active account share. Revoke it from the account first. | You have {count} active account shares. Revoke them from each account first.",
+          "lockedTrackerShares": "You have {count} active tracker share. Revoke or leave it from the tracker first. | You have {count} active tracker shares. Revoke or leave them from each tracker first.",
           "lockedBudgetPlan": "An active budget plan is blocking the change. Delete it first. | {count} active budget plans are blocking the change. Delete them first."
         }
       },

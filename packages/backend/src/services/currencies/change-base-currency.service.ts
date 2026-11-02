@@ -119,11 +119,13 @@ type BaseCurrencyChangeProgress = (params: { step: BaseCurrencyChangeStep }) => 
  * between enqueue and pickup. Returns the current base so callers skip re-querying.
  */
 export async function validateBaseCurrencyChange({ userId, newCurrencyCode }: ChangeBaseCurrencyParams) {
-  // Three parallel counts so `blockers` can name each blocking relationship
-  // separately: a household revoke covers many accounts at once, per-resource
-  // shares need one revoke each, a budget plan has to be deleted. Pending
-  // invitations don't lock: the accept-time currency-match check rejects those.
-  const [householdBlockingCount, perResourceBlockingCount, budgetPlanCount] = await Promise.all([
+  // Parallel counts so `blockers` can name each blocking relationship separately:
+  // a household revoke covers many accounts at once, an account or tracker share
+  // needs one revoke each, a budget plan has to be deleted. A tracker is denominated
+  // in its owner's base currency, which accepting its share requires the recipient to
+  // match. Pending invitations don't lock: the accept-time currency-match check
+  // rejects those.
+  const [householdBlockingCount, perResourceBlockingCount, trackerShareCount, budgetPlanCount] = await Promise.all([
     ResourceShares.count({
       where: {
         [Op.or]: [{ ownerUserId: userId }, { sharedWithUserId: userId }],
@@ -138,16 +140,24 @@ export async function validateBaseCurrencyChange({ userId, newCurrencyCode }: Ch
         acceptedAt: { [Op.not]: null },
       },
     }),
+    ResourceShares.count({
+      where: {
+        [Op.or]: [{ ownerUserId: userId }, { sharedWithUserId: userId }],
+        resourceType: RESOURCE_TYPES.tracker,
+        acceptedAt: { [Op.not]: null },
+      },
+    }),
     // Budgeted amounts are plain numbers in the plan's stamped currency, so a silent
     // switch would turn 300 UAH into 300 EUR. A soft-deleted plan (excluded by
     // the paranoid scope) doesn't lock: restore compares `currencyCode` instead.
     BudgetPlans.count({ where: { userId } }),
   ]);
 
-  if (householdBlockingCount > 0 || perResourceBlockingCount > 0 || budgetPlanCount > 0) {
+  if (householdBlockingCount > 0 || perResourceBlockingCount > 0 || trackerShareCount > 0 || budgetPlanCount > 0) {
     const blockers: BaseCurrencyBlocker[] = [];
     if (householdBlockingCount > 0) blockers.push({ type: 'household', count: householdBlockingCount });
     if (perResourceBlockingCount > 0) blockers.push({ type: 'share', count: perResourceBlockingCount });
+    if (trackerShareCount > 0) blockers.push({ type: 'tracker_share', count: trackerShareCount });
     if (budgetPlanCount > 0) blockers.push({ type: 'budget_plan', count: budgetPlanCount });
 
     // Precedence household > share > budget plan: the primary code names the
@@ -159,7 +169,7 @@ export async function validateBaseCurrencyChange({ userId, newCurrencyCode }: Ch
         details: { blockers },
       });
     }
-    if (perResourceBlockingCount > 0) {
+    if (perResourceBlockingCount > 0 || trackerShareCount > 0) {
       throw new ConflictError({
         code: API_ERROR_CODES.baseCurrencyLockedByShares,
         message: t({ key: 'currencies.baseCurrencyLockedByShares' }),
