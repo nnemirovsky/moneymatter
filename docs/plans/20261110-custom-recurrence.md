@@ -212,12 +212,13 @@
 - Modify: `packages/backend/src/services/subscriptions/detect-candidates.e2e.ts`
 - Modify: `packages/frontend/src/api/subscription-candidates.ts`, `components/discover-candidates-dialog.vue` (prefill), `components/candidate-card.vue`, quick-add form state
 
-- [ ] rewrite the existing "monthly" fixtures in `detect-candidates.e2e.ts` to calendar-month dates (`addMonths`) first, keep them green on the current code
-- [ ] failing unit tests for `detectFixedDayCadence({ dates })` (UTC day intervals): payments every 30 days ×4 → day×30; every 28 days → day×28; calendar-monthly on the 10th and on the 31st → null; every 14 days → null (preset); every 3 days → null (N < 7); one missed payment → null; one interval off by a day → null; fewer than 3 intervals → null
-- [ ] implement; use it before `mapIntervalToFrequency`; store and serialize the detected step
-- [ ] failing e2e: transactions every 30 days → candidate `custom`/day/30; create a subscription with that step and accept the candidate with its id; calendar-monthly transactions still give `monthly`
-- [ ] frontend: discover dialog prefills quick-add with the step; candidate card shows the label; spec for the prefill
-- [ ] run tests – must pass before task 9
+- [x] rewrite the existing "monthly" fixtures in `detect-candidates.e2e.ts` to calendar-month dates (`addMonths`) first, keep them green on the current code (⚠️ written, not run: no `.env.test`)
+- [x] failing unit tests for `detectFixedDayCadence({ dates })` (UTC day intervals): payments every 30 days ×4 → day×30; every 28 days → day×28; calendar-monthly on the 10th and on the 31st → null; every 14 days → null (preset); every 3 days → null (N < 7); one missed payment → null; one interval off by a day → null; fewer than 3 intervals → null
+- [x] implement; use it before `mapIntervalToFrequency`; store and serialize the detected step
+- [x] failing e2e: transactions every 30 days → candidate `custom`/day/30; create a subscription with that step and accept the candidate with its id; calendar-monthly transactions still give `monthly`
+- [x] frontend: discover dialog prefills quick-add with the step; candidate card shows the label; spec for the prefill
+- [ ] run tests – must pass before task 9 (backend unit 3798 passed, frontend vitest 4167 passed, tsc/vue-tsc/lint clean; e2e ⚠️ written, not run)
+- ➕ a 14-day cadence stays biweekly (e2e case); detection also caps N at the day limit (366); the prefill moved into `buildCandidatePrefill` in `quick-add-payload.ts` so it has a spec
 
 ### Task 9: Verify acceptance criteria
 
