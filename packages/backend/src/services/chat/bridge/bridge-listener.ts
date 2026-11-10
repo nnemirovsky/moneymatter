@@ -1,7 +1,8 @@
 import { API_ERROR_CODES } from '@bt/shared/types';
 import { isSelfHost } from '@config/is-self-host';
 import { CustomError } from '@js/errors';
-import { createMcpHandlers } from '@services/mcp/http-handlers';
+import { createMcpSessionHandlers } from '@services/mcp/http-handlers';
+import { startSessionCleanup } from '@services/mcp/transport-manager';
 import express from 'express';
 import type { Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -22,9 +23,8 @@ interface RunningListener {
 let listener: Promise<RunningListener> | null = null;
 
 function createBridgeApp(): express.Express {
-  const handlers = createMcpHandlers({
+  const handlers = createMcpSessionHandlers({
     authenticate: authenticateBridgeRequest,
-    sessionKind: 'chatBridge',
     createServer: ({ authInfo }) => {
       const runId = authInfo.extra.chat?.runId;
       const toolkit = runId ? getBridgeRunToolkit({ runId }) : undefined;
@@ -46,6 +46,8 @@ function createBridgeApp(): express.Express {
 
 const startListener = (): Promise<RunningListener> =>
   new Promise((resolve, reject) => {
+    // Sweeps sessions a CLI left open without its run ending them.
+    startSessionCleanup();
     const server = createBridgeApp().listen(0, LOOPBACK);
     server.once('error', reject);
     server.once('listening', () => {

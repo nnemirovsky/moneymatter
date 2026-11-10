@@ -593,7 +593,7 @@ export function registerAllTools(server: McpServer): void {
 
 /**
  * Creates a new MCP server instance with all tools and prompts registered.
- * Each MCP session gets its own server instance.
+ * Every request to the public `/mcp` gets its own server instance.
  *
  * Tools come from `registerAllTools` above; the prompt is registered here.
  */

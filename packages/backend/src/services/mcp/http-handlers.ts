@@ -6,7 +6,7 @@ import type { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 
 import type { McpAuthInfo } from './auth';
-import { getSession, type McpSessionKind, registerSession, removeSession, touchSession } from './transport-manager';
+import { getSession, registerSession, removeSession, touchSession } from './transport-manager';
 
 declare module 'express' {
   interface Request {
@@ -15,23 +15,28 @@ declare module 'express' {
   }
 }
 
-/** What a session's server must offer: the handlers only connect it to the session's transport. */
+/** What a server must offer: the handlers only connect it to a transport and close it. */
 interface ConnectableServer {
   connect: (transport: Transport) => Promise<void>;
+  close: () => Promise<void>;
 }
 
 interface McpHandlerOptions {
   /** Answers the request itself (401, 403) and returns `null` when the caller is refused. */
   authenticate: (params: { req: Request; res: Response }) => Promise<McpAuthInfo | null>;
-  /** Builds the server of a new session. A throw is answered like any other handler failure. */
+  /** Builds the server that serves a request or a session. A throw is answered like any other handler failure. */
   createServer: (params: { authInfo: McpAuthInfo }) => ConnectableServer | Promise<ConnectableServer>;
-  /** Which sessions these handlers own; a session of the other kind is never reachable through them. */
-  sessionKind: McpSessionKind;
   /** Wraps the transport call of a request; the public route uses it for the balance revalue scope. */
   runRequest?: <T>(run: () => Promise<T>) => Promise<T>;
 }
 
 type McpHandler = (req: Request, res: Response) => Promise<void>;
+
+interface McpHandlers {
+  post: McpHandler;
+  get: McpHandler;
+  delete: McpHandler;
+}
 
 /**
  * Extract the MCP session ID from the request header, handling the string[] case.
@@ -55,22 +60,10 @@ function handleMcpError({ error, res, label }: { error: unknown; res: Response; 
   }
 }
 
-/**
- * The MCP Streamable HTTP handlers, shared by the public `/mcp` route (OAuth tokens) and the
- * loopback listener of the chat bridge (run tokens). They own the session rules: a session belongs
- * to the user, the kind and the run that created it, and nobody else can use it.
- */
-export function createMcpHandlers({
-  authenticate,
-  createServer,
-  sessionKind,
-  runRequest = (run) => run(),
-}: McpHandlerOptions): {
-  post: McpHandler;
-  get: McpHandler;
-  delete: McpHandler;
-} {
-  const authenticateRequest = async ({ req, res }: { req: Request; res: Response }): Promise<boolean> => {
+/** Runs `authenticate` and, when the caller is let in, hands the auth info to the MCP SDK. */
+const bindAuthenticate =
+  ({ authenticate }: Pick<McpHandlerOptions, 'authenticate'>) =>
+  async ({ req, res }: { req: Request; res: Response }): Promise<boolean> => {
     const authInfo = await authenticate({ req, res });
     if (!authInfo) return false;
 
@@ -79,6 +72,78 @@ export function createMcpHandlers({
     req.auth = authInfo;
     return true;
   };
+
+/**
+ * The handlers of the public `/mcp` route, in the Streamable HTTP spec's stateless mode: every POST
+ * gets a server and transport of its own and nothing outlives the request. A tool call needs only its
+ * request's token, so an idle client or a backend restart has no session to lose, and a session id a
+ * client still sends is ignored. Building the server registers every tool, about a millisecond.
+ *
+ * GET and DELETE answer 405: there is no stream to open, since nothing is ever pushed to a client, and
+ * no session to end. Both still authenticate first, so the scope gate answers the same on every method.
+ */
+export function createStatelessMcpHandlers({
+  authenticate,
+  createServer,
+  runRequest = (run) => run(),
+}: McpHandlerOptions): McpHandlers {
+  const authenticateRequest = bindAuthenticate({ authenticate });
+
+  // oxlint-disable-next-line oxc/no-async-endpoint-handlers -- handler has internal try/catch for all async operations
+  const post: McpHandler = async (req, res) => {
+    if (!(await authenticateRequest({ req, res }))) return;
+
+    try {
+      const server = await createServer({ authInfo: req.mcpAuthInfo! });
+      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+
+      res.on('close', () => {
+        server.close().catch((error: unknown) => {
+          logger.error('MCP stateless server close failed', { error: (error as Error).message });
+        });
+      });
+
+      await server.connect(transport);
+      // Tool calls mutate data, so each request gets its own revalue scope: the queued
+      // rebuilds must run after the tool's writes, not inline from inside a model hook.
+      await runRequest(() => transport.handleRequest(req, res, req.body));
+    } catch (error) {
+      handleMcpError({ error, res, label: 'POST' });
+    }
+  };
+
+  // oxlint-disable-next-line oxc/no-async-endpoint-handlers -- handler has internal try/catch for all async operations
+  const methodNotAllowed: McpHandler = async (req, res) => {
+    try {
+      if (!(await authenticateRequest({ req, res }))) return;
+
+      res
+        .status(405)
+        .set('Allow', 'POST')
+        .json({
+          jsonrpc: '2.0',
+          error: { code: -32000, message: 'Method not allowed: this server keeps no sessions or streams.' },
+          id: null,
+        });
+    } catch (error) {
+      handleMcpError({ error, res, label: req.method });
+    }
+  };
+
+  return { post, get: methodNotAllowed, delete: methodNotAllowed };
+}
+
+/**
+ * The session-based MCP Streamable HTTP handlers of the chat bridge's loopback listener (run tokens).
+ * They own the session rules: a session belongs to the user and the run that created it, and nobody
+ * else can use it. A session ends with its run, so it never needs to outlive a restart.
+ */
+export function createMcpSessionHandlers({
+  authenticate,
+  createServer,
+  runRequest = (run) => run(),
+}: McpHandlerOptions): McpHandlers {
+  const authenticateRequest = bindAuthenticate({ authenticate });
 
   /**
    * Lookup an existing session transport by session ID from the request header.
@@ -115,13 +180,9 @@ export function createMcpHandlers({
       return null;
     }
 
-    // Verify the session belongs to the authenticated user, and to the same run for a bridge session
+    // Verify the session belongs to the authenticated user and to the same run
     const authInfo = req.mcpAuthInfo;
-    if (
-      session.userId !== authInfo?.extra?.userId ||
-      session.kind !== sessionKind ||
-      (session.runId ?? null) !== (authInfo?.extra?.chat?.runId ?? null)
-    ) {
+    if (session.userId !== authInfo?.extra?.userId || session.runId !== authInfo?.extra?.chat?.runId) {
       res.status(403).json({
         jsonrpc: '2.0',
         error: { code: -32001, message: 'Session does not belong to authenticated user' },
@@ -135,7 +196,7 @@ export function createMcpHandlers({
   };
 
   /**
-   * POST /mcp — Handle MCP JSON-RPC requests (initialization + tool calls)
+   * POST — Handle MCP JSON-RPC requests (initialization + tool calls)
    */
   // oxlint-disable-next-line oxc/no-async-endpoint-handlers -- handler has internal try/catch for all async operations
   const post: McpHandler = async (req, res) => {
@@ -169,7 +230,6 @@ export function createMcpHandlers({
               sessionId: sid,
               transport,
               userId: authInfo.extra.userId,
-              kind: sessionKind,
               runId: authInfo.extra.chat?.runId,
             });
           },
@@ -208,7 +268,7 @@ export function createMcpHandlers({
   };
 
   /**
-   * GET /mcp — SSE stream for server-to-client notifications
+   * GET — SSE stream for server-to-client notifications
    */
   // oxlint-disable-next-line oxc/no-async-endpoint-handlers -- handler has internal try/catch for all async operations
   const get: McpHandler = async (req, res) => {
@@ -225,7 +285,7 @@ export function createMcpHandlers({
   };
 
   /**
-   * DELETE /mcp — Terminate an MCP session
+   * DELETE — Terminate an MCP session
    */
   // oxlint-disable-next-line oxc/no-async-endpoint-handlers -- handler has internal try/catch for all async operations
   const del: McpHandler = async (req, res) => {

@@ -1,19 +1,13 @@
 import { logger } from '@js/utils/logger';
 import { runWithBalanceRevalueBatch } from '@services/balances/revalue-balance-history.service';
 import { McpAuthInfo, verifyMcpToken } from '@services/mcp/auth';
-import { createMcpHandlers } from '@services/mcp/http-handlers';
+import { createStatelessMcpHandlers } from '@services/mcp/http-handlers';
 import { createMcpServer } from '@services/mcp/server';
-import { startSessionCleanup } from '@services/mcp/transport-manager';
 import { Router, Request, Response } from 'express';
 
 import { MCP_BASE_URL } from '../config';
 
 const router = Router();
-
-// Start the idle session cleanup interval (skip in tests to avoid open handles)
-if (process.env.NODE_ENV !== 'test') {
-  startSessionCleanup();
-}
 
 /**
  * Authenticate MCP requests via OAuth bearer token.
@@ -67,10 +61,9 @@ async function authenticateMcpRequest({ req, res }: { req: Request; res: Respons
   return authInfo;
 }
 
-const handlers = createMcpHandlers({
+const handlers = createStatelessMcpHandlers({
   authenticate: authenticateMcpRequest,
   createServer: () => createMcpServer(),
-  sessionKind: 'oauth',
   runRequest: runWithBalanceRevalueBatch,
 });
 

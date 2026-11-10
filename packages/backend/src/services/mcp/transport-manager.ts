@@ -3,15 +3,12 @@ import { CustomError } from '@js/errors';
 import { logger } from '@js/utils/logger';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 
-/** `oauth` sessions belong to the public `/mcp`; `chatBridge` sessions to one chat run on the loopback listener. */
-export type McpSessionKind = 'oauth' | 'chatBridge';
-
+/** A session of the chat bridge's loopback listener; the public `/mcp` keeps no sessions. */
 interface McpSession {
   transport: StreamableHTTPServerTransport;
   lastActivity: number;
   userId: number;
-  kind: McpSessionKind;
-  /** Set for `chatBridge` sessions: the one run that may use the session. */
+  /** The one chat run that may use the session. */
   runId?: string;
 }
 
@@ -44,6 +41,8 @@ function cleanupIdleSessions() {
 export function startSessionCleanup() {
   if (!cleanupTimer) {
     cleanupTimer = setInterval(cleanupIdleSessions, CLEANUP_INTERVAL_MS);
+    // The sweep must not keep the process (or a test run) alive on its own.
+    cleanupTimer.unref();
   }
 }
 
@@ -55,13 +54,11 @@ export function registerSession({
   sessionId,
   transport,
   userId,
-  kind = 'oauth',
   runId,
 }: {
   sessionId: string;
   transport: StreamableHTTPServerTransport;
   userId: number;
-  kind?: McpSessionKind;
   runId?: string;
 }) {
   if (sessions.size >= MAX_SESSIONS) {
@@ -72,7 +69,6 @@ export function registerSession({
     transport,
     lastActivity: Date.now(),
     userId,
-    kind,
     runId,
   });
 }
@@ -101,6 +97,6 @@ export function removeSession({ sessionId }: { sessionId: string }) {
 /** Closes every session of a chat run, so a CLI that outlives its run cannot keep calling. */
 export function removeSessionsOfRun({ runId }: { runId: string }) {
   for (const [sessionId, session] of sessions) {
-    if (session.kind === 'chatBridge' && session.runId === runId) removeSession({ sessionId });
+    if (session.runId === runId) removeSession({ sessionId });
   }
 }
