@@ -20,6 +20,8 @@ import {
   REMIND_BEFORE_PRESETS,
   type RemindBeforePreset,
   SUBSCRIPTION_FREQUENCIES,
+  SUBSCRIPTION_INTERVAL_LIMITS,
+  SUBSCRIPTION_INTERVAL_UNITS,
   SUBSCRIPTION_PERIOD_STATUSES,
   SUBSCRIPTION_TYPES,
 } from '@bt/shared/types';
@@ -28,6 +30,9 @@ import { format, parseISO } from 'date-fns';
 import { XIcon } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+
+import { isIntervalCountValid } from '../utils';
+import CustomIntervalFields from './custom-interval-fields.vue';
 
 const props = defineProps<{ subscription: SubscriptionDetail }>();
 const open = defineModel<boolean>('open', { default: false });
@@ -43,6 +48,7 @@ const FREQUENCY_OPTIONS = computed(() => [
   { label: t('planned.subscriptions.frequency.quarterly'), value: SUBSCRIPTION_FREQUENCIES.quarterly },
   { label: t('planned.subscriptions.frequency.semiAnnual'), value: SUBSCRIPTION_FREQUENCIES.semiAnnual },
   { label: t('planned.subscriptions.frequency.annual'), value: SUBSCRIPTION_FREQUENCIES.annual },
+  { label: t('planned.subscriptions.frequency.custom'), value: SUBSCRIPTION_FREQUENCIES.custom },
 ]);
 
 // Nearest-to-due first, so the pill row reads as an escalating timeline.
@@ -52,6 +58,9 @@ const REMIND_BEFORE_OPTIONS = (Object.values(REMIND_BEFORE_PRESETS) as RemindBef
 
 interface ScheduleForm {
   frequency: SUBSCRIPTION_FREQUENCIES;
+  /** Step of a custom frequency; sent only while `frequency` is custom. */
+  intervalUnit: SUBSCRIPTION_INTERVAL_UNITS;
+  intervalCount: number | null;
   dueDate: Date | null;
   maxOccurrences: number | null;
   startDate: Date | null;
@@ -79,6 +88,8 @@ const currentDueDate = ref(resolveCurrentDueDate());
 
 const buildFormState = (): ScheduleForm => ({
   frequency: props.subscription.frequency,
+  intervalUnit: props.subscription.intervalUnit ?? SUBSCRIPTION_INTERVAL_UNITS.day,
+  intervalCount: props.subscription.intervalCount ?? null,
   // parseISO reads date-only strings as local midnight, so re-formatting with
   // 'yyyy-MM-dd' round-trips exactly; new Date() would parse them as UTC and
   // shift a day west of UTC, which would read as an edit of the date.
@@ -101,6 +112,7 @@ watch(open, (isOpen) => {
 });
 
 const isInstallment = computed(() => props.subscription.type === SUBSCRIPTION_TYPES.installment);
+const isCustom = computed(() => form.value.frequency === SUBSCRIPTION_FREQUENCIES.custom);
 
 const selectedFrequency = computed(() => FREQUENCY_OPTIONS.value.find((f) => f.value === form.value.frequency) ?? null);
 
@@ -114,6 +126,16 @@ const toggleRemindBefore = ({ preset }: { preset: RemindBeforePreset }) => {
 };
 
 const validationRules = computed(() => ({
+  intervalCount: {
+    validForCustom: helpers.withMessage(
+      () =>
+        t('planned.subscriptions.form.validationIntervalCount', {
+          max: SUBSCRIPTION_INTERVAL_LIMITS.max[form.value.intervalUnit],
+        }),
+      (value: number | null) =>
+        !isCustom.value || isIntervalCountValid({ unit: form.value.intervalUnit, count: value }),
+    ),
+  },
   dueDate: {
     requiredForInstallment: helpers.withMessage(
       t('planned.subscriptions.form.validationInstallmentRequiresSchedule'),
@@ -167,6 +189,7 @@ const handleSubmit = () => {
 
   mutate({
     frequency: form.value.frequency,
+    ...(isCustom.value ? { intervalUnit: form.value.intervalUnit, intervalCount: form.value.intervalCount } : {}),
     ...dueDateFields,
     maxOccurrences: form.value.maxOccurrences ?? null,
     startDate: form.value.startDate ? toIsoDate({ date: form.value.startDate }) : toIsoDate({ date: new Date() }),
@@ -191,6 +214,14 @@ const handleSubmit = () => {
         :label="$t('planned.subscriptions.form.frequencyLabel')"
         :placeholder="$t('planned.subscriptions.editors.schedule.frequencyPlaceholder')"
         @update:model-value="(v: any) => v && (form.frequency = v.value)"
+      />
+
+      <CustomIntervalFields
+        v-if="isCustom"
+        v-model:count="form.intervalCount"
+        v-model:unit="form.intervalUnit"
+        :count-error-message="getFieldErrorMessage('form.intervalCount')"
+        @count-blur="touchField('form.intervalCount')"
       />
 
       <div class="grid gap-1.5">
