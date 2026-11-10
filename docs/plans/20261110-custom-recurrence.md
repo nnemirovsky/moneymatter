@@ -1,6 +1,7 @@
 # Custom recurrence intervals for subscriptions
 
 ## Overview
+
 - A subscription or bill can repeat only on six presets today: weekly, biweekly, monthly, quarterly, semi-annual, annual. Some bills follow a fixed day count instead: a Magti mobile plan renews every 30 days, so a "monthly" schedule drifts about a day a month and its periods stop lining up with the payments.
 - Add a seventh frequency, `custom`, with a number and a unit: every N days, weeks, months or years. The six presets stay as they are; existing rows are untouched.
 - Recurring-payment detection learns to spot a fixed day cadence and proposes "every N days" instead of forcing it into "monthly".
@@ -9,6 +10,7 @@
   - **PR B** (`feat/custom-recurrence-detection`, stacked on A): detection of day cadences (task 8). Kept separate so A stays reviewable.
 
 ## Context (from discovery, checked against upstream `dev` f1207ed13)
+
 - Frequency enum: `SUBSCRIPTION_FREQUENCIES` in `packages/shared/src/types/subscriptions.ts`. DB: `Subscriptions.frequency` and `SubscriptionCandidates.detectedFrequency` are Postgres ENUMs today (`enum_Subscriptions_frequency`, `enum_SubscriptionCandidates_detectedFrequency`).
 - Repo convention is no Postgres enums; precedent on this very table: `20260624000003-add-installment-type-to-subscriptions.ts` turned `type` from ENUM into VARCHAR(50) to add a value. Constraints are named `chk_subscriptions_*`.
 - Schedule maths and their consumers:
@@ -29,6 +31,7 @@
 - Out of scope: tag reminders and budget-line goals (own frequency types). The fork-only `dueDate within_days` matching rule (`due-date-window.ts`, fork commit `e88137984`) is not on upstream `dev`; see Post-Completion.
 
 ## Development Approach
+
 - **testing approach**: TDD. Failing unit tests and e2e cases first, then the code.
 - complete each task fully before moving on; small, focused commits.
 - **CRITICAL: every task MUST include new/updated tests**, success and error cases.
@@ -38,16 +41,19 @@
 - Backward compatibility: preset rows and preset API calls behave exactly as before. Each preset's existing numbers (tolerance, summary multiplier, linked-payment averages) stay in their tables; only a custom branch is added.
 
 ## Testing Strategy
+
 - **unit tests** (backend jest, also for the shared helper): step resolution and normalization; each schedule function per unit with month-end clamping; detection rule on synthetic date series; MCP tool and serializer tests.
 - **backend e2e** (HTTP helpers only): create/update/read with custom intervals, validation errors, periods advancing by the step, settling within tolerance, upcoming payments, summary, budget-plan scheduled items, data export, detection.
 - **frontend**: vitest specs for payload, labels, strip, linked-payments summary, candidate prefill; one Playwright case for the custom schedule editor.
 
 ## Progress Tracking
+
 - mark completed items with `[x]` immediately when done
 - add newly discovered tasks with ➕ prefix
 - document issues/blockers with ⚠️ prefix
 
 ## Solution Overview
+
 - **One recurrence step.** A shared pure helper turns a subscription's schedule into `{ unit: 'day' | 'week' | 'month' | 'year', count }`. Presets map to fixed steps (weekly → week×1, biweekly → week×2, monthly → month×1, quarterly → month×3, semi_annual → month×6, annual → year×1); `custom` reads `intervalUnit` / `intervalCount`. Date-stepping functions (next due date, next expected date, upcoming dates) switch on the step's unit, which gives presets identical dates.
 - **Number tables stay.** Tolerance, the summary multiplier and the linked-payment averages keep their per-preset tables untouched and gain one custom branch computed from the step (day: N, week: 7N, month: 30N / 30.44N, year: 365N / 365.25N, matching what each table uses for its month-based presets).
 - **Storage.** `frequency` (and `detectedFrequency`) become VARCHAR(50) with the enum types dropped, following `20260624000003`; two nullable columns hold the step; one named CHECK ties them together.
@@ -56,6 +62,7 @@
 - **Detection (PR B).** Intervals in UTC day numbers. A day cadence is: at least 3 intervals, all exactly N days, N ≥ 7, and N not a preset equivalent after normalization. A calendar-monthly bill cannot produce three equal intervals in a row (no two 30-day months are adjacent and three 31-day months never follow each other), so the exact rule has no calendar false positives. One missed payment (a doubled interval) or a day of jitter falls back to the preset mapping, as today.
 
 ## Technical Details
+
 - **Shared** (`packages/shared/src/types/subscriptions.ts`):
   - `SUBSCRIPTION_FREQUENCIES.custom = 'custom'`
   - `enum SUBSCRIPTION_INTERVAL_UNITS { day = 'day', week = 'week', month = 'month', year = 'year' }`
@@ -82,6 +89,7 @@
 - **Frontend**: a "Custom" chip/option in the quick-add and edit-schedule dialogs revealing `input-field` (count, per-unit max) + `select-field` (unit) with placeholders, container-query layout; labels "Every 30 days" / "Every 2 months" via en + uk plural keys; the strip and linked-payments summary use the shared helper; candidate prefill passes the step (PR B).
 
 ## What Goes Where
+
 - **Implementation Steps**: code, migration, tests, i18n, MCP metadata, docs in this repo.
 - **Post-Completion**: PRs, deploy, switching Magti, reconciling with the fork-only `within_days` rule.
 
@@ -90,6 +98,7 @@
 ### Task 1: Shared recurrence types and helper (PR A)
 
 **Files:**
+
 - Modify: `packages/shared/src/types/subscriptions.ts`
 - Create: `packages/shared/src/subscriptions/recurrence.ts`
 - Create: `packages/backend/src/services/subscriptions/recurrence.unit.ts`
@@ -103,18 +112,21 @@
 ### Task 2: Migration and models (PR A)
 
 **Files:**
+
 - Create: `packages/backend/src/migrations/20261110000000-subscription-custom-interval.ts`
 - Modify: `packages/backend/src/models/subscriptions.model.ts`
 - Modify: `packages/backend/src/models/subscription-candidates.model.ts`
 
-- [ ] write the migration (ENUM → VARCHAR for both columns, drop the types, value CHECKs, the step columns for both tables, `chk_subscriptions_custom_interval` and the candidates' twin, down path that fails while custom rows exist)
-- [ ] update both models
+- [x] write the migration (ENUM → VARCHAR for both columns, drop the types, value CHECKs, the step columns for both tables, `chk_subscriptions_custom_interval` and the candidates' twin, down path that fails while custom rows exist)
+- [x] update both models
 - [ ] run the existing subscription and candidate e2e suites (the setup migrates from scratch) – must stay green; the CHECK is defence in depth behind the schema and service, so it is not tested through an endpoint
 - [ ] run tests – must pass before task 3
+- ⚠️ backend e2e blocked: the worktree has no root `.env.test` (copying it was denied by the permission system); waiting on the lead
 
 ### Task 3: Schedule consumers on the recurrence step (PR A)
 
 **Files:**
+
 - Modify: `packages/backend/src/services/subscriptions/calculate-next-due-date.ts` (+ `.unit.ts`)
 - Modify: `packages/backend/src/services/subscriptions/subscription-date.utils.ts` (+ `compute-next-expected-date.unit.ts`)
 - Modify: `packages/backend/src/services/subscriptions/period-match-window.ts` (+ `.unit.ts`)
@@ -122,14 +134,16 @@
 - Modify: `packages/backend/src/services/subscriptions/get-upcoming-payments.ts`, `get-pay-preview.ts`, `get-subscriptions.ts`, `ensure-next-period.ts`, `settle-period-on-match.ts`
 - Modify: `packages/backend/src/services/budget-plans/get-scheduled.ts`
 
-- [ ] failing unit tests: next due date and next expected date for day×30, week×3, month×2 (clamping), year×2; tolerance for custom (day×30 → 15) and unchanged preset values
-- [ ] switch the date functions to `addRecurrenceStep`; add the custom branch to the tolerance table and the summary multipliers, preset entries untouched
-- [ ] pass the step through every consumer; add `intervalUnit` / `intervalCount` to the summary `attributes`; add the step to the upcoming-payments response
-- [ ] run unit tests and the subscription + budget-plan e2e suites – must pass before task 4
+- [x] failing unit tests: next due date and next expected date for day×30, week×3, month×2 (clamping), year×2; tolerance for custom (day×30 → 15) and unchanged preset values
+- [x] switch the date functions to `addRecurrenceStep`; add the custom branch to the tolerance table and the summary multipliers, preset entries untouched
+- [x] pass the step through every consumer; add `intervalUnit` / `intervalCount` to the summary `attributes`; add the step to the upcoming-payments response
+- [ ] run unit tests and the subscription + budget-plan e2e suites – must pass before task 4 (unit green; e2e ⚠️ blocked, see task 2)
+- ➕ pay preview's period window (`get-pay-preview.ts`) also steps by the recurrence; covered by an e2e case in `subscription-custom-interval.e2e.ts`
 
 ### Task 4: Create and update accept custom intervals (PR A)
 
 **Files:**
+
 - Modify: `packages/backend/src/controllers/subscriptions/shared-schemas.ts`
 - Modify: `packages/backend/src/services/subscriptions/helpers.ts`, `create-subscription.ts`, `update-subscription.ts`
 - Modify: `packages/backend/src/i18n/locales/en.json`, `uk.json` (backend messages)
@@ -137,53 +151,62 @@
 - Create: `packages/backend/src/services/subscriptions/subscription-custom-interval.e2e.ts`
 - Modify: `packages/backend/src/services/budget-plans/get-scheduled.e2e.ts`
 
-- [ ] failing e2e: create every 30 days with a dueDate D → read returns `custom`/`day`/`30`; pay the open period → the next period is due D+30, then D+60
-- [ ] failing e2e errors: custom without a step, a step with a preset, count 0, count above the unit limit, unknown unit; update to custom without a step
-- [ ] failing e2e: custom every 1 month is stored as monthly; update monthly → every 30 days keeps the open period, and after paying it the next one is due +30 days; update custom → monthly clears the step; updating only the count works
-- [ ] failing e2e: a payment within 15 days of a 30-day due date settles it; 16 days away it does not
-- [ ] failing e2e: upcoming payments list the custom dates; the summary counts a custom subscription with its monthly equivalent; budget-plan scheduled items include the custom dates
-- [ ] implement the schema rules, `assertRecurrenceConsistent`, normalization and the null-write for presets; backend i18n keys en + uk
-- [ ] run the new and touched e2e files plus the subscription suites – must pass before task 5
+- [x] failing e2e: create every 30 days with a dueDate D → read returns `custom`/`day`/`30`; pay the open period → the next period is due D+30, then D+60
+- [x] failing e2e errors: custom without a step, a step with a preset, count 0, count above the unit limit, unknown unit; update to custom without a step
+- [x] failing e2e: custom every 1 month is stored as monthly; update monthly → every 30 days keeps the open period, and after paying it the next one is due +30 days; update custom → monthly clears the step; updating only the count works
+- [x] failing e2e: a payment within 15 days of a 30-day due date settles it; 16 days away it does not
+- [x] failing e2e: upcoming payments list the custom dates; the summary counts a custom subscription with its monthly equivalent; budget-plan scheduled items include the custom dates
+- [x] implement the schema rules, `assertRecurrenceConsistent`, normalization and the null-write for presets; backend i18n keys en + uk
+- [ ] run the new and touched e2e files plus the subscription suites – must pass before task 5 (⚠️ blocked, see task 2)
+- ➕ update merges the step with the stored one only while the subscription stays `custom`; a step on a stored preset without switching to `custom`, a merged count above the stored unit's limit, and clearing the unit of a custom subscription are refused (e2e cases added)
 
 ### Task 5: MCP tools, read serializers and data export (PR A)
 
 **Files:**
+
 - Modify: `packages/backend/src/services/mcp/tools/create-subscription.ts`, `update-subscription.ts`, `get-subscriptions.ts` and their unit tests
 - Modify: `packages/backend/src/services/mcp/serializers.ts` (+ `serializers.unit.ts`)
 - Modify: `packages/backend/src/services/data-export/transformers/subscriptions-transformer.ts`, `data-export/types.ts`, `export-data.e2e.ts`
 - Modify: generated `server-card.json`, connect-moneymatter `SKILL.md`, `agent-skills/index.json`
 
-- [ ] failing tests: write tools accept and pass the step, refuse custom without one with the REST message; `get_subscriptions` and the slim detail return the step
-- [ ] failing e2e: export contains the step columns for a custom subscription
-- [ ] implement; `npm run mcp:generate-metadata`
-- [ ] run `npm run test:unit -- --testPathPattern='services/mcp/'` and the export e2e – must pass before task 6
+- [x] failing tests: write tools accept and pass the step, refuse custom without one with the REST message; `get_subscriptions` and the slim detail return the step
+- [x] failing e2e: export contains the step columns for a custom subscription
+- [x] implement; `npm run mcp:generate-metadata`
+- [ ] run `npm run test:unit -- --testPathPattern='services/mcp/'` and the export e2e – must pass before task 6 (MCP unit gate green, 1088 tests; export e2e ⚠️ blocked, see task 2)
+- ➕ the generated metadata did not change: only the tools' later sentences and parameter descriptions changed, and the server card and SKILL.md tables carry first sentences only. `npm run mcp:generate-metadata` needs a dev env this worktree lacks, so the files were regenerated through `buildMcpMetadataFiles` under the unit-test environment, and the drift tests pass
 
 ### Task 6: Frontend schedule editing and labels (PR A)
 
 **Files:**
+
 - Modify: `packages/frontend/src/api/subscriptions.ts`
 - Modify: `packages/frontend/src/pages/planned/subscriptions/utils.ts` (+ spec), `quick-add-payload.ts` (+ spec), `linked-payments-summary.ts` (+ spec), `subscription-fixtures.ts`
 - Modify: `components/quick-add-subscription-dialog.vue`, `components/edit-schedule-dialog.vue`, `components/linked-transactions-section.vue`, `components/subscription-list-item.vue`, `subscription-details.vue`
 - Modify: `packages/frontend/src/components/widgets/upcoming-payments-strip.ts` (+ spec)
 - Modify: `packages/frontend/e2e/helpers/api-client.ts`, `packages/frontend/e2e/tests/planned/recurring-payments.spec.ts`
 
-- [ ] failing specs: payload sends the step only for custom; labels "Every 30 days", "Every 2 months"; strip projects day×30 dates; linked-payments summary counts periods of a custom step
-- [ ] "Custom" chip/option with count + unit fields in both dialogs (container queries, per-unit max, inline validation); `custom` handled in the chip list instead of appearing as a bare chip
-- [ ] shared helper in the strip and linked-payments summary; custom label in list item, details page
-- [ ] i18n keys through `i18n-editor` (en + uk plural forms)
-- [ ] Playwright: the schedule editor sets a custom 30-day interval; update the `SubscriptionFrequency` union
-- [ ] run frontend specs, Playwright case, lint and types – must pass before task 7
+- [x] failing specs: payload sends the step only for custom; labels "Every 30 days", "Every 2 months"; strip projects day×30 dates; linked-payments summary counts periods of a custom step
+- [x] "Custom" chip/option with count + unit fields in both dialogs (container queries, per-unit max, inline validation); `custom` handled in the chip list instead of appearing as a bare chip
+- [x] shared helper in the strip and linked-payments summary; custom label in list item, details page
+- [x] i18n keys through `i18n-editor` (en + uk plural forms)
+- [x] Playwright: the schedule editor sets a custom 30-day interval; update the `SubscriptionFrequency` union
+- [ ] run frontend specs, Playwright case, lint and types – must pass before task 7 (vitest, vue-tsc, oxlint, i18n key check green; Playwright not run yet, it needs the running dev stack)
+- ➕ the strip steps local calendar dates with date-fns by the shared `resolveRecurrenceStep`; the shared `addRecurrenceStep` works in UTC and would shift local-midnight dates west of UTC
+- ➕ shared `custom-interval-fields.vue` (count + unit, `@container` layout) used by both dialogs; `isIntervalCountValid` in `utils.ts` for the inline validation
 
 ### Task 7: User docs (PR A)
 
 **Files:**
+
 - Modify: the closest existing docs page under `packages/docs/src/content/docs/` (no subscriptions page exists; follow the `user-docs` skill)
 
-- [ ] short section on presets vs a custom interval with the 30-day example; a dedicated subscriptions page with screenshots is a follow-up, not this PR
+- [x] short section on presets vs a custom interval with the 30-day example; a dedicated subscriptions page with screenshots is a follow-up, not this PR
+- ➕ no page covers recurring payments yet, so the custom interval is a sentence on the Recurring Payments entry of `getting-started/what-is-moneymatter.mdx`
 
 ### Task 8: Detection proposes fixed day cadences (PR B, stacked on A)
 
 **Files:**
+
 - Modify: `packages/backend/src/services/subscriptions/detect-candidates-utils.ts` (+ `.unit.ts`)
 - Modify: `packages/backend/src/services/subscriptions/detect-candidates.ts`, `serialize-candidate.ts`
 - Modify: `packages/backend/src/services/subscriptions/detect-candidates.e2e.ts`
@@ -197,6 +220,7 @@
 - [ ] run tests – must pass before task 9
 
 ### Task 9: Verify acceptance criteria
+
 - [ ] a subscription can repeat every N days/weeks/months/years; presets unchanged
 - [ ] detection proposes day cadences and still proposes presets for calendar schedules (PR B)
 - [ ] backend unit: `npm run test:unit`
@@ -204,21 +228,27 @@
 - [ ] frontend specs, Playwright planned suite, lint and types
 
 ### Task 10: [Final] Update documentation
+
 - [ ] `.claude/docs` or skills only if a new pattern emerged (the recurrence step as the one place for date stepping)
 - [ ] move this plan to `docs/plans/completed/`
 
 ## Post-Completion
-*Items requiring manual intervention or external systems*
+
+_Items requiring manual intervention or external systems_
 
 **Upstream PRs**
+
 - Push `feat/custom-recurrence` and `feat/custom-recurrence-detection` to the fork, open PR A and PR B (B based on A) against `letehaha/moneymatter:dev`; PR text approved by the user first. If letehaha declines, both stay in the fork.
 
 **Fork reconciliation**
+
 - The fork's `dueDate within_days` rule (`due-date-window.ts`, `daysFromSchedule`) is not upstream and has no PR. When merging this into the fork, give `daysFromSchedule` the step; that rule also needs its own upstream PR.
 
 **User's instance**
+
 - Deploy, then switch the Magti bill to custom every 30 days anchored on its last payment.
 
 **Manual verification**
+
 - Custom schedule inputs at a narrow container width (sidebar open).
 - Detection on the user's own data: Magti comes back as every 30 days.
