@@ -18,6 +18,14 @@ interface ApplyPayeeCategorizationParams {
   payeeId: string;
 }
 
+/** The category a Payee's rule stamps on its rows: its default category, unless its categorization mode is `off`. */
+export const payeeRuleCategoryOf = ({
+  payee,
+}: {
+  payee: Pick<Payees, 'defaultCategoryId' | 'categorizationMode'>;
+}): string | null =>
+  payee.defaultCategoryId && payee.categorizationMode !== CATEGORIZATION_MODE.off ? payee.defaultCategoryId : null;
+
 /**
  * Apply a Payee's default category onto a transaction, gated by the Payee's
  * `categorizationMode`. Shared by the inline sync-time path (immediately
@@ -60,9 +68,8 @@ export const applyPayeeCategorization = withTransaction(
       where: { id: payeeId, userId: accountOwnerUserId },
       attributes: ['id', 'defaultCategoryId', 'categorizationMode'],
     });
-    if (!payee?.defaultCategoryId || payee.categorizationMode === CATEGORIZATION_MODE.off) {
-      return latest;
-    }
+    const categoryId = payee ? payeeRuleCategoryOf({ payee }) : null;
+    if (!payee || !categoryId) return latest;
 
     // `enforce` stamps meta so the AI categorization listener's "meta IS NULL"
     // filter skips the row. `hint` leaves meta null so AI may still override
@@ -71,7 +78,7 @@ export const applyPayeeCategorization = withTransaction(
     const enforceMeta = payee.categorizationMode === CATEGORIZATION_MODE.enforce;
     await updateTransactions({
       values: {
-        categoryId: payee.defaultCategoryId,
+        categoryId,
         categorizationMeta: enforceMeta
           ? {
               source: CATEGORIZATION_SOURCE.payeeRule,

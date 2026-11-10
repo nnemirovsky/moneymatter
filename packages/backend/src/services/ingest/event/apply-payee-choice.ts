@@ -12,10 +12,10 @@ import { matchIngestMerchant, resolveUnmatchedMerchant } from '../payee/resolve-
 import type { ParsedPayment } from './classify-notification';
 
 /**
- * The payee that already answers to `normalizedName`, else a new one. A payee created by a concurrent
- * notification between the lookup and the insert is adopted, so the name never fails the payment.
+ * Creates the payee a parsed name asks for. A payee created by a concurrent notification between the decision and the
+ * insert is adopted, so the name never fails the payment.
  */
-const adoptOrCreatePayee = async ({
+const createNamedPayee = async ({
   userId,
   name,
   normalizedName,
@@ -24,9 +24,6 @@ const adoptOrCreatePayee = async ({
   name: string;
   normalizedName: string;
 }): Promise<string | null> => {
-  const adopted = await resolveNormalizedName({ userId, normalized: normalizedName });
-  if (adopted) return adopted.payeeId;
-
   try {
     const created = await runInSavepoint(() => createPayee({ userId, name }));
 
@@ -39,7 +36,22 @@ const adoptOrCreatePayee = async ({
 };
 
 /**
- * Settles the payee of a notification payment. In order:
+ * What the payee of a notification payment will be, read without writing anything:
+ *
+ * - `payee`: an existing payee;
+ * - `merchant`: the merchant decides on its own (`resolveUnmatchedMerchant`): the closest fuzzy match, else a new payee
+ *   named after it;
+ * - `named`: a new payee of the name the model gave, with the merchant to fall back on if that payee cannot be written;
+ * - `none`: no payee.
+ */
+export type PayeeChoiceDecision =
+  | { kind: 'payee'; payeeId: string }
+  | { kind: 'merchant'; rawMerchant: string }
+  | { kind: 'named'; name: string; normalizedName: string; fallbackMerchant: string | null }
+  | { kind: 'none' };
+
+/**
+ * Decides the payee of a notification payment. In order:
  *
  * 1. **Exact lookup.** A merchant that already is a payee's name or alias keeps it; the model's
  *    answer is ignored.
@@ -49,9 +61,54 @@ const adoptOrCreatePayee = async ({
  *    as close to several payees (the owner picks); otherwise the closest fuzzy match, else a new
  *    payee at the first sighting (`resolveUnmatchedMerchant`).
  * 4. **A candidate** the model picked from the list becomes the payee.
- * 5. **A new name.** An existing payee of that name is adopted, never created twice, so a name the
- *    namespace already holds cannot fail the payment. If the raw merchant is on the ignored list no
- *    payee is created and the row is logged without one. Otherwise the payee is created.
+ * 5. **A new name.** An existing payee of that name is adopted, never created twice. If the raw
+ *    merchant is on the ignored list no payee is created and the row is logged without one.
+ *    Otherwise the payee is created.
+ *
+ * Reads only, so the inbox card of a parked payment can show the payee approving will give it; `applyPayeeChoice`
+ * carries the decision out.
+ */
+export const decidePayeeChoice = async ({
+  userId,
+  rawMerchant,
+  choice,
+}: {
+  userId: number;
+  /** The merchant exactly as the notification prints it. */
+  rawMerchant: string | null;
+  choice: ParsedPayment['payee'];
+}): Promise<PayeeChoiceDecision> => {
+  const raw = rawMerchant?.trim() ?? '';
+  const match = raw ? await matchIngestMerchant({ userId, rawMerchant: raw }) : null;
+  if (match?.kind === 'exact' || match?.kind === 'unique') return { kind: 'payee', payeeId: match.payeeId };
+
+  const ignored = match?.kind === 'ignored';
+  const fallbackMerchant = raw && !ignored && match?.kind !== 'ambiguous' ? raw : null;
+  const unmatched: PayeeChoiceDecision = fallbackMerchant
+    ? { kind: 'merchant', rawMerchant: fallbackMerchant }
+    : { kind: 'none' };
+
+  if (!choice) return unmatched;
+
+  if (choice.type === 'candidate') {
+    const payee = await Payees.findOne({ where: { id: choice.payeeId, userId }, attributes: ['id'] });
+
+    return payee ? { kind: 'payee', payeeId: payee.id } : unmatched;
+  }
+
+  if (ignored) return { kind: 'none' };
+
+  const normalizedName = normalizePayeeName({ raw: choice.name });
+  if (!normalizedName) return unmatched;
+
+  const adopted = await resolveNormalizedName({ userId, normalized: normalizedName });
+  if (adopted) return { kind: 'payee', payeeId: adopted.payeeId };
+
+  return { kind: 'named', name: choice.name, normalizedName, fallbackMerchant };
+};
+
+/**
+ * Settles the payee of a notification payment as `decidePayeeChoice` decides it, writing the payee it creates.
  *
  * Every step after the exact lookup only suggests: the merchant's spelling becomes an alias of the
  * payee once the owner confirms or corrects it on the confirm card (`learnPayeeCorrection`).
@@ -71,32 +128,24 @@ export const applyPayeeChoice = async ({
   rawMerchant: string | null;
   choice: ParsedPayment['payee'];
 }): Promise<string | null> => {
-  const raw = rawMerchant?.trim() ?? '';
-
   try {
-    const match = raw ? await runInSavepoint(() => matchIngestMerchant({ userId, rawMerchant: raw })) : null;
-    if (match?.kind === 'exact' || match?.kind === 'unique') return match.payeeId;
+    const decision = await runInSavepoint(() => decidePayeeChoice({ userId, rawMerchant, choice }));
+    const fromMerchant = (merchant: string) =>
+      runInSavepoint(() => resolveUnmatchedMerchant({ userId, rawMerchant: merchant }));
 
-    const ignored = match?.kind === 'ignored';
-    const unmatched = () =>
-      raw && !ignored && match?.kind !== 'ambiguous'
-        ? runInSavepoint(() => resolveUnmatchedMerchant({ userId, rawMerchant: raw }))
-        : Promise.resolve(null);
-
-    if (!choice) return await unmatched();
-
-    if (choice.type === 'candidate') {
-      const payee = await Payees.findOne({ where: { id: choice.payeeId, userId }, attributes: ['id'] });
-
-      return payee ? payee.id : await unmatched();
+    switch (decision.kind) {
+      case 'payee':
+        return decision.payeeId;
+      case 'merchant':
+        return await fromMerchant(decision.rawMerchant);
+      case 'named':
+        return (
+          (await createNamedPayee({ userId, name: decision.name, normalizedName: decision.normalizedName })) ??
+          (decision.fallbackMerchant ? await fromMerchant(decision.fallbackMerchant) : null)
+        );
+      case 'none':
+        return null;
     }
-
-    if (ignored) return null;
-
-    const normalizedName = normalizePayeeName({ raw: choice.name });
-    if (!normalizedName) return await unmatched();
-
-    return (await adoptOrCreatePayee({ userId, name: choice.name, normalizedName })) ?? (await unmatched());
   } catch (error) {
     logger.error(
       {

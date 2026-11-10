@@ -76,6 +76,24 @@ export const learnMerchantSpelling = async ({
 };
 
 /**
+ * The payee whose name or alias a fuzzy search finds closest to the merchant among the names that share its words
+ * (`isWordAligned`), without writing anything; `null` when none is close enough.
+ */
+export const findFuzzyMerchantPayee = async ({
+  userId,
+  rawMerchant,
+}: {
+  userId: number;
+  rawMerchant: string;
+}): Promise<string | null> => {
+  const name = rawMerchant.trim();
+  const payees = await Payees.findAll({ where: { userId }, include: [{ model: PayeeAliases, as: 'aliases' }] });
+  const haystack = buildHaystack({ payees }).filter((entry) => isWordAligned({ merchant: name, name: entry.text }));
+
+  return (haystack.length ? fuzzyFindBestMatch({ haystack, query: name }) : null)?.payeeId ?? null;
+};
+
+/**
  * A merchant no payee answers to and no core name matches: the payee whose name or alias a fuzzy
  * search finds closest among the names that share the merchant's words (`isWordAligned`), as a
  * suggestion only (no alias is written), else a new payee named after the merchant at its first
@@ -92,10 +110,8 @@ export const resolveUnmatchedMerchant = async ({
   const normalizedName = normalizePayeeName({ raw: name });
   if (!normalizedName) return null;
 
-  const payees = await Payees.findAll({ where: { userId }, include: [{ model: PayeeAliases, as: 'aliases' }] });
-  const haystack = buildHaystack({ payees }).filter((entry) => isWordAligned({ merchant: name, name: entry.text }));
-  const fuzzy = haystack.length ? fuzzyFindBestMatch({ haystack, query: name }) : null;
-  if (fuzzy) return fuzzy.payeeId;
+  const fuzzy = await findFuzzyMerchantPayee({ userId, rawMerchant: name });
+  if (fuzzy) return fuzzy;
 
   // A concurrent payment with the same merchant may create it first; both land on one payee.
   const payee = await insertOrAdopt({
