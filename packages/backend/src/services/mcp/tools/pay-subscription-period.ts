@@ -50,7 +50,7 @@ export function registerPaySubscriptionPeriod(server: McpServer) {
     'pay_subscription_period',
     {
       description:
-        'Mark a subscription period as paid and open the next one. Either link an existing transaction (transactionId) or book a new one (createTransaction: true, with optional amount, time and accountId); the two cannot be combined. With neither, the period is only marked paid and no transaction is attached. A booked transaction is owned by the period: revert_subscription_period deletes it. Only upcoming or overdue periods can be paid. Check the amounts first with preview_subscription_payment. Returns the period. Requires finance:write scope.',
+        'Mark an upcoming or overdue subscription period paid and open the next. Link a transaction (transactionId) or book one (createTransaction: true, optional amount, time, accountId), not both; with neither nothing is attached. revert_subscription_period deletes a booked one. Check amounts with preview_subscription_payment first. Returns the period. Requires finance:write scope.',
       inputSchema,
     },
     async (args, extra) => {

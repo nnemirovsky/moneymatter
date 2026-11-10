@@ -4,14 +4,14 @@ import { matchingRulesSchema } from '@controllers/subscriptions/shared-schemas';
 import { z } from 'zod';
 
 const MATCHING_RULES_DESCRIPTION = [
-  'Rules that auto-link imported or new transactions to this subscription: { rules: [...] }. { "rules": [] } turns auto-matching off (link by hand). A transaction is linked when EVERY rule passes (AND), the subscription is active, its transactionType matches and, if it has an accountId, the account matches. Rules also drive the 12-month historical suggestions. They cannot be combined with autoRecord=true.',
+  'Rules that auto-link new or imported transactions: { rules: [...] }; { "rules": [] } turns matching off. A transaction links when EVERY rule passes, the subscription is active and its transactionType and accountId (if set) match. Rules also drive the 12-month historical suggestions. Not with autoRecord=true.',
   'Rule shapes:',
-  '- { "field": "note", "operator": "contains_any", "value": ["netflix", "nflx"] }: the note contains any keyword as a whole word or phrase (case-insensitive; "gas" does not match "Gastroenterologist"), 1+ non-empty keywords.',
-  '- { "field": "amount", "operator": "between", "value": { "min": 9, "max": 11 }, "currencyCode": "USD" }: absolute amount within the decimal bounds, inclusive. Without currencyCode amounts are compared in each transaction currency; with it other currencies are converted first and get 5% tolerance.',
+  '- { "field": "note", "operator": "contains_any", "value": ["netflix", "nflx"] }: the note contains any keyword as a whole word or phrase, case-insensitive ("gas" misses "Gastroenterologist").',
+  '- { "field": "amount", "operator": "between", "value": { "min": 9, "max": 11 }, "currencyCode": "USD" }: absolute amount within the bounds, inclusive; with currencyCode other currencies are converted and get 5% tolerance, else each is compared in its own currency.',
   '- { "field": "transactionType", "operator": "equals", "value": "expense" | "income" }',
   '- { "field": "accountId", "operator": "equals", "value": "<account uuid>" }',
-  '- { "field": "dueDate", "operator": "within_days", "value": 3 }: the transaction lands within 0-31 days (inclusive, either side) of a due date of the subscription\'s schedule (its dueDate repeated by frequency, month ends clamped, so a 30th falls on Feb 28). Needs the subscription to have a dueDate. Use it with a payee or amount rule so a mid-cycle purchase does not link.',
-  '- { "field": "payeeId", "operator": "equals", "value": "<payee uuid>" }: the transaction payee is this one. Pair it with an amount rule to tell one payee\'s fixed charge from its other purchases; payments logged without a note can only match by payee.',
+  '- { "field": "dueDate", "operator": "within_days", "value": 3 }: within 0-31 days either side of a scheduled due date (dueDate repeated by frequency, month ends clamped). Needs a dueDate; pair it with a payee or amount rule.',
+  '- { "field": "payeeId", "operator": "equals", "value": "<payee uuid>" }: the payee is this one; add an amount rule to tell its fixed charge from other purchases. Payments without a note can only match by payee.',
 ].join('\n');
 
 export const subscriptionMatchingRulesInput = matchingRulesSchema.optional().describe(MATCHING_RULES_DESCRIPTION);
