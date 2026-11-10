@@ -46,6 +46,8 @@ const emit = defineEmits<{
   'update:noteDirty': [value: boolean];
   /** The owner finished writing the other side's amount of a transfer: store it on the card. */
   'commit:counterAmount': [value: number];
+  /** Whether the amount in that field differs from the one on the card, so Approve can wait for the save. */
+  'update:counterAmountDirty': [value: boolean];
   /** The sides of the transfer are the other way round. */
   swap: [];
   /** Log the notice as a plain payment, without the other side. */
@@ -76,6 +78,12 @@ watch(
     draftCounterAmount.value = amount;
   },
 );
+
+// Only a field on screen holds an edit: once the other side takes the notice's currency, the amount is not asked for.
+const isCounterAmountDirty = computed(
+  () => props.counterAmountCurrency !== null && draftCounterAmount.value !== props.counterAmount,
+);
+watch(isCounterAmountDirty, (isDirty) => emit('update:counterAmountDirty', isDirty), { immediate: true });
 
 const commitCounterAmount = () => {
   const amount = draftCounterAmount.value;

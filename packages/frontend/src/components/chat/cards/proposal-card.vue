@@ -135,6 +135,7 @@ const approveDisabled = computed(
     !props.card.canApply.ok ||
     isBusy.value ||
     isIngestNoteDirty.value ||
+    isIngestCounterAmountDirty.value ||
     isIngestTransferIncomplete.value ||
     !isTypedConfirmationMet({ requirement: requirement.value, typed: typed.value }),
 );
@@ -149,6 +150,9 @@ const title = computed(() =>
 
 /** The note typed on the card of a parked payment and not saved to it yet: Approve waits for the save. */
 const isIngestNoteDirty = ref(false);
+
+/** The same for the amount of a transfer's other side. */
+const isIngestCounterAmountDirty = ref(false);
 
 const ingestNote = computed(() => {
   const value = props.card.fields.find((field) => field.path === 'note')?.value;
@@ -574,6 +578,7 @@ const summaryText = computed(() => {
         @log-as-transfer="isChoosingTransfer = true"
         @commit:note="chooseAlternative({ path: 'note', value: $event })"
         @update:note-dirty="isIngestNoteDirty = $event"
+        @update:counter-amount-dirty="isIngestCounterAmountDirty = $event"
       />
       <dl v-else-if="!isEditing" class="flex flex-col gap-0.5">
         <CardField

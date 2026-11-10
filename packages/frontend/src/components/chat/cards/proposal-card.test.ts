@@ -597,6 +597,40 @@ describe('ProposalCard', () => {
         ]);
       });
 
+      it('holds Approve while a changed amount of the other side is not saved, and saves it on leaving the field', async () => {
+        vi.mocked(editChatProposal).mockResolvedValue(
+          transferCard({ counterAccountId: 'acc-eur', counterAmount: 650 }),
+        );
+        const wrapper = mountCard({
+          card: transferCard({ counterAccountId: 'acc-eur', counterAmount: 640 }),
+          inbox: true,
+        });
+        expect(approveButton(wrapper).attributes('disabled')).toBeUndefined();
+        const input = wrapper.get('[data-testid="ingest-counter-amount"] input');
+
+        await input.setValue('650');
+        expect(approveButton(wrapper).attributes('disabled')).toBeDefined();
+
+        await input.trigger('focusout');
+        await flushPromises();
+
+        expect(firstArgsOf(editChatProposal)).toEqual([
+          {
+            proposalId: 'card-1',
+            payload: {
+              revision: 1,
+              args: {
+                requestId: 'req-1',
+                accountId: 'acc-usd',
+                direction: 'debit',
+                counterAccountId: 'acc-eur',
+                counterAmount: 650,
+              },
+            },
+          },
+        ]);
+      });
+
       it('drops the amount of the other side when an account in the same currency replaces it', async () => {
         vi.mocked(editChatProposal).mockResolvedValue(transferCard());
         const wrapper = mountCard({
