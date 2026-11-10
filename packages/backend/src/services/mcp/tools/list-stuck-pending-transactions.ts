@@ -10,7 +10,7 @@ export function registerListStuckPendingTransactions(server: McpServer) {
     'list_stuck_pending_transactions',
     {
       description:
-        'List bank-synced transactions that have been pending for more than 7 days, so the bank probably booked them under a different row. Returns { pending: [{ transaction, candidate, pendingDays }] }: candidate is the booked transaction that most likely replaced the pending one, or null. When the candidate is the same purchase, remove the pending row with remove_duplicate_transactions or merge both with merge_duplicate_transactions; when the bank really still holds the payment, confirm the row with keep_pending_as_booked. Transfers and refund-linked rows are not listed.',
+        'List bank-synced transactions pending for over 7 days, which the bank probably booked as another row. Returns { pending: [{ transaction, candidate, pendingDays }] }: candidate is the booked row that likely replaced it, or null. For the same purchase, remove the pending row (remove_duplicate_transactions) or merge both (merge_duplicate_transactions); if the bank still holds it, use keep_pending_as_booked. Transfers and refund-linked rows are left out.',
     },
     async (extra) => {
       const userId = getUserId({ extra });

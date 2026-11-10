@@ -16,7 +16,7 @@ export function registerKeepPendingAsBooked(server: McpServer) {
     'keep_pending_as_booked',
     {
       description:
-        'Confirm that bank-synced pending transactions are real and booked, so they stop showing as stuck. Use it for rows from list_stuck_pending_transactions that have no booked twin because the bank still holds the payment. Only pending bank rows are accepted. Returns { updatedIds }. Requires finance:write scope.',
+        'Mark pending bank rows from list_stuck_pending_transactions as booked when the bank still holds the payment, so they stop showing as stuck. Only pending bank rows are accepted. Returns { updatedIds }. Requires finance:write scope.',
       inputSchema,
     },
     async (args, extra) => {

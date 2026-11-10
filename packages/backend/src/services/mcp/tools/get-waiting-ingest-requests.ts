@@ -9,7 +9,7 @@ export function registerGetWaitingIngestRequests(server: McpServer) {
     'get_waiting_ingest_requests',
     {
       description:
-        'List the bank and card notifications iOS Automation parked in the Automation inbox for the owner, newest first: requestId, why it waits (reason), when it happened (time), direction (debit: money left, credit: money arrived), amount, currencyCode, merchant, card, and exchange (what was sold and bought) when it is one side of a currency exchange. Read it before logging or converting something the owner may mean by "the notice in the inbox", and use its figures and time. To log one, call log_ingest_request with its requestId.',
+        'List the notifications iOS Automation parked in the Automation inbox, newest first: requestId, reason, time, direction (debit: money left, credit: arrived), amount, currencyCode, merchant, card, and exchange for one side of a currency exchange. Read it before acting on "the notice in the inbox" and use its figures and time; log one with log_ingest_request.',
     },
     async (extra) => {
       const userId = getUserId({ extra });

@@ -17,7 +17,7 @@ export function registerUpdateChatSettings(server: McpServer) {
     'update_chat_settings',
     {
       description:
-        'Change the AI chat settings (Settings, AI, Chat). retentionDays is how many days an unpinned chat thread is kept after its last message: 7, 30, 90 or 365, or null to keep threads until the user deletes them. The same window also deletes resolved Automation inbox cards settled before it, right away. inboxKeepResolved is how many resolved cards the Automation inbox keeps, newest first (10 to 1000); older resolved cards are deleted right away, cards still waiting for the user never are. Send only the settings to change. Returns the settings after the change. Requires finance:write scope.',
+        'Change the AI chat settings. retentionDays: days an unpinned thread is kept after its last message (7, 30, 90 or 365; null keeps it until deleted); resolved Automation inbox cards older than that are deleted too. inboxKeepResolved: how many resolved inbox cards to keep, newest first (10 to 1000); waiting cards are never deleted. Send only what changes. Returns the settings. Requires finance:write scope.',
       inputSchema,
     },
     async (args, extra) => {

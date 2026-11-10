@@ -13,20 +13,18 @@ const inputSchema = {
   accountId: recordId().optional().describe('The account to log the payment on'),
   counterAccountId: recordId()
     .optional()
-    .describe(
-      'Log the payment as a transfer: the account to log the other side on. For a notice that tells of only one side, give counterAmount too',
-    ),
+    .describe('Log it as a transfer: the account of the other side; a one-sided notice also needs counterAmount'),
   counterAmount: z
     .number()
     .positive()
     .optional()
     .describe(
-      'With counterAccountId on a notice that has no other side: the amount the other account takes, in that account currency. Required when that currency differs from the notice currency; otherwise it defaults to the notice amount',
+      'For a one-sided notice: what the other account takes, in its currency; required when it differs from the notice currency, else the notice amount',
     ),
   direction: z.enum(['debit', 'credit']).optional(),
-  note: z.string().max(2000).optional().describe('The note to log the payment with; an empty string means no note'),
-  payeeId: recordId().optional().describe('The payee instead of the resolved one; not for a transfer'),
-  categoryId: recordId().optional().describe('The category instead of the picked one; not for a transfer'),
+  note: z.string().max(2000).optional().describe('The note; an empty string means none'),
+  payeeId: recordId().optional().describe('Payee override; not for a transfer'),
+  categoryId: recordId().optional().describe('Category override; not for a transfer'),
 };
 
 /** A transfer between the owner's accounts has no payee and no category, so the overrides are refused on one. */
@@ -43,7 +41,7 @@ export function registerLogIngestRequest(server: McpServer) {
     'log_ingest_request',
     {
       description:
-        'Log a notification payment iOS Automation parked for the owner (unknown account, possible own transfer, doubtful reading). With counterAccountId (and counterAmount when the currencies differ) it is logged as a transfer, the other side created at the notice time; otherwise payeeId and categoryId override the payee and category. Requires finance:write scope.',
+        'Log a payment iOS Automation parked (unknown account, possible own transfer, doubtful reading). counterAccountId logs it as a transfer, the other side at the notice time; otherwise payeeId and categoryId override the payee and category. Requires finance:write scope.',
       inputSchema,
     },
     async (args, extra) => {

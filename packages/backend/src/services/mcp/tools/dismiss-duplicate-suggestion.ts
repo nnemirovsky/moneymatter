@@ -14,7 +14,7 @@ export function registerDismissDuplicateSuggestion(server: McpServer) {
     'dismiss_duplicate_suggestion',
     {
       description:
-        'Tell MoneyMatter that a suggested pair of transactions are not duplicates, so list_duplicate_suggestions stops offering it and no later scan raises that pair again. Nothing is merged or deleted, and dismissing the same suggestion twice is harmless. A suggestion that was already merged or went stale (a row was deleted) is refused. Returns { id, status: "dismissed" }. Requires finance:write scope.',
+        'Mark a suggested pair as not duplicates, so neither list_duplicate_suggestions nor a later scan offers it again. Nothing is merged or deleted; dismissing twice is harmless; a merged or stale suggestion is refused. Returns { id, status: "dismissed" }. Requires finance:write scope.',
       inputSchema,
     },
     async (args, extra) => {

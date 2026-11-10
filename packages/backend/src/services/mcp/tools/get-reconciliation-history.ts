@@ -24,7 +24,7 @@ export function registerGetReconciliationHistory(server: McpServer) {
     'get_reconciliation_history',
     {
       description:
-        'List the duplicate cleanups that removed transactions, newest first. Each event is a removal ({ type: "remove", removedAt, transactions }) or a merge ({ type: "merge", removedAt, transactions, survivor }), where transactions are the rows taken out of the books and survivor is the row they were merged into. Returns { events, total }, total being the number of events before limit. Pass the ids of the removed rows to restore_removed_transactions to bring them back.',
+        'List duplicate cleanups, newest first: removals ({ type: "remove", removedAt, transactions }) and merges (also survivor, the row they merged into); transactions are the rows taken out. Returns { events, total }, total counted before limit. restore_removed_transactions brings removed rows back by id.',
       inputSchema,
     },
     async (args, extra) => {

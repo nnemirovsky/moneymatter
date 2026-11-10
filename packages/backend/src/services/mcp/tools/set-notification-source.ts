@@ -17,7 +17,7 @@ export function registerSetNotificationSource(server: McpServer) {
     'set_notification_source',
     {
       description:
-        'Approve a source of iOS Automation notifications as a payment source, mute it, or make it a context source (a delivery or shopping app whose notifications add the store to a payment and never create one), and set its default account. Requires finance:write scope.',
+        'Approve an iOS Automation notification source for payments, mute it, or make it a context source (its notifications add the store to a payment, never create one), and set its default account. Requires finance:write scope.',
       inputSchema,
     },
     async (args, extra) => {
