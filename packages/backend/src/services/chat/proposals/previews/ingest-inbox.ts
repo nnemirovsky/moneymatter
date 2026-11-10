@@ -15,6 +15,7 @@ import { suggestConversionAccounts } from '@services/ingest/conversion/settle-co
 import { correctionOf } from '@services/ingest/corrections/read-ingest-suggestions';
 import { previewAccountLesson } from '@services/ingest/event/learn-account-choice';
 import { decryptNotificationText } from '@services/ingest/event/notification-text';
+import { previewPaymentDetails } from '@services/ingest/event/preview-payment-details';
 import { describeSource, sourceAppName } from '@services/ingest/event/source-label';
 import { readStoredParse, type StoredPayment } from '@services/ingest/event/stored-parse';
 import { findWaitingSiblings, siblingMatchOf } from '@services/ingest/event/waiting-siblings';
@@ -177,7 +178,10 @@ const counterOf = async ({
   };
 };
 
-/** The card of a parked notification payment: what was read, and why it waits. */
+/**
+ * The card of a parked notification payment: what was read, why it waits, and for a plain payment the payee and
+ * category approving gives it (`previewPaymentDetails`, read again for the payee the owner picks).
+ */
 export const resolveIngestRequest: PreviewResolver = async ({ userId, args, lock }) => {
   const request = await IngestRequests.findOne({
     where: { id: args.requestId as string, userId, pipeline: 'notification' },
@@ -224,6 +228,18 @@ export const resolveIngestRequest: PreviewResolver = async ({ userId, args, lock
 
   const unusual = conversion?.rateUnusual === true;
   const counter = conversion || !payment ? null : await counterOf({ userId, payment, args });
+  const time = typeof request.payload.time === 'string' ? request.payload.time : request.createdAt.toISOString();
+
+  // A plain payment shows the payee and category approving gives it; a transfer between the owner's accounts has neither.
+  const details =
+    payment && !conversion && typeof args.counterAccountId !== 'string'
+      ? await previewPaymentDetails({
+          userId,
+          payment,
+          time: new Date(time),
+          ...(typeof args.payeeId === 'string' && { payeeId: args.payeeId }),
+        })
+      : null;
 
   return {
     preview: {
@@ -245,7 +261,11 @@ export const resolveIngestRequest: PreviewResolver = async ({ userId, args, lock
           cardName: payment.cardName,
           cardLastDigits: payment.cardLastDigits,
         }),
-        time: typeof request.payload.time === 'string' ? request.payload.time : request.createdAt.toISOString(),
+        ...(details && {
+          payee: details.payee,
+          category: { id: details.categoryId, source: details.categorySource },
+        }),
+        time,
       },
     },
     // No `updatedAt`: posting the card links it to the request (`proposalId`), which moves the request's
