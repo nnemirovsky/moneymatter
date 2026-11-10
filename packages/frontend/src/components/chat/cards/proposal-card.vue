@@ -135,6 +135,7 @@ const approveDisabled = computed(
     !props.card.canApply.ok ||
     isBusy.value ||
     isIngestNoteDirty.value ||
+    isIngestTransferIncomplete.value ||
     !isTypedConfirmationMet({ requirement: requirement.value, typed: typed.value }),
 );
 
@@ -177,6 +178,54 @@ const ingestCounterAccountId = computed(() => {
     (props.card.ingestRequest?.direction === 'credit' ? conversion?.fromAccountId : conversion?.toAccountId) ?? null
   );
 });
+/** The direction the card logs the payment with: the one stored on the card, else the one the notice read. */
+const ingestDirection = computed<'debit' | 'credit' | null>(() => {
+  const value = props.card.fields.find((field) => field.path === 'direction')?.value;
+  if (value === 'debit' || value === 'credit') return value;
+
+  return props.card.ingestRequest?.direction ?? null;
+});
+
+const ingestCounterAmount = computed(() => {
+  const value = props.card.fields.find((field) => field.path === 'counterAmount')?.value;
+
+  return typeof value === 'number' ? value : null;
+});
+
+/**
+ * A notice of a transfer between the owner's own accounts is logged as a transfer once the card holds its other side
+ * (guessed or chosen), or while the owner is choosing one; without it, it is logged as a plain payment.
+ */
+const isOwnTransfer = computed(
+  () => props.card.ingestRequest?.reason === 'ownTransfer' && !props.card.ingestRequest.conversion,
+);
+const isChoosingTransfer = ref(false);
+const isIngestTransfer = computed(
+  () => isOwnTransfer.value && (ingestCounterAccountId.value !== null || isChoosingTransfer.value),
+);
+
+/** The currency of the notice's own side: the one the notice states, else its account's. */
+const ingestOwnCurrency = computed(
+  () =>
+    props.card.ingestRequest?.currencyCode ??
+    (ingestAccountId.value ? lookups.accountCurrency({ id: ingestAccountId.value }) : null),
+);
+
+/** The other side of a transfer takes its own amount when its account holds another currency than the notice. */
+const counterAmountCurrency = computed(() => {
+  const counterId = ingestCounterAccountId.value;
+  const counterCurrency = counterId ? lookups.accountCurrency({ id: counterId }) : null;
+
+  return counterCurrency && counterCurrency !== ingestOwnCurrency.value ? counterCurrency : null;
+});
+
+/** A transfer misses its other side, or that side's amount in another currency: approving would not log it as one. */
+const isIngestTransferIncomplete = computed(
+  () =>
+    isIngestTransfer.value &&
+    (ingestCounterAccountId.value === null || (counterAmountCurrency.value !== null && !ingestCounterAmount.value)),
+);
+
 const statusText = computed(() => keyText({ key: `chat.cards.status.${props.card.status}` }) ?? props.card.status);
 // A record settled outside the card closed it: the owner rejected nothing, so the badge says so in grey.
 const isResolvedElsewhere = computed(() => props.card.statusReason === RESOLVED_ELSEWHERE);
@@ -324,11 +373,38 @@ const saveEdit = () => {
   );
 };
 
+const storeArgs = ({ args }: { args: Record<string, unknown> }) => {
+  actions.edit.mutate({ proposalId: props.card.id, payload: { revision: props.card.revision, args } });
+};
+
 const chooseAlternative = ({ path, value }: { path: string; value: unknown }) => {
-  actions.edit.mutate({
-    proposalId: props.card.id,
-    payload: { revision: props.card.revision, args: replaceArg({ card: props.card, path, value }) },
-  });
+  storeArgs({ args: replaceArg({ card: props.card, path, value }) });
+};
+
+/**
+ * A side of a transfer the owner picked. An amount stored for the other side stays only while that side's currency still
+ * differs from the notice's: otherwise the other side takes the notice's amount.
+ */
+const chooseIngestAccount = ({ path, value }: { path: 'accountId' | 'counterAccountId'; value: string | null }) => {
+  const { counterAmount, ...args } = replaceArg({ card: props.card, path, value });
+  const ownId = typeof args.accountId === 'string' ? args.accountId : null;
+  const counterId = typeof args.counterAccountId === 'string' ? args.counterAccountId : null;
+  const ownCurrency = props.card.ingestRequest?.currencyCode ?? (ownId ? lookups.accountCurrency({ id: ownId }) : null);
+  const keepsAmount =
+    counterAmount !== undefined && counterId !== null && lookups.accountCurrency({ id: counterId }) !== ownCurrency;
+
+  storeArgs({ args: keepsAmount ? { ...args, counterAmount } : args });
+};
+
+/** The sides of a transfer swap when the notice's own side turns from the sender into the receiver, or back. */
+const swapIngestSides = () => {
+  chooseAlternative({ path: 'direction', value: ingestDirection.value === 'credit' ? 'debit' : 'credit' });
+};
+
+const logIngestAsPayment = () => {
+  const { counterAccountId: _counter, counterAmount: _amount, ...args } = cardArgsOf({ card: props.card });
+  isChoosingTransfer.value = false;
+  storeArgs({ args });
 };
 
 // A newer version of the card (another tab, a refused approval) replaces what the user was editing.
@@ -371,10 +447,12 @@ const summaryText = computed(() => {
   const payment = props.card.ingestRequest;
   if (payment) {
     // The money-out account comes first: for the card of the incoming side it is the other account.
+    const hasTwoSides = Boolean(payment.conversion) || isIngestTransfer.value;
+    const direction = payment.conversion ? payment.direction : ingestDirection.value;
     const ids =
-      payment.conversion && payment.direction === 'credit'
+      hasTwoSides && direction === 'credit'
         ? [ingestCounterAccountId.value, ingestAccountId.value]
-        : [ingestAccountId.value, payment.conversion ? ingestCounterAccountId.value : null];
+        : [ingestAccountId.value, hasTwoSides ? ingestCounterAccountId.value : null];
     const accountNames = ids
       .filter((id): id is string => id !== null)
       .map((id) => lookups.entityName({ kind: 'account', id }))
@@ -482,10 +560,18 @@ const summaryText = computed(() => {
         :lookups="lookups"
         :account-id="ingestAccountId"
         :counter-account-id="ingestCounterAccountId"
+        :direction="ingestDirection"
+        :transfer="isIngestTransfer"
+        :counter-amount="ingestCounterAmount"
+        :counter-amount-currency="counterAmountCurrency"
         :note="ingestNote"
         :disabled="!isOpen || isBusy"
-        @update:account-id="chooseAlternative({ path: 'accountId', value: $event })"
-        @update:counter-account-id="chooseAlternative({ path: 'counterAccountId', value: $event })"
+        @update:account-id="chooseIngestAccount({ path: 'accountId', value: $event })"
+        @update:counter-account-id="chooseIngestAccount({ path: 'counterAccountId', value: $event })"
+        @commit:counter-amount="chooseAlternative({ path: 'counterAmount', value: $event })"
+        @swap="swapIngestSides"
+        @log-as-payment="logIngestAsPayment"
+        @log-as-transfer="isChoosingTransfer = true"
         @commit:note="chooseAlternative({ path: 'note', value: $event })"
         @update:note-dirty="isIngestNoteDirty = $event"
       />

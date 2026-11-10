@@ -2,7 +2,9 @@
 import NotificationSourceLabel from '@/components/common/notification-source-label.vue';
 import AccountSelectField from '@/components/fields/account-select-field.vue';
 import InputField from '@/components/fields/input-field.vue';
+import { Button } from '@/components/lib/ui/button';
 import type { ChatIngestRequestSummary, NotificationSourceDisplay } from '@bt/shared/types';
+import { ArrowUpDownIcon } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -19,11 +21,19 @@ const props = defineProps<{
   lookups: CardLookups;
   /** The account the card will log the payment on, `null` until one is chosen. */
   accountId: string | null;
-  /** For a currency exchange: the account of the other side's payment, `null` until one is chosen. */
+  /** For a currency exchange or a transfer: the account of the other side's payment, `null` until one is chosen. */
   counterAccountId: string | null;
-  /** The account cannot change: the card is closed, or a change is being saved. */
+  /** The direction the card logs the payment with; for a transfer it says whether the card account sends or receives. */
+  direction: 'debit' | 'credit' | null;
+  /** The payment is logged as a transfer between the owner's accounts: both sides are chosen on the card. */
+  transfer: boolean;
+  /** For a transfer: what the other side takes in its own currency, `null` until the owner writes it. */
+  counterAmount: number | null;
+  /** For a transfer: the currency of the other side when it differs from the notice's, so it needs its own amount. */
+  counterAmountCurrency: string | null;
   /** The note the card holds; empty until the history or the owner fills it. */
   note: string;
+  /** The account cannot change: the card is closed, or a change is being saved. */
   disabled: boolean;
 }>();
 
@@ -34,6 +44,14 @@ const emit = defineEmits<{
   'commit:note': [value: string];
   /** Whether the text in the field differs from the note on the card, so Approve can wait for the save. */
   'update:noteDirty': [value: boolean];
+  /** The owner finished writing the other side's amount of a transfer: store it on the card. */
+  'commit:counterAmount': [value: number];
+  /** The sides of the transfer are the other way round. */
+  swap: [];
+  /** Log the notice as a plain payment, without the other side. */
+  'log-as-payment': [];
+  /** Choose the other side, to log the notice as a transfer. */
+  'log-as-transfer': [];
 }>();
 
 const draftNote = ref(props.note);
@@ -49,6 +67,19 @@ watch(isNoteDirty, (isDirty) => emit('update:noteDirty', isDirty), { immediate: 
 
 const commitNote = () => {
   if (isNoteDirty.value) emit('commit:note', draftNote.value);
+};
+
+const draftCounterAmount = ref<number | null>(props.counterAmount);
+watch(
+  () => props.counterAmount,
+  (amount) => {
+    draftCounterAmount.value = amount;
+  },
+);
+
+const commitCounterAmount = () => {
+  const amount = draftCounterAmount.value;
+  if (typeof amount === 'number' && amount > 0 && amount !== props.counterAmount) emit('commit:counterAmount', amount);
 };
 
 const { t } = useI18n();
@@ -84,8 +115,18 @@ const selectedCounterAccount = computed(
   () => props.lookups.accounts().find((account) => account.id === props.counterAccountId) ?? null,
 );
 
-/** The card's own payment is the outgoing side of the exchange, so its account is where the money left. */
-const ownIsOutgoing = computed(() => props.payment.direction !== 'credit');
+/**
+ * The card's own payment is the outgoing side, so its account is where the money left. An exchange's sides are the
+ * bank's two notices; a transfer's follow the direction on the card, which the owner flips to swap them.
+ */
+const ownIsOutgoing = computed(
+  () => (props.payment.conversion ? props.payment.direction : props.direction) !== 'credit',
+);
+const hasTwoSides = computed(() => Boolean(props.payment.conversion) || props.transfer);
+const isOwnTransfer = computed(() => props.payment.reason === 'ownTransfer' && !props.payment.conversion);
+const isTransferIncomplete = computed(
+  () => !selectedCounterAccount.value || (props.counterAmountCurrency !== null && !props.counterAmount),
+);
 const fromAccount = computed(() => (ownIsOutgoing.value ? selectedAccount.value : selectedCounterAccount.value));
 const toAccount = computed(() => (ownIsOutgoing.value ? selectedCounterAccount.value : selectedAccount.value));
 
@@ -157,6 +198,13 @@ const lessonText = computed(() => {
         {{ $t(`${LABEL_ROOT}.exchange`) }}
       </span>
       <span
+        v-else-if="transfer"
+        class="border-border text-app-transfer-color rounded-[5px] border px-1.5 py-px text-[10.5px] font-bold tracking-wider uppercase"
+        data-testid="ingest-transfer"
+      >
+        {{ $t(`${LABEL_ROOT}.transfer`) }}
+      </span>
+      <span
         v-else-if="directionKey"
         :class="[
           'rounded-[5px] border px-1.5 py-px text-[10.5px] font-bold tracking-wider uppercase',
@@ -214,7 +262,7 @@ const lessonText = computed(() => {
       />
     </div>
 
-    <div v-if="payment.conversion" class="flex flex-col gap-3" data-testid="ingest-conversion-accounts">
+    <div v-if="hasTwoSides" class="flex flex-col gap-3" data-testid="ingest-conversion-accounts">
       <AccountSelectField
         :model-value="fromAccount"
         :accounts="lookups.accounts()"
@@ -233,9 +281,53 @@ const lessonText = computed(() => {
         required
         @update:model-value="chooseTo({ id: $event?.id ?? null })"
       />
-      <p class="text-muted-foreground text-xs" data-testid="ingest-conversion-hint">
-        {{ $t(`${LABEL_ROOT}.conversionHint`) }}
-      </p>
+      <template v-if="payment.conversion">
+        <p class="text-muted-foreground text-xs" data-testid="ingest-conversion-hint">
+          {{ $t(`${LABEL_ROOT}.conversionHint`) }}
+        </p>
+      </template>
+      <template v-else>
+        <div
+          v-if="counterAmountCurrency"
+          data-testid="ingest-counter-amount"
+          @keydown.enter.prevent="commitCounterAmount"
+          @focusout="commitCounterAmount"
+        >
+          <InputField
+            v-model="draftCounterAmount"
+            type="number"
+            :label="$t(`${LABEL_ROOT}.counterAmountLabel`, { currency: counterAmountCurrency })"
+            :placeholder="$t(`${LABEL_ROOT}.counterAmountPlaceholder`, { currency: counterAmountCurrency })"
+            :disabled="disabled"
+          />
+        </div>
+        <p class="text-muted-foreground text-xs" data-testid="ingest-transfer-hint">
+          {{ $t(isTransferIncomplete ? `${LABEL_ROOT}.transferIncompleteHint` : `${LABEL_ROOT}.transferHint`) }}
+        </p>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            :disabled="disabled"
+            data-testid="ingest-swap"
+            @click="emit('swap')"
+          >
+            <ArrowUpDownIcon class="size-4" aria-hidden="true" />
+            {{ $t(`${LABEL_ROOT}.swapAccounts`) }}
+          </Button>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            :disabled="disabled"
+            data-testid="ingest-log-as-payment"
+            @click="emit('log-as-payment')"
+          >
+            {{ $t(`${LABEL_ROOT}.logAsPayment`) }}
+          </Button>
+        </div>
+      </template>
     </div>
 
     <div v-else class="flex flex-col gap-1.5" data-testid="ingest-account">
@@ -268,6 +360,18 @@ const lessonText = computed(() => {
           }}
         </p>
       </template>
+      <Button
+        v-if="isOwnTransfer"
+        type="button"
+        variant="link"
+        size="sm"
+        class="self-start px-0"
+        :disabled="disabled"
+        data-testid="ingest-log-as-transfer"
+        @click="emit('log-as-transfer')"
+      >
+        {{ $t(`${LABEL_ROOT}.logAsTransfer`) }}
+      </Button>
     </div>
   </div>
 </template>
