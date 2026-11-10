@@ -40,6 +40,7 @@ import CardSources from './card-sources.vue';
 import { startsFolded } from './card-fold';
 import { ingestSummaryParts, summaryFields } from './card-summary';
 import IngestRequestBody from './ingest-request-body.vue';
+import IngestRequestEditor from './ingest-request-editor.vue';
 import {
   collectPendingParents,
   confirmationFor,
@@ -135,6 +136,8 @@ const approveDisabled = computed(
     !props.card.canApply.ok ||
     isBusy.value ||
     isIngestNoteDirty.value ||
+    isIngestCounterAmountDirty.value ||
+    isIngestTransferIncomplete.value ||
     !isTypedConfirmationMet({ requirement: requirement.value, typed: typed.value }),
 );
 
@@ -149,11 +152,19 @@ const title = computed(() =>
 /** The note typed on the card of a parked payment and not saved to it yet: Approve waits for the save. */
 const isIngestNoteDirty = ref(false);
 
+/** The same for the amount of a transfer's other side. */
+const isIngestCounterAmountDirty = ref(false);
+
 const ingestNote = computed(() => {
   const value = props.card.fields.find((field) => field.path === 'note')?.value;
 
   return typeof value === 'string' ? value : '';
 });
+
+/** The arguments the form of a parked payment sets, whether or not the card holds them yet. */
+const INGEST_EDITOR_PATHS = ['payeeId', 'categoryId', 'accountId', 'direction', 'note'] as const;
+
+const ingestField = ({ path }: { path: string }) => props.card.fields.find((field) => field.path === path) ?? null;
 
 /** The card of a parked payment shows the payment and an account picker instead of a list of arguments. */
 const ingestAccountId = computed(() => {
@@ -177,6 +188,54 @@ const ingestCounterAccountId = computed(() => {
     (props.card.ingestRequest?.direction === 'credit' ? conversion?.fromAccountId : conversion?.toAccountId) ?? null
   );
 });
+/** The direction the card logs the payment with: the one stored on the card, else the one the notice read. */
+const ingestDirection = computed<'debit' | 'credit' | null>(() => {
+  const value = props.card.fields.find((field) => field.path === 'direction')?.value;
+  if (value === 'debit' || value === 'credit') return value;
+
+  return props.card.ingestRequest?.direction ?? null;
+});
+
+const ingestCounterAmount = computed(() => {
+  const value = props.card.fields.find((field) => field.path === 'counterAmount')?.value;
+
+  return typeof value === 'number' ? value : null;
+});
+
+/**
+ * A notice of a transfer between the owner's own accounts is logged as a transfer once the card holds its other side
+ * (guessed or chosen), or while the owner is choosing one; without it, it is logged as a plain payment.
+ */
+const isOwnTransfer = computed(
+  () => props.card.ingestRequest?.reason === 'ownTransfer' && !props.card.ingestRequest.conversion,
+);
+const isChoosingTransfer = ref(false);
+const isIngestTransfer = computed(
+  () => isOwnTransfer.value && (ingestCounterAccountId.value !== null || isChoosingTransfer.value),
+);
+
+/** The currency of the notice's own side: the one the notice states, else its account's. */
+const ingestOwnCurrency = computed(
+  () =>
+    props.card.ingestRequest?.currencyCode ??
+    (ingestAccountId.value ? lookups.accountCurrency({ id: ingestAccountId.value }) : null),
+);
+
+/** The other side of a transfer takes its own amount when its account holds another currency than the notice. */
+const counterAmountCurrency = computed(() => {
+  const counterId = ingestCounterAccountId.value;
+  const counterCurrency = counterId ? lookups.accountCurrency({ id: counterId }) : null;
+
+  return counterCurrency && counterCurrency !== ingestOwnCurrency.value ? counterCurrency : null;
+});
+
+/** A transfer misses its other side, or that side's amount in another currency: approving would not log it as one. */
+const isIngestTransferIncomplete = computed(
+  () =>
+    isIngestTransfer.value &&
+    (ingestCounterAccountId.value === null || (counterAmountCurrency.value !== null && !ingestCounterAmount.value)),
+);
+
 const statusText = computed(() => keyText({ key: `chat.cards.status.${props.card.status}` }) ?? props.card.status);
 // A record settled outside the card closed it: the owner rejected nothing, so the badge says so in grey.
 const isResolvedElsewhere = computed(() => props.card.statusReason === RESOLVED_ELSEWHERE);
@@ -322,8 +381,23 @@ const onApprove = () => {
 
 const isEditing = ref(false);
 const draft = ref<Record<string, unknown>>({});
-const edited = computed(() => buildEditedArgs({ card: props.card, draft: draft.value }));
-const hasEditableFields = computed(() => props.card.fields.some((field) => field.editable));
+const edited = computed(() =>
+  buildEditedArgs({
+    card: props.card,
+    draft: draft.value,
+    extraPaths: props.card.ingestRequest ? INGEST_EDITOR_PATHS : [],
+  }),
+);
+/**
+ * A parked payment logged as a plain payment opens its own form; a transfer or an exchange is edited on the card itself,
+ * where both of its accounts are.
+ */
+const isIngestPayment = computed(
+  () => Boolean(props.card.ingestRequest) && !props.card.ingestRequest?.conversion && !isIngestTransfer.value,
+);
+const hasEditableFields = computed(
+  () => (!props.card.ingestRequest || isIngestPayment.value) && props.card.fields.some((field) => field.editable),
+);
 
 const startEdit = () => {
   draft.value = cardArgsOf({ card: props.card });
@@ -337,11 +411,40 @@ const saveEdit = () => {
   );
 };
 
+const storeArgs = ({ args }: { args: Record<string, unknown> }) => {
+  actions.edit.mutate({ proposalId: props.card.id, payload: { revision: props.card.revision, args } });
+};
+
 const chooseAlternative = ({ path, value }: { path: string; value: unknown }) => {
-  actions.edit.mutate({
-    proposalId: props.card.id,
-    payload: { revision: props.card.revision, args: replaceArg({ card: props.card, path, value }) },
-  });
+  storeArgs({ args: replaceArg({ card: props.card, path, value }) });
+};
+
+/**
+ * A side of a transfer the owner picked. An amount stored for the other side stays only while that side's currency still
+ * differs from the notice's: otherwise the other side takes the notice's amount.
+ */
+const chooseIngestAccount = ({ path, value }: { path: 'accountId' | 'counterAccountId'; value: string | null }) => {
+  const { counterAmount, payeeId, categoryId, ...args } = replaceArg({ card: props.card, path, value });
+  // A transfer between the owner's accounts has no payee and no category.
+  const details = typeof args.counterAccountId === 'string' ? {} : { payeeId, categoryId };
+  const ownId = typeof args.accountId === 'string' ? args.accountId : null;
+  const counterId = typeof args.counterAccountId === 'string' ? args.counterAccountId : null;
+  const ownCurrency = props.card.ingestRequest?.currencyCode ?? (ownId ? lookups.accountCurrency({ id: ownId }) : null);
+  const keepsAmount =
+    counterAmount !== undefined && counterId !== null && lookups.accountCurrency({ id: counterId }) !== ownCurrency;
+
+  storeArgs({ args: { ...args, ...details, ...(keepsAmount && { counterAmount }) } });
+};
+
+/** The sides of a transfer swap when the notice's own side turns from the sender into the receiver, or back. */
+const swapIngestSides = () => {
+  chooseAlternative({ path: 'direction', value: ingestDirection.value === 'credit' ? 'debit' : 'credit' });
+};
+
+const logIngestAsPayment = () => {
+  const { counterAccountId: _counter, counterAmount: _amount, ...args } = cardArgsOf({ card: props.card });
+  isChoosingTransfer.value = false;
+  storeArgs({ args });
 };
 
 // A newer version of the card (another tab, a refused approval) replaces what the user was editing.
@@ -384,10 +487,12 @@ const summaryText = computed(() => {
   const payment = props.card.ingestRequest;
   if (payment) {
     // The money-out account comes first: for the card of the incoming side it is the other account.
+    const hasTwoSides = Boolean(payment.conversion) || isIngestTransfer.value;
+    const direction = payment.conversion ? payment.direction : ingestDirection.value;
     const ids =
-      payment.conversion && payment.direction === 'credit'
+      hasTwoSides && direction === 'credit'
         ? [ingestCounterAccountId.value, ingestAccountId.value]
-        : [ingestAccountId.value, payment.conversion ? ingestCounterAccountId.value : null];
+        : [ingestAccountId.value, hasTwoSides ? ingestCounterAccountId.value : null];
     const accountNames = ids
       .filter((id): id is string => id !== null)
       .map((id) => lookups.entityName({ kind: 'account', id }))
@@ -495,12 +600,23 @@ const summaryText = computed(() => {
         :lookups="lookups"
         :account-id="ingestAccountId"
         :counter-account-id="ingestCounterAccountId"
+        :direction="ingestDirection"
+        :transfer="isIngestTransfer"
+        :counter-amount="ingestCounterAmount"
+        :counter-amount-currency="counterAmountCurrency"
         :note="ingestNote"
+        :payee-field="ingestField({ path: 'payeeId' })"
+        :category-field="ingestField({ path: 'categoryId' })"
         :disabled="!isOpen || isBusy"
-        @update:account-id="chooseAlternative({ path: 'accountId', value: $event })"
-        @update:counter-account-id="chooseAlternative({ path: 'counterAccountId', value: $event })"
+        @update:account-id="chooseIngestAccount({ path: 'accountId', value: $event })"
+        @update:counter-account-id="chooseIngestAccount({ path: 'counterAccountId', value: $event })"
+        @commit:counter-amount="chooseAlternative({ path: 'counterAmount', value: $event })"
+        @swap="swapIngestSides"
+        @log-as-payment="logIngestAsPayment"
+        @log-as-transfer="isChoosingTransfer = true"
         @commit:note="chooseAlternative({ path: 'note', value: $event })"
         @update:note-dirty="isIngestNoteDirty = $event"
+        @update:counter-amount-dirty="isIngestCounterAmountDirty = $event"
       />
       <dl v-else-if="!isEditing" class="flex flex-col gap-0.5">
         <CardField
@@ -518,15 +634,25 @@ const summaryText = computed(() => {
       </dl>
       <div v-else class="flex flex-col gap-3">
         <p class="text-sm font-medium">{{ $t('chat.cards.edit.title') }}</p>
-        <div v-for="field in card.fields" :key="field.path" :data-testid="`field-editor-${field.path}`">
-          <CardFieldEditor
-            v-model="draft[field.path]"
-            :field="field"
-            :lookups="lookups"
-            :currency-code="currencyOf({ path: field.path, values: draft })"
-            :depends-on="card.dependsOn"
-          />
-        </div>
+        <IngestRequestEditor
+          v-if="card.ingestRequest"
+          v-model="draft"
+          :payment="card.ingestRequest"
+          :lookups="lookups"
+          :account-id="ingestAccountId"
+          :direction="ingestDirection"
+        />
+        <template v-else>
+          <div v-for="field in card.fields" :key="field.path" :data-testid="`field-editor-${field.path}`">
+            <CardFieldEditor
+              v-model="draft[field.path]"
+              :field="field"
+              :lookups="lookups"
+              :currency-code="currencyOf({ path: field.path, values: draft })"
+              :depends-on="card.dependsOn"
+            />
+          </div>
+        </template>
         <p v-if="edited.changed.length === 0" class="text-muted-foreground text-xs">
           {{ $t('chat.cards.edit.nothingChanged') }}
         </p>

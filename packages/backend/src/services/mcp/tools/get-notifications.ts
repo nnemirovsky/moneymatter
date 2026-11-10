@@ -25,7 +25,7 @@ export function registerGetNotifications(server: McpServer) {
     'get_notifications',
     {
       description:
-        'List the in-app notifications of the user, newest first: budget alerts, tag and subscription reminders, bank sync messages and release notes. Without status the list leaves out dismissed notifications. Returns { data, total, unreadCount }; page with limit and offset. unreadCount counts every unread notification, whatever the filters. With notificationId returns that one notification instead. To mark them read use mark_notifications_read, to hide one use dismiss_notification.',
+        "List the user's in-app notifications, newest first (budget alerts, reminders, bank sync messages, release notes), dismissed ones only by status. Returns { data, total, unreadCount }, unreadCount ignoring filters; page with limit and offset. notificationId returns that one instead. Mark read with mark_notifications_read, hide with dismiss_notification.",
       inputSchema,
     },
     async (args, extra) => {

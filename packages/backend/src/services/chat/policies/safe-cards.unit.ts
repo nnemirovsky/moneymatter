@@ -114,6 +114,34 @@ describe('isSafeForApproveAll', () => {
       expect(isIngestCardWithoutAccount({ card })).toBe(false);
       expect(isSafeForApproveAll({ card, cards: [card] })).toBe(true);
     });
+
+    it('is never safe as an own transfer, even with both sides chosen: they are a guess', () => {
+      const base = payment({ accountId: 'a1' });
+      const card = makeCard({
+        ...base,
+        fields: [...base.fields, field({ path: 'counterAccountId', value: 'a2' })],
+        ingestRequest: {
+          reason: 'ownTransfer',
+          counterparty: null,
+          sourceName: 'TBC',
+          amount: 699.89,
+          currencyCode: 'USD',
+          direction: 'debit',
+          cardName: null,
+          cardLastDigits: null,
+          time: null,
+          summary: null,
+          willLearn: null,
+          alsoWaiting: 0,
+          alsoSeenIn: [],
+          conversion: null,
+          counter: { accountId: 'a2', currencyCode: 'USD', amount: 699.89 },
+        },
+      });
+
+      expect(isIngestCardWithoutAccount({ card })).toBe(false);
+      expect(isSafeForApproveAll({ card, cards: [card] })).toBe(false);
+    });
   });
 
   describe('parents', () => {

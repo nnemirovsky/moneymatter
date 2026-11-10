@@ -3,6 +3,7 @@ import type { NotificationParkReason, RecordId } from '@bt/shared/types';
 import type { StoredContext } from '../context/context-types';
 import type { StoredBalanceAfter } from './balance-authority';
 import type { ParsedPayment } from './classify-notification';
+import type { OwnTransferGuess } from './guess-own-transfer-accounts';
 
 /** A payment read from a notification, as it sits in `IngestRequests.parsed` (a JSON column, so no `Date`). */
 export type StoredPayment = Omit<ParsedPayment, 'occurredAt'> & { occurredAt: string | null };
@@ -28,6 +29,11 @@ export interface StoredParse {
   attached?: boolean;
   /** For a payment parked on `unknownAccount`: the only account in its currency, to pre-fill the inbox card. */
   accountGuessId?: RecordId | null;
+  /**
+   * For a payment parked on `ownTransfer`: the two accounts of the source's history it most likely moved money between
+   * (see `guessOwnTransferAccounts`), to pre-fill both sides of the inbox card; `null` when the history points at no pair.
+   */
+  transferGuess?: OwnTransferGuess | null;
   /** The owner approved this request on its card (or by hand): the row it logs is theirs and needs no confirm card. */
   approved?: boolean;
   /** The account the owner chose on the inbox card of a parked payment; the job logs the payment there. */
@@ -40,6 +46,10 @@ export interface StoredParse {
   timeOverride?: string;
   /** The note the owner wrote on that card; an empty one is no note. Absent, the pipeline picks the note. */
   noteOverride?: string;
+  /** The payee the owner chose on that card; the job logs the payment with it instead of the one the merchant resolves to. */
+  payeeOverrideId?: RecordId;
+  /** The category the owner chose on that card; the job logs the payment in it, and no rule, payee or AI changes it. */
+  categoryOverrideId?: RecordId;
   /** The other side of a currency exchange this payment is one side of; the two are linked as a transfer once logged. */
   conversion?: { partnerRequestId: RecordId };
   /** For a request that joined another as the other side of an exchange: the reason it was parked with, restored if it waits again. */

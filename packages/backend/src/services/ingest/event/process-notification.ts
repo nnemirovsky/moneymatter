@@ -24,6 +24,7 @@ import { AiTransientError, formatNextTry, nextAiRetryAt, readAiRetry } from './a
 import { listNonZeroCurrencies } from './balance-authority';
 import type { ClassifiedNotification, ParsedPayment } from './classify-notification';
 import { notificationRules, notificationTimings } from './constants';
+import { findOwnTransferGuess } from './guess-own-transfer-accounts';
 import { loadSiblingBalances } from './load-sibling-balances';
 import { logNotificationPayment } from './log-notification-payment';
 import type { PaymentOverride } from './log-notification-payment';
@@ -126,6 +127,8 @@ const read = async ({
         accountId: stored.accountOverrideId ?? null,
         direction: stored.directionOverride ?? null,
         note: stored.noteOverride ?? null,
+        payeeId: stored.payeeOverrideId ?? null,
+        categoryId: stored.categoryOverrideId ?? null,
         time: stored.timeOverride ? new Date(stored.timeOverride) : null,
         approved: stored.approved === true,
       },
@@ -275,9 +278,22 @@ const settleClassified = async ({
   }
 
   if (classified.verdict === 'park') {
+    const { payment } = classified;
+    // A transfer between the owner's accounts names neither: the source's history guesses both sides for the card.
+    const transferGuess =
+      classified.reason === 'ownTransfer' && payment
+        ? await findOwnTransferGuess({
+            userId: row.userId,
+            sourceId: row.sourceId,
+            currencyCode: payment.currencyCode,
+            amount: payment.amount,
+            kind: payment.kind,
+          })
+        : undefined;
     const parsed: StoredParse = {
       ...summary,
-      ...(classified.payment && { payment: toStoredPayment({ payment: classified.payment }) }),
+      ...(payment && { payment: toStoredPayment({ payment }) }),
+      ...(transferGuess !== undefined && { transferGuess }),
     };
     await parkNotification({
       requestId: row.id,

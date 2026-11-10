@@ -16,7 +16,7 @@ export function registerRestoreRemovedTransactions(server: McpServer) {
     'restore_removed_transactions',
     {
       description:
-        'Bring back transactions that remove_duplicate_transactions or merge_duplicate_transactions took out of the books. Find the ids in get_reconciliation_history. A restored row comes back as it was but without the budget, group and subscription links it lost when it was removed or merged. On a manual account the restored amount returns to the balance. Refused when the account of a row was disconnected from the bank in the meantime. Returns { restoredIds }. Requires finance:write scope.',
+        'Bring back transactions remove_duplicate_transactions or merge_duplicate_transactions took out (ids in get_reconciliation_history), without the budget, group and subscription links they lost. On a manual account the amount returns to the balance. Refused when the account was disconnected from the bank since. Returns { restoredIds }. Requires finance:write scope.',
       inputSchema,
     },
     async (args, extra) => {

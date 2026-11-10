@@ -16,7 +16,7 @@ import { createPayee } from '@services/payees';
 import { resolveNormalizedName } from '@services/payees/payee-namespace';
 
 import { matchIngestMerchant, resolveUnmatchedMerchant } from '../payee/resolve-ingest-payee';
-import { applyPayeeChoice } from './apply-payee-choice';
+import { applyPayeeChoice, decidePayeeChoice } from './apply-payee-choice';
 
 const findPayee = jest.mocked(Payees.findOne);
 const create = jest.mocked(createPayee);
@@ -152,5 +152,58 @@ describe('applyPayeeChoice', () => {
     create.mockRejectedValue(new Error('database is gone'));
 
     expect(await apply({ rawMerchant: 'Cafe', choice: { type: 'new', name: 'Cafe' } })).toBeNull();
+  });
+});
+
+describe('decidePayeeChoice', () => {
+  const decide = (args: { rawMerchant: string | null; choice: Parameters<typeof decidePayeeChoice>[0]['choice'] }) =>
+    decidePayeeChoice({ userId: USER, ...args });
+
+  it('names the payee an exact lookup or a core match finds', async () => {
+    matchMerchant.mockResolvedValueOnce({ kind: 'exact', payeeId: 'wolt' });
+    expect(await decide({ rawMerchant: 'WOLT.COM', choice: null })).toEqual({ kind: 'payee', payeeId: 'wolt' });
+
+    matchMerchant.mockResolvedValueOnce({ kind: 'unique', payeeId: 'blue', distance: 1 });
+    expect(await decide({ rawMerchant: 'BLUE COFEE', choice: null })).toEqual({ kind: 'payee', payeeId: 'blue' });
+  });
+
+  it('leaves an unmatched merchant to decide on its own, and writes nothing', async () => {
+    expect(await decide({ rawMerchant: ' ANTHROPIC* CLAUDE SUB ', choice: null })).toEqual({
+      kind: 'merchant',
+      rawMerchant: 'ANTHROPIC* CLAUDE SUB',
+    });
+    expect(unmatched).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('decides no payee for an ignored or ambiguous merchant and for no merchant at all', async () => {
+    matchMerchant.mockResolvedValueOnce({ kind: 'ignored' });
+    expect(await decide({ rawMerchant: 'PAYPAL *X', choice: { type: 'new', name: 'X' } })).toEqual({ kind: 'none' });
+
+    matchMerchant.mockResolvedValueOnce({
+      kind: 'ambiguous',
+      candidates: [
+        { payeeId: 'a', name: 'A', distance: 1 },
+        { payeeId: 'b', name: 'B', distance: 1 },
+      ],
+    });
+    expect(await decide({ rawMerchant: 'AB', choice: null })).toEqual({ kind: 'none' });
+
+    expect(await decide({ rawMerchant: null, choice: null })).toEqual({ kind: 'none' });
+  });
+
+  it('adopts a payee of the new name, else names the payee to create, without creating it', async () => {
+    resolveName.mockResolvedValueOnce({ payeeId: 'wolt', name: 'Wolt', via: 'canonical' });
+    expect(await decide({ rawMerchant: 'WOLT GE', choice: { type: 'new', name: 'Wolt' } })).toEqual({
+      kind: 'payee',
+      payeeId: 'wolt',
+    });
+
+    expect(await decide({ rawMerchant: 'SP *COFFEE LAB', choice: { type: 'new', name: 'Coffee Lab' } })).toMatchObject({
+      kind: 'named',
+      name: 'Coffee Lab',
+      fallbackMerchant: 'SP *COFFEE LAB',
+    });
+    expect(create).not.toHaveBeenCalled();
   });
 });

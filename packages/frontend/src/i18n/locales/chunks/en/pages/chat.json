@@ -546,6 +546,10 @@
           "expense": "Expense",
           "income": "Income"
         },
+        "direction": {
+          "debit": "Money out",
+          "credit": "Money in"
+        },
         "transferNature": {
           "not_transfer": "Not a transfer",
           "transfer_between_user_accounts": "Between your accounts",
@@ -596,6 +600,10 @@
         "income": "Income",
         "expense": "Expense",
         "payee": "Payee",
+        "merchant": "Merchant",
+        "newPayee": "New payee, created when you approve",
+        "newPayeePlaceholder": "New: {name}",
+        "categoryDefault": "No category matched yet; the AI may still pick one.",
         "source": "From app",
         "card": "Card",
         "time": "Time",
@@ -617,7 +625,15 @@
         "conversionRate": "1 {from} = {rate} {to}",
         "fromAccount": "Money left",
         "toAccount": "Money arrived",
-        "conversionHint": "Your bank told of this exchange in two notifications. Approving logs both and links them as one transfer between these accounts."
+        "conversionHint": "Your bank told of this exchange in two notifications. Approving logs both and links them as one transfer between these accounts.",
+        "transfer": "Transfer",
+        "swapAccounts": "Swap",
+        "counterAmountLabel": "Amount in {currency}",
+        "counterAmountPlaceholder": "Enter the amount in {currency}",
+        "transferHint": "Looks like a transfer between your accounts. Approving logs both sides as one transfer.",
+        "transferIncompleteHint": "Choose both accounts, and the amount when their currencies differ, to log the transfer.",
+        "logAsPayment": "Log as a payment instead",
+        "logAsTransfer": "Log as a transfer"
       },
       "sourceSettled": "This source is not waiting for approval any more.",
       "matchingRules": {

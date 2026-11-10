@@ -10,7 +10,8 @@ import { getToolPolicy } from './index';
  * cannot be checked and makes the card unsafe, as does a parent that was rejected or failed; an
  * applied parent is done and is not looked at. The card's own `safe` flag is an output of this
  * check, never an input. A payment of the automation inbox with no account chosen is never safe, whatever
- * it was parked for: approve-all must not log money on an account the owner has not seen.
+ * it was parked for: approve-all must not log money on an account the owner has not seen. Nor is an own-account
+ * transfer: both of its sides are a guess from the source's history.
  */
 export function isSafeForApproveAll({ card, cards }: { card: ChatProposalCard; cards: ChatProposalCard[] }): boolean {
   const byId = new Map(cards.map((candidate) => [candidate.id, candidate]));
@@ -51,6 +52,7 @@ function isSafeOnItsOwn({ candidate }: { candidate: ChatProposalCard }): boolean
     candidate.kind !== 'settings' &&
     candidate.canApply.ok &&
     !isIngestCardWithoutAccount({ card: candidate }) &&
+    candidate.ingestRequest?.reason !== 'ownTransfer' &&
     !candidate.fields.some((field) => field.uncertain !== undefined)
   );
 }

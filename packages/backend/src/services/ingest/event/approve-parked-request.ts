@@ -3,8 +3,10 @@ import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
 import { t } from '@i18n/index';
 import { ConflictError, ValidationError } from '@js/errors';
 import { logger } from '@js/utils/logger';
+import Categories from '@models/categories.model';
 import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
+import Payees from '@models/payees.model';
 import { runAfterCommit } from '@services/common/run-after-commit';
 import { withTransaction } from '@services/common/with-transaction';
 
@@ -21,11 +23,38 @@ import { prepareNotificationRetry } from './prepare-notification-retry';
 import { readStoredParse } from './stored-parse';
 import { rerunWaitingSiblings, siblingMatchOf } from './waiting-siblings';
 
+/**
+ * The payee and category the owner chose are their own records, checked the way a transaction write checks them, so a
+ * foreign id is refused at approval instead of failing the job that logs the payment.
+ */
+const assertOwnDetails = async ({
+  userId,
+  payeeId,
+  categoryId,
+}: {
+  userId: number;
+  payeeId?: RecordId;
+  categoryId?: RecordId;
+}) => {
+  if (payeeId) {
+    await findOrThrowNotFound({
+      query: Payees.findOne({ where: { id: payeeId, userId }, attributes: ['id'] }),
+      message: t({ key: 'payees.notFound' }),
+    });
+  }
+  if (categoryId) {
+    await findOrThrowNotFound({
+      query: Categories.findOne({ where: { id: categoryId, userId }, attributes: ['id'] }),
+      message: t({ key: 'categories.notFound' }),
+    });
+  }
+};
+
 /** The park reasons whose payment the owner can log from the inbox card. */
 const APPROVABLE_REASONS = TWIN_PARK_REASONS;
 
 /**
- * The owner's yes on a parked payment: the account (and direction) they chose are stored with the
+ * The owner's yes on a parked payment: the account, direction, note, payee and category they chose are stored with the
  * reading, the request goes back to `received`, and the processing job is handed the request once
  * this transaction commits. The job logs the payment on the chosen account; nothing is guessed.
  *
@@ -44,6 +73,8 @@ export const approveParkedRequest = withTransaction(
     counterAmount,
     direction,
     note,
+    payeeId,
+    categoryId,
   }: {
     userId: number;
     requestId: RecordId;
@@ -58,6 +89,10 @@ export const approveParkedRequest = withTransaction(
     direction?: 'debit' | 'credit';
     /** The note the owner wrote on the card; `''` logs the payment without one. */
     note?: string;
+    /** The payee the owner chose on the card, instead of the one the merchant resolves to. Refused on a transfer. */
+    payeeId?: RecordId;
+    /** The category the owner chose on the card, instead of the pipeline's pick. Refused on a transfer. */
+    categoryId?: RecordId;
   }): Promise<{ requestId: RecordId; queued: true; learned: AccountLesson; alsoQueued: number }> => {
     const row = await findOrThrowNotFound({
       query: IngestRequests.findOne({ where: { id: requestId, userId, pipeline: 'notification' }, lock: true }),
@@ -70,6 +105,13 @@ export const approveParkedRequest = withTransaction(
 
     const stored = readStoredParse({ value: row.parsed });
     if (!stored?.payment) throw new ConflictError({ message: t({ key: 'ingest.requestNotWaiting' }) });
+
+    // A transfer between the owner's accounts has no payee and no category.
+    const withDetails = Boolean(payeeId || categoryId);
+    if (withDetails && counterAccountId) {
+      throw new ValidationError({ message: t({ key: 'ingest.transferTakesNoPayee' }) });
+    }
+    await assertOwnDetails({ userId, payeeId, categoryId });
 
     // A lone notice logged as a transfer gets the other side the owner named.
     const reading = stored as typeof stored & { payment: NonNullable<typeof stored.payment> };
@@ -93,6 +135,8 @@ export const approveParkedRequest = withTransaction(
       note,
     });
     if (conversion) {
+      if (withDetails) throw new ValidationError({ message: t({ key: 'ingest.transferTakesNoPayee' }) });
+
       const prepared = await prepareNotificationRetry({
         requestId,
         force: true,
@@ -187,6 +231,8 @@ export const approveParkedRequest = withTransaction(
         ...(accountId && { accountOverrideId: accountId }),
         ...(direction && { directionOverride: direction }),
         ...(note !== undefined && { noteOverride: note }),
+        ...(payeeId && { payeeOverrideId: payeeId }),
+        ...(categoryId && { categoryOverrideId: categoryId }),
       } as unknown as Record<string, unknown>,
     });
 

@@ -12,6 +12,7 @@ import { withTransaction } from '@services/common/with-transaction';
 import { hasNoMerchant } from '@services/ingest/conversion/conversion-rule';
 import { correctionOf, transferSuggestionOf } from '@services/ingest/corrections/read-ingest-suggestions';
 import { chooseSurvivor } from '@services/ingest/dedup/choose-survivor';
+import type { OwnTransferGuess } from '@services/ingest/event/guess-own-transfer-accounts';
 import { readStoredParse } from '@services/ingest/event/stored-parse';
 import { suggestParkedNote } from '@services/ingest/event/suggest-parked-note';
 import { findWaitingSiblings, siblingMatchOf } from '@services/ingest/event/waiting-siblings';
@@ -203,6 +204,25 @@ const postSourceCard = async ({ userId, sourceId }: { userId: number; sourceId: 
   if (proposal) await source.update({ proposalId: proposal.proposalId });
 };
 
+/**
+ * Both sides of an own-account transfer the history guessed, as the card's arguments. `accountId` is always the notice's
+ * own side and `counterAccountId` the other one, so with the notice's direction the approval logs the money leaving
+ * `fromAccountId` and arriving at `toAccountId`: a `debit` notice is the sender's side, a `credit` the receiver's.
+ */
+const transferArgsOf = ({
+  guess,
+  direction,
+}: {
+  guess: OwnTransferGuess | null | undefined;
+  direction: 'debit' | 'credit';
+}): { accountId: RecordId; counterAccountId: RecordId } | null => {
+  if (!guess) return null;
+
+  return direction === 'debit'
+    ? { accountId: guess.fromAccountId, counterAccountId: guess.toAccountId }
+    : { accountId: guess.toAccountId, counterAccountId: guess.fromAccountId };
+};
+
 /** The card of a parked request that needs the owner's word; one per request. */
 const postRequestCardInTransaction = async ({
   userId,
@@ -251,6 +271,7 @@ const postRequestCardInTransaction = async ({
       requestId: request.id,
       ...(stored?.accountGuessId && !isGeneric && { accountId: stored.accountGuessId }),
       ...((direction === 'debit' || direction === 'credit') && { direction }),
+      ...(request.reason === 'ownTransfer' && direction && transferArgsOf({ guess: stored?.transferGuess, direction })),
       ...(note && { note }),
     },
   });

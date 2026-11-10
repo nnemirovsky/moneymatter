@@ -4,6 +4,7 @@ import {
   CHAT_TOOL_FIELD_LABEL_KEYS,
   chatCardTitleKey,
   type ChatCardTitle,
+  type ChatIngestCategorySource,
   type ChatIngestRequestSummary,
   type ChatProposalCard,
   type ChatCardWarning,
@@ -192,7 +193,30 @@ const ingestRequestOf = ({
     alsoSeenIn: alsoSeenInOf({ value: before.alsoSeenIn }),
     conversion: conversionOf({ value: before.conversion }),
     counter: counterOf({ value: before.counter }),
+    ...('payee' in before && { payee: payeeOf({ value: before.payee }) }),
+    ...(categoryOf({ value: before.category }) && { category: categoryOf({ value: before.category }) }),
   };
+};
+
+/** The payee a plain payment is logged with, as the preview stored it. */
+const payeeOf = ({ value }: { value: unknown }): ChatIngestRequestSummary['payee'] => {
+  if (!value || typeof value !== 'object') return null;
+  const payee = value as Record<string, unknown>;
+  if (typeof payee.name !== 'string') return null;
+
+  return { id: typeof payee.id === 'string' ? payee.id : null, name: payee.name };
+};
+
+const CATEGORY_SOURCES: readonly ChatIngestCategorySource[] = ['payeeRule', 'history', 'default'];
+
+/** The category a plain payment is logged in, as the preview stored it. */
+const categoryOf = ({ value }: { value: unknown }): ChatIngestRequestSummary['category'] => {
+  if (!value || typeof value !== 'object') return undefined;
+  const category = value as Record<string, unknown>;
+  const source = CATEGORY_SOURCES.find((known) => known === category.source);
+  if (typeof category.id !== 'string' || !source) return undefined;
+
+  return { id: category.id, source };
 };
 
 /** The currency exchange the payment is one side of, as the preview stored it. */
@@ -240,9 +264,14 @@ const alsoSeenInOf = ({ value }: { value: unknown }): ChatIngestRequestSummary['
 const isIngestRequestCard = ({ row }: { row: Pick<ChatProposalRow, 'toolName'> }): boolean =>
   row.toolName === LOG_INGEST_REQUEST_TOOL_NAME;
 
+/** A parked payment logged as a payment, not as one side of an exchange or as a transfer between the owner's accounts. */
+const isPlainPayment = ({ row }: { row: Pick<ChatProposalRow, 'args' | 'preview'> }): boolean =>
+  !row.preview?.before?.conversion && !row.args.counterAccountId;
+
 /**
- * The card of a payment that has no account to be logged on yet: parked on its account with none chosen, or one side
- * of a currency exchange whose two accounts the owner has not chosen and the server could not tell.
+ * The card of a payment that has no account to be logged on yet: parked on its account with none chosen, one side
+ * of a currency exchange whose two accounts the owner has not chosen and the server could not tell, or a lone notice
+ * logged as a transfer (an own transfer with both sides guessed, say) whose own side is not chosen.
  */
 const needsIngestAccount = ({ row }: { row: Pick<ChatProposalRow, 'toolName' | 'args' | 'preview'> }): boolean => {
   if (row.toolName !== LOG_INGEST_REQUEST_TOOL_NAME) return false;
@@ -256,6 +285,9 @@ const needsIngestAccount = ({ row }: { row: Pick<ChatProposalRow, 'toolName' | '
 
     return !(args.accountId ?? own) || !(args.counterAccountId ?? other);
   }
+
+  // Logged as a transfer, the notice's own side is needed as much as the other one.
+  if (args.counterAccountId) return !args.accountId;
 
   return row.preview?.before?.reason === 'unknownAccount' && !row.args.accountId;
 };
@@ -287,6 +319,11 @@ export function toChatProposalCard({
           ...(needsIngestAccount({ row }) && { accountId: undefined }),
           // The note is always there to write, empty until the owner (or the history) fills it.
           ...(!('note' in row.args) && { note: undefined }),
+          // A plain payment's payee and category are there to choose, empty while the server's pick stands.
+          ...(isPlainPayment({ row }) && {
+            ...(!('payeeId' in row.args) && { payeeId: undefined }),
+            ...(!('categoryId' in row.args) && { categoryId: undefined }),
+          }),
         }
       : row.args,
   ).map(([path, value]) => {

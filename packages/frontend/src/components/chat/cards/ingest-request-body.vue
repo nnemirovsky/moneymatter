@@ -2,11 +2,14 @@
 import NotificationSourceLabel from '@/components/common/notification-source-label.vue';
 import AccountSelectField from '@/components/fields/account-select-field.vue';
 import InputField from '@/components/fields/input-field.vue';
-import type { ChatIngestRequestSummary, NotificationSourceDisplay } from '@bt/shared/types';
+import { Button } from '@/components/lib/ui/button';
+import type { ChatCardField, ChatIngestRequestSummary, NotificationSourceDisplay } from '@bt/shared/types';
+import { ArrowUpDownIcon } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { formatVisualDate, formatVisualValue } from '../visuals/format-visual-value';
+import CardField from './card-field.vue';
 import { conversionMoney } from './card-summary';
 import type { CardLookups } from './use-card-lookups';
 
@@ -19,11 +22,22 @@ const props = defineProps<{
   lookups: CardLookups;
   /** The account the card will log the payment on, `null` until one is chosen. */
   accountId: string | null;
-  /** For a currency exchange: the account of the other side's payment, `null` until one is chosen. */
+  /** For a currency exchange or a transfer: the account of the other side's payment, `null` until one is chosen. */
   counterAccountId: string | null;
-  /** The account cannot change: the card is closed, or a change is being saved. */
+  /** The direction the card logs the payment with; for a transfer it says whether the card account sends or receives. */
+  direction: 'debit' | 'credit' | null;
+  /** The payment is logged as a transfer between the owner's accounts: both sides are chosen on the card. */
+  transfer: boolean;
+  /** For a transfer: what the other side takes in its own currency, `null` until the owner writes it. */
+  counterAmount: number | null;
+  /** For a transfer: the currency of the other side when it differs from the notice's, so it needs its own amount. */
+  counterAmountCurrency: string | null;
   /** The note the card holds; empty until the history or the owner fills it. */
   note: string;
+  /** For a plain payment: the card's payee and category fields, set once the owner chose them; `null` for a transfer. */
+  payeeField: ChatCardField | null;
+  categoryField: ChatCardField | null;
+  /** The account cannot change: the card is closed, or a change is being saved. */
   disabled: boolean;
 }>();
 
@@ -34,6 +48,16 @@ const emit = defineEmits<{
   'commit:note': [value: string];
   /** Whether the text in the field differs from the note on the card, so Approve can wait for the save. */
   'update:noteDirty': [value: boolean];
+  /** The owner finished writing the other side's amount of a transfer: store it on the card. */
+  'commit:counterAmount': [value: number];
+  /** Whether the amount in that field differs from the one on the card, so Approve can wait for the save. */
+  'update:counterAmountDirty': [value: boolean];
+  /** The sides of the transfer are the other way round. */
+  swap: [];
+  /** Log the notice as a plain payment, without the other side. */
+  'log-as-payment': [];
+  /** Choose the other side, to log the notice as a transfer. */
+  'log-as-transfer': [];
 }>();
 
 const draftNote = ref(props.note);
@@ -51,7 +75,52 @@ const commitNote = () => {
   if (isNoteDirty.value) emit('commit:note', draftNote.value);
 };
 
+const draftCounterAmount = ref<number | null>(props.counterAmount);
+watch(
+  () => props.counterAmount,
+  (amount) => {
+    draftCounterAmount.value = amount;
+  },
+);
+
+// Only a field on screen holds an edit: once the other side takes the notice's currency, the amount is not asked for.
+const isCounterAmountDirty = computed(
+  () => props.counterAmountCurrency !== null && draftCounterAmount.value !== props.counterAmount,
+);
+watch(isCounterAmountDirty, (isDirty) => emit('update:counterAmountDirty', isDirty), { immediate: true });
+
+const commitCounterAmount = () => {
+  const amount = draftCounterAmount.value;
+  if (typeof amount === 'number' && amount > 0 && amount !== props.counterAmount) emit('commit:counterAmount', amount);
+};
+
 const { t } = useI18n();
+
+/**
+ * The payee and category a plain payment is logged with: the owner's choice, else the server's pick. A payee approving
+ * would create has no id yet and is named by its name.
+ */
+const payeeRow = computed<ChatCardField | null>(() => {
+  const field = props.payeeField;
+  if (!field || hasTwoSides.value) return null;
+
+  const chosen = typeof field.value === 'string' ? field.value : null;
+  return { ...field, value: chosen ?? props.payment.payee?.id ?? props.payment.payee?.name ?? null };
+});
+const isNewPayee = computed(
+  () => typeof props.payeeField?.value !== 'string' && props.payment.payee != null && props.payment.payee.id === null,
+);
+
+const categoryRow = computed<ChatCardField | null>(() => {
+  const field = props.categoryField;
+  if (!field || hasTwoSides.value) return null;
+
+  const chosen = typeof field.value === 'string' ? field.value : null;
+  return { ...field, value: chosen ?? props.payment.category?.id ?? null };
+});
+const isDefaultCategory = computed(
+  () => typeof props.categoryField?.value !== 'string' && props.payment.category?.source === 'default',
+);
 
 const amountText = computed(() =>
   props.payment.amount === null
@@ -84,8 +153,18 @@ const selectedCounterAccount = computed(
   () => props.lookups.accounts().find((account) => account.id === props.counterAccountId) ?? null,
 );
 
-/** The card's own payment is the outgoing side of the exchange, so its account is where the money left. */
-const ownIsOutgoing = computed(() => props.payment.direction !== 'credit');
+/**
+ * The card's own payment is the outgoing side, so its account is where the money left. An exchange's sides are the
+ * bank's two notices; a transfer's follow the direction on the card, which the owner flips to swap them.
+ */
+const ownIsOutgoing = computed(
+  () => (props.payment.conversion ? props.payment.direction : props.direction) !== 'credit',
+);
+const hasTwoSides = computed(() => Boolean(props.payment.conversion) || props.transfer);
+const isOwnTransfer = computed(() => props.payment.reason === 'ownTransfer' && !props.payment.conversion);
+const isTransferIncomplete = computed(
+  () => !selectedCounterAccount.value || (props.counterAmountCurrency !== null && !props.counterAmount),
+);
 const fromAccount = computed(() => (ownIsOutgoing.value ? selectedAccount.value : selectedCounterAccount.value));
 const toAccount = computed(() => (ownIsOutgoing.value ? selectedCounterAccount.value : selectedAccount.value));
 
@@ -157,6 +236,13 @@ const lessonText = computed(() => {
         {{ $t(`${LABEL_ROOT}.exchange`) }}
       </span>
       <span
+        v-else-if="transfer"
+        class="border-border text-app-transfer-color rounded-[5px] border px-1.5 py-px text-[10.5px] font-bold tracking-wider uppercase"
+        data-testid="ingest-transfer"
+      >
+        {{ $t(`${LABEL_ROOT}.transfer`) }}
+      </span>
+      <span
         v-else-if="directionKey"
         :class="[
           'rounded-[5px] border px-1.5 py-px text-[10.5px] font-bold tracking-wider uppercase',
@@ -172,7 +258,9 @@ const lessonText = computed(() => {
 
     <dl class="flex flex-col gap-1 text-sm">
       <div class="flex justify-between gap-3" data-testid="ingest-counterparty">
-        <dt class="text-muted-foreground shrink-0">{{ $t(`${LABEL_ROOT}.payee`) }}</dt>
+        <dt class="text-muted-foreground shrink-0">
+          {{ $t(payeeRow ? `${LABEL_ROOT}.merchant` : `${LABEL_ROOT}.payee`) }}
+        </dt>
         <dd class="min-w-0 text-right break-words">
           {{ payment.counterparty ?? $t(`${LABEL_ROOT}.unknownCounterparty`) }}
         </dd>
@@ -203,6 +291,25 @@ const lessonText = computed(() => {
       </div>
     </dl>
 
+    <dl v-if="payeeRow || categoryRow" class="-mx-2 flex flex-col gap-0.5" data-testid="ingest-details">
+      <div v-if="payeeRow" data-testid="ingest-payee">
+        <CardField :field="payeeRow" :lookups="lookups" :currency-code="null" :depends-on="[]" disabled />
+        <p v-if="isNewPayee" class="text-muted-foreground px-2 text-right text-xs" data-testid="ingest-new-payee">
+          {{ $t(`${LABEL_ROOT}.newPayee`) }}
+        </p>
+      </div>
+      <div v-if="categoryRow" data-testid="ingest-category">
+        <CardField :field="categoryRow" :lookups="lookups" :currency-code="null" :depends-on="[]" disabled />
+        <p
+          v-if="isDefaultCategory"
+          class="text-muted-foreground px-2 text-right text-xs"
+          data-testid="ingest-default-category"
+        >
+          {{ $t(`${LABEL_ROOT}.categoryDefault`) }}
+        </p>
+      </div>
+    </dl>
+
     <p v-if="payment.summary" class="text-muted-foreground text-sm wrap-anywhere" data-testid="ingest-note">
       {{ payment.summary }}
     </p>
@@ -216,7 +323,7 @@ const lessonText = computed(() => {
       />
     </div>
 
-    <div v-if="payment.conversion" class="flex flex-col gap-3" data-testid="ingest-conversion-accounts">
+    <div v-if="hasTwoSides" class="flex flex-col gap-3" data-testid="ingest-conversion-accounts">
       <AccountSelectField
         :model-value="fromAccount"
         :accounts="lookups.accounts()"
@@ -235,9 +342,53 @@ const lessonText = computed(() => {
         required
         @update:model-value="chooseTo({ id: $event?.id ?? null })"
       />
-      <p class="text-muted-foreground text-xs" data-testid="ingest-conversion-hint">
-        {{ $t(`${LABEL_ROOT}.conversionHint`) }}
-      </p>
+      <template v-if="payment.conversion">
+        <p class="text-muted-foreground text-xs" data-testid="ingest-conversion-hint">
+          {{ $t(`${LABEL_ROOT}.conversionHint`) }}
+        </p>
+      </template>
+      <template v-else>
+        <div
+          v-if="counterAmountCurrency"
+          data-testid="ingest-counter-amount"
+          @keydown.enter.prevent="commitCounterAmount"
+          @focusout="commitCounterAmount"
+        >
+          <InputField
+            v-model="draftCounterAmount"
+            type="number"
+            :label="$t(`${LABEL_ROOT}.counterAmountLabel`, { currency: counterAmountCurrency })"
+            :placeholder="$t(`${LABEL_ROOT}.counterAmountPlaceholder`, { currency: counterAmountCurrency })"
+            :disabled="disabled"
+          />
+        </div>
+        <p class="text-muted-foreground text-xs" data-testid="ingest-transfer-hint">
+          {{ $t(isTransferIncomplete ? `${LABEL_ROOT}.transferIncompleteHint` : `${LABEL_ROOT}.transferHint`) }}
+        </p>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            :disabled="disabled"
+            data-testid="ingest-swap"
+            @click="emit('swap')"
+          >
+            <ArrowUpDownIcon class="size-4" aria-hidden="true" />
+            {{ $t(`${LABEL_ROOT}.swapAccounts`) }}
+          </Button>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            :disabled="disabled"
+            data-testid="ingest-log-as-payment"
+            @click="emit('log-as-payment')"
+          >
+            {{ $t(`${LABEL_ROOT}.logAsPayment`) }}
+          </Button>
+        </div>
+      </template>
     </div>
 
     <div v-else class="flex flex-col gap-1.5" data-testid="ingest-account">
@@ -270,6 +421,18 @@ const lessonText = computed(() => {
           }}
         </p>
       </template>
+      <Button
+        v-if="isOwnTransfer"
+        type="button"
+        variant="link"
+        size="sm"
+        class="self-start px-0"
+        :disabled="disabled"
+        data-testid="ingest-log-as-transfer"
+        @click="emit('log-as-transfer')"
+      >
+        {{ $t(`${LABEL_ROOT}.logAsTransfer`) }}
+      </Button>
     </div>
   </div>
 </template>

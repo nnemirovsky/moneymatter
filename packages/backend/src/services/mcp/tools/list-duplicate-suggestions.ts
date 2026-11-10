@@ -10,7 +10,7 @@ export function registerListDuplicateSuggestions(server: McpServer) {
     'list_duplicate_suggestions',
     {
       description:
-        'List the open duplicate suggestions: pairs of transactions on one account that the AI thinks record the same payment (an iOS Automation payment next to a bank row, a second notification of one payment). Returns { suggestions: [{ id, accountId, confidence, reason, trigger, createdAt, transaction, candidate, suggestedSurvivorId, sources }] }: confidence is 0.6 to 1, trigger is "ingest" (found when the payment was logged) or "scan" (found after a bank sync or statement import), suggestedSurvivorId is the one of the two rows a merge should keep, and sources lists the iOS Automation sources each row holds. Nothing is merged: merge a pair you agree with using merge_duplicate_transactions (transactionIds are the two ids, survivorId is suggestedSurvivorId), and reject a wrong one with dismiss_duplicate_suggestion.',
+        'List open duplicate suggestions: pairs on one account the AI thinks are one payment. Returns { suggestions: [{ id, accountId, confidence (0.6 to 1), reason, trigger ("ingest" when logged, "scan" after a sync or import), createdAt, transaction, candidate, suggestedSurvivorId, sources }] }. Nothing is merged: merge a pair with merge_duplicate_transactions (the two ids, survivorId = suggestedSurvivorId) or reject it with dismiss_duplicate_suggestion.',
     },
     async (extra) => {
       const userId = getUserId({ extra });

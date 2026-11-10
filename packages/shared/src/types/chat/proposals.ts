@@ -207,7 +207,19 @@ export interface ChatIngestRequestSummary {
    * and links them as one transfer.
    */
   conversion: ChatIngestConversion | null;
+  /**
+   * For a plain payment: the payee approving logs it with, the one the owner chose or else the one the merchant resolves
+   * to (`id: null` for a new payee approving creates under `name`); `null` when it gets none. Absent for a transfer.
+   */
+  payee?: { id: string | null; name: string } | null;
+  /**
+   * For a plain payment: the category approving logs it in when the owner chooses none, and where it comes from (the
+   * payee's rule, the payee's past payments, or the default category, which the AI may still change). Absent for a transfer.
+   */
+  category?: { id: string; source: ChatIngestCategorySource };
 }
+
+export type ChatIngestCategorySource = 'payeeRule' | 'history' | 'default';
 
 export interface ChatIngestConversion {
   fromAmount: number;

@@ -30,10 +30,19 @@ describe('pickAccountByName', () => {
     });
   });
 
-  it('picks nothing when two accounts match', () => {
+  it('prefers the account named exactly like the app over ones its name is a prefix of', () => {
+    const list = accounts('TBC', 'TBC Business');
+
+    expect(pickAccountByName({ accounts: list, appName: 'TBC Business' })).toBe(list[1]);
+    expect(pickAccountByName({ accounts: list, appName: 'tbc' })).toBe(list[0]);
+    expect(pickAccountByName({ accounts: list, appName: 'TBC Bank' })).toBe(list[0]);
+  });
+
+  it('picks nothing when two accounts match equally well', () => {
     expect(
-      pickAccountByName({ accounts: accounts('Raiffeisen', 'Raiffeisen Savings'), appName: 'Raiffeisen' }),
+      pickAccountByName({ accounts: accounts('Raiffeisen Savings', 'Raiffeisen Business'), appName: 'Raiffeisen' }),
     ).toBeNull();
+    expect(pickAccountByName({ accounts: accounts('TBC', 'TBC'), appName: 'TBC' })).toBeNull();
   });
 
   it('picks nothing when no account matches', () => {

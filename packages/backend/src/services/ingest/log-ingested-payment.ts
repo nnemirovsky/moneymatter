@@ -14,9 +14,11 @@ import { connection } from '@models/connection';
 import IngestRequests from '@models/ingest-requests.model';
 import Payees from '@models/payees.model';
 import { getBaseCurrency } from '@models/users-currencies.model';
+import { getUserDefaultCategory } from '@models/users.model';
 import { DOMAIN_EVENTS, eventBus, type IngestPaymentLoggedPayload } from '@services/common/event-bus';
 import { runAfterCommit } from '@services/common/run-after-commit';
 import { createTransaction } from '@services/transactions/create-transaction';
+import { buildManualCategorizationMeta } from '@services/transactions/manual-categorization-meta';
 import { getStoredUserTimeZone } from '@services/user-settings/get-user-time-zone';
 import { QueryTypes } from 'sequelize';
 
@@ -53,7 +55,7 @@ interface LogIngestedPaymentParams {
    */
   merchant: string;
   payeeId: string | null;
-  /** The pipeline's own pick: the payee's history category, else the user's default category. */
+  /** The pipeline's own pick (the payee's history category, else the user's default category), or the owner's (`categoryChosen`). */
   categoryId: string;
   externalReference: string;
   cardPayment: CardPaymentMarker;
@@ -70,6 +72,13 @@ interface LogIngestedPaymentParams {
   noteOverride?: string | null;
   /** The owner approved this payment on its card, so the row needs no confirm card. */
   confirmed?: boolean;
+  /** The owner chose `payeeId` on the card: it is theirs, not a payee this payment's merchant created. */
+  payeeChosen?: boolean;
+  /**
+   * The owner chose `categoryId` on the card: it wins over the user's automations and the payee's rule, and is stamped
+   * as a manual category, so the AI leaves it alone.
+   */
+  categoryChosen?: boolean;
 }
 
 /**
@@ -180,6 +189,8 @@ export const logIngestedPayment = async ({
   cardLastDigits = null,
   noteOverride,
   confirmed = false,
+  payeeChosen = false,
+  categoryChosen = false,
 }: LogIngestedPaymentParams): Promise<{ transactionId: RecordId }> => {
   const source: IngestSourceEntry = {
     requestId,
@@ -196,7 +207,7 @@ export const logIngestedPayment = async ({
   const context = payeeId
     ? await readPayeeContext({ userId, payeeId, requestId, merchant, time })
     : { note: merchant || null, createdPayeeId: null };
-  const { createdPayeeId } = context;
+  const createdPayeeId = payeeChosen ? null : context.createdPayeeId;
   // The owner's own note is theirs, not the pipeline's: it is not recorded as `systemNote`.
   const note = noteOverride === undefined ? context.note : noteOverride;
 
@@ -217,6 +228,13 @@ export const logIngestedPayment = async ({
       paymentType: PAYMENT_TYPES.mobilePayment,
       transferNature: TRANSACTION_TRANSFER_NATURE.not_transfer,
       categoryId,
+      ...(categoryChosen && {
+        categoryIdIsExplicit: true,
+        categorizationMeta: buildManualCategorizationMeta({
+          categoryId,
+          defaultCategoryId: await getUserDefaultCategory({ id: userId }),
+        }),
+      }),
       payeeId: payeeId ?? undefined,
       note: note ?? undefined,
       applyAutomations: true,
@@ -256,8 +274,8 @@ export const logIngestedPayment = async ({
   }
 
   // Rules, a payee's default and the AI decide the category inside `createTransaction`; only a row
-  // none of them stamped carries the pipeline's own pick.
-  if (!transaction.categorizationMeta) {
+  // none of them stamped carries the pipeline's own pick. The owner's choice is not the pipeline's.
+  if (!transaction.categorizationMeta && !categoryChosen) {
     await connection.sequelize.query(
       `UPDATE "Transactions"
           SET "externalData" = jsonb_set("externalData", '{ingest,systemCategoryId}', to_jsonb(CAST(:categoryId AS text)))

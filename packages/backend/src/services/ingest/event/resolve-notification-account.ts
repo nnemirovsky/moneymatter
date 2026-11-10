@@ -5,13 +5,12 @@ import type NotificationSources from '@models/notification-sources.model';
 import { Op } from 'sequelize';
 
 import { resolveCardAccount } from '../resolve-card-account';
+import { isUsableAccount } from '../usable-account';
 import { loadHistoryUses, pickHistoryAccount, type HistoryConfidence } from './history-account';
 
 /** The account when it takes a manual payment (not archived, not a loan or a vehicle), else `null`. */
 const usableOrNull = ({ account }: { account: Accounts | null }): Accounts | null =>
-  account && account.status !== ACCOUNT_STATUSES.archived && !isDedicatedFlowAccountCategory(account.accountCategory)
-    ? account
-    : null;
+  account && isUsableAccount({ account }) ? account : null;
 
 /** How the account was found, in the order the lookup tries them; `owner` is the account chosen on an inbox card. */
 type AccountMatch = 'card' | 'sourceDefault' | 'history' | 'owner';
@@ -126,9 +125,11 @@ const comparableName = ({ value }: { value: string }): string =>
 const MIN_PREFIX_NAME_LENGTH = 3;
 
 /**
- * The account whose name matches the app a notification came from: equal, or one a prefix of the
- * other ("Raiffeisen" and "Raiffeisen Bank"), case and diacritics ignored. `null` unless exactly one
- * account matches.
+ * The account whose name matches the app a notification came from, case and diacritics ignored:
+ * the one named exactly like the app, else the one whose name is a prefix of the app's or the other
+ * way round ("Raiffeisen" and "Raiffeisen Bank"). An exact name wins over prefixes, so the "TBC
+ * Business" app picks a "TBC Business" account beside a "TBC" one. `null` unless exactly one account
+ * matches at the first level that has any.
  */
 export const pickAccountByName = <T extends { id: RecordId; name: string }>({
   accounts,
@@ -140,13 +141,14 @@ export const pickAccountByName = <T extends { id: RecordId; name: string }>({
   const app = appName ? comparableName({ value: appName }) : '';
   if (app.length < MIN_PREFIX_NAME_LENGTH) return null;
 
-  const matches = accounts.filter((account) => {
-    const name = comparableName({ value: account.name });
+  const named = accounts
+    .map((account) => ({ account, name: comparableName({ value: account.name }) }))
+    .filter(({ name }) => name.length >= MIN_PREFIX_NAME_LENGTH);
 
-    return name.length >= MIN_PREFIX_NAME_LENGTH && (name.startsWith(app) || app.startsWith(name));
-  });
+  const exact = named.filter(({ name }) => name === app);
+  const matches = exact.length > 0 ? exact : named.filter(({ name }) => name.startsWith(app) || app.startsWith(name));
 
-  return matches.length === 1 ? matches[0]! : null;
+  return matches.length === 1 ? matches[0]!.account : null;
 };
 
 /**

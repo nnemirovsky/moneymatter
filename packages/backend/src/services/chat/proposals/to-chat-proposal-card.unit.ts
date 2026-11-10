@@ -337,13 +337,21 @@ describe('toChatProposalCard', () => {
   });
 
   describe('a parked payment waiting for its account', () => {
-    const ingestRow = ({ args = {}, reason = 'unknownAccount' }: { args?: Record<string, unknown>; reason?: string }) =>
+    const ingestRow = ({
+      args = {},
+      reason = 'unknownAccount',
+      before = {},
+    }: {
+      args?: Record<string, unknown>;
+      reason?: string;
+      before?: Record<string, unknown>;
+    }) =>
       row({
         toolName: 'log_ingest_request',
         cardKind: 'action',
         entity: 'ingestRequest',
         args: { requestId: ID, ...args },
-        preview: { before: { reason, requestId: ID } },
+        preview: { before: { reason, requestId: ID, ...before } },
       });
 
     it('is not applicable, so not safe for approve-all, until an account is chosen', () => {
@@ -374,6 +382,107 @@ describe('toChatProposalCard', () => {
       });
 
       expect(card.safe).toBe(true);
+    });
+
+    describe('an own transfer', () => {
+      const OTHER = 'b3f1c2d9-7a54-4b18-9c0e-5d2a8b6f4e11';
+
+      it('needs its own side once the other side is chosen', () => {
+        const card = toChatProposalCard({
+          row: ingestRow({ reason: 'ownTransfer', args: { counterAccountId: OTHER } }),
+          parents: [],
+        });
+
+        expect(card.canApply).toEqual({ ok: false, reasonKey: 'chat.cards.ingestAccountRequired' });
+        expect(card.fields.map((field) => field.path)).toContain('accountId');
+      });
+
+      it('can be approved with both sides, and shows the other side, but is never safe for approve-all', () => {
+        const card = toChatProposalCard({
+          row: ingestRow({
+            reason: 'ownTransfer',
+            args: { accountId: ID, counterAccountId: OTHER },
+            before: { counter: { accountId: OTHER, currencyCode: 'USD', amount: 699.89 } },
+          }),
+          parents: [],
+        });
+
+        expect(card.canApply).toEqual({ ok: true });
+        expect(card.ingestRequest?.counter).toEqual({ accountId: OTHER, currencyCode: 'USD', amount: 699.89 });
+        expect(card.safe).toBe(false);
+      });
+
+      it('can be approved without either side, as before', () => {
+        const card = toChatProposalCard({ row: ingestRow({ reason: 'ownTransfer' }), parents: [] });
+
+        expect(card.canApply).toEqual({ ok: true });
+        expect(card.safe).toBe(false);
+      });
+
+      it('offers no payee or category once logged as a transfer', () => {
+        const card = toChatProposalCard({
+          row: ingestRow({ reason: 'ownTransfer', args: { accountId: ID, counterAccountId: OTHER } }),
+          parents: [],
+        });
+
+        expect(card.fields.map((field) => field.path)).not.toContain('payeeId');
+        expect(card.fields.map((field) => field.path)).not.toContain('categoryId');
+        expect(card.ingestRequest).not.toHaveProperty('payee');
+        expect(card.ingestRequest).not.toHaveProperty('category');
+      });
+    });
+
+    describe('the payee and category of a plain payment', () => {
+      const PAYEE = 'c4d2e3f0-8b65-4c29-8d1f-6e3b9c7a5f22';
+      const CATEGORY = 'd5e3f4a1-9c76-4d3a-9e2f-7f4cad8b6a33';
+
+      it('shows what approving gives the payment, with both fields there to choose', () => {
+        const card = toChatProposalCard({
+          row: ingestRow({
+            args: { accountId: ID },
+            before: {
+              payee: { id: null, name: 'ANTHROPIC* CLAUDE SUB' },
+              category: { id: CATEGORY, source: 'default' },
+            },
+          }),
+          parents: [],
+        });
+
+        expect(card.ingestRequest?.payee).toEqual({ id: null, name: 'ANTHROPIC* CLAUDE SUB' });
+        expect(card.ingestRequest?.category).toEqual({ id: CATEGORY, source: 'default' });
+
+        const payee = card.fields.find((field) => field.path === 'payeeId')!;
+        const category = card.fields.find((field) => field.path === 'categoryId')!;
+        expect(payee).toMatchObject({ labelKey: 'chat.fields.payeeId', editable: { type: 'entity', entity: 'payee' } });
+        expect(payee.value).toBeUndefined();
+        expect(category).toMatchObject({
+          labelKey: 'chat.fields.categoryId',
+          editable: { type: 'entity', entity: 'category' },
+        });
+      });
+
+      it('keeps the payee and category the owner chose', () => {
+        const card = toChatProposalCard({
+          row: ingestRow({
+            args: { accountId: ID, payeeId: PAYEE, categoryId: CATEGORY },
+            before: { payee: { id: PAYEE, name: 'Claude' }, category: { id: CATEGORY, source: 'history' } },
+          }),
+          parents: [],
+        });
+
+        expect(card.fields.find((field) => field.path === 'payeeId')?.value).toBe(PAYEE);
+        expect(card.fields.find((field) => field.path === 'categoryId')?.value).toBe(CATEGORY);
+        expect(card.ingestRequest?.payee).toEqual({ id: PAYEE, name: 'Claude' });
+      });
+
+      it('says a payment that resolves to no payee gets none', () => {
+        const card = toChatProposalCard({
+          row: ingestRow({ before: { payee: null, category: { id: CATEGORY, source: 'default' } } }),
+          parents: [],
+        });
+
+        expect(card.ingestRequest?.payee).toBeNull();
+      });
     });
   });
 });

@@ -2,6 +2,7 @@ import type { RecordId } from '@bt/shared/types';
 import { Money } from '@common/types/money';
 import IngestRequests from '@models/ingest-requests.model';
 import NotificationSources from '@models/notification-sources.model';
+import Transactions from '@models/transactions.model';
 import UsersCurrencies from '@models/users-currencies.model';
 import { getUserDefaultCategory } from '@models/users.model';
 import { withTransaction } from '@services/common/with-transaction';
@@ -18,6 +19,7 @@ import { attachToExistingPayment } from '../dedup/attach-to-existing-payment';
 import { slotOfNotification } from '../dedup/source-slots';
 import { dropHoldRelease } from '../hold-release/drop-hold-release';
 import { logIngestedPayment } from '../log-ingested-payment';
+import { learnPayeeCorrection } from '../payee/learn-payee-correction';
 import { applyPayeeChoice } from './apply-payee-choice';
 import { resolveBalanceAuthority } from './balance-authority';
 import type { ParsedPayment } from './classify-notification';
@@ -51,6 +53,10 @@ export interface PaymentOverride {
   direction: 'debit' | 'credit' | null;
   /** The note the owner wrote on the card; `''` is no note, `null` leaves the note to the pipeline. */
   note: string | null;
+  /** The payee the owner chose on the card, instead of the one the merchant resolves to. */
+  payeeId?: RecordId | null;
+  /** The category the owner chose on the card, instead of the pipeline's pick; no rule, payee or AI changes it. */
+  categoryId?: RecordId | null;
   /** The time the exchange the payment is a side of was placed at (see `placeConversionTime`); `null` keeps the notice's. */
   time?: Date | null;
   /** The owner approved the request on its card: the row is logged confirmed. */
@@ -221,13 +227,18 @@ const logNotificationPaymentImpl = async ({
     accountAmount = converted.amount;
   }
 
-  const payeeId = await applyPayeeChoice({
-    userId,
-    requestId,
-    rawMerchant: payment.merchant,
-    choice: payment.payee,
-  });
-  const historyCategoryId = payeeId ? await pickHistoryCategory({ ownerUserId: userId, payeeId, asOf: time }) : null;
+  const chosenPayeeId = override?.payeeId ?? null;
+  const chosenCategoryId = override?.categoryId ?? null;
+  const payeeId =
+    chosenPayeeId ??
+    (await applyPayeeChoice({
+      userId,
+      requestId,
+      rawMerchant: payment.merchant,
+      choice: payment.payee,
+    }));
+  const historyCategoryId =
+    !chosenCategoryId && payeeId ? await pickHistoryCategory({ ownerUserId: userId, payeeId, asOf: time }) : null;
 
   const siblings = payment.balanceAfter
     ? await loadSiblingBalances({
@@ -303,7 +314,9 @@ const logNotificationPaymentImpl = async ({
     time,
     merchant,
     payeeId,
-    categoryId: historyCategoryId ?? (await getUserDefaultCategory({ id: userId })),
+    categoryId: chosenCategoryId ?? historyCategoryId ?? (await getUserDefaultCategory({ id: userId })),
+    ...(chosenPayeeId && { payeeChosen: true }),
+    ...(chosenCategoryId && { categoryChosen: true }),
     externalReference: buildExternalReference({ source: row.source, idempotencyKey: row.idempotencyKey }),
     cardPayment: {
       source: row.source,
@@ -325,6 +338,17 @@ const logNotificationPaymentImpl = async ({
     cardLabel,
     parsed: balanceStored as unknown as Record<string, unknown>,
   });
+
+  // The payee the owner chose for the merchant is their word on it, as on the confirm card: the next payment there maps to it.
+  if (chosenPayeeId) {
+    const logged = await Transactions.findByPk(transactionId, { attributes: ['externalData'] });
+    await learnPayeeCorrection({
+      userId,
+      externalData: logged?.externalData ?? null,
+      previousPayeeId: null,
+      payeeId: chosenPayeeId,
+    });
+  }
 
   // A hold and its release drop each other. Inside this transaction, so the dropped row never gets a card.
   if ((await dropHoldRelease({ userId, requestId, transactionId })) === 'dropped') return { kind: 'dropped' };

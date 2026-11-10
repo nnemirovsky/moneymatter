@@ -16,7 +16,7 @@ export function registerMarkNotificationsRead(server: McpServer) {
     'mark_notifications_read',
     {
       description:
-        'Mark notifications read. With notificationId marks that one and returns { success }; success is false when the id is unknown. Without it marks all unread notifications read and returns { updated } with the count. Works for accounts whose plan no longer includes editing, as the inbox does in the app. Requires finance:write scope.',
+        'Mark notifications read: one by notificationId, returning { success } (false for an unknown id), else all unread, returning { updated } with the count. Works on plans without editing, like the app inbox. Requires finance:write scope.',
       inputSchema,
     },
     async (args, extra) => {

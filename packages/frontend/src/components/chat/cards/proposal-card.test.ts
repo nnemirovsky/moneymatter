@@ -8,6 +8,8 @@ import {
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const';
 import AccountSelectField from '@/components/fields/account-select-field.vue';
 import FormattedAmountField from '@/components/fields/formatted-amount-field.vue';
+import PayeeSelectField from '@/components/fields/payee-select-field.vue';
+import SelectField from '@/components/fields/select-field.vue';
 import { ApiErrorResponseError } from '@/js/errors';
 import {
   API_ERROR_CODES,
@@ -19,7 +21,7 @@ import {
 import { QueryClient, VueQueryPlugin, useQuery } from '@tanstack/vue-query';
 import { RouterLinkStub, flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { defineComponent, h } from 'vue';
+import { type DefineComponent, defineComponent, h } from 'vue';
 
 import CardFieldEditor from './card-field-editor.vue';
 import { LOGO_STUBS, buildCard, buildField, buildLookups, createChatI18n } from './card-test-fixtures';
@@ -47,16 +49,28 @@ vi.mock('./use-card-lookups', () => ({
       accounts: [
         { id: 'acc-raif', name: 'Raiffeisen', currencyCode: 'RUB' } as AccountModel,
         { id: 'acc-usd', name: 'Example USD', currencyCode: 'USD' } as AccountModel,
+        { id: 'acc-usd2', name: 'Spare USD', currencyCode: 'USD' } as AccountModel,
         { id: 'acc-eur', name: 'Example EUR', currencyCode: 'EUR' } as AccountModel,
       ],
       names: {
         'account:acc-1': 'Main card',
         'account:acc-usd': 'Example USD',
+        'account:acc-usd2': 'Spare USD',
         'account:acc-eur': 'Example EUR',
         'category:cat-1': 'Groceries',
         'category:cat-2': 'Dining',
+        'payee:payee-1': 'Anthropic',
+        'payee:payee-2': 'Claude',
       },
-      currencies: { 'acc-1': 'USD', 'acc-gbp': 'GBP', 'acc-jpy': 'JPY' },
+      currencies: {
+        'acc-1': 'USD',
+        'acc-gbp': 'GBP',
+        'acc-jpy': 'JPY',
+        'acc-raif': 'RUB',
+        'acc-usd': 'USD',
+        'acc-usd2': 'USD',
+        'acc-eur': 'EUR',
+      },
     }),
 }));
 // A dialog that renders only while open, with its slots and a confirm button.
@@ -329,6 +343,147 @@ describe('ProposalCard', () => {
       ]);
     });
 
+    describe('the payee and category of a plain payment', () => {
+      const payeeField = ({ value }: { value?: string } = {}) =>
+        buildField({
+          path: 'payeeId',
+          value,
+          display: { kind: 'entity' },
+          editable: { type: 'entity', entity: 'payee' },
+        });
+      const categoryField = ({ value }: { value?: string } = {}) =>
+        buildField({
+          path: 'categoryId',
+          value,
+          display: { kind: 'entity' },
+          editable: { type: 'entity', entity: 'category' },
+        });
+
+      const detailsCard = ({
+        payeeId,
+        categoryId,
+        payee = { id: null, name: 'ANTHROPIC* CLAUDE SUB' },
+        categorySource = 'default' as const,
+      }: {
+        payeeId?: string;
+        categoryId?: string;
+        payee?: { id: string | null; name: string } | null;
+        categorySource?: 'payeeRule' | 'history' | 'default';
+      } = {}) => {
+        const card = paymentCard({ account: 'acc-raif' });
+        card.fields = [
+          requestField,
+          accountField({ value: 'acc-raif' }),
+          buildField({ path: 'direction', value: 'debit', editable: { type: 'enum', options: ['debit', 'credit'] } }),
+          payeeField({ value: payeeId }),
+          categoryField({ value: categoryId }),
+          buildField({ path: 'note', value: undefined, editable: { type: 'text' } }),
+        ];
+        card.ingestRequest = {
+          ...card.ingestRequest!,
+          reason: 'lowConfidence',
+          counterparty: 'ANTHROPIC* CLAUDE SUB',
+          direction: 'debit',
+          payee,
+          category: { id: 'cat-1', source: categorySource },
+        };
+
+        return card;
+      };
+
+      it('shows the new payee the merchant would create and the category, with the merchant as it was printed', () => {
+        const wrapper = mountCard({ card: detailsCard(), inbox: true });
+
+        expect(wrapper.get('[data-testid="ingest-counterparty"]').text()).toContain('Merchant');
+        expect(wrapper.get('[data-testid="ingest-payee"]').text()).toContain('ANTHROPIC* CLAUDE SUB');
+        expect(wrapper.get('[data-testid="ingest-new-payee"]').text()).toBe('New payee, created when you approve');
+        expect(wrapper.get('[data-testid="ingest-category"]').text()).toContain('Groceries');
+        expect(wrapper.find('[data-testid="ingest-default-category"]').exists()).toBe(true);
+      });
+
+      it('names an existing payee, and drops the hints once the history decides', () => {
+        const wrapper = mountCard({
+          card: detailsCard({ payee: { id: 'payee-1', name: 'Anthropic' }, categorySource: 'history' }),
+          inbox: true,
+        });
+
+        expect(wrapper.get('[data-testid="ingest-payee"]').text()).toContain('Anthropic');
+        expect(wrapper.find('[data-testid="ingest-new-payee"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="ingest-default-category"]').exists()).toBe(false);
+      });
+
+      it('shows the payee and category the owner chose', () => {
+        const wrapper = mountCard({
+          card: detailsCard({ payeeId: 'payee-2', categoryId: 'cat-2', payee: { id: 'payee-2', name: 'Claude' } }),
+          inbox: true,
+        });
+
+        expect(wrapper.get('[data-testid="ingest-payee"]').text()).toContain('Claude');
+        expect(wrapper.get('[data-testid="ingest-category"]').text()).toContain('Dining');
+        expect(wrapper.find('[data-testid="ingest-new-payee"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="ingest-default-category"]').exists()).toBe(false);
+      });
+
+      it('opens a form of its own in Edit, without the request reference', async () => {
+        const wrapper = mountCard({ card: detailsCard(), inbox: true });
+
+        await wrapper.get('[data-testid="edit"]').trigger('click');
+
+        for (const path of ['payeeId', 'categoryId', 'accountId', 'direction', 'note']) {
+          expect(wrapper.find(`[data-testid="field-editor-${path}"]`).exists()).toBe(true);
+        }
+        expect(wrapper.find('[data-testid="field-editor-requestId"]').exists()).toBe(false);
+        expect(wrapper.findAllComponents(CardFieldEditor)).toHaveLength(0);
+        expect(wrapper.text()).not.toContain('req-1');
+        expect(wrapper.findComponent(PayeeSelectField).props('placeholder')).toBe('New: ANTHROPIC* CLAUDE SUB');
+      });
+
+      it('offers the direction as money out or money in', async () => {
+        const wrapper = mountCard({ card: detailsCard(), inbox: true });
+
+        await wrapper.get('[data-testid="edit"]').trigger('click');
+
+        const direction = wrapper.findComponent(SelectField as unknown as DefineComponent).props() as Record<
+          string,
+          unknown
+        >;
+        expect(direction.values).toEqual([
+          { value: 'debit', label: 'Money out' },
+          { value: 'credit', label: 'Money in' },
+        ]);
+        expect(direction.modelValue).toEqual({ value: 'debit', label: 'Money out' });
+      });
+
+      it('saves the payee picked in Edit and leaves the untouched category to the server', async () => {
+        vi.mocked(editChatProposal).mockResolvedValue(detailsCard({ payeeId: 'payee-2' }));
+        const wrapper = mountCard({ card: detailsCard(), inbox: true });
+
+        await wrapper.get('[data-testid="edit"]').trigger('click');
+        wrapper.findComponent(PayeeSelectField).vm.$emit('update:modelValue', 'payee-2');
+        await wrapper.vm.$nextTick();
+        await wrapper.get('[data-testid="save-edit"]').trigger('click');
+        await flushPromises();
+
+        const [call] = firstArgsOf(editChatProposal) as [{ payload: { args: Record<string, unknown> } }];
+        expect(call.payload.args).toMatchObject({ requestId: 'req-1', accountId: 'acc-raif', payeeId: 'payee-2' });
+        expect(call.payload.args.categoryId).toBeUndefined();
+      });
+
+      it('hands the payee back to the server when it is cleared in Edit', async () => {
+        vi.mocked(editChatProposal).mockResolvedValue(detailsCard());
+        const wrapper = mountCard({ card: detailsCard({ payeeId: 'payee-2' }), inbox: true });
+
+        await wrapper.get('[data-testid="edit"]').trigger('click');
+        wrapper.findComponent(PayeeSelectField).vm.$emit('update:modelValue', null);
+        await wrapper.vm.$nextTick();
+        await wrapper.get('[data-testid="save-edit"]').trigger('click');
+        await flushPromises();
+
+        const [call] = firstArgsOf(editChatProposal) as [{ payload: { args: Record<string, unknown> } }];
+        expect(call.payload.args.payeeId).toBeUndefined();
+      });
+    });
+
     describe('one side of a currency exchange', () => {
       const exchangeCard = ({
         args = {},
@@ -425,6 +580,264 @@ describe('ProposalCard', () => {
             payload: { revision: 1, args: { requestId: 'req-1', counterAccountId: 'acc-raif' } },
           },
         ]);
+      });
+    });
+
+    describe('an own-account transfer', () => {
+      const entityField = ({ path, value }: { path: string; value: string }) =>
+        buildField({ path, value, display: { kind: 'entity' }, editable: { type: 'entity', entity: 'account' } });
+
+      const transferCard = ({
+        accountId = 'acc-usd' as string | null,
+        counterAccountId = 'acc-usd2' as string | null,
+        direction = 'debit' as 'debit' | 'credit',
+        counterAmount,
+      }: {
+        accountId?: string | null;
+        counterAccountId?: string | null;
+        direction?: 'debit' | 'credit';
+        counterAmount?: number;
+      } = {}) => {
+        const card = paymentCard();
+        card.fields = [
+          requestField,
+          ...(accountId ? [entityField({ path: 'accountId', value: accountId })] : []),
+          buildField({ path: 'direction', value: direction, editable: null }),
+          ...(counterAccountId ? [entityField({ path: 'counterAccountId', value: counterAccountId })] : []),
+          ...(counterAmount !== undefined
+            ? [buildField({ path: 'counterAmount', value: counterAmount, editable: { type: 'money' } })]
+            : []),
+        ];
+        card.canApply = { ok: true };
+        card.ingestRequest = {
+          ...card.ingestRequest!,
+          reason: 'ownTransfer',
+          counterparty: null,
+          sourceName: 'TBC',
+          amount: 699.89,
+          currencyCode: 'USD',
+          direction: 'debit',
+          cardLastDigits: null,
+          summary: null,
+          willLearn: null,
+          ...(counterAccountId && { counter: { accountId: counterAccountId, currencyCode: 'USD', amount: 699.89 } }),
+        };
+
+        return card;
+      };
+
+      const pickers = (wrapper: ReturnType<typeof mountCard>) => wrapper.findAllComponents(AccountSelectField);
+
+      it('shows a transfer with the guessed accounts on the two sides, the card account sending a debit', () => {
+        const wrapper = mountCard({ card: transferCard(), inbox: true });
+
+        expect(wrapper.get('[data-testid="ingest-transfer"]').text()).toBe('Transfer');
+        expect(wrapper.find('[data-testid="ingest-direction"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="ingest-account"]').exists()).toBe(false);
+        const [from, to] = pickers(wrapper);
+        expect(from!.props()).toMatchObject({ label: 'Money left', modelValue: { id: 'acc-usd' } });
+        expect(to!.props()).toMatchObject({ label: 'Money arrived', modelValue: { id: 'acc-usd2' } });
+        expect(approveButton(wrapper).attributes('disabled')).toBeUndefined();
+      });
+
+      it('shows no payee or category for a transfer, and edits it on the card rather than in a form', () => {
+        const wrapper = mountCard({ card: transferCard(), inbox: true });
+
+        expect(wrapper.find('[data-testid="ingest-details"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="edit"]').exists()).toBe(false);
+      });
+
+      it('drops a chosen payee and category once the notice is logged as a transfer', async () => {
+        const card = transferCard({ counterAccountId: null });
+        card.fields.push(
+          buildField({ path: 'payeeId', value: 'payee-1', editable: { type: 'entity', entity: 'payee' } }),
+          buildField({ path: 'categoryId', value: 'cat-1', editable: { type: 'entity', entity: 'category' } }),
+        );
+        vi.mocked(editChatProposal).mockResolvedValue(transferCard());
+        const wrapper = mountCard({ card, inbox: true });
+
+        await wrapper.get('[data-testid="ingest-log-as-transfer"]').trigger('click');
+        pickers(wrapper)[1]!.vm.$emit('update:modelValue', { id: 'acc-usd2' });
+        await flushPromises();
+
+        const [call] = firstArgsOf(editChatProposal) as [{ payload: { args: Record<string, unknown> } }];
+        expect(call.payload.args).toMatchObject({ accountId: 'acc-usd', counterAccountId: 'acc-usd2' });
+        expect(call.payload.args.payeeId).toBeUndefined();
+        expect(call.payload.args.categoryId).toBeUndefined();
+      });
+
+      it('puts the card account on the receiving side once the direction is a credit', () => {
+        const [from, to] = pickers(mountCard({ card: transferCard({ direction: 'credit' }), inbox: true }));
+
+        expect(from!.props('modelValue')).toMatchObject({ id: 'acc-usd2' });
+        expect(to!.props('modelValue')).toMatchObject({ id: 'acc-usd' });
+      });
+
+      it('stores a new receiving account as the other side of a debit', async () => {
+        vi.mocked(editChatProposal).mockResolvedValue(transferCard());
+        const wrapper = mountCard({ card: transferCard(), inbox: true });
+
+        pickers(wrapper)[1]!.vm.$emit('update:modelValue', { id: 'acc-raif' });
+        await flushPromises();
+
+        expect(firstArgsOf(editChatProposal)).toEqual([
+          {
+            proposalId: 'card-1',
+            payload: {
+              revision: 1,
+              args: { requestId: 'req-1', accountId: 'acc-usd', direction: 'debit', counterAccountId: 'acc-raif' },
+            },
+          },
+        ]);
+      });
+
+      it('swaps the two sides in one edit by flipping the direction', async () => {
+        vi.mocked(editChatProposal).mockResolvedValue(transferCard({ direction: 'credit' }));
+        const wrapper = mountCard({ card: transferCard(), inbox: true });
+
+        await wrapper.get('[data-testid="ingest-swap"]').trigger('click');
+        await flushPromises();
+
+        expect(firstArgsOf(editChatProposal)).toEqual([
+          {
+            proposalId: 'card-1',
+            payload: {
+              revision: 1,
+              args: { requestId: 'req-1', accountId: 'acc-usd', direction: 'credit', counterAccountId: 'acc-usd2' },
+            },
+          },
+        ]);
+      });
+
+      it('logs it as a payment instead by dropping the other side and its amount', async () => {
+        vi.mocked(editChatProposal).mockResolvedValue(transferCard({ counterAccountId: null }));
+        const wrapper = mountCard({
+          card: transferCard({ counterAccountId: 'acc-eur', counterAmount: 640 }),
+          inbox: true,
+        });
+
+        await wrapper.get('[data-testid="ingest-log-as-payment"]').trigger('click');
+        await flushPromises();
+
+        expect(firstArgsOf(editChatProposal)).toEqual([
+          {
+            proposalId: 'card-1',
+            payload: { revision: 1, args: { requestId: 'req-1', accountId: 'acc-usd', direction: 'debit' } },
+          },
+        ]);
+      });
+
+      it('offers the single account picker without the other side, and the two sides again on request', async () => {
+        const wrapper = mountCard({ card: transferCard({ accountId: null, counterAccountId: null }), inbox: true });
+
+        expect(wrapper.find('[data-testid="ingest-account"]').exists()).toBe(true);
+        expect(wrapper.get('[data-testid="ingest-direction"]').text()).toBe('Expense');
+        expect(pickers(wrapper)).toHaveLength(1);
+
+        await wrapper.get('[data-testid="ingest-log-as-transfer"]').trigger('click');
+
+        expect(wrapper.get('[data-testid="ingest-transfer"]').text()).toBe('Transfer');
+        expect(pickers(wrapper)).toHaveLength(2);
+        expect(wrapper.find('[data-testid="ingest-account"]').exists()).toBe(false);
+        // Approving now would log a plain payment: it waits for the other side.
+        expect(approveButton(wrapper).attributes('disabled')).toBeDefined();
+      });
+
+      it('asks for the amount of the other side only when its currency differs', async () => {
+        expect(
+          mountCard({ card: transferCard(), inbox: true }).find('[data-testid="ingest-counter-amount"]').exists(),
+        ).toBe(false);
+
+        const other = mountCard({ card: transferCard({ counterAccountId: 'acc-eur' }), inbox: true });
+        expect(other.find('[data-testid="ingest-counter-amount"]').exists()).toBe(true);
+        expect(approveButton(other).attributes('disabled')).toBeDefined();
+
+        vi.mocked(editChatProposal).mockResolvedValue(
+          transferCard({ counterAccountId: 'acc-eur', counterAmount: 640 }),
+        );
+        const input = other.get('[data-testid="ingest-counter-amount"] input');
+        await input.setValue('640');
+        await input.trigger('focusout');
+        await flushPromises();
+
+        expect(firstArgsOf(editChatProposal)).toEqual([
+          {
+            proposalId: 'card-1',
+            payload: {
+              revision: 1,
+              args: {
+                requestId: 'req-1',
+                accountId: 'acc-usd',
+                direction: 'debit',
+                counterAccountId: 'acc-eur',
+                counterAmount: 640,
+              },
+            },
+          },
+        ]);
+      });
+
+      it('holds Approve while a changed amount of the other side is not saved, and saves it on leaving the field', async () => {
+        vi.mocked(editChatProposal).mockResolvedValue(
+          transferCard({ counterAccountId: 'acc-eur', counterAmount: 650 }),
+        );
+        const wrapper = mountCard({
+          card: transferCard({ counterAccountId: 'acc-eur', counterAmount: 640 }),
+          inbox: true,
+        });
+        expect(approveButton(wrapper).attributes('disabled')).toBeUndefined();
+        const input = wrapper.get('[data-testid="ingest-counter-amount"] input');
+
+        await input.setValue('650');
+        expect(approveButton(wrapper).attributes('disabled')).toBeDefined();
+
+        await input.trigger('focusout');
+        await flushPromises();
+
+        expect(firstArgsOf(editChatProposal)).toEqual([
+          {
+            proposalId: 'card-1',
+            payload: {
+              revision: 1,
+              args: {
+                requestId: 'req-1',
+                accountId: 'acc-usd',
+                direction: 'debit',
+                counterAccountId: 'acc-eur',
+                counterAmount: 650,
+              },
+            },
+          },
+        ]);
+      });
+
+      it('drops the amount of the other side when an account in the same currency replaces it', async () => {
+        vi.mocked(editChatProposal).mockResolvedValue(transferCard());
+        const wrapper = mountCard({
+          card: transferCard({ counterAccountId: 'acc-eur', counterAmount: 640 }),
+          inbox: true,
+        });
+
+        pickers(wrapper)[1]!.vm.$emit('update:modelValue', { id: 'acc-usd2' });
+        await flushPromises();
+
+        expect(firstArgsOf(editChatProposal)).toEqual([
+          {
+            proposalId: 'card-1',
+            payload: {
+              revision: 1,
+              args: { requestId: 'req-1', accountId: 'acc-usd', direction: 'debit', counterAccountId: 'acc-usd2' },
+            },
+          },
+        ]);
+      });
+
+      it('sums up the folded card with the money-out account first', () => {
+        const card = { ...transferCard({ direction: 'credit' }), status: 'applied' as const };
+
+        expect(mountCard({ card, inbox: true }).get('[data-testid="card-summary"]').text()).toMatch(
+          / · Spare USD → Example USD$/,
+        );
       });
     });
 

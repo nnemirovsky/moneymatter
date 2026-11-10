@@ -2,6 +2,10 @@ import { ACCOUNT_STATUSES, isDedicatedFlowAccountCategory, type RecordId } from 
 import { NotFoundError } from '@js/errors';
 import Accounts from '@models/accounts.model';
 
+/** Whether the account takes manual payments: not archived, and not a loan or vehicle (their balances follow dedicated flows). */
+export const isUsableAccount = ({ account }: { account: Pick<Accounts, 'status' | 'accountCategory'> }): boolean =>
+  account.status !== ACCOUNT_STATUSES.archived && !isDedicatedFlowAccountCategory(account.accountCategory);
+
 /**
  * An account an automated or owner-chosen payment may land on: one the user owns that takes manual
  * payments, so not archived and not a loan or vehicle (their balances follow dedicated flows). Throws
@@ -21,11 +25,7 @@ export const assertUsableAccount = async ({
     attributes: ['id', 'type', 'currencyCode', 'status', 'accountCategory'],
   });
 
-  if (
-    !account ||
-    account.status === ACCOUNT_STATUSES.archived ||
-    isDedicatedFlowAccountCategory(account.accountCategory)
-  ) {
+  if (!account || !isUsableAccount({ account })) {
     throw new NotFoundError({ message });
   }
 
