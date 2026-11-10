@@ -211,6 +211,8 @@ export type SubscriptionDetailForMcp = Pick<
   | 'name'
   | 'type'
   | 'frequency'
+  | 'intervalUnit'
+  | 'intervalCount'
   | 'startDate'
   | 'endDate'
   | 'isActive'
@@ -243,6 +245,8 @@ export function slimSubscriptionDetailForMcp(sub: SubscriptionDetailForMcp) {
     expectedAmount: sub.expectedAmount,
     expectedCurrencyCode: sub.expectedCurrencyCode,
     frequency: sub.frequency,
+    intervalUnit: sub.intervalUnit,
+    intervalCount: sub.intervalCount,
     startDate: sub.startDate,
     endDate: sub.endDate,
     isActive: sub.isActive,

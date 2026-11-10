@@ -1,4 +1,4 @@
-import { SUBSCRIPTION_FREQUENCIES, SUBSCRIPTION_TYPES } from '@bt/shared/types';
+import { SUBSCRIPTION_FREQUENCIES, SUBSCRIPTION_INTERVAL_UNITS, SUBSCRIPTION_TYPES } from '@bt/shared/types';
 import { currencyCode, recordId } from '@common/lib/zod/custom-types';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -19,9 +19,21 @@ const inputSchema = {
       SUBSCRIPTION_FREQUENCIES.quarterly,
       SUBSCRIPTION_FREQUENCIES.semiAnnual,
       SUBSCRIPTION_FREQUENCIES.annual,
+      SUBSCRIPTION_FREQUENCIES.custom,
     ])
     .optional()
-    .describe('New billing frequency'),
+    .describe('New billing frequency; custom needs intervalUnit and intervalCount unless already custom'),
+  intervalUnit: z
+    .enum([
+      SUBSCRIPTION_INTERVAL_UNITS.day,
+      SUBSCRIPTION_INTERVAL_UNITS.week,
+      SUBSCRIPTION_INTERVAL_UNITS.month,
+      SUBSCRIPTION_INTERVAL_UNITS.year,
+    ])
+    .nullable()
+    .optional()
+    .describe('New unit of a custom frequency: day, week, month or year'),
+  intervalCount: z.number().int().positive().nullable().optional().describe('New count of a custom frequency (day up to 366, week 104, month 120, year 10)'),
   startDate: z.string().optional().describe('New start date (ISO 8601)'),
   type: z
     .enum([SUBSCRIPTION_TYPES.subscription, SUBSCRIPTION_TYPES.bill, SUBSCRIPTION_TYPES.installment])
