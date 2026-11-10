@@ -5,13 +5,12 @@ import type NotificationSources from '@models/notification-sources.model';
 import { Op } from 'sequelize';
 
 import { resolveCardAccount } from '../resolve-card-account';
+import { isUsableAccount } from '../usable-account';
 import { loadHistoryUses, pickHistoryAccount, type HistoryConfidence } from './history-account';
 
 /** The account when it takes a manual payment (not archived, not a loan or a vehicle), else `null`. */
 const usableOrNull = ({ account }: { account: Accounts | null }): Accounts | null =>
-  account && account.status !== ACCOUNT_STATUSES.archived && !isDedicatedFlowAccountCategory(account.accountCategory)
-    ? account
-    : null;
+  account && isUsableAccount({ account }) ? account : null;
 
 /** How the account was found, in the order the lookup tries them; `owner` is the account chosen on an inbox card. */
 type AccountMatch = 'card' | 'sourceDefault' | 'history' | 'owner';

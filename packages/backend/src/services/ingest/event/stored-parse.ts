@@ -3,6 +3,7 @@ import type { NotificationParkReason, RecordId } from '@bt/shared/types';
 import type { StoredContext } from '../context/context-types';
 import type { StoredBalanceAfter } from './balance-authority';
 import type { ParsedPayment } from './classify-notification';
+import type { OwnTransferGuess } from './guess-own-transfer-accounts';
 
 /** A payment read from a notification, as it sits in `IngestRequests.parsed` (a JSON column, so no `Date`). */
 export type StoredPayment = Omit<ParsedPayment, 'occurredAt'> & { occurredAt: string | null };
@@ -28,6 +29,11 @@ export interface StoredParse {
   attached?: boolean;
   /** For a payment parked on `unknownAccount`: the only account in its currency, to pre-fill the inbox card. */
   accountGuessId?: RecordId | null;
+  /**
+   * For a payment parked on `ownTransfer`: the two accounts of the source's history it most likely moved money between
+   * (see `guessOwnTransferAccounts`), to pre-fill both sides of the inbox card; `null` when the history points at no pair.
+   */
+  transferGuess?: OwnTransferGuess | null;
   /** The owner approved this request on its card (or by hand): the row it logs is theirs and needs no confirm card. */
   approved?: boolean;
   /** The account the owner chose on the inbox card of a parked payment; the job logs the payment there. */

@@ -5,6 +5,7 @@ import IngestRequests from '@models/ingest-requests.model';
 import { findTransactions } from '@models/transactions-query';
 import { Op } from 'sequelize';
 
+import { isUsableAccount } from '../usable-account';
 import { readStoredParse } from './stored-parse';
 
 /** How many of a source's latest logged payments are read for the accounts it has used. */
@@ -115,14 +116,17 @@ export const pickHistoryAccount = ({
   return settle({ candidates: byCurrency, alone: 'unique' });
 };
 
-/** The accounts the source's logged notification payments landed on, newest first. */
+/**
+ * The accounts the source's logged notification payments landed on, newest first, with their current balances and the
+ * ones among them that still take manual payments.
+ */
 export const loadHistoryUses = async ({
   userId,
   sourceId,
 }: {
   userId: number;
   sourceId: RecordId;
-}): Promise<{ uses: HistoryUse[]; balances: Map<RecordId, Money> }> => {
+}): Promise<{ uses: HistoryUse[]; balances: Map<RecordId, Money>; usableAccountIds: Set<RecordId> }> => {
   const requests = await IngestRequests.findAll({
     where: { userId, sourceId, pipeline: 'notification', status: 'logged', transactionId: { [Op.ne]: null } },
     attributes: ['transactionId', 'parsed'],
@@ -130,7 +134,7 @@ export const loadHistoryUses = async ({
     limit: HISTORY_LIMIT,
   });
   const transactionIds = requests.flatMap((request) => (request.transactionId ? [request.transactionId] : []));
-  if (!transactionIds.length) return { uses: [], balances: new Map() };
+  if (!transactionIds.length) return { uses: [], balances: new Map(), usableAccountIds: new Set() };
 
   const transactions = await findTransactions({
     planned: 'include',
@@ -142,7 +146,7 @@ export const loadHistoryUses = async ({
   const accountOf = new Map(transactions.map((transaction) => [transaction.id, transaction.accountId]));
   const accounts = await Accounts.findAll({
     where: { userId, id: { [Op.in]: unique({ values: [...accountOf.values()] }) } },
-    attributes: ['id', 'currencyCode', 'currentBalance'],
+    attributes: ['id', 'currencyCode', 'currentBalance', 'status', 'accountCategory'],
   });
   const accountById = new Map(accounts.map((account) => [account.id, account]));
 
@@ -161,5 +165,9 @@ export const loadHistoryUses = async ({
     });
   }
 
-  return { uses, balances: new Map(accounts.map((account) => [account.id, account.currentBalance])) };
+  return {
+    uses,
+    balances: new Map(accounts.map((account) => [account.id, account.currentBalance])),
+    usableAccountIds: new Set(accounts.filter((account) => isUsableAccount({ account })).map((account) => account.id)),
+  };
 };
