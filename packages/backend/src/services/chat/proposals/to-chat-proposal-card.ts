@@ -206,8 +206,9 @@ const isIngestRequestCard = ({ row }: { row: Pick<ChatProposalRow, 'toolName'> }
   row.toolName === LOG_INGEST_REQUEST_TOOL_NAME;
 
 /**
- * The card of a payment that has no account to be logged on yet: parked on its account with none chosen, or one side
- * of a currency exchange whose two accounts the owner has not chosen and the server could not tell.
+ * The card of a payment that has no account to be logged on yet: parked on its account with none chosen, one side
+ * of a currency exchange whose two accounts the owner has not chosen and the server could not tell, or a lone notice
+ * logged as a transfer (an own transfer with both sides guessed, say) whose own side is not chosen.
  */
 const needsIngestAccount = ({ row }: { row: Pick<ChatProposalRow, 'toolName' | 'args' | 'preview'> }): boolean => {
   if (row.toolName !== LOG_INGEST_REQUEST_TOOL_NAME) return false;
@@ -221,6 +222,9 @@ const needsIngestAccount = ({ row }: { row: Pick<ChatProposalRow, 'toolName' | '
 
     return !(args.accountId ?? own) || !(args.counterAccountId ?? other);
   }
+
+  // Logged as a transfer, the notice's own side is needed as much as the other one.
+  if (args.counterAccountId) return !args.accountId;
 
   return row.preview?.before?.reason === 'unknownAccount' && !row.args.accountId;
 };

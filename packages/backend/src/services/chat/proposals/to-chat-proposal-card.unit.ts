@@ -228,13 +228,21 @@ describe('toChatProposalCard', () => {
   });
 
   describe('a parked payment waiting for its account', () => {
-    const ingestRow = ({ args = {}, reason = 'unknownAccount' }: { args?: Record<string, unknown>; reason?: string }) =>
+    const ingestRow = ({
+      args = {},
+      reason = 'unknownAccount',
+      before = {},
+    }: {
+      args?: Record<string, unknown>;
+      reason?: string;
+      before?: Record<string, unknown>;
+    }) =>
       row({
         toolName: 'log_ingest_request',
         cardKind: 'action',
         entity: 'ingestRequest',
         args: { requestId: ID, ...args },
-        preview: { before: { reason, requestId: ID } },
+        preview: { before: { reason, requestId: ID, ...before } },
       });
 
     it('is not applicable, so not safe for approve-all, until an account is chosen', () => {
@@ -265,6 +273,42 @@ describe('toChatProposalCard', () => {
       });
 
       expect(card.safe).toBe(true);
+    });
+
+    describe('an own transfer', () => {
+      const OTHER = 'b3f1c2d9-7a54-4b18-9c0e-5d2a8b6f4e11';
+
+      it('needs its own side once the other side is chosen', () => {
+        const card = toChatProposalCard({
+          row: ingestRow({ reason: 'ownTransfer', args: { counterAccountId: OTHER } }),
+          parents: [],
+        });
+
+        expect(card.canApply).toEqual({ ok: false, reasonKey: 'chat.cards.ingestAccountRequired' });
+        expect(card.fields.map((field) => field.path)).toContain('accountId');
+      });
+
+      it('can be approved with both sides, and shows the other side, but is never safe for approve-all', () => {
+        const card = toChatProposalCard({
+          row: ingestRow({
+            reason: 'ownTransfer',
+            args: { accountId: ID, counterAccountId: OTHER },
+            before: { counter: { accountId: OTHER, currencyCode: 'USD', amount: 699.89 } },
+          }),
+          parents: [],
+        });
+
+        expect(card.canApply).toEqual({ ok: true });
+        expect(card.ingestRequest?.counter).toEqual({ accountId: OTHER, currencyCode: 'USD', amount: 699.89 });
+        expect(card.safe).toBe(false);
+      });
+
+      it('can be approved without either side, as before', () => {
+        const card = toChatProposalCard({ row: ingestRow({ reason: 'ownTransfer' }), parents: [] });
+
+        expect(card.canApply).toEqual({ ok: true });
+        expect(card.safe).toBe(false);
+      });
     });
   });
 });
