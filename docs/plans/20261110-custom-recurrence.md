@@ -94,11 +94,11 @@
 - Create: `packages/shared/src/subscriptions/recurrence.ts`
 - Create: `packages/backend/src/services/subscriptions/recurrence.unit.ts`
 
-- [ ] failing tests: `resolveRecurrenceStep` for the six presets and custom; throws for custom without a step
-- [ ] failing tests: `normalizeRecurrence` folds week×1, day×7, week×2, day×14, month×1/3/6/12, year×1; keeps day×28, day×30, month×2; clears the step for presets
-- [ ] failing tests: `addRecurrenceStep` day/week/month/year, month×2 from Jan 31 (Mar 31, May 31; clamps on Apr 30 and returns), year×2 from Feb 29
-- [ ] implement the types, limits and helper
-- [ ] run tests – must pass before task 2
+- [x] failing tests: `resolveRecurrenceStep` for the six presets and custom; throws for custom without a step
+- [x] failing tests: `normalizeRecurrence` folds week×1, day×7, week×2, day×14, month×1/3/6/12, year×1; keeps day×28, day×30, month×2; clears the step for presets
+- [x] failing tests: `addRecurrenceStep` day/week/month/year, month×2 from Jan 31 (Mar 31, May 31; clamps on Apr 30 and returns), year×2 from Feb 29
+- [x] implement the types, limits and helper
+- [x] run tests – must pass before task 2
 
 ### Task 2: Migration and models (PR A)
 
