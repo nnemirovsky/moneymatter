@@ -13,7 +13,7 @@ import { t } from '@i18n/index';
 import * as subscriptionsService from '@services/subscriptions';
 import { z } from 'zod';
 
-import { matchingRulesSchema } from './shared-schemas';
+import { matchingRulesSchema, recurrenceStepShape, refineRecurrence } from './shared-schemas';
 
 const remindBeforePresetValues = Object.values(REMIND_BEFORE_PRESETS) as [RemindBeforePreset, ...RemindBeforePreset[]];
 
@@ -36,6 +36,7 @@ const schema = z.object({
         frequency: z.enum(
           Object.values(SUBSCRIPTION_FREQUENCIES) as [SUBSCRIPTION_FREQUENCIES, ...SUBSCRIPTION_FREQUENCIES[]],
         ),
+        ...recurrenceStepShape,
         startDate: dateBound(),
         endDate: dateBound().nullable().optional(),
         accountId: recordId().nullable().optional(),
@@ -55,6 +56,7 @@ const schema = z.object({
       })
       .superRefine((data, ctx) => {
         refineLogoFields({ data, ctx });
+        refineRecurrence({ data, ctx, partial: false });
 
         const hasAmount = data.expectedAmount != null;
         const hasCurrency = data.expectedCurrencyCode != null;
