@@ -246,6 +246,8 @@ A bank notification may show only the last digits of a card (`*1258`) and no car
 
 When you approve a waiting payment on an account, MoneyMatter remembers it. If the payment named a card, the card is linked to that account, so the next payment of that card needs no question. If it named no card, the account becomes the source's default, when the source has none. The inbox card says which one will happen before you approve.
 
+The card of a waiting payment also shows the **payee** and **category** it will be logged with: the payee the merchant matches, or the new payee it will create, and the category from the payee's own setting or from your past payments there. A category with nothing behind it says so, because the AI may still pick one after the payment is logged. **Edit** lets you choose another payee or category before you approve; the category you choose stays, whatever your rules or the AI say, and the payee you choose becomes the merchant's payee for the next payments too. A transfer between your own accounts has no payee or category.
+
 The merchant becomes a **payee** the same way as for a tap. For a notification, the AI is shown your payees that look like the merchant and picks one, or gives a clean brand name for a new payee. The AI also sees the categories you usually give those payees, which helps it tell similar names apart. Once you confirm the payment, MoneyMatter saves the spelling as an **alias** of its payee, so the next one with the same spelling matches at once, without any AI. Names you told MoneyMatter to ignore in [Payees](/transactions/payees/) stay ignored.
 
 ### Balances

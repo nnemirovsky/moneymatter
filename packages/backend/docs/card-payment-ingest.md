@@ -404,13 +404,15 @@ The inbox is a MoneyMatter-owned chat thread (`ChatThreads.kind = automationInbo
 - **No AI.** `startChatRun` refuses any inbox thread with `409`, which covers `sendMessage` and `commentOnProposal`.
 - **Cards.** Run-free `createSystemProposal` posts every item, with `storeProposal` shared with `createProposal`. They expire after 30 days (`inboxConfig.cardTtlDays`); expiry resolves nothing, and re-evaluates the thread (`reevaluateInboxThreads`).
 
-| Item                                          | Tool                            | Approve | Edit                                               | Reject              |
-| --------------------------------------------- | ------------------------------- | ------- | -------------------------------------------------- | ------------------- |
-| Payment logged                                | `confirm_ingest_payment`        | confirm | account, amount, payee, category, note             | delete the payment  |
-| Unknown account, own transfer, low confidence | `log_ingest_request`            | log     | account, direction, other account and its amount   | dismiss the request |
-| Pending source                                | `set_notification_source`       | approve | mode (approved, muted or context), default account | mute                |
-| Duplicate suggestion                          | `merge_duplicate_transactions`  | merge   | survivor                                           | dismiss             |
-| Conversion pair                               | the existing link-transfer tool | link    |                                                    | dismiss             |
+| Item                                          | Tool                            | Approve | Edit                                                                              | Reject              |
+| --------------------------------------------- | ------------------------------- | ------- | --------------------------------------------------------------------------------- | ------------------- |
+| Payment logged                                | `confirm_ingest_payment`        | confirm | account, amount, payee, category, note                                            | delete the payment  |
+| Unknown account, own transfer, low confidence | `log_ingest_request`            | log     | account, direction, note; payee and category, or the other account and its amount | dismiss the request |
+| Pending source                                | `set_notification_source`       | approve | mode (approved, muted or context), default account                                | mute                |
+| Duplicate suggestion                          | `merge_duplicate_transactions`  | merge   | survivor                                                                          | dismiss             |
+| Conversion pair                               | the existing link-transfer tool | link    |                                                                                   | dismiss             |
+
+The `log_ingest_request` card's preview (`resolveIngestRequest`) carries, for a plain payment, the payee and category approving gives it (`previewPaymentDetails`: the payee `decidePayeeChoice` settles on, or the one the owner chose, and the category the logging path picks before the AI: the payee's rule, its history, the default). `payeeId` and `categoryId` are stored as `payeeOverrideId` and `categoryOverrideId` on the request; the job logs with them, the category explicit (no automation or payee rule changes it) and stamped `manual` unless it is the default category, so the AI leaves it alone, and the merchant learned as an alias of the chosen payee. Both are refused on a transfer (`counterAccountId`, or one side of an exchange).
 
 **Two-way sync.** Records hold a nullable `proposalId` (`DuplicateSuggestions`, `IngestRequests`, `NotificationSources`). Rejecting a card calls `onInboxCardRejected` in its transaction. Settling the record elsewhere rejects the card with `statusReason: "resolvedElsewhere"`. A daily backstop in the ingest cleanup cron (`sweepOrphanedInboxCards`) closes cards whose record vanished through a path without a hook.
 
