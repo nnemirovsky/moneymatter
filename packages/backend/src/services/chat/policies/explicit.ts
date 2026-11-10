@@ -108,7 +108,7 @@ export const EXPLICIT_POLICIES: Readonly<Record<string, ExplicitPolicy>> = {
     kind: 'action',
     entity: 'ingestRequest',
     previewResolver: 'ingestRequest',
-    entityFields: { requestId: 'ingestRequest', counterAccountId: 'account' },
+    entityFields: { requestId: 'ingestRequest', counterAccountId: 'account', payeeId: 'payee', categoryId: 'category' },
   },
   set_notification_source: {
     kind: 'update',

@@ -781,7 +781,8 @@
     "counterAmountRequired": "Enter the amount the account in {{currency}} received or sent.",
     "conversionSameAccount": "Choose two different accounts for the exchange.",
     "rejectNeedsPlan": "Your plan does not allow deleting payments. Subscribe again to keep editing your data.",
-    "contextNote": "{{store}} order from {{service}}"
+    "contextNote": "{{store}} order from {{service}}",
+    "transferTakesNoPayee": "A transfer takes no payee or category. Log it as a payment to set them."
   },
   "defaultCategories": {
     "main": {

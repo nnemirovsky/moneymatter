@@ -46,6 +46,10 @@ export interface StoredParse {
   timeOverride?: string;
   /** The note the owner wrote on that card; an empty one is no note. Absent, the pipeline picks the note. */
   noteOverride?: string;
+  /** The payee the owner chose on that card; the job logs the payment with it instead of the one the merchant resolves to. */
+  payeeOverrideId?: RecordId;
+  /** The category the owner chose on that card; the job logs the payment in it, and no rule, payee or AI changes it. */
+  categoryOverrideId?: RecordId;
   /** The other side of a currency exchange this payment is one side of; the two are linked as a transfer once logged. */
   conversion?: { partnerRequestId: RecordId };
   /** For a request that joined another as the other side of an exchange: the reason it was parked with, restored if it waits again. */

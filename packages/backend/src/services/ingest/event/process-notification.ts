@@ -127,6 +127,8 @@ const read = async ({
         accountId: stored.accountOverrideId ?? null,
         direction: stored.directionOverride ?? null,
         note: stored.noteOverride ?? null,
+        payeeId: stored.payeeOverrideId ?? null,
+        categoryId: stored.categoryOverrideId ?? null,
         time: stored.timeOverride ? new Date(stored.timeOverride) : null,
         approved: stored.approved === true,
       },

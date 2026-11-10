@@ -19,7 +19,7 @@ import { listWaitingIngestRequests } from '@services/ingest/list-waiting-request
 
 import { registerConfirmIngestPayment } from './confirm-ingest-payment';
 import { registerGetWaitingIngestRequests } from './get-waiting-ingest-requests';
-import { registerLogIngestRequest } from './log-ingest-request';
+import { registerLogIngestRequest, validateLogIngestRequestArgs } from './log-ingest-request';
 import { registerSetNotificationSource } from './set-notification-source';
 
 const WRITE = makeExtra({ scopes: ['finance:read', 'finance:write'] });
@@ -132,6 +132,38 @@ describe('log_ingest_request', () => {
       direction: 'debit',
     });
     expect(data).toEqual({ requestId: ID_1, queued: true });
+  });
+
+  it('passes the payee and category the owner chose', async () => {
+    approveRequest.mockResolvedValue({ requestId: ID_1, queued: true } as never);
+
+    await call({ tool, args: { requestId: ID_1, accountId: ID_2, payeeId: ID_3, categoryId: ID_4 } });
+
+    expect(approveRequest).toHaveBeenCalledWith({
+      userId: 42,
+      requestId: ID_1,
+      accountId: ID_2,
+      payeeId: ID_3,
+      categoryId: ID_4,
+    });
+  });
+
+  it('refuses a payee or a category on a transfer, with nothing queued', async () => {
+    await expect(
+      call({ tool, args: { requestId: ID_1, accountId: ID_2, counterAccountId: ID_3, payeeId: ID_4 } }),
+    ).rejects.toThrow(/ingest.transferTakesNoPayee/);
+    await expect(
+      call({ tool, args: { requestId: ID_1, accountId: ID_2, counterAccountId: ID_3, categoryId: ID_4 } }),
+    ).rejects.toThrow(/ingest.transferTakesNoPayee/);
+    expect(() =>
+      validateLogIngestRequestArgs({ args: { requestId: ID_1, counterAccountId: ID_3, payeeId: ID_4 } as never }),
+    ).toThrow();
+    expect(validateLogIngestRequestArgs({ args: { requestId: ID_1, payeeId: ID_4 } as never })).toEqual({
+      requestId: ID_1,
+      payeeId: ID_4,
+    });
+
+    expect(approveRequest).not.toHaveBeenCalled();
   });
 
   it('needs finance:write, an editing plan and an unlocked base currency, with nothing queued otherwise', async () => {

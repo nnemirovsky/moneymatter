@@ -12,6 +12,7 @@ import { validateCreateTrackerArgs } from './tools/create-tracker';
 import { validateCreateTransactionArgs } from './tools/create-transaction';
 import { validateCreateVehicleArgs } from './tools/create-vehicle';
 import { validateDismissTransferSuggestionArgs } from './tools/dismiss-transfer-suggestion';
+import { validateLogIngestRequestArgs } from './tools/log-ingest-request';
 import { validatePaySubscriptionPeriodArgs } from './tools/pay-subscription-period';
 import { validateRestoreBudgetPlanArgs } from './tools/restore-budget-plan';
 import { validateSetBudgetPlanAccountsArgs } from './tools/set-budget-plan-accounts';
@@ -62,6 +63,7 @@ export const TOOL_ARG_VALIDATORS: Readonly<Record<string, ToolArgValidator>> = {
   create_transaction: validateCreateTransactionArgs,
   create_vehicle: validateCreateVehicleArgs,
   dismiss_transfer_suggestion: validateDismissTransferSuggestionArgs,
+  log_ingest_request: validateLogIngestRequestArgs,
   pay_subscription_period: validatePaySubscriptionPeriodArgs,
   restore_budget_plan: validateRestoreBudgetPlanArgs,
   set_budget_plan_accounts: validateSetBudgetPlanAccountsArgs,
