@@ -1,3 +1,4 @@
+import type { FormattedCategory } from '@/common/types';
 import type { ChatCardField, ChatEntityKind, ChatProposalCard } from '@bt/shared/types';
 
 /** How the server writes a reference to a card in the same message that has not been applied yet. */
@@ -9,6 +10,16 @@ const isRefString = (value: unknown): value is string =>
   typeof value === 'string' && value.startsWith(PROPOSAL_REF_PREFIX);
 
 export const isProposalRef = ({ value }: { value: unknown }): boolean => isRefString(value);
+
+/** The category of `id` in the category tree, subcategories included; `null` when there is none. */
+export const findCategory = ({ list, id }: { list: FormattedCategory[]; id: unknown }): FormattedCategory | null => {
+  for (const category of list) {
+    if (category.id === id) return category;
+    const nested = findCategory({ list: category.subCategories ?? [], id });
+    if (nested) return nested;
+  }
+  return null;
+};
 
 /** The id of the card a `$proposal:` ref points to, or `null` when the value is not a ref. */
 export const proposalRefId = ({ value }: { value: unknown }): string | null =>
@@ -42,16 +53,19 @@ const sameValue = ({ a, b }: { a: unknown; b: unknown }) => JSON.stringify(a) ==
 export const buildEditedArgs = ({
   card,
   draft,
+  extraPaths = [],
 }: {
   card: ChatProposalCard;
   draft: Record<string, unknown>;
+  /** Arguments an editor of its own may set although the card holds no field for them yet. */
+  extraPaths?: readonly string[];
 }): { args: Record<string, unknown>; changed: string[] } => {
   const current = cardArgsOf({ card });
   const args: Record<string, unknown> = { ...current };
   const changed: string[] = [];
 
   for (const [path, value] of Object.entries(draft)) {
-    if (!(path in current)) continue;
+    if (!(path in current) && !extraPaths.includes(path)) continue;
     args[path] = value;
     if (!sameValue({ a: current[path], b: value })) changed.push(path);
   }

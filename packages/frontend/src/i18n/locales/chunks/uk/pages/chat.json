@@ -544,6 +544,10 @@
           "expense": "Витрата",
           "income": "Дохід"
         },
+        "direction": {
+          "debit": "Списання",
+          "credit": "Зарахування"
+        },
         "transferNature": {
           "not_transfer": "Не переказ",
           "transfer_between_user_accounts": "Між вашими рахунками",
@@ -594,6 +598,10 @@
         "income": "Дохід",
         "expense": "Витрата",
         "payee": "Отримувач",
+        "merchant": "Продавець",
+        "newPayee": "Новий отримувач, з'явиться після схвалення",
+        "newPayeePlaceholder": "Новий: {name}",
+        "categoryDefault": "Поки ніщо не вказує на іншу категорію; її ще може обрати ШІ.",
         "source": "Із застосунку",
         "card": "Картка",
         "time": "Час",

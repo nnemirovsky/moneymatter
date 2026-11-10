@@ -544,6 +544,10 @@
           "expense": "Expense",
           "income": "Income"
         },
+        "direction": {
+          "debit": "Money out",
+          "credit": "Money in"
+        },
         "transferNature": {
           "not_transfer": "Not a transfer",
           "transfer_between_user_accounts": "Between your accounts",
@@ -594,6 +598,10 @@
         "income": "Income",
         "expense": "Expense",
         "payee": "Payee",
+        "merchant": "Merchant",
+        "newPayee": "New payee, created when you approve",
+        "newPayeePlaceholder": "New: {name}",
+        "categoryDefault": "Nothing points to another category yet; the AI may still pick one.",
         "source": "From app",
         "card": "Card",
         "time": "Time",

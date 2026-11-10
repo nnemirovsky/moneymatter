@@ -3,12 +3,13 @@ import NotificationSourceLabel from '@/components/common/notification-source-lab
 import AccountSelectField from '@/components/fields/account-select-field.vue';
 import InputField from '@/components/fields/input-field.vue';
 import { Button } from '@/components/lib/ui/button';
-import type { ChatIngestRequestSummary, NotificationSourceDisplay } from '@bt/shared/types';
+import type { ChatCardField, ChatIngestRequestSummary, NotificationSourceDisplay } from '@bt/shared/types';
 import { ArrowUpDownIcon } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { formatVisualDate, formatVisualValue } from '../visuals/format-visual-value';
+import CardField from './card-field.vue';
 import { conversionMoney } from './card-summary';
 import type { CardLookups } from './use-card-lookups';
 
@@ -33,6 +34,9 @@ const props = defineProps<{
   counterAmountCurrency: string | null;
   /** The note the card holds; empty until the history or the owner fills it. */
   note: string;
+  /** For a plain payment: the card's payee and category fields, set once the owner chose them; `null` for a transfer. */
+  payeeField: ChatCardField | null;
+  categoryField: ChatCardField | null;
   /** The account cannot change: the card is closed, or a change is being saved. */
   disabled: boolean;
 }>();
@@ -91,6 +95,32 @@ const commitCounterAmount = () => {
 };
 
 const { t } = useI18n();
+
+/**
+ * The payee and category a plain payment is logged with: the owner's choice, else the server's pick. A payee approving
+ * would create has no id yet and is named by its name.
+ */
+const payeeRow = computed<ChatCardField | null>(() => {
+  const field = props.payeeField;
+  if (!field || hasTwoSides.value) return null;
+
+  const chosen = typeof field.value === 'string' ? field.value : null;
+  return { ...field, value: chosen ?? props.payment.payee?.id ?? props.payment.payee?.name ?? null };
+});
+const isNewPayee = computed(
+  () => typeof props.payeeField?.value !== 'string' && props.payment.payee != null && props.payment.payee.id === null,
+);
+
+const categoryRow = computed<ChatCardField | null>(() => {
+  const field = props.categoryField;
+  if (!field || hasTwoSides.value) return null;
+
+  const chosen = typeof field.value === 'string' ? field.value : null;
+  return { ...field, value: chosen ?? props.payment.category?.id ?? null };
+});
+const isDefaultCategory = computed(
+  () => typeof props.categoryField?.value !== 'string' && props.payment.category?.source === 'default',
+);
 
 const amountText = computed(() =>
   props.payment.amount === null
@@ -228,7 +258,9 @@ const lessonText = computed(() => {
 
     <dl class="flex flex-col gap-1 text-sm">
       <div class="flex justify-between gap-3" data-testid="ingest-counterparty">
-        <dt class="text-muted-foreground shrink-0">{{ $t(`${LABEL_ROOT}.payee`) }}</dt>
+        <dt class="text-muted-foreground shrink-0">
+          {{ $t(payeeRow ? `${LABEL_ROOT}.merchant` : `${LABEL_ROOT}.payee`) }}
+        </dt>
         <dd class="min-w-0 text-right break-words">
           {{ payment.counterparty ?? $t(`${LABEL_ROOT}.unknownCounterparty`) }}
         </dd>
@@ -256,6 +288,25 @@ const lessonText = computed(() => {
       <div v-if="cardText" class="flex justify-between gap-3" data-testid="ingest-card">
         <dt class="text-muted-foreground shrink-0">{{ $t(`${LABEL_ROOT}.card`) }}</dt>
         <dd class="min-w-0 text-right break-words">{{ cardText }}</dd>
+      </div>
+    </dl>
+
+    <dl v-if="payeeRow || categoryRow" class="-mx-2 flex flex-col gap-0.5" data-testid="ingest-details">
+      <div v-if="payeeRow" data-testid="ingest-payee">
+        <CardField :field="payeeRow" :lookups="lookups" :currency-code="null" :depends-on="[]" disabled />
+        <p v-if="isNewPayee" class="text-muted-foreground px-2 text-right text-xs" data-testid="ingest-new-payee">
+          {{ $t(`${LABEL_ROOT}.newPayee`) }}
+        </p>
+      </div>
+      <div v-if="categoryRow" data-testid="ingest-category">
+        <CardField :field="categoryRow" :lookups="lookups" :currency-code="null" :depends-on="[]" disabled />
+        <p
+          v-if="isDefaultCategory"
+          class="text-muted-foreground px-2 text-right text-xs"
+          data-testid="ingest-default-category"
+        >
+          {{ $t(`${LABEL_ROOT}.categoryDefault`) }}
+        </p>
       </div>
     </dl>
 

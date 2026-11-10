@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { FormattedCategory } from '@/common/types';
 import AccountSelectField from '@/components/fields/account-select-field.vue';
 import CategorySelectField from '@/components/fields/category-select-field.vue';
 import DateField from '@/components/fields/date-field.vue';
@@ -17,7 +16,7 @@ import { useI18n } from 'vue-i18n';
 
 import { useChatText } from '../chat-text';
 import CardField from './card-field.vue';
-import { isProposalRef } from './card-values';
+import { findCategory, isProposalRef } from './card-values';
 import type { CardLookups } from './use-card-lookups';
 
 const props = defineProps<{
@@ -120,14 +119,6 @@ const selectedAccount = computed(
   () => props.lookups.accounts().find((account) => account.id === props.modelValue) ?? null,
 );
 
-const findCategory = ({ list, id }: { list: FormattedCategory[]; id: unknown }): FormattedCategory | null => {
-  for (const category of list) {
-    if (category.id === id) return category;
-    const nested = findCategory({ list: category.subCategories ?? [], id });
-    if (nested) return nested;
-  }
-  return null;
-};
 const selectedCategory = computed(() => findCategory({ list: props.lookups.categories(), id: props.modelValue }));
 
 const tagIds = computed(() => (Array.isArray(props.modelValue) ? props.modelValue.map(String) : []));

@@ -7,6 +7,8 @@ import {
 } from '@/api/chat';
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const';
 import AccountSelectField from '@/components/fields/account-select-field.vue';
+import PayeeSelectField from '@/components/fields/payee-select-field.vue';
+import SelectField from '@/components/fields/select-field.vue';
 import { ApiErrorResponseError } from '@/js/errors';
 import {
   API_ERROR_CODES,
@@ -18,7 +20,7 @@ import {
 import { QueryClient, VueQueryPlugin, useQuery } from '@tanstack/vue-query';
 import { RouterLinkStub, flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { defineComponent, h } from 'vue';
+import { type DefineComponent, defineComponent, h } from 'vue';
 
 import CardFieldEditor from './card-field-editor.vue';
 import { LOGO_STUBS, buildCard, buildField, buildLookups, createChatI18n } from './card-test-fixtures';
@@ -56,6 +58,8 @@ vi.mock('./use-card-lookups', () => ({
         'account:acc-eur': 'Example EUR',
         'category:cat-1': 'Groceries',
         'category:cat-2': 'Dining',
+        'payee:payee-1': 'Anthropic',
+        'payee:payee-2': 'Claude',
       },
       currencies: { 'acc-1': 'USD', 'acc-raif': 'RUB', 'acc-usd': 'USD', 'acc-usd2': 'USD', 'acc-eur': 'EUR' },
     }),
@@ -330,6 +334,147 @@ describe('ProposalCard', () => {
       ]);
     });
 
+    describe('the payee and category of a plain payment', () => {
+      const payeeField = ({ value }: { value?: string } = {}) =>
+        buildField({
+          path: 'payeeId',
+          value,
+          display: { kind: 'entity' },
+          editable: { type: 'entity', entity: 'payee' },
+        });
+      const categoryField = ({ value }: { value?: string } = {}) =>
+        buildField({
+          path: 'categoryId',
+          value,
+          display: { kind: 'entity' },
+          editable: { type: 'entity', entity: 'category' },
+        });
+
+      const detailsCard = ({
+        payeeId,
+        categoryId,
+        payee = { id: null, name: 'ANTHROPIC* CLAUDE SUB' },
+        categorySource = 'default' as const,
+      }: {
+        payeeId?: string;
+        categoryId?: string;
+        payee?: { id: string | null; name: string } | null;
+        categorySource?: 'payeeRule' | 'history' | 'default';
+      } = {}) => {
+        const card = paymentCard({ account: 'acc-raif' });
+        card.fields = [
+          requestField,
+          accountField({ value: 'acc-raif' }),
+          buildField({ path: 'direction', value: 'debit', editable: { type: 'enum', options: ['debit', 'credit'] } }),
+          payeeField({ value: payeeId }),
+          categoryField({ value: categoryId }),
+          buildField({ path: 'note', value: undefined, editable: { type: 'text' } }),
+        ];
+        card.ingestRequest = {
+          ...card.ingestRequest!,
+          reason: 'lowConfidence',
+          counterparty: 'ANTHROPIC* CLAUDE SUB',
+          direction: 'debit',
+          payee,
+          category: { id: 'cat-1', source: categorySource },
+        };
+
+        return card;
+      };
+
+      it('shows the new payee the merchant would create and the category, with the merchant as it was printed', () => {
+        const wrapper = mountCard({ card: detailsCard(), inbox: true });
+
+        expect(wrapper.get('[data-testid="ingest-counterparty"]').text()).toContain('Merchant');
+        expect(wrapper.get('[data-testid="ingest-payee"]').text()).toContain('ANTHROPIC* CLAUDE SUB');
+        expect(wrapper.get('[data-testid="ingest-new-payee"]').text()).toBe('New payee, created when you approve');
+        expect(wrapper.get('[data-testid="ingest-category"]').text()).toContain('Groceries');
+        expect(wrapper.find('[data-testid="ingest-default-category"]').exists()).toBe(true);
+      });
+
+      it('names an existing payee, and drops the hints once the history decides', () => {
+        const wrapper = mountCard({
+          card: detailsCard({ payee: { id: 'payee-1', name: 'Anthropic' }, categorySource: 'history' }),
+          inbox: true,
+        });
+
+        expect(wrapper.get('[data-testid="ingest-payee"]').text()).toContain('Anthropic');
+        expect(wrapper.find('[data-testid="ingest-new-payee"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="ingest-default-category"]').exists()).toBe(false);
+      });
+
+      it('shows the payee and category the owner chose', () => {
+        const wrapper = mountCard({
+          card: detailsCard({ payeeId: 'payee-2', categoryId: 'cat-2', payee: { id: 'payee-2', name: 'Claude' } }),
+          inbox: true,
+        });
+
+        expect(wrapper.get('[data-testid="ingest-payee"]').text()).toContain('Claude');
+        expect(wrapper.get('[data-testid="ingest-category"]').text()).toContain('Dining');
+        expect(wrapper.find('[data-testid="ingest-new-payee"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="ingest-default-category"]').exists()).toBe(false);
+      });
+
+      it('opens a form of its own in Edit, without the request reference', async () => {
+        const wrapper = mountCard({ card: detailsCard(), inbox: true });
+
+        await wrapper.get('[data-testid="edit"]').trigger('click');
+
+        for (const path of ['payeeId', 'categoryId', 'accountId', 'direction', 'note']) {
+          expect(wrapper.find(`[data-testid="field-editor-${path}"]`).exists()).toBe(true);
+        }
+        expect(wrapper.find('[data-testid="field-editor-requestId"]').exists()).toBe(false);
+        expect(wrapper.findAllComponents(CardFieldEditor)).toHaveLength(0);
+        expect(wrapper.text()).not.toContain('req-1');
+        expect(wrapper.findComponent(PayeeSelectField).props('placeholder')).toBe('New: ANTHROPIC* CLAUDE SUB');
+      });
+
+      it('offers the direction as money out or money in', async () => {
+        const wrapper = mountCard({ card: detailsCard(), inbox: true });
+
+        await wrapper.get('[data-testid="edit"]').trigger('click');
+
+        const direction = wrapper.findComponent(SelectField as unknown as DefineComponent).props() as Record<
+          string,
+          unknown
+        >;
+        expect(direction.values).toEqual([
+          { value: 'debit', label: 'Money out' },
+          { value: 'credit', label: 'Money in' },
+        ]);
+        expect(direction.modelValue).toEqual({ value: 'debit', label: 'Money out' });
+      });
+
+      it('saves the payee picked in Edit and leaves the untouched category to the server', async () => {
+        vi.mocked(editChatProposal).mockResolvedValue(detailsCard({ payeeId: 'payee-2' }));
+        const wrapper = mountCard({ card: detailsCard(), inbox: true });
+
+        await wrapper.get('[data-testid="edit"]').trigger('click');
+        wrapper.findComponent(PayeeSelectField).vm.$emit('update:modelValue', 'payee-2');
+        await wrapper.vm.$nextTick();
+        await wrapper.get('[data-testid="save-edit"]').trigger('click');
+        await flushPromises();
+
+        const [call] = firstArgsOf(editChatProposal) as [{ payload: { args: Record<string, unknown> } }];
+        expect(call.payload.args).toMatchObject({ requestId: 'req-1', accountId: 'acc-raif', payeeId: 'payee-2' });
+        expect(call.payload.args.categoryId).toBeUndefined();
+      });
+
+      it('hands the payee back to the server when it is cleared in Edit', async () => {
+        vi.mocked(editChatProposal).mockResolvedValue(detailsCard());
+        const wrapper = mountCard({ card: detailsCard({ payeeId: 'payee-2' }), inbox: true });
+
+        await wrapper.get('[data-testid="edit"]').trigger('click');
+        wrapper.findComponent(PayeeSelectField).vm.$emit('update:modelValue', null);
+        await wrapper.vm.$nextTick();
+        await wrapper.get('[data-testid="save-edit"]').trigger('click');
+        await flushPromises();
+
+        const [call] = firstArgsOf(editChatProposal) as [{ payload: { args: Record<string, unknown> } }];
+        expect(call.payload.args.payeeId).toBeUndefined();
+      });
+    });
+
     describe('one side of a currency exchange', () => {
       const exchangeCard = ({
         args = {},
@@ -484,6 +629,32 @@ describe('ProposalCard', () => {
         expect(from!.props()).toMatchObject({ label: 'Money left', modelValue: { id: 'acc-usd' } });
         expect(to!.props()).toMatchObject({ label: 'Money arrived', modelValue: { id: 'acc-usd2' } });
         expect(approveButton(wrapper).attributes('disabled')).toBeUndefined();
+      });
+
+      it('shows no payee or category for a transfer, and edits it on the card rather than in a form', () => {
+        const wrapper = mountCard({ card: transferCard(), inbox: true });
+
+        expect(wrapper.find('[data-testid="ingest-details"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="edit"]').exists()).toBe(false);
+      });
+
+      it('drops a chosen payee and category once the notice is logged as a transfer', async () => {
+        const card = transferCard({ counterAccountId: null });
+        card.fields.push(
+          buildField({ path: 'payeeId', value: 'payee-1', editable: { type: 'entity', entity: 'payee' } }),
+          buildField({ path: 'categoryId', value: 'cat-1', editable: { type: 'entity', entity: 'category' } }),
+        );
+        vi.mocked(editChatProposal).mockResolvedValue(transferCard());
+        const wrapper = mountCard({ card, inbox: true });
+
+        await wrapper.get('[data-testid="ingest-log-as-transfer"]').trigger('click');
+        pickers(wrapper)[1]!.vm.$emit('update:modelValue', { id: 'acc-usd2' });
+        await flushPromises();
+
+        const [call] = firstArgsOf(editChatProposal) as [{ payload: { args: Record<string, unknown> } }];
+        expect(call.payload.args).toMatchObject({ accountId: 'acc-usd', counterAccountId: 'acc-usd2' });
+        expect(call.payload.args.payeeId).toBeUndefined();
+        expect(call.payload.args.categoryId).toBeUndefined();
       });
 
       it('puts the card account on the receiving side once the direction is a credit', () => {
