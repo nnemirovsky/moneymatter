@@ -278,7 +278,9 @@
       "year": "Рік",
       "zeroSum": "Бюджет з нульовим залишком",
       "filename": "Назва файлу",
-      "notificationSource": "Джерело"
+      "notificationSource": "Джерело",
+      "intervalUnit": "Одиниця повтору",
+      "intervalCount": "Повторювати кожні"
     },
     "entities": {
       "transaction": "транзакція",
