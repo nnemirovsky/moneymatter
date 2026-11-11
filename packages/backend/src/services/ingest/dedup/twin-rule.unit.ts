@@ -5,6 +5,7 @@ import { describe, expect, it } from '@jest/globals';
 import { TAP_SLOT, WALLET_NOTIFICATION_SLOT } from './source-slots';
 import {
   inferBankTime,
+  isTwinShop,
   placeBankTime,
   pickSettlementTarget,
   pickTwin,
@@ -58,6 +59,20 @@ describe('sharesFigure', () => {
 });
 
 describe('pickTwin', () => {
+  it('skips a row that holds a slot of a twin that joined the incoming request: another payment', () => {
+    const otherCoffee = candidate({ takenSlots: ['bank:name:example bank:payment'] });
+    const walletWithBankTwin = incoming({
+      slot: WALLET_NOTIFICATION_SLOT,
+      heldSlots: ['bank:name:example bank:payment'],
+    });
+
+    expect(pickTwin({ candidates: [otherCoffee], incoming: walletWithBankTwin, sameShop: anyShop })).toBeNull();
+    expect(
+      pickTwin({ candidates: [otherCoffee], incoming: incoming({ slot: WALLET_NOTIFICATION_SLOT }), sameShop: anyShop })
+        ?.id,
+    ).toBe('row-1');
+  });
+
   it('picks the row of the same payment from another source', () => {
     expect(pickTwin({ candidates: [candidate()], incoming: incoming(), sameShop: anyShop })?.id).toBe('row-1');
   });
@@ -120,6 +135,61 @@ describe('pickTwin', () => {
     const second = candidate({ id: 'row-2' as RecordId, time: at('2026-10-20T14:39:00Z') });
 
     expect(pickTwin({ candidates: [first, second], incoming: incoming(), sameShop: anyShop })?.id).toBe('row-2');
+  });
+});
+
+describe('isTwinShop', () => {
+  const wallet = 'Pharmadepot, Batumi, Adjara';
+  const bank = 'Pharmadepot 300';
+
+  it('matches the two texts of one new shop whichever arrived first', () => {
+    expect(
+      isTwinShop({
+        candidate: candidate({ names: [wallet], merchant: wallet }),
+        incoming: incoming({ merchant: bank }),
+      }),
+    ).toBe(true);
+    expect(
+      isTwinShop({ candidate: candidate({ names: [bank], merchant: bank }), incoming: incoming({ merchant: wallet }) }),
+    ).toBe(true);
+  });
+
+  it("matches through the row's payee and aliases too", () => {
+    expect(
+      isTwinShop({
+        candidate: candidate({ names: ['Pharmadepot Batumi Kakhaberi', 'Pharmadepot'], merchant: null }),
+        incoming: incoming({ merchant: bank }),
+      }),
+    ).toBe(true);
+  });
+
+  it('lets an incoming text without a merchant through', () => {
+    expect(isTwinShop({ candidate: candidate({ names: ['Glovo'] }), incoming: incoming({ merchant: null }) })).toBe(
+      true,
+    );
+  });
+
+  it('keeps another shop apart in both directions', () => {
+    expect(
+      isTwinShop({
+        candidate: candidate({ names: ['Spar Batumi'] }),
+        incoming: incoming({ merchant: 'Carrefour Batumi' }),
+      }),
+    ).toBe(false);
+    expect(isTwinShop({ candidate: candidate({ names: [wallet] }), incoming: incoming({ merchant: 'Glovo' }) })).toBe(
+      false,
+    );
+  });
+
+  it('lets two payees that both existed decide, whatever the texts share', () => {
+    const shared = { names: [wallet], merchant: wallet, payeeId: 'payee-a' };
+
+    expect(
+      isTwinShop({ candidate: candidate(shared), incoming: incoming({ merchant: bank, payeeId: 'payee-b' }) }),
+    ).toBe(false);
+    expect(
+      isTwinShop({ candidate: candidate(shared), incoming: incoming({ merchant: 'Glovo', payeeId: 'payee-a' }) }),
+    ).toBe(true);
   });
 });
 

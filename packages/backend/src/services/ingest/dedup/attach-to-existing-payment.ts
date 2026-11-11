@@ -27,6 +27,8 @@ interface IncomingPayment {
   /** The payment's time: the notification's own date, or the run time of a tap. */
   time: Date;
   slot: IngestSlot;
+  /** The slots of the requests that joined this one as its twins while it waited (see `DedupIncoming.heldSlots`). */
+  heldSlots?: readonly IngestSlot[];
   /** The stage of a bank notification (`authorization`, `settlement`, `payment`); `null` for a tap or Wallet. */
   stage: string | null;
   sourceKey: string | null;
@@ -37,7 +39,13 @@ interface IncomingPayment {
   originalAmount: Money | null;
   originalCurrencyCode: string | null;
   merchant: string | null;
-  payeeId: string | null;
+  /**
+   * A payee the source resolves to that existed before it arrived (a name, an alias, the owner's pick): the twin rule
+   * weighs it. A payee this source would create is no evidence of the shop, so it is `null` here.
+   */
+  knownPayeeId: string | null;
+  /** Writes the payee the source resolves to, creating it if need be; called only when the row it joins has none. */
+  settlePayee: () => Promise<string | null>;
   cardLabel: string | null;
   cardLastDigits: string | null;
   balanceAfter: StoredBalanceAfter | null;
@@ -54,7 +62,8 @@ interface IncomingPayment {
  * only suggests.
  *
  * Takes the user's `ingest-dedup` lock, so it must run inside the caller's transaction, after the
- * payee is resolved and before anything is logged.
+ * payee is decided and before anything is written: a payee the source would create is written only by
+ * `settlePayee`, so a source that joins a row leaves no payee of its own behind.
  */
 export const attachToExistingPayment = async ({
   userId,
@@ -81,14 +90,18 @@ export const attachToExistingPayment = async ({
     incoming: {
       time: payment.time,
       slot: payment.slot,
+      heldSlots: payment.heldSlots ?? [],
       sourceKey: payment.sourceKey,
       stage: payment.stage,
       figures,
       merchant: payment.merchant,
-      payeeId: payment.payeeId,
+      payeeId: payment.knownPayeeId,
     },
   });
   if (!target) return null;
+
+  // Only a row without a payee takes the source's, so a source that joins a row with one creates no payee.
+  const payeeId = target.transaction.payeeId ? null : await payment.settlePayee();
 
   return enrichTwin({
     userId,
@@ -107,7 +120,7 @@ export const attachToExistingPayment = async ({
       statedCurrencyCode: payment.statedCurrencyCode,
       originalAmount: payment.originalAmount,
       originalCurrencyCode: payment.originalCurrencyCode,
-      payeeId: payment.payeeId,
+      payeeId,
       time: payment.time,
       bankWallClock: payment.bankWallClock,
       requestTimeZone: payment.requestTimeZone,

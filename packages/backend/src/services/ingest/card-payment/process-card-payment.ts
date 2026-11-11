@@ -8,7 +8,7 @@ import { resolveVisibleCurrencies } from '@services/currencies/assert-currency-c
 import { attachToExistingPayment } from '../dedup/attach-to-existing-payment';
 import { TAP_SLOT } from '../dedup/source-slots';
 import { logIngestedPayment } from '../log-ingested-payment';
-import { resolveIngestPayee } from '../payee/resolve-ingest-payee';
+import { findKnownIngestPayee, resolveIngestPayee } from '../payee/resolve-ingest-payee';
 import { buildExternalReference } from './constants';
 import { convertToAccountCurrency } from './convert-to-account-currency';
 import type { ParsedCardPayment } from './parse-payload';
@@ -106,16 +106,17 @@ export const processCardPayment = async ({
     accountAmount = converted.amount;
   }
 
-  const payeeId = await resolveIngestPayee({
+  const payeeArgs = {
     userId,
     requestId,
     rawMerchant: payment.merchant,
     pickedPayeeId,
     failureLogMessage: 'Failed to resolve the payee of a card payment; continuing without link',
-  });
-  const historyCategoryId = payeeId
-    ? await pickHistoryCategory({ ownerUserId: userId, payeeId, asOf: payment.time })
-    : null;
+  };
+  // A payee the tap would create is written only once the payment needs it, and is no evidence of the shop for the
+  // twin rule: only a payee that already exists is.
+  let settledPayee: Promise<string | null> | null = null;
+  const settlePayee = () => (settledPayee ??= resolveIngestPayee(payeeArgs));
 
   const attached = await attachToExistingPayment({
     userId,
@@ -134,7 +135,8 @@ export const processCardPayment = async ({
       originalAmount: null,
       originalCurrencyCode: null,
       merchant: payment.merchant,
-      payeeId,
+      knownPayeeId: await findKnownIngestPayee(payeeArgs),
+      settlePayee,
       cardLabel: payment.card,
       cardLastDigits: null,
       balanceAfter: null,
@@ -143,6 +145,11 @@ export const processCardPayment = async ({
     },
   });
   if (attached) return { kind: 'attached', transactionId: attached.transactionId };
+
+  const payeeId = await settlePayee();
+  const historyCategoryId = payeeId
+    ? await pickHistoryCategory({ ownerUserId: userId, payeeId, asOf: payment.time })
+    : null;
 
   const { transactionId } = await logIngestedPayment({
     userId,

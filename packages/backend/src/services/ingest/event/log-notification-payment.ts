@@ -20,7 +20,8 @@ import { slotOfNotification } from '../dedup/source-slots';
 import { dropHoldRelease } from '../hold-release/drop-hold-release';
 import { logIngestedPayment } from '../log-ingested-payment';
 import { learnPayeeCorrection } from '../payee/learn-payee-correction';
-import { applyPayeeChoice } from './apply-payee-choice';
+import { findJoinedTwins, joinedSlots } from '../twins/find-parked-twins';
+import { carryOutPayeeDecision, decideNotificationPayee, type PayeeChoiceDecision } from './apply-payee-choice';
 import { resolveBalanceAuthority } from './balance-authority';
 import type { ParsedPayment } from './classify-notification';
 import { loadSiblingBalances } from './load-sibling-balances';
@@ -229,16 +230,13 @@ const logNotificationPaymentImpl = async ({
 
   const chosenPayeeId = override?.payeeId ?? null;
   const chosenCategoryId = override?.categoryId ?? null;
-  const payeeId =
-    chosenPayeeId ??
-    (await applyPayeeChoice({
-      userId,
-      requestId,
-      rawMerchant: payment.merchant,
-      choice: payment.payee,
-    }));
-  const historyCategoryId =
-    !chosenCategoryId && payeeId ? await pickHistoryCategory({ ownerUserId: userId, payeeId, asOf: time }) : null;
+  // The payee is decided now and written only once the payment needs it: a source that joins a logged row leaves no
+  // payee of its own, and a payee it would create is no evidence of the shop for the twin rule.
+  const payeeDecision: PayeeChoiceDecision = chosenPayeeId
+    ? { kind: 'payee', payeeId: chosenPayeeId }
+    : await decideNotificationPayee({ userId, requestId, rawMerchant: payment.merchant, choice: payment.payee });
+  let settledPayee: Promise<string | null> | null = null;
+  const settlePayee = () => (settledPayee ??= carryOutPayeeDecision({ userId, requestId, decision: payeeDecision }));
 
   const siblings = payment.balanceAfter
     ? await loadSiblingBalances({
@@ -276,6 +274,7 @@ const logNotificationPaymentImpl = async ({
       direction,
       time,
       slot,
+      heldSlots: await joinedSlots({ twins: await findJoinedTwins({ userId, requestId }) }),
       stage: payment.stage,
       sourceKey: source?.sourceKey ?? null,
       fromBank: slot.startsWith('bank:'),
@@ -284,7 +283,8 @@ const logNotificationPaymentImpl = async ({
       originalAmount: original?.amount ?? null,
       originalCurrencyCode: original?.currencyCode ?? null,
       merchant: payment.merchant,
-      payeeId,
+      knownPayeeId: payeeDecision.kind === 'payee' ? payeeDecision.payeeId : null,
+      settlePayee,
       cardLabel: payment.cardName,
       cardLastDigits: payment.cardLastDigits,
       balanceAfter,
@@ -301,6 +301,10 @@ const logNotificationPaymentImpl = async ({
 
     return { kind: 'logged', transactionId: attached.transactionId, attached: true };
   }
+
+  const payeeId = await settlePayee();
+  const historyCategoryId =
+    !chosenCategoryId && payeeId ? await pickHistoryCategory({ ownerUserId: userId, payeeId, asOf: time }) : null;
 
   const { transactionId } = await logIngestedPayment({
     userId,
