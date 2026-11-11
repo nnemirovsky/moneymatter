@@ -2,6 +2,7 @@ import { wallClockToInstant } from '@bt/shared/time-zone';
 import type { RecordId } from '@bt/shared/types';
 import type { Money } from '@common/types/money';
 import { normalizePayeeName } from '@services/payees/normalize-name';
+import { hasMerchantAffinity, isSameShop } from '@services/transactions/planned-matching/card-payment-tolerance';
 
 import { dedupConfig } from './constants';
 import { bankSlot, type IngestSlot } from './source-slots';
@@ -49,6 +50,11 @@ export interface DedupCandidate {
 export interface DedupIncoming {
   time: Date;
   slot: IngestSlot;
+  /**
+   * The slots of the requests that joined this one as its twins while it waited (a bank push that joined Wallet's
+   * request): the payment arrives with them, so a row that holds any of them already is another payment.
+   */
+  heldSlots?: readonly IngestSlot[];
   sourceKey: string | null;
   stage: string | null;
   figures: readonly Figure[];
@@ -71,9 +77,42 @@ const sameMerchantText = ({ left, right }: { left: string | null; right: string 
 };
 
 /**
+ * Whether an incoming source names the same shop as a logged row, for the twin rule:
+ *
+ * - an incoming text that names no merchant cannot tell shops apart, so it does not veto;
+ * - two payees that both existed before (`DedupIncoming.payeeId` is never one the source just created) settle it;
+ * - otherwise the merchant texts decide, in either direction: the row's names against the incoming text, or the
+ *   incoming text against the row's names. Wallet and a bank describe one shop differently ("Pharmadepot, Batumi,
+ *   Adjara" and "Pharmadepot 300"), and which of the two is the row depends only on which arrived first.
+ *
+ * Planned matching keeps its one-way check (`isSameShop`); only two sources of one payment are compared both ways.
+ */
+export const isTwinShop = ({
+  candidate,
+  incoming,
+}: {
+  candidate: DedupCandidate;
+  incoming: DedupIncoming;
+}): boolean => {
+  const { merchant } = incoming;
+  if (merchant === null) return true;
+
+  const forward = isSameShop({
+    planNames: [...candidate.names],
+    planPayeeId: candidate.payeeId,
+    incomingText: merchant,
+    incomingPayeeId: incoming.payeeId,
+  });
+  if (forward || (candidate.payeeId && incoming.payeeId)) return forward;
+
+  return candidate.names.some((name) => hasMerchantAffinity({ planNames: [merchant], incomingText: name }));
+};
+
+/**
  * Tier-1 exact twin: the row an incoming source of the same payment joins. All of these must hold:
  *
- * - a free slot (a row holds one request per slot, so a second Wallet notification is a second payment);
+ * - a free slot (a row holds one request per slot, so a second Wallet notification is a second payment), and free
+ *   slots for the twins that joined the incoming request while it waited;
  * - the same amount and currency, or the same charged (original) amount and currency;
  * - within `dedupConfig.twinWindowMs`;
  * - the same shop: the merchant text both sources printed is the same, or `sameShop` agrees (the rows' names
@@ -96,7 +135,7 @@ export const pickTwin = ({
     .toSorted(byTime)
     .find(
       (candidate) =>
-        !candidate.takenSlots.includes(incoming.slot) &&
+        ![incoming.slot, ...(incoming.heldSlots ?? [])].some((slot) => candidate.takenSlots.includes(slot)) &&
         Math.abs(candidate.time.getTime() - incoming.time.getTime()) <= dedupConfig.twinWindowMs &&
         sharesFigure({ left: candidate.figures, right: incoming.figures }) &&
         (sameMerchantText({ left: candidate.merchant, right: incoming.merchant }) || sameShop({ candidate })),

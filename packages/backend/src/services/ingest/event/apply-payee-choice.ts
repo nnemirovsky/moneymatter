@@ -107,16 +107,21 @@ export const decidePayeeChoice = async ({
   return { kind: 'named', name: choice.name, normalizedName, fallbackMerchant };
 };
 
+const logPayeeFailure = ({ requestId, error }: { requestId: RecordId; error: unknown }): void => {
+  logger.error(
+    {
+      message: 'Failed to apply the payee choice of a notification; continuing without a payee',
+      error: error instanceof Error ? error : new Error(String(error)),
+    },
+    { requestId },
+  );
+};
+
 /**
- * Settles the payee of a notification payment as `decidePayeeChoice` decides it, writing the payee it creates.
- *
- * Every step after the exact lookup only suggests: the merchant's spelling becomes an alias of the
- * payee once the owner confirms or corrects it on the confirm card (`learnPayeeCorrection`).
- *
- * Best effort: a failure writing the payee is logged and leaves the payment without a payee; it never
- * fails the payment. The writes run in savepoints, so the caller's transaction stays usable.
+ * `decidePayeeChoice`, best effort: a failure is logged and decides no payee, so it never fails the payment. Runs in a
+ * savepoint, so the caller's transaction stays usable.
  */
-export const applyPayeeChoice = async ({
+export const decideNotificationPayee = async ({
   userId,
   requestId,
   rawMerchant,
@@ -127,9 +132,35 @@ export const applyPayeeChoice = async ({
   /** The merchant exactly as the notification prints it. */
   rawMerchant: string | null;
   choice: ParsedPayment['payee'];
+}): Promise<PayeeChoiceDecision> => {
+  try {
+    return await runInSavepoint(() => decidePayeeChoice({ userId, rawMerchant, choice }));
+  } catch (error) {
+    logPayeeFailure({ requestId, error });
+
+    return { kind: 'none' };
+  }
+};
+
+/**
+ * Carries out a payee decision, writing the payee it creates (a merchant's closest fuzzy match is only read).
+ *
+ * Every step after the exact lookup only suggests: the merchant's spelling becomes an alias of the
+ * payee once the owner confirms or corrects it on the confirm card (`learnPayeeCorrection`).
+ *
+ * Best effort: a failure writing the payee is logged and leaves the payment without a payee; it never
+ * fails the payment. The writes run in savepoints, so the caller's transaction stays usable.
+ */
+export const carryOutPayeeDecision = async ({
+  userId,
+  requestId,
+  decision,
+}: {
+  userId: number;
+  requestId: RecordId;
+  decision: PayeeChoiceDecision;
 }): Promise<string | null> => {
   try {
-    const decision = await runInSavepoint(() => decidePayeeChoice({ userId, rawMerchant, choice }));
     const fromMerchant = (merchant: string) =>
       runInSavepoint(() => resolveUnmatchedMerchant({ userId, rawMerchant: merchant }));
 
@@ -147,14 +178,27 @@ export const applyPayeeChoice = async ({
         return null;
     }
   } catch (error) {
-    logger.error(
-      {
-        message: 'Failed to apply the payee choice of a notification; continuing without a payee',
-        error: error instanceof Error ? error : new Error(String(error)),
-      },
-      { requestId },
-    );
+    logPayeeFailure({ requestId, error });
 
     return null;
   }
 };
+
+/** Settles the payee of a notification payment as `decidePayeeChoice` decides it, writing the payee it creates. */
+export const applyPayeeChoice = async ({
+  userId,
+  requestId,
+  rawMerchant,
+  choice,
+}: {
+  userId: number;
+  requestId: RecordId;
+  /** The merchant exactly as the notification prints it. */
+  rawMerchant: string | null;
+  choice: ParsedPayment['payee'];
+}): Promise<string | null> =>
+  carryOutPayeeDecision({
+    userId,
+    requestId,
+    decision: await decideNotificationPayee({ userId, requestId, rawMerchant, choice }),
+  });

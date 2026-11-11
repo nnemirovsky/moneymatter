@@ -1,14 +1,20 @@
 import { TRANSACTION_TYPES, type RecordId } from '@bt/shared/types';
 import { findTransactions } from '@models/transactions-query';
 import type Transactions from '@models/transactions.model';
-import { isSameShop } from '@services/transactions/planned-matching/card-payment-tolerance';
 import { loadPlanNames } from '@services/transactions/planned-matching/find-planned-match';
 import { Op, literal } from 'sequelize';
 
 import { findCardRows } from '../resolve-card-account';
 import { dedupConfig } from './constants';
 import { readTakenSlots } from './source-slots';
-import { figuresOfRow, pickSettlementTarget, pickTwin, type DedupCandidate, type DedupIncoming } from './twin-rule';
+import {
+  figuresOfRow,
+  isTwinShop,
+  pickSettlementTarget,
+  pickTwin,
+  type DedupCandidate,
+  type DedupIncoming,
+} from './twin-rule';
 
 /** Rows read per lookup; an account holds a handful of ingest rows inside the widest window. */
 const CANDIDATE_LIMIT = 100;
@@ -115,18 +121,7 @@ export const findDedupTarget = async ({
   const settlement = pickSettlementTarget({ candidates, incoming });
   if (settlement) return { transaction: byId.get(settlement.id)!, rule: 'settlement' };
 
-  const twin = pickTwin({
-    candidates,
-    incoming,
-    sameShop: ({ candidate }) =>
-      incoming.merchant === null ||
-      isSameShop({
-        planNames: [...candidate.names],
-        planPayeeId: candidate.payeeId,
-        incomingText: incoming.merchant,
-        incomingPayeeId: incoming.payeeId,
-      }),
-  });
+  const twin = pickTwin({ candidates, incoming, sameShop: ({ candidate }) => isTwinShop({ candidate, incoming }) });
 
   return twin ? { transaction: byId.get(twin.id)!, rule: 'twin' } : null;
 };

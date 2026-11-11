@@ -356,6 +356,73 @@ describe('twin and settlement rules', () => {
     });
   });
 
+  describe('a new shop that Wallet and the bank name differently', () => {
+    const WALLET_MERCHANT = 'Pharmadepot, Batumi, Adjara';
+    const BANK_MERCHANT = 'Pharmadepot 300';
+
+    const sendWallet = ({ secret, noon, seconds }: { secret: string; noon: Date; seconds: number }) =>
+      ingestHelpers.postIngestEvent({
+        secret,
+        body: {
+          kind: 'notification',
+          app: 'Wallet',
+          title: woltOnlinePayment.wallet.title,
+          subtitle: WALLET_MERCHANT,
+          body: 'CHF 29.41',
+          time: timeOf({ noon, seconds }),
+          idempotencyKey: `wallet-${randomUUID()}`,
+        },
+      });
+
+    const sendBank = ({ secret, noon, seconds }: { secret: string; noon: Date; seconds: number }) =>
+      ingestHelpers.postIngestEvent({
+        secret,
+        body: {
+          kind: 'notification',
+          app: 'Bank of Georgia',
+          title: 'BOG',
+          subtitle: '',
+          body: `Purchase 29.41 CHF, ${BANK_MERCHANT}, card *0000`,
+          time: timeOf({ noon, seconds }),
+          idempotencyKey: `bank-${randomUUID()}`,
+        },
+      });
+
+    it.each<{ first: 'wallet' | 'bank' }>([{ first: 'wallet' }, { first: 'bank' }])(
+      'gives one row and one payee when the $first source arrives first',
+      async ({ first }) => {
+        mockNotificationParsing({
+          answer: () => ({
+            kind: 'debit',
+            amount: '29.41',
+            currency: 'CHF',
+            merchant: BANK_MERCHANT,
+            cardLastDigits: '0000',
+          }),
+        });
+        const { secret, noon } = await setUp();
+
+        if (first === 'wallet') {
+          await sendWallet({ secret, noon, seconds: 0 });
+          const second = await sendBank({ secret, noon, seconds: 60 });
+          expect(second.body.response.outcome).toBe('attached');
+        } else {
+          await sendBank({ secret, noon, seconds: 0 });
+          const second = await sendWallet({ secret, noon, seconds: 60 });
+          expect(second.body.response.outcome).toBe('attached');
+        }
+
+        const rows = await allRows();
+        expect(rows).toHaveLength(1);
+
+        // The source that joined the row leaves no payee of its own behind.
+        const payees = await helpers.listPayees({ raw: true });
+        expect(payees).toHaveLength(1);
+        expect(rows[0]!.payeeId).toBe(payees[0]!.id);
+      },
+    );
+  });
+
   describe('what is not the same payment', () => {
     it('keeps another shop with the same amount apart', async () => {
       mockNotificationParsing({
