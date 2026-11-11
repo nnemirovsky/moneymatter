@@ -585,13 +585,20 @@
           "monthly": "Щомісяця",
           "quarterly": "Щокварталу",
           "semi_annual": "Раз на пів року",
-          "annual": "Щороку"
+          "annual": "Щороку",
+          "custom": "Інша"
         },
         "mode": {
           "approved": "Підтвердити як джерело платежів",
           "muted": "Вимкнути",
           "context": "Лише контекст",
           "pending": "в очікуванні підтвердження"
+        },
+        "intervalUnit": {
+          "day": "Дні",
+          "week": "Тижні",
+          "month": "Місяці",
+          "year": "Роки"
         }
       },
       "ingestAlreadyConfirmed": "Цей платіж уже підтверджено.",
