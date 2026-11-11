@@ -1,4 +1,4 @@
-import { SUBSCRIPTION_FREQUENCIES, SUBSCRIPTION_TYPES, TRANSACTION_TYPES } from '@bt/shared/types';
+import { SUBSCRIPTION_FREQUENCIES, SUBSCRIPTION_INTERVAL_UNITS, SUBSCRIPTION_TYPES, TRANSACTION_TYPES } from '@bt/shared/types';
 import { recordId } from '@common/lib/zod/custom-types';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -18,8 +18,20 @@ const inputSchema = {
       SUBSCRIPTION_FREQUENCIES.quarterly,
       SUBSCRIPTION_FREQUENCIES.semiAnnual,
       SUBSCRIPTION_FREQUENCIES.annual,
+      SUBSCRIPTION_FREQUENCIES.custom,
     ])
-    .describe('Billing frequency: weekly, biweekly, monthly, quarterly, semi_annual, annual'),
+    .describe('Billing frequency; custom needs intervalUnit and intervalCount'),
+  intervalUnit: z
+    .enum([
+      SUBSCRIPTION_INTERVAL_UNITS.day,
+      SUBSCRIPTION_INTERVAL_UNITS.week,
+      SUBSCRIPTION_INTERVAL_UNITS.month,
+      SUBSCRIPTION_INTERVAL_UNITS.year,
+    ])
+    .nullable()
+    .optional()
+    .describe('Custom step unit, e.g. day'),
+  intervalCount: z.number().int().positive().nullable().optional().describe('Custom step count'),
   startDate: z.string().describe('Start date of the subscription (ISO 8601, e.g. "2024-01-01")'),
   type: z
     .enum([SUBSCRIPTION_TYPES.subscription, SUBSCRIPTION_TYPES.bill, SUBSCRIPTION_TYPES.installment])
@@ -64,7 +76,7 @@ export function registerCreateSubscription(server: McpServer) {
     'create_subscription',
     {
       description:
-        'Create a new subscription, recurring bill, or installment plan. Use type="subscription" for SaaS/streaming services, type="bill" for utilities, and type="installment" for a finite financed purchase paid off over a fixed number of payments. An installment requires maxOccurrences (number of payments) and dueDate (first payment date). expectedAmount is a decimal in the subscription currency. Requires finance:write scope.',
+        'Create a new subscription, recurring bill, or installment plan. Use type="subscription" for SaaS/streaming services, type="bill" for utilities, and type="installment" for a finite financed purchase. An installment requires maxOccurrences (number of payments) and dueDate (first payment date). expectedAmount is a decimal in the subscription currency. Requires finance:write scope.',
       inputSchema,
     },
     async (args, extra) => {

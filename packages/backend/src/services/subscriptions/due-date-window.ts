@@ -1,18 +1,9 @@
-import { SUBSCRIPTION_FREQUENCIES } from '@bt/shared/types';
+import { resolveRecurrenceStep, type RecurrenceInput } from '@bt/shared/subscriptions/recurrence';
+import { SUBSCRIPTION_INTERVAL_UNITS } from '@bt/shared/types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-const MONTH_STEP: Partial<Record<SUBSCRIPTION_FREQUENCIES, number>> = {
-  [SUBSCRIPTION_FREQUENCIES.monthly]: 1,
-  [SUBSCRIPTION_FREQUENCIES.quarterly]: 3,
-  [SUBSCRIPTION_FREQUENCIES.semiAnnual]: 6,
-  [SUBSCRIPTION_FREQUENCIES.annual]: 12,
-};
-
-const DAY_STEP: Partial<Record<SUBSCRIPTION_FREQUENCIES, number>> = {
-  [SUBSCRIPTION_FREQUENCIES.weekly]: 7,
-  [SUBSCRIPTION_FREQUENCIES.biweekly]: 14,
-};
+const DAYS_PER_WEEK = 7;
+const MONTHS_PER_YEAR = 12;
 
 const utcDayNumber = ({ date }: { date: Date }): number =>
   Math.floor(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) / DAY_MS);
@@ -26,33 +17,39 @@ const dueDayNumberInMonth = ({ year, month, anchorDay }: { year: number; month: 
 
 /**
  * How many days the transaction's day lies from the nearest due date of the schedule that starts at
- * `dueDate` and repeats by `frequency` (month-end clamped to `anchorDay`). Both sides count UTC days,
+ * `dueDate` and repeats by its recurrence step (month-end clamped to `anchorDay`). Both sides count UTC days,
  * the way `period-match-window` does. The rule is checked against the schedule, not against stored
  * periods, so the historical suggester can evaluate it without reading periods.
  */
 export const daysFromSchedule = ({
   transactionTime,
   dueDate,
-  frequency,
   anchorDay,
-}: {
+  frequency,
+  intervalUnit,
+  intervalCount,
+}: RecurrenceInput & {
   transactionTime: Date;
   dueDate: string;
-  frequency: SUBSCRIPTION_FREQUENCIES;
   anchorDay: number;
 }): number => {
   const txDay = utcDayNumber({ date: transactionTime });
   const reference = new Date(dueDate + 'T00:00:00Z');
 
-  const dayStep = DAY_STEP[frequency];
+  const step = resolveRecurrenceStep({ frequency, intervalUnit, intervalCount });
+  const dayStep =
+    step.unit === SUBSCRIPTION_INTERVAL_UNITS.day
+      ? step.count
+      : step.unit === SUBSCRIPTION_INTERVAL_UNITS.week
+        ? step.count * DAYS_PER_WEEK
+        : null;
   if (dayStep) {
     const offset = txDay - utcDayNumber({ date: reference });
     const remainder = ((offset % dayStep) + dayStep) % dayStep;
     return Math.min(remainder, dayStep - remainder);
   }
 
-  const monthStep = MONTH_STEP[frequency];
-  if (!monthStep) throw new Error(`Unknown frequency: ${frequency}`);
+  const monthStep = step.unit === SUBSCRIPTION_INTERVAL_UNITS.year ? step.count * MONTHS_PER_YEAR : step.count;
 
   const monthsFromReference =
     (transactionTime.getUTCFullYear() - reference.getUTCFullYear()) * 12 +
@@ -77,7 +74,7 @@ export const isWithinDaysOfDueDate = ({
 }: {
   transactionTime: Date;
   days: number;
-  subscription: { dueDate: string | null; anchorDay: number | null; frequency: SUBSCRIPTION_FREQUENCIES };
+  subscription: RecurrenceInput & { dueDate: string | null; anchorDay: number | null };
 }): boolean => {
   if (!subscription.dueDate) return false;
   const anchorDay = subscription.anchorDay ?? new Date(subscription.dueDate + 'T00:00:00Z').getUTCDate();
@@ -86,6 +83,8 @@ export const isWithinDaysOfDueDate = ({
       transactionTime,
       dueDate: subscription.dueDate,
       frequency: subscription.frequency,
+      intervalUnit: subscription.intervalUnit,
+      intervalCount: subscription.intervalCount,
       anchorDay,
     }) <= days
   );

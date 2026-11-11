@@ -278,7 +278,9 @@
       "year": "Рік",
       "zeroSum": "Бюджет з нульовим залишком",
       "filename": "Назва файлу",
-      "notificationSource": "Джерело"
+      "notificationSource": "Джерело",
+      "intervalUnit": "Одиниця повтору",
+      "intervalCount": "Повторювати кожні"
     },
     "entities": {
       "transaction": "транзакція",
@@ -583,13 +585,20 @@
           "monthly": "Щомісяця",
           "quarterly": "Щокварталу",
           "semi_annual": "Раз на пів року",
-          "annual": "Щороку"
+          "annual": "Щороку",
+          "custom": "Інша"
         },
         "mode": {
           "approved": "Підтвердити як джерело платежів",
           "muted": "Вимкнути",
           "context": "Лише контекст",
           "pending": "в очікуванні підтвердження"
+        },
+        "intervalUnit": {
+          "day": "Дні",
+          "week": "Тижні",
+          "month": "Місяці",
+          "year": "Роки"
         }
       },
       "ingestAlreadyConfirmed": "Цей платіж уже підтверджено.",

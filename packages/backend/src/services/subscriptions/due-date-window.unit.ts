@@ -1,4 +1,4 @@
-import { SUBSCRIPTION_FREQUENCIES } from '@bt/shared/types';
+import { SUBSCRIPTION_FREQUENCIES, SUBSCRIPTION_INTERVAL_UNITS } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
 
 import { daysFromSchedule, isWithinDaysOfDueDate } from './due-date-window';
@@ -58,6 +58,44 @@ describe('daysFromSchedule', () => {
         anchorDay: 1,
       }),
     ).toBe(3);
+  });
+});
+
+describe('daysFromSchedule with a custom interval', () => {
+  it('steps a day interval from the due date', () => {
+    const args = {
+      dueDate: '2025-01-01',
+      frequency: SUBSCRIPTION_FREQUENCIES.custom,
+      intervalUnit: SUBSCRIPTION_INTERVAL_UNITS.day,
+      intervalCount: 30,
+      anchorDay: 1,
+    };
+    expect(daysFromSchedule({ transactionTime: at('2025-03-02'), ...args })).toBe(0);
+    expect(daysFromSchedule({ transactionTime: at('2025-03-01'), ...args })).toBe(1);
+    expect(daysFromSchedule({ transactionTime: at('2025-03-17'), ...args })).toBe(15);
+  });
+
+  it('steps a month interval like the matching preset', () => {
+    const custom = {
+      dueDate: '2025-01-30',
+      frequency: SUBSCRIPTION_FREQUENCIES.custom,
+      intervalUnit: SUBSCRIPTION_INTERVAL_UNITS.month,
+      intervalCount: 2,
+      anchorDay: 30,
+    };
+    expect(daysFromSchedule({ transactionTime: at('2025-03-30'), ...custom })).toBe(0);
+    expect(daysFromSchedule({ transactionTime: at('2025-02-28'), ...custom })).toBeGreaterThan(20);
+  });
+
+  it('throws for a custom frequency without a step', () => {
+    expect(() =>
+      daysFromSchedule({
+        transactionTime: at('2025-03-02'),
+        dueDate: '2025-01-01',
+        frequency: SUBSCRIPTION_FREQUENCIES.custom,
+        anchorDay: 1,
+      }),
+    ).toThrow();
   });
 });
 

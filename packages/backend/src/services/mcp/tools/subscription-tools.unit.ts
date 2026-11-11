@@ -90,6 +90,21 @@ describe.each([
     expect(schema.safeParse({ ...base, tagIds: ['nope'] }).success).toBe(false);
   });
 
+  it('accepts a custom step and rejects an unknown unit or a fractional count', () => {
+    const custom = { ...base, frequency: 'custom', intervalUnit: 'day', intervalCount: 30 };
+    expect(schema.safeParse(custom).success).toBe(true);
+    expect(schema.safeParse({ ...custom, intervalUnit: 'hour' }).success).toBe(false);
+    expect(schema.safeParse({ ...custom, intervalCount: 1.5 }).success).toBe(false);
+    expect(schema.safeParse({ ...custom, intervalCount: 0 }).success).toBe(false);
+  });
+
+  it('describes the custom frequency and its step for the agent', () => {
+    const shape = tool.config.inputSchema! as unknown as Record<string, z.ZodType>;
+    expect(shape.frequency!.description).toContain('custom');
+    expect(shape.intervalUnit!.description).toContain('day');
+    expect(shape.intervalCount!.description).toBeTruthy();
+  });
+
   it('describes the rule shapes for the agent', () => {
     const { description } = tool.config.inputSchema!.matchingRules as unknown as z.ZodType;
     expect(description).toContain('contains_any');

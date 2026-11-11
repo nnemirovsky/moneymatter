@@ -43,6 +43,8 @@ export async function transformSubscriptions({ userId }: { userId: number }): Pr
       amount: moneyToApiDecimalOrNull(sub.expectedAmount),
       currency: sub.expectedCurrencyCode ?? '',
       frequency: sub.frequency,
+      intervalUnit: sub.intervalUnit ?? '',
+      intervalCount: sub.intervalCount,
       startDate: sub.startDate ?? '',
       endDate: sub.endDate ?? '',
       category: sub.categoryId

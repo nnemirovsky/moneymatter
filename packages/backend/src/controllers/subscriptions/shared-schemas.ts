@@ -1,4 +1,7 @@
+import { SUBSCRIPTION_FREQUENCIES, SUBSCRIPTION_INTERVAL_LIMITS, SUBSCRIPTION_INTERVAL_UNITS } from '@bt/shared/types';
 import { currencyCode, ianaTimeZone, recordId } from '@common/lib/zod/custom-types';
+import { t } from '@i18n/index';
+import { findRecurrenceProblem } from '@services/subscriptions/helpers';
 import { z } from 'zod';
 
 const matchingRuleSchema = z.discriminatedUnion('field', [
@@ -82,3 +85,43 @@ export const markPeriodPaidBodySchema = z
     message: 'createTransaction and transactionId cannot be used together',
     path: ['transactionId'],
   });
+
+/** The step of a `custom` frequency: every `intervalCount` `intervalUnit`s. */
+export const recurrenceStepShape = {
+  intervalUnit: z
+    .enum(Object.values(SUBSCRIPTION_INTERVAL_UNITS) as [SUBSCRIPTION_INTERVAL_UNITS, ...SUBSCRIPTION_INTERVAL_UNITS[]])
+    .nullable()
+    .optional(),
+  intervalCount: z.number().int().min(SUBSCRIPTION_INTERVAL_LIMITS.min).nullable().optional(),
+};
+
+/**
+ * Payload-level recurrence rules. A create states the whole schedule, so every rule
+ * applies. An update may send part of it (only the count, say), so a missing step on
+ * `custom` is left to the service, which checks the merged state.
+ */
+export const refineRecurrence = ({
+  data,
+  ctx,
+  partial,
+}: {
+  data: {
+    frequency?: SUBSCRIPTION_FREQUENCIES;
+    intervalUnit?: SUBSCRIPTION_INTERVAL_UNITS | null;
+    intervalCount?: number | null;
+  };
+  ctx: z.RefinementCtx;
+  partial: boolean;
+}) => {
+  const problem = findRecurrenceProblem({
+    frequency: partial && data.frequency === SUBSCRIPTION_FREQUENCIES.custom ? undefined : data.frequency,
+    intervalUnit: data.intervalUnit,
+    intervalCount: data.intervalCount,
+  });
+  if (!problem) return;
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    message: t(problem),
+    path: [problem.key.endsWith('countOutOfRange') ? 'intervalCount' : 'intervalUnit'],
+  });
+};

@@ -278,7 +278,9 @@
       "year": "Year",
       "zeroSum": "Zero-sum budget",
       "filename": "File name",
-      "notificationSource": "Source"
+      "notificationSource": "Source",
+      "intervalUnit": "Repeat unit",
+      "intervalCount": "Repeat every"
     },
     "entities": {
       "transaction": "transaction",
@@ -583,13 +585,20 @@
           "monthly": "Monthly",
           "quarterly": "Quarterly",
           "semi_annual": "Every 6 months",
-          "annual": "Yearly"
+          "annual": "Yearly",
+          "custom": "Custom"
         },
         "mode": {
           "approved": "Approve as a payment source",
           "muted": "Mute",
           "context": "Context only",
           "pending": "waiting for approval"
+        },
+        "intervalUnit": {
+          "day": "Days",
+          "week": "Weeks",
+          "month": "Months",
+          "year": "Years"
         }
       },
       "ingestAlreadyConfirmed": "This payment is already confirmed.",

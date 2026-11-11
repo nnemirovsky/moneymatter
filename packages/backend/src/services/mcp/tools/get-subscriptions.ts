@@ -37,6 +37,8 @@ export function registerGetSubscriptions(server: McpServer) {
         expectedAmount: s.expectedAmount,
         expectedCurrencyCode: s.expectedCurrencyCode,
         frequency: s.frequency,
+        intervalUnit: s.intervalUnit,
+        intervalCount: s.intervalCount,
         startDate: s.startDate,
         endDate: s.endDate,
         isActive: s.isActive,
