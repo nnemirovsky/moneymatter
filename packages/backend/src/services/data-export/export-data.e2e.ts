@@ -1718,6 +1718,8 @@ describe('Data export (POST /user/data-export)', () => {
         payload: helpers.buildTransactionPayload({
           accountId: account.id,
           time: '2026-07-15T12:00:00.000Z',
+          // A create that names no zone records the stored one; `null` keeps the row without a zone.
+          timeZone: null,
           note: 'Unzoned row',
         }),
         raw: true,
