@@ -124,6 +124,30 @@ export const resolveUnmatchedMerchant = async ({
   return payee.id;
 };
 
+/** The merchant matched no payee: `resolveUnmatchedMerchant` decides, and may create one. */
+const UNMATCHED = Symbol('unmatched');
+
+/** Steps 1 to 4 of `resolveIngestPayee`: a payee that exists, `null` for none, or `UNMATCHED` when step 5 decides. */
+const knownPayeeOfMatch = ({
+  match,
+  pickedPayeeId,
+}: {
+  match: IngestMerchantMatch;
+  pickedPayeeId: string | null;
+}): string | null | typeof UNMATCHED => {
+  switch (match.kind) {
+    case 'exact':
+    case 'unique':
+      return match.payeeId;
+    case 'ignored':
+      return null;
+    case 'ambiguous':
+      return match.candidates.find((candidate) => candidate.payeeId === pickedPayeeId)?.payeeId ?? null;
+    case 'none':
+      return UNMATCHED;
+  }
+};
+
 /**
  * The payee of an automated payment, in order:
  *
@@ -161,20 +185,47 @@ export const resolveIngestPayee = async ({
 
   try {
     return await runInSavepoint(async () => {
-      const match = await matchIngestMerchant({ userId, rawMerchant: raw });
+      const known = knownPayeeOfMatch({
+        match: await matchIngestMerchant({ userId, rawMerchant: raw }),
+        pickedPayeeId,
+      });
 
-      switch (match.kind) {
-        case 'exact':
-        case 'unique':
-          return match.payeeId;
-        case 'ignored':
-          return null;
-        case 'ambiguous':
-          return match.candidates.find((candidate) => candidate.payeeId === pickedPayeeId)?.payeeId ?? null;
-        case 'none':
-          return resolveUnmatchedMerchant({ userId, rawMerchant: raw });
-      }
+      return known === UNMATCHED ? resolveUnmatchedMerchant({ userId, rawMerchant: raw }) : known;
     });
+  } catch (error) {
+    logger.error({ message: failureLogMessage, error: error as Error }, { requestId, rawMerchantName: raw });
+    return null;
+  }
+};
+
+/**
+ * The payee `resolveIngestPayee` would give the merchant when it already exists (steps 1 to 4), without
+ * writing anything; `null` when it would be a fuzzy suggestion or a new payee, or when there is none.
+ * Best effort: a failure is logged and reads as `null`.
+ */
+export const findKnownIngestPayee = async ({
+  userId,
+  requestId,
+  rawMerchant,
+  pickedPayeeId = null,
+  failureLogMessage,
+}: {
+  userId: number;
+  requestId: RecordId;
+  rawMerchant: string | null;
+  pickedPayeeId?: string | null;
+  failureLogMessage: string;
+}): Promise<string | null> => {
+  const raw = rawMerchant?.trim() ?? '';
+  if (!raw) return null;
+
+  try {
+    const known = knownPayeeOfMatch({
+      match: await runInSavepoint(() => matchIngestMerchant({ userId, rawMerchant: raw })),
+      pickedPayeeId,
+    });
+
+    return known === UNMATCHED ? null : known;
   } catch (error) {
     logger.error({ message: failureLogMessage, error: error as Error }, { requestId, rawMerchantName: raw });
     return null;
