@@ -19,7 +19,7 @@ export function registerGetSubscriptions(server: McpServer) {
     'get_subscriptions',
     {
       description:
-        'List all subscriptions and recurring bills for the user. Returns name, frequency (with intervalUnit and intervalCount for a custom one), expected amount, linked account/category, active state, and linked transaction count. Use isActive to filter active-only.',
+        'List all subscriptions and recurring bills for the user. Returns name, frequency, expected amount, linked account/category, active state, and linked transaction count. Use isActive to filter active-only.',
       inputSchema,
     },
     async (args, extra) => {

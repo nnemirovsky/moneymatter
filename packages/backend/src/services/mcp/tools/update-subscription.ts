@@ -22,7 +22,7 @@ const inputSchema = {
       SUBSCRIPTION_FREQUENCIES.custom,
     ])
     .optional()
-    .describe('New billing frequency; custom needs intervalUnit and intervalCount unless already custom'),
+    .describe('New billing frequency, or custom'),
   intervalUnit: z
     .enum([
       SUBSCRIPTION_INTERVAL_UNITS.day,
@@ -32,8 +32,8 @@ const inputSchema = {
     ])
     .nullable()
     .optional()
-    .describe('New unit of a custom frequency: day, week, month or year'),
-  intervalCount: z.number().int().positive().nullable().optional().describe('New count of a custom frequency (day up to 366, week 104, month 120, year 10)'),
+    .describe('Custom step unit, e.g. day'),
+  intervalCount: z.number().int().positive().nullable().optional().describe('Custom step count'),
   startDate: z.string().optional().describe('New start date (ISO 8601)'),
   type: z
     .enum([SUBSCRIPTION_TYPES.subscription, SUBSCRIPTION_TYPES.bill, SUBSCRIPTION_TYPES.installment])

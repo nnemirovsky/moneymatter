@@ -20,7 +20,7 @@ const inputSchema = {
       SUBSCRIPTION_FREQUENCIES.annual,
       SUBSCRIPTION_FREQUENCIES.custom,
     ])
-    .describe('Billing frequency: weekly, biweekly, monthly, quarterly, semi_annual, annual, or custom (with intervalUnit and intervalCount)'),
+    .describe('Billing frequency; custom needs intervalUnit and intervalCount'),
   intervalUnit: z
     .enum([
       SUBSCRIPTION_INTERVAL_UNITS.day,
@@ -30,8 +30,8 @@ const inputSchema = {
     ])
     .nullable()
     .optional()
-    .describe('Unit of a custom frequency: day, week, month or year'),
-  intervalCount: z.number().int().positive().nullable().optional().describe('Every N units of a custom frequency (day up to 366, week 104, month 120, year 10)'),
+    .describe('Custom step unit, e.g. day'),
+  intervalCount: z.number().int().positive().nullable().optional().describe('Custom step count'),
   startDate: z.string().describe('Start date of the subscription (ISO 8601, e.g. "2024-01-01")'),
   type: z
     .enum([SUBSCRIPTION_TYPES.subscription, SUBSCRIPTION_TYPES.bill, SUBSCRIPTION_TYPES.installment])
@@ -76,7 +76,7 @@ export function registerCreateSubscription(server: McpServer) {
     'create_subscription',
     {
       description:
-        'Create a new subscription, recurring bill, or installment plan. Use type="subscription" for SaaS/streaming services, type="bill" for utilities, and type="installment" for a finite financed purchase paid off over a fixed number of payments. An installment requires maxOccurrences (number of payments) and dueDate (first payment date). For a schedule no preset fits (e.g. every 30 days), use frequency="custom" with intervalUnit and intervalCount. expectedAmount is a decimal in the subscription currency. Requires finance:write scope.',
+        'Create a new subscription, recurring bill, or installment plan. Use type="subscription" for SaaS/streaming services, type="bill" for utilities, and type="installment" for a finite financed purchase. An installment requires maxOccurrences (number of payments) and dueDate (first payment date). expectedAmount is a decimal in the subscription currency. Requires finance:write scope.',
       inputSchema,
     },
     async (args, extra) => {
