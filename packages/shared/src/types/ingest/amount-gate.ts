@@ -45,8 +45,9 @@ const NOT_AFTER_LETTER = String.raw`(?<!\p{L})`;
 
 const CODE = `${NOT_AFTER_LETTER}(?:${ISO_CURRENCY_CODES.join('|')})${NOT_PART_OF_WORD_AFTER}`;
 
-// Symbols that are not letters stand alone; the letter symbols need word boundaries.
-const SYMBOL = String.raw`[₾€£₴₽₺₹₸₪₩₫₦₱₼֏฿$¥]|${NOT_PART_OF_WORD_BEFORE}(?i:zł|kč|kr)${NOT_PART_OF_WORD_AFTER}`;
+// Symbols that are not letters stand alone; the letter symbols need word boundaries. The rupiah's `Rp` is written
+// against the number (`Rp59.900`), so only a letter after it makes it part of a word.
+const SYMBOL = String.raw`[₾€£₴₽₺₹₸₪₩₫₦₱₼֏฿$¥]|${NOT_PART_OF_WORD_BEFORE}(?i:zł|kč|kr)${NOT_PART_OF_WORD_AFTER}|${NOT_PART_OF_WORD_BEFORE}(?i:rp)(?!\p{L})`;
 
 // Currency names in Latin, Cyrillic and Georgian script. The endings of the Cyrillic and Georgian
 // stems are open (`\p{L}*`) because the words inflect.
@@ -84,6 +85,7 @@ const WORD = [
     'rubles?',
     'roubles?',
     'hryvnias?',
+    'rupiah',
   ].join('|'),
   `)${NOT_PART_OF_WORD_AFTER}`,
 ].join('');
@@ -143,12 +145,16 @@ export const AMOUNT_GATE_SAMPLES: readonly AmountGateSample[] = [
   { text: 'Оплата 250 zł Żabka', minLevel: 'strict' },
   { text: 'Received USD 1000 from John', minLevel: 'strict' },
   { text: 'Payment\n43.60EUR\nExample Store', minLevel: 'strict' },
+  { text: 'Payment successful\nYou just paid Rp59.900 to Example Store using GoPay Saldo.', minLevel: 'strict' },
+  { text: 'Transfer Rp 1.250.000 berhasil', minLevel: 'strict' },
   // Local currency words and a little punctuation between the number and the mark.
   { text: 'გადახდა: 43.60 ლარი', minLevel: 'standard' },
   { text: 'Оплата 120 рублей в магазине', minLevel: 'standard' },
   { text: 'Списання 250 грн, Сільпо', minLevel: 'standard' },
   { text: 'Paid 12.50 dollars', minLevel: 'standard' },
   { text: 'Total: (GEL) 43.60', minLevel: 'standard' },
+  { text: 'Pembayaran 59.900 rupiah', minLevel: 'standard' },
+  { text: 'Total Rp. 59.900', minLevel: 'standard' },
   // A two-decimal number with no currency.
   { text: 'Purchase at Wolt 43.60', minLevel: 'loose' },
   { text: 'Balance: 1 234,56', minLevel: 'loose' },
@@ -160,6 +166,7 @@ export const AMOUNT_GATE_SAMPLES: readonly AmountGateSample[] = [
   { text: 'See you on 20.10.2026 at 14:30', minLevel: null },
   { text: 'Version 1.2.3 is out', minLevel: null },
   { text: 'Order #4521 has shipped', minLevel: null },
+  { text: 'Sharp 2024 TV and RPG 7 are in stock', minLevel: null },
   { text: 'Hey, are we still on for dinner tonight?', minLevel: null },
   { text: 'Привіт! Як справи?', minLevel: null },
 ];
