@@ -9,9 +9,9 @@ import { decidePayeeChoice } from './apply-payee-choice';
 import type { StoredPayment } from './stored-parse';
 
 /** Where the category of a logged payment comes from, in the order the logging path tries them. */
-export type PaymentCategorySource = 'payeeRule' | 'history' | 'default';
+type PaymentCategorySource = 'payeeRule' | 'history' | 'default';
 
-export interface PaymentDetailsPreview {
+interface PaymentDetailsPreview {
   /** The payee the payment gets; `id: null` is a new payee approving creates under `name`. */
   payee: { id: string | null; name: string } | null;
   categoryId: string;
